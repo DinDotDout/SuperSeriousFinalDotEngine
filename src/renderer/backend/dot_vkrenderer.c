@@ -22,7 +22,7 @@ internal VKAPI_ATTR u32 VKAPI_CALL DOT_VkDebugCallback(
     void* user_data) {
     Unused(message_type); Unused(user_data);
     if (message_severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
-        DOT_PRINT_DEBUG("validation layer: %s\n", callback_data->pMessage);
+        DOT_PRINT("validation layer: %s\n", callback_data->pMessage);
     }
     return VK_FALSE;
 }
@@ -58,7 +58,7 @@ internal inline bool DOT_VkDeviceAllRequiredExtensions(VkPhysicalDevice device){
     for EachElement(i, dot_renderer_backend_device_extension_names){
         for EachIndex(j, extension_count){
             if (strcmp(dot_renderer_backend_device_extension_names[i], available_extensions[j].extensionName) == 0){
-                DOT_PRINT_DEBUG("found %s", dot_renderer_backend_device_extension_names[i]);
+                DOT_PRINT("found %s", dot_renderer_backend_device_extension_names[i]);
                 found = true;
                 break;
             }
@@ -84,7 +84,7 @@ internal inline DOT_CandidateDeviceInfo DOT_VkPickBestDevice(VkInstance instance
 
     array(VkPhysicalDevice) devices = PushArray(temp.arena, VkPhysicalDevice, device_count);
     vkEnumeratePhysicalDevices(instance, &device_count, devices);
-    DOT_PRINT_DEBUG("device count %i", device_count);
+    DOT_PRINT("device count %i", device_count);
 
     DOT_CandidateDeviceInfo best_device = {0};
     best_device.score = -1;
@@ -137,7 +137,7 @@ internal inline DOT_CandidateDeviceInfo DOT_VkPickBestDevice(VkInstance instance
         if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) score += 2000;
        // if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) score += 100;
         if (feats.geometryShader) score += 10;
-        DOT_PRINT_DEBUG("graphics family: %d\npresent family: %i\nscore: %i\n", graphics_idx, present_idx, score);
+        DOT_PRINT("graphics family: %d\npresent family: %i\nscore: %i\n", graphics_idx, present_idx, score);
         if (score > best_device.score) {
             best_device.gpu = dev;
             best_device.graphics_family = cast(u16)graphics_idx;
@@ -150,7 +150,7 @@ internal inline DOT_CandidateDeviceInfo DOT_VkPickBestDevice(VkInstance instance
     if (best_device.score < 0) {
         DOT_ERROR("No suitable GPU found");
     }
-    DOT_PRINT_DEBUG("best_device  graphics family: %d\npresent family: %i\nscore: %i\n", best_device.graphics_family, best_device.present_family, best_device.score);
+    DOT_PRINT("best_device  graphics family: %d\npresent family: %i\nscore: %i\n", best_device.graphics_family, best_device.present_family, best_device.score);
     TempArena_Restore(&temp);
     return best_device;
 }
@@ -167,7 +167,7 @@ internal inline bool DOT_VkAllLayers(){
         found = false;
         for EachIndex(j, layer_count){
             if (strcmp(dot_vk_layers[i], available_layers[j].layerName) == 0){
-                DOT_PRINT_DEBUG("found %s\n", dot_vk_layers[i]);
+                DOT_PRINT("found %s\n", dot_vk_layers[i]);
                 found = true;
                 break;
             }

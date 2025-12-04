@@ -48,17 +48,26 @@
 //
 // Debug
 //
-#ifdef DOT_COMPILER_MSVC
+#if defined(DOT_COMPILER_MSVC)
 #define DEBUG_BREAK __debugbreak()
-#elif DOT_COMPILER_GCC
+#elif defined(DOT_COMPILER_GCC)
 #include <signal.h>
 #define DEBUG_BREAK raise(SIGTRAP)
-#elif DOT_COMPILER_CLANG
+#elif defined(DOT_COMPILER_CLANG)
 #define DEBUG_BREAK __builtin_debugtrap()
 #else
 #define DEBUG_BREAK ((void)0) // Fallback: no-op
 #endif
 
+////////////////////////////////////////////////////////////////
+//
+// String concat
+//
+#define DOT_STR_HELPER(x) #x
+#define DOT_STR(x) DOT_STR_HELPER(x)
+
+#define DOT_CONCAT(x, y) x ## y
+#define DOT_CONCAT_EXPAND(x, y) DOT_CONCAT(x, y)
 
 ////////////////////////////////////////////////////////////////
 //
@@ -67,56 +76,105 @@
 #define DEBUG_LOC_ARG __FILE__, __LINE__
 #define DEBUG_LOC_FMT "%s:%d"
 
+
 ////////////////////////////////////////////////////////////////
 //
-// Debug
+// Static Debug
 //
-
-
-#define DOT_STR_HELPER(x) #x
-#define DOT_STR(x) DOT_STR_HELPER(x)
-
-#define DOT_CONCAT(x, y) x ## y
-#define DOT_CONCAT_EXPAND(x, y) DOT_CONCAT(x, y)
-
 #define DOT_STATIC_ASSERT(x) \
 typedef int DOT_CONCAT_EXPAND(DOT_STATIC_ASSERT_, __COUNTER__) [(x) ? 1 : -1]
 
-
-// void PrintDebug(FILE* out, const char* file, int line, const char* fmt, ...){
-// void PrintDebug(FILE* out, const char* fmt, ...){
-//     va_list args;
-//     va_start(args, fmt);
-//     vfprintf(out, fmt,args);
-//     va_end(args);
-// }
+////////////////////////////////////////////////////////////////
 //
+// Debug utils
+//
+
+#if defined(DOT_COMPILER_MSVC)
+  #include <sal.h>
+  #define PRINTF_LIKE(fmtpos, argpos) 
+  #define PRINTF_STRING _Printf_format_string_
+#elif defined(DOT_COMPILER_GCC) || defined(DOT_COMPILER_CLANG)
+  #define PRINTF_LIKE(fmtpos, argpos) __attribute__((format(printf, fmtpos, argpos)))
+  #define PRINTF_STRING
+#else
+  #define PRINTF_LIKE(fmtpos, argpos)
+  #define PRINTF_STRING
+#endif
 
 typedef enum PrintDebugKind{
     PRINT_DEBUG_DEBUG,
+    PRINT_DEBUG_ASSERT,
     PRINT_DEBUG_ERROR,
     PRINT_DEBUG_WARNING,
     PRINT_DEBUG_COUNT,
 }PrintDebugKind;
 
 global const char* print_debug_str[] = {
+    [PRINT_DEBUG_DEBUG]     = "",
+    [PRINT_DEBUG_ASSERT]    = "Assertion failed",
     [PRINT_DEBUG_ERROR]     = "Error",
-    [PRINT_DEBUG_DEBUG]     = "Debug",
     [PRINT_DEBUG_WARNING]   = "Warning",
 };
+DOT_STATIC_ASSERT(PRINT_DEBUG_COUNT == ArrayCount(print_debug_str));
 
 typedef struct PrintDebugParams{
     PrintDebugKind print_debug_kind;
-    FILE* out;
     const char* file;
-    int line;
+    u32 line;
 }PrintDebugParams;
 
-#if defined(__GNUC__) || defined(__clang__)
-#  define PRINTF_LIKE(fmtpos, argpos) __attribute__((format(printf, fmtpos, argpos)))
+
+internal inline void PrintDebug(const PrintDebugParams* params, PRINTF_STRING const char* fmt, ...) PRINTF_LIKE(2, 3);
+
+#define PrintDebugParamsDefault(...) \
+&(PrintDebugParams) { \
+    .print_debug_kind = PRINT_DEBUG_DEBUG, \
+    .file = __FILE__, \
+    .line = __LINE__, \
+    __VA_ARGS__}
+
+// --- Error Macros ---
+#define DOT_ERROR_IMPL(params, ...) \
+do { \
+    PrintDebug(params, __VA_ARGS__); \
+    DEBUG_BREAK; \
+    abort(); \
+} while(0)
+
+#define DOT_ERROR(...) DOT_ERROR_IMPL(PrintDebugParamsDefault(.print_debug_kind = PRINT_DEBUG_ERROR), __VA_ARGS__)
+#define DOT_ERROR_FL(f, l, ...) DOT_ERROR_IMPL(PrintDebugParamsDefault(.print_debug_kind = PRINT_DEBUG_ERROR, .file = (f), .line = (l)), __VA_ARGS__)
+#define TODO(msg) \
+do { \
+    PrintDebug(PrintDebugParamsDefault(.print_debug_kind = PRINT_DEBUG_ERROR), "TODO: %s", msg); \
+    abort(); \
+} while(0)
+
+#ifndef NDEBUG
+// --- Printing Macros ---
+#define DOT_PRINT(...) PrintDebug(PrintDebugParamsDefault(), __VA_ARGS__)
+#define DOT_PRINT_FL(f, l, ...) PrintDebug(PrintDebugParamsDefault(.file = (f), .line = (l)), __VA_ARGS__)
+#define DOT_WARNING(...) PrintDebug(PrintDebugParamsDefault(.print_debug_kind = PRINT_DEBUG_WARNING), __VA_ARGS__)
+#define DOT_WARNING_FL(f, l, ...) PrintDebug(PrintDebugParamsDefault(.file = (f), .line = (l), .print_debug_kind = PRINT_DEBUG_WARNING), __VA_ARGS__)
+// --- Assertion Macros ---
+// WARN: "##" allows us to not have and fmt but uses an extension
+#define DOT_ASSERT_IMPL(cond, params, fmt, ...) \
+do { \
+    if (!(cond)) { \
+        PrintDebug(params, "%s " fmt, #cond, ##__VA_ARGS__); \
+        DEBUG_BREAK; \
+    } \
+} while(0)
+#define DOT_ASSERT(cond, ...) DOT_ASSERT_IMPL((cond), PrintDebugParamsDefault(.print_debug_kind = PRINT_DEBUG_ASSERT), __VA_ARGS__)
+#define DOT_ASSERT_FL(cond, f, l, ...) DOT_ASSERT_IMPL((cond), PrintDebugParamsDefault(.print_debug_kind = PRINT_DEBUG_ASSERT, .file = f, .line = l), __VA_ARGS__)
 #else
-#  define PRINTF_LIKE(fmtpos, argpos)
+#define DOT_PRINT(...) ((void)0)
+#define DOT_PRINT_FL(f, l, ...) ((void)0)
+#define DOT_WARNING(...) ((void)0)
+#define DOT_WARNING_FL(f, l, ...) ((void)0)
+#define DOT_ASSERT(...) ((void)0)
+#define DOT_ASSERT_FL(...) ((void)0)
 #endif
+
 
 internal inline const char* PrintDebugKind_GetString(PrintDebugKind debug_kind){
     DOT_ASSERT(debug_kind < PRINT_DEBUG_COUNT);
@@ -125,81 +183,22 @@ internal inline const char* PrintDebugKind_GetString(PrintDebugKind debug_kind){
     return ret;
 }
 
-#define MAX_DEBUG_PRINT_LENGTH 128
-internal inline void PrintDebug(const PrintDebugParams* params, const char* fmt, ...) PRINTF_LIKE(2, 3);
-internal inline void PrintDebug(const PrintDebugParams* params, const char* fmt, ...)
-{
-    char buf[MAX_DEBUG_PRINT_LENGTH];
+#define DOT_MAX_PRINT_DEBUG_LENGTH 128
+internal inline void PrintDebug(const PrintDebugParams* params, const char* fmt, ...){
+    char buf[DOT_MAX_PRINT_DEBUG_LENGTH];
     FILE* out = params->print_debug_kind == PRINT_DEBUG_DEBUG ? stdout : stderr;
-    snprintf(buf, sizeof(buf), "%s %s:%d > %s\n",
-             PrintDebugKind_GetString(params->print_debug_kind), params->file, params->line, fmt);
 
     va_list args;
     va_start(args, fmt);
-    vfprintf(out, buf, args);  // single print call
+    vsnprintf(buf, sizeof(buf), fmt, args); // TODO: Swap for stb_vsntprintf
     va_end(args);
+
+    fprintf(out, "%s %s:%d -> %s\n",
+        PrintDebugKind_GetString(params->print_debug_kind),
+        params->file,
+        params->line,
+        buf);
 }
-
-#define PrintDebugArgs(...) \
-&(PrintDebugParams) { \
-    .print_debug_kind = PRINT_DEBUG_DEBUG, \
-    .file = __FILE__, \
-    .line = __LINE__, \
-    .out = stdout, \
-    __VA_ARGS__ \
-}
-
-#define DOT_FPRINT_FL2(stdoutput, file, line, fmt, ...)                         \
-PrintDebug(stdoutput, fmt, file, line, ##__VA_ARGS__)
-
-#define DOT_FPRINT_FL(stdoutput, file, line, fmt, ...)                         \
-fprintf(stdoutput, DEBUG_LOC_FMT" " fmt " \n", file, line, ##__VA_ARGS__)
-
-#define DOT_PRINTERR_FL(file, line, fmt, ...)                                 \
-DOT_FPRINT_FL(stderr, file, line, fmt, ##__VA_ARGS__)
-
-#define DOT_PRINT_FL(file, line, fmt, ...)                      \
-DOT_FPRINT_FL(stdout, file, line, fmt, __VA_ARGS__)
-
-#define DOT_ASSERT_FMT(cond, file, line, fmt, ...)              \
-do {                                                            \
-    if (!(cond)) {                                              \
-        DOT_PRINT_FL(file, line, "Assertion failed: %s " fmt,   \
-                     #cond, ##__VA_ARGS__);                          \
-        DEBUG_BREAK;                                            \
-    }                                                           \
-} while (0)
-
-#ifdef NDEBUG
-#define DOT_ASSERT(...)((void)0)
-#define DOT_ASSERT_FL(...)((void)0)
-#define DOT_WARNING(...)((void)0)
-#define DOT_PRINT_DEBUG_FL(...)((void)0)
-#else
-#define DOT_ASSERT(condition, ...) DOT_ASSERT_FMT(condition, __FILE__, __LINE__, __VA_ARGS__)
-#define DOT_ASSERT_FL(condition, file, line, ...) DOT_ASSERT_FMT(condition, file, line, __VA_ARGS__)
-#define DOT_PRINT_DEBUG(fmt, ...) printf(fmt "\n", ##__VA_ARGS__)
-#define DOT_PRINT_DEBUG_FL(file, line, fmt, ...) DOT_FPRINT_FL(stdout, file, line, fmt, __VA_ARGS__)
-#define DOT_WARNING(fmt, ...) DOT_PRINTERR_FL(__FILE__, __LINE__, "Warning" fmt, ##__VA_ARGS__)
-#endif
-
-#define TODO(msg)                                                     \
-do {                                                                  \
-    DOT_PRINTERR_FL(__FILE__, __LINE__, "TODO: " msg);            \
-    abort();                                                      \
-} while (0)
-
-////////////////////////////////////////////////////////////////
-//
-// Print utils
-//
-#define DOT_ERROR_FL(file, line, ...)                         \
-do {                                                          \
-    DOT_PRINTERR_FL(file, line, ##__VA_ARGS__);           \
-    DEBUG_BREAK;                                          \
-    abort();                                              \
-} while(0)
-#define DOT_ERROR(...) DOT_ERROR_FL(__FILE__, __LINE__, ##__VA_ARGS__)
 
 ////////////////////////////////////////////////////////////////
 //
@@ -258,9 +257,9 @@ typedef double f64;
 // Memory
 //
 //
-#if DOT_COMPILER_MSVC
+#if defined(DOT_COMPILER_MSVC)
 #define alignof(T) __alignof(T)
-#elif DOT_COMPILER_CLANG
+#elif defined(DOT_COMPILER_CLANG)
 #define alignof(T) __alignof(T)
 #elif DOT_COMPILER_GCC
 #define alignof(T) __alignof__(T)
@@ -289,12 +288,12 @@ typedef struct Arena {
     char *name;
 } Arena;
 
-typedef struct MemoryArenaInitParams {
+typedef struct ArenaInitParams {
     u64 capacity;
     char *reserve_location;
     int reserve_line;
     char *name;
-} MemoryArenaInitParams;
+} ArenaInitParams;
 
 typedef struct MemoryArenaPushParams {
     u64 size;
@@ -319,15 +318,15 @@ internal inline void TempArena_Restore(TempArena *sa) {
     sa->arena->used = sa->prevOffset;
 }
 
-internal inline Arena Arena_CreateFromMemory_(u8* base, MemoryArenaInitParams* params) {
+internal inline Arena Arena_CreateFromMemory_(u8* base, ArenaInitParams* params) {
     DOT_ASSERT_FL(base != NULL, params->reserve_location, params->reserve_line, "Invalid memory provided");
     Arena a = {.base = base, .used = 0, .capacity = params->capacity, .name = params->name};
     return a;
 }
 
 // TODO (joan): should expand to use mmap
-internal inline Arena Arena_Alloc_(MemoryArenaInitParams *params) {
-    DOT_PRINT_DEBUG_FL(params->reserve_location, params->reserve_line, "Arena: requested %zuKB", params->capacity / 1024);
+internal inline Arena Arena_Alloc_(ArenaInitParams *params) {
+    DOT_PRINT_FL(params->reserve_location, params->reserve_line, "Arena: requested %zuKB", params->capacity / 1024);
     Arena arena = {.capacity = params->capacity, .name = params->name};
     u8 *memory = (u8 *)malloc(params->capacity); // Malloc guarantes 8B aligned at least
     DOT_ASSERT_FL(memory, params->reserve_location, params->reserve_line, "Could not allocate");
@@ -347,7 +346,6 @@ internal inline void Arena_Free(Arena *arena) {
 #define AlignPow2(x, b) (((x) + (b) - 1) & (~((b) - 1)))
 
 internal inline u8 *Arena_Push(Arena *arena, usize size, usize alignment, char* file, u32 line) {
-    DOT_ASSERT_FL(size > 0, file, line);
     DOT_ASSERT_FL(size > 0, file, line, "test");
     usize current_address = cast(usize)arena->base + arena->used;
     usize aligned_address = AlignPow2(current_address, alignment);
@@ -355,7 +353,7 @@ internal inline u8 *Arena_Push(Arena *arena, usize size, usize alignment, char* 
 
     usize required = (aligned_address - cast(usize)arena->base) + size;
 
-    DOT_ASSERT_FL((cast(usize)mem_offset % alignment) == 0, file, line, "Not aligned");
+    DOT_ASSERT_FL((cast(usize)mem_offset % alignment) == 0, file, line);
     if (DOT_Unlikely(required > arena->capacity)) {
         DOT_ERROR_FL(file, line,
                      "Arena out of bounds: requested %zuKB (used=%zu), capacity=%zu",
@@ -384,7 +382,7 @@ internal inline u8 *Arena_Push_(Arena *arena, usize size, usize alignment, char*
 }
 
 #define Arena_Alloc(...)                       \
-Arena_Alloc_(&(MemoryArenaInitParams){ \
+Arena_Alloc_(&(ArenaInitParams){ \
     .capacity = ARENA_MIN_CAPACITY,        \
     .reserve_location = __FILE__,          \
     .reserve_line = __LINE__,          \
@@ -392,7 +390,7 @@ Arena_Alloc_(&(MemoryArenaInitParams){ \
     __VA_ARGS__})
 
 #define Arena_AllocFromMemory(memory, ...)                                \
-Arena_CreateFromMemory_((u8*) (memory), &(MemoryArenaInitParams){ \
+Arena_CreateFromMemory_((u8*) (memory), &(ArenaInitParams){ \
     .capacity = ARENA_MIN_CAPACITY,                           \
     .reserve_location = __FILE__,                             \
     .reserve_line = __LINE__,          \
@@ -480,9 +478,9 @@ for (int _i_ = 2 * !(begin); (_i_ == 2 ? ((end), 0) : !_i_); _i_ += 1, (end))
 //
 // Threading
 //
-#if defined(_MSC_VER)
+#if defined(DOT_COMPILER_MSVC)
 #define thread_local __declspec(thread)
-#elif defined(__GNUC__) || defined(__clang__)
+#elif defined(DOT_COMPILER_GCC) || defined(DOT_COMPILER_CLANG)
 #define thread_local __thread
 #else
 #error "No thread-local storage keyword available for this compiler in C99 mode"
