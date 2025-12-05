@@ -3,6 +3,22 @@
 
 ////////////////////////////////////////////////////////////////
 //
+// Needed headers
+//
+#include <stdbool.h>
+// fprintf, FILE
+#include <stdio.h>
+// abort
+#include <stdlib.h>
+// memset
+#include <string.h>
+// va_start, va_end
+#include <stdarg.h>
+
+
+
+////////////////////////////////////////////////////////////////
+//
 // Compiler
 //
 #if defined(_MSC_VER)
@@ -17,17 +33,14 @@
 
 ////////////////////////////////////////////////////////////////
 //
-// Needed headers
+// OS
 //
-#include <stdbool.h>
-// fprintf, FILE
-#include <stdio.h>
-// abort
-#include <stdlib.h>
-// memset
-#include <string.h>
-// va_start, va_end
-#include <stdarg.h>
+
+#if defined(_WIN32)
+#define DOT_OS_WIN32
+#else
+#define DOT_OS_POSIX
+#endif
 
 ////////////////////////////////////////////////////////////////
 //
@@ -36,6 +49,30 @@
 #define internal static
 #define local_persist static
 #define global static
+
+////////////////////////////////////////////////////////////////
+//
+// Sane type renames
+//
+// size
+#include <stddef.h>
+// precise int
+#include <stdint.h>
+typedef uintptr_t uptr;
+typedef size_t usize;
+
+typedef int8_t i8;
+typedef int16_t i16;
+typedef int32_t i32;
+typedef int64_t i64;
+typedef uint8_t u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
+typedef u32 b32;
+typedef u8 b8;
+typedef float f32;
+typedef double f64;
 
 ////////////////////////////////////////////////////////////////
 //
@@ -214,27 +251,6 @@ internal inline void PrintDebug(const PrintDebugParams* params, const char* fmt,
 #define MB(x) ((KB(x)) * (u64)1024)
 #define GB(x) ((MB(x)) * (u64)1024)
 
-////////////////////////////////////////////////////////////////
-//
-// Sane type renames
-//
-#include <stddef.h>
-#include <stdint.h>
-typedef uintptr_t uptr;
-typedef size_t usize;
-
-typedef int8_t i8;
-typedef int16_t i16;
-typedef int32_t i32;
-typedef int64_t i64;
-typedef uint8_t u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
-typedef u32 b32;
-typedef u8 b8;
-typedef float f32;
-typedef double f64;
 
 #define Max(a, b) ((a) > (b) ? (a) : (b))
 #define Min(a, b) ((a) < (b) ? (a) : (b))
