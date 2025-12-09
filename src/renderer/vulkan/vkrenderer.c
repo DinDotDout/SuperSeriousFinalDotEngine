@@ -29,18 +29,6 @@ internal inline VKAPI_ATTR u32 VKAPI_CALL DOT_VkDebugCallback(
     return VK_FALSE;
 }
 
-// internal VkDebugUtilsMessengerCreateInfoEXT DOT_VkDebugUtilsMessengerCreateInfoEXT_Make(){
-//     return (VkDebugUtilsMessengerCreateInfoEXT) {
-//         .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-//         .messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-//             VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-//             VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
-//         .messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-//             VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-//             VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
-//         .pfnUserCallback = DOT_VkDebugCallback,
-//     };
-// }
 
 typedef struct DOT_CandidateDeviceInfo {
     VkPhysicalDevice gpu;
@@ -188,54 +176,59 @@ internal void DOT_RendererBackendVk_InitVulkan(DOT_RendererBackendBase* ctx, DOT
         DOT_ERROR("Could not find all requested layers");
     }
 
-    VkInstanceCreateInfo instance_create_info = {
-        .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-        .ppEnabledLayerNames     = dot_vk_layers,
-        .enabledLayerCount       = ArrayCount(dot_vk_layers),
-        .ppEnabledExtensionNames = dot_renderer_backend_extension_names,
-        .enabledExtensionCount   = ArrayCount(dot_renderer_backend_extension_names),
-        .pApplicationInfo        =
-        &(VkApplicationInfo){
-            .sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-            .pApplicationName   = "dot_engine",
-            .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
-            .pEngineName        = "dot_engine",
-            .engineVersion      = VK_MAKE_VERSION(1, 0, 0),
-            .apiVersion         = VK_API_VERSION_1_4,
-        },
-    };
+    // --- Create Instance ---
+    {
+        VkInstanceCreateInfo instance_create_info = {
+            .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+            .ppEnabledLayerNames     = dot_vk_layers,
+            .enabledLayerCount       = ArrayCount(dot_vk_layers),
+            .ppEnabledExtensionNames = dot_renderer_backend_extension_names,
+            .enabledExtensionCount   = ArrayCount(dot_renderer_backend_extension_names),
+            .pApplicationInfo        =
+            &(VkApplicationInfo){
+                .sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+                .pApplicationName   = "dot_engine",
+                .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
+                .pEngineName        = "dot_engine",
+                .engineVersion      = VK_MAKE_VERSION(1, 0, 0),
+                .apiVersion         = VK_API_VERSION_1_4,
+            },
+        };
 
 #ifndef DOT_VK_EXT_DEBUG_UTILS_ENABLE
-    VkDebugUtilsMessengerCreateInfoEXT debug_utils_info = {
-        .sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-        .messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
-        .messageType     = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
-        .pfnUserCallback = DOT_VkDebugCallback,
-    };
-    instance_create_info.pNext = &debug_utils_info;
+        VkDebugUtilsMessengerCreateInfoEXT debug_utils_info = {
+            .sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+            .messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+            .messageType     = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
+            .pfnUserCallback = DOT_VkDebugCallback,
+        };
+        instance_create_info.pNext = &debug_utils_info;
 #endif
-    // u32 extension_count = 0;
-    // vkEnumerateInstanceExtensionProperties(NULL, &extension_count, NULL);
-    // array(VkExtensionProperties) extensions = PushArray(temp.arena, VkExtensionProperties, extension_count);
-    // vkEnumerateInstanceExtensionProperties(NULL, &extension_count, extensions);
+        // u32 extension_count = 0;
+        // vkEnumerateInstanceExtensionProperties(NULL, &extension_count, NULL);
+        // array(VkExtensionProperties) extensions = PushArray(temp.arena, VkExtensionProperties, extension_count);
+        // vkEnumerateInstanceExtensionProperties(NULL, &extension_count, extensions);
 
-    VkCheck(vkCreateInstance(&instance_create_info, NULL, &renderer_ctx->instance));
+        VkCheck(vkCreateInstance(&instance_create_info, NULL, &renderer_ctx->instance));
 
 #ifndef DOT_VK_EXT_DEBUG_UTILS_ENABLE
-    PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT = 
-        (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(renderer_ctx->instance, "vkCreateDebugUtilsMessengerEXT");
+        PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT = 
+            (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(renderer_ctx->instance, "vkCreateDebugUtilsMessengerEXT");
 
-    if (vkCreateDebugUtilsMessengerEXT) {
-        VkCheck(vkCreateDebugUtilsMessengerEXT(renderer_ctx->instance, &debug_utils_info, NULL, &renderer_ctx->debug_messenger));
+        if (vkCreateDebugUtilsMessengerEXT) {
+            VkCheck(vkCreateDebugUtilsMessengerEXT(renderer_ctx->instance, &debug_utils_info, NULL, &renderer_ctx->debug_messenger));
+        }
+#endif
     }
-#endif
 
+    // --- CREATE SURFACE --- 
     DOT_Window_CreateSurface(window, ctx);
-    // --- DEVICE CREATION --- 
+ 
+    // --- CREATE DEVICE --- 
     {
         DOT_RendererBackendDevice renderer_device = {0};
         DOT_CandidateDeviceInfo candidate_device_info =
@@ -288,7 +281,7 @@ internal void DOT_RendererBackendVk_InitVulkan(DOT_RendererBackendBase* ctx, DOT
             .sType = VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR,
         };
         VkPhysicalDeviceSurfaceInfo2KHR surface_info = {
-            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR,
+            .sType   = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR,
             .surface = renderer_ctx->surface,
         };
 
