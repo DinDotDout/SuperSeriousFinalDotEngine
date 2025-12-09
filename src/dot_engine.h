@@ -1,4 +1,0 @@
-#define RGFW_VULKAN
-#define RGFW_WAYLAND
-#define RGFW_IMPLEMENTATION
-#include "RGFW/RGFW.h"

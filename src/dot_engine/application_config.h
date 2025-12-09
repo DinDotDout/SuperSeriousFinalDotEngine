@@ -4,8 +4,6 @@
 
 #define ENGINE_RENDERER_BACKEND DOT_RENDERER_BACKEND_VK
 
-// NOTE: if static assertions are enough to validate susbystem memory
-// requirements we may skip the structs altogether
 typedef struct ApplicationConfig {
         u64 thread_mem_size; // Per arena (we have 2 arenas)
         u64 mem_size;

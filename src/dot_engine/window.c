@@ -1,10 +1,10 @@
+#include "renderer/vulkan/vk_helper.h"
 // HACK: Create window here for now
-#include "dot.h"
 float mouse_data[2] = {0.0f, 0.0f};
 void DOT_Window_MousePosCallback(RGFW_window *window, i32 x, i32 y, float vecX, float vecY) {
     RGFW_UNUSED(vecX);
     RGFW_UNUSED(vecY);
-    printf("mouse moved %i %i\n", x, y);
+    // printf("mouse moved %i %i\n", x, y);
     float halfWidth = (float)(window->w / 2.0f);
     float halfHeight = (float)(window->h / 2.0f);
     mouse_data[0] = (float)(x - halfWidth) / halfWidth;
@@ -41,7 +41,6 @@ internal void DOT_Window_CreateSurface(DOT_Window* window, DOT_RendererBackendBa
     }
 }
 
-// HACK: RGFW_window_checkEvent also pols events. Polling them here for now
 internal b8 DOT_Window_ShouldClose(DOT_Window* window){
     RGFW_event event;
     while (RGFW_window_checkEvent(window->window, &event)) {
@@ -52,8 +51,7 @@ internal b8 DOT_Window_ShouldClose(DOT_Window* window){
     return RGFW_window_shouldClose(window->window);
 }
 
-// NOTE: RGFW will return wayland, x11, win32...
-internal const char* DOT_Window_GetCapabilities(){
+// TODO: Should we eventually return more than one capability
+internal inline const char* DOT_Window_GetCapabilities(){
     return RGFW_VK_SURFACE;
 }
-

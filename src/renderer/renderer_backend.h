@@ -1,3 +1,5 @@
+#ifndef DOT_RENDERER_BACKEND
+#define DOT_RENDERER_BACKEND
 // NOTE: Do we even need to split backend and frontend in different files
 typedef u8 DOT_RendererBackendKind;
 enum {
@@ -24,3 +26,4 @@ struct DOT_RendererBackendBase {
 
 internal DOT_RendererBackendBase* DOT_RendererBackend_Create(Arena* arena, DOT_RendererBackendKind backend_kind);
 internal void DOT_RendererBackend_Sutdown(DOT_RendererBackendBase* backend);
+#endif

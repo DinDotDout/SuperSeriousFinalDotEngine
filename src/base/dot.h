@@ -1,6 +1,5 @@
 #ifndef DOT
 #define DOT
-
 ////////////////////////////////////////////////////////////////
 //
 // Needed headers
@@ -103,8 +102,8 @@ typedef double f64;
 #define DOT_STR_HELPER(x) #x
 #define DOT_STR(x) DOT_STR_HELPER(x)
 
-#define DOT_CONCAT(x, y) x ## y
-#define DOT_CONCAT_EXPAND(x, y) DOT_CONCAT(x, y)
+#define DOT_CONCAT2(x, y) x ## y
+#define DOT_CONCAT(x, y) DOT_CONCAT2(x, y)
 
 ////////////////////////////////////////////////////////////////
 //
@@ -119,7 +118,7 @@ typedef double f64;
 // Static Debug
 //
 #define DOT_STATIC_ASSERT(x) \
-typedef int DOT_CONCAT_EXPAND(DOT_STATIC_ASSERT_, __COUNTER__) [(x) ? 1 : -1]
+typedef int DOT_CONCAT(DOT_STATIC_ASSERT_, __COUNTER__) [(x) ? 1 : -1]
 
 ////////////////////////////////////////////////////////////////
 //
@@ -138,24 +137,25 @@ typedef int DOT_CONCAT_EXPAND(DOT_STATIC_ASSERT_, __COUNTER__) [(x) ? 1 : -1]
   #define PRINTF_STRING
 #endif
 
-typedef enum PrintDebugKind{
-    PRINT_DEBUG_DEBUG,
-    PRINT_DEBUG_ASSERT,
-    PRINT_DEBUG_ERROR,
-    PRINT_DEBUG_WARNING,
-    PRINT_DEBUG_COUNT,
-}PrintDebugKind;
+typedef enum LogLevelKind{
+    LOG_LEVEL_DEBUG,
+    LOG_LEVEL_ERROR,
+    LOG_LEVEL_WARNING,
+    LOG_LEVEL_ASSERT,
+    LOG_LEVEL_COUNT,
+}LogLevelKind;
 
 global const char* print_debug_str[] = {
-    [PRINT_DEBUG_DEBUG]     = "",
-    [PRINT_DEBUG_ASSERT]    = "Assertion failed",
-    [PRINT_DEBUG_ERROR]     = "Error",
-    [PRINT_DEBUG_WARNING]   = "Warning",
+    [LOG_LEVEL_DEBUG]     = "",
+    [LOG_LEVEL_ASSERT]    = "Assertion failed",
+    [LOG_LEVEL_ERROR]     = "Error",
+    [LOG_LEVEL_WARNING]   = "Warning",
 };
-DOT_STATIC_ASSERT(PRINT_DEBUG_COUNT == ArrayCount(print_debug_str));
+
+DOT_STATIC_ASSERT(LOG_LEVEL_COUNT == ArrayCount(print_debug_str));
 
 typedef struct PrintDebugParams{
-    PrintDebugKind print_debug_kind;
+    LogLevelKind print_debug_kind;
     const char* file;
     u32 line;
 }PrintDebugParams;
@@ -165,7 +165,7 @@ internal inline void PrintDebug(const PrintDebugParams* params, PRINTF_STRING co
 
 #define PrintDebugParamsDefault(...) \
 &(PrintDebugParams) { \
-    .print_debug_kind = PRINT_DEBUG_DEBUG, \
+    .print_debug_kind = LOG_LEVEL_DEBUG, \
     .file = __FILE__, \
     .line = __LINE__, \
     __VA_ARGS__}
@@ -178,11 +178,11 @@ do { \
     abort(); \
 } while(0)
 
-#define DOT_ERROR(...) DOT_ERROR_IMPL(PrintDebugParamsDefault(.print_debug_kind = PRINT_DEBUG_ERROR), __VA_ARGS__)
-#define DOT_ERROR_FL(f, l, ...) DOT_ERROR_IMPL(PrintDebugParamsDefault(.print_debug_kind = PRINT_DEBUG_ERROR, .file = (f), .line = (l)), __VA_ARGS__)
+#define DOT_ERROR(...) DOT_ERROR_IMPL(PrintDebugParamsDefault(.print_debug_kind = LOG_LEVEL_ERROR), __VA_ARGS__)
+#define DOT_ERROR_FL(f, l, ...) DOT_ERROR_IMPL(PrintDebugParamsDefault(.print_debug_kind = LOG_LEVEL_ERROR, .file = (f), .line = (l)), __VA_ARGS__)
 #define TODO(msg) \
 do { \
-    PrintDebug(PrintDebugParamsDefault(.print_debug_kind = PRINT_DEBUG_ERROR), "TODO: %s", msg); \
+    PrintDebug(PrintDebugParamsDefault(.print_debug_kind = LOG_LEVEL_ERROR), "TODO: %s", msg); \
     abort(); \
 } while(0)
 
@@ -190,8 +190,8 @@ do { \
 // --- Printing Macros ---
 #define DOT_PRINT(...) PrintDebug(PrintDebugParamsDefault(), __VA_ARGS__)
 #define DOT_PRINT_FL(f, l, ...) PrintDebug(PrintDebugParamsDefault(.file = (f), .line = (l)), __VA_ARGS__)
-#define DOT_WARNING(...) PrintDebug(PrintDebugParamsDefault(.print_debug_kind = PRINT_DEBUG_WARNING), __VA_ARGS__)
-#define DOT_WARNING_FL(f, l, ...) PrintDebug(PrintDebugParamsDefault(.file = (f), .line = (l), .print_debug_kind = PRINT_DEBUG_WARNING), __VA_ARGS__)
+#define DOT_WARNING(...) PrintDebug(PrintDebugParamsDefault(.print_debug_kind = LOG_LEVEL_WARNING), __VA_ARGS__)
+#define DOT_WARNING_FL(f, l, ...) PrintDebug(PrintDebugParamsDefault(.file = (f), .line = (l), .print_debug_kind = LOG_LEVEL_WARNING), __VA_ARGS__)
 // --- Assertion Macros ---
 // WARN: "##" allows us to not have and fmt but uses an extension
 #define DOT_ASSERT_IMPL(cond, params, fmt, ...) \
@@ -201,8 +201,8 @@ do { \
         DEBUG_BREAK; \
     } \
 } while(0)
-#define DOT_ASSERT(cond, ...) DOT_ASSERT_IMPL((cond), PrintDebugParamsDefault(.print_debug_kind = PRINT_DEBUG_ASSERT), __VA_ARGS__)
-#define DOT_ASSERT_FL(cond, f, l, ...) DOT_ASSERT_IMPL((cond), PrintDebugParamsDefault(.print_debug_kind = PRINT_DEBUG_ASSERT, .file = f, .line = l), __VA_ARGS__)
+#define DOT_ASSERT(cond, ...) DOT_ASSERT_IMPL((cond), PrintDebugParamsDefault(.print_debug_kind = LOG_LEVEL_ASSERT), __VA_ARGS__)
+#define DOT_ASSERT_FL(cond, f, l, ...) DOT_ASSERT_IMPL((cond), PrintDebugParamsDefault(.print_debug_kind = LOG_LEVEL_ASSERT, .file = f, .line = l), __VA_ARGS__)
 #else
 #define DOT_PRINT(...) ((void)0)
 #define DOT_PRINT_FL(f, l, ...) ((void)0)
@@ -212,25 +212,25 @@ do { \
 #define DOT_ASSERT_FL(...) ((void)0)
 #endif
 
-
-internal inline const char* PrintDebugKind_GetString(PrintDebugKind debug_kind){
-    DOT_ASSERT(debug_kind < PRINT_DEBUG_COUNT);
+internal inline const char* PrintDebugKind_GetString(LogLevelKind debug_kind){
+    DOT_ASSERT(debug_kind < LOG_LEVEL_COUNT);
     const char * ret = print_debug_str[debug_kind];
     DOT_ASSERT(ret);
     return ret;
 }
 
-#define DOT_MAX_PRINT_DEBUG_LENGTH 128
+#define DOT_MAX_LOG_LEVEL_LENGTH 128
 internal inline void PrintDebug(const PrintDebugParams* params, const char* fmt, ...){
-    char buf[DOT_MAX_PRINT_DEBUG_LENGTH];
-    FILE* out = params->print_debug_kind == PRINT_DEBUG_DEBUG ? stdout : stderr;
+    char buf[DOT_MAX_LOG_LEVEL_LENGTH];
+    FILE* out = params->print_debug_kind == LOG_LEVEL_DEBUG ? stdout : stderr;
 
     va_list args;
     va_start(args, fmt);
     vsnprintf(buf, sizeof(buf), fmt, args); // TODO: Swap for stb_vsntprintf
     va_end(args);
 
-    fprintf(out, "%s %s:%d -> %s\n",
+    const char* fmt_str = params->print_debug_kind == LOG_LEVEL_DEBUG ? "%s%s:%d -> %s\n" : "%s: %s:%d -> %s\n";
+    fprintf(out, fmt_str,
         PrintDebugKind_GetString(params->print_debug_kind),
         params->file,
         params->line,
@@ -362,7 +362,7 @@ internal inline void Arena_Free(Arena *arena) {
 #define AlignPow2(x, b) (((x) + (b) - 1) & (~((b) - 1)))
 
 internal inline u8 *Arena_Push(Arena *arena, usize size, usize alignment, char* file, u32 line) {
-    DOT_ASSERT_FL(size > 0, file, line, "test");
+    DOT_ASSERT_FL(size > 0, file, line);
     usize current_address = cast(usize)arena->base + arena->used;
     usize aligned_address = AlignPow2(current_address, alignment);
     u8 *mem_offset = cast(u8*) aligned_address;
@@ -397,41 +397,55 @@ internal inline u8 *Arena_Push_(Arena *arena, usize size, usize alignment, char*
     return mem_offset;
 }
 
-#define Arena_Alloc(...)                       \
+#define Arena_Alloc(...) \
 Arena_Alloc_(&(ArenaInitParams){ \
-    .capacity = ARENA_MIN_CAPACITY,        \
-    .reserve_location = __FILE__,          \
-    .reserve_line = __LINE__,          \
-    .name = "Default",                              \
+    .capacity = ARENA_MIN_CAPACITY,\
+    .reserve_location = __FILE__, \
+    .reserve_line = __LINE__, \
+    .name = "Default", \
     __VA_ARGS__})
 
-#define Arena_AllocFromMemory(memory, ...)                                \
+#define Arena_AllocFromMemory(memory, ...) \
 Arena_CreateFromMemory_((u8*) (memory), &(ArenaInitParams){ \
-    .capacity = ARENA_MIN_CAPACITY,                           \
-    .reserve_location = __FILE__,                             \
-    .reserve_line = __LINE__,          \
-    .name = "Default",                              \
+    .capacity = ARENA_MIN_CAPACITY, \
+    .reserve_location = __FILE__, \
+    .reserve_line = __LINE__, \
+    .name = "Default",\
     __VA_ARGS__})
 
-#define PushSize(arena, size)                                                 \
+#define PushSize(arena, size) \
 MemoryZero(Arena_Push(arena, size, ARENA_MIN_ALIGNMENT, __FILE__, __LINE__), size)
 
-#define PushArrayAligned(arena, type, count, alignment)                      \
+#define PushArrayAligned(arena, type, count, alignment) \
 (type *)MemoryZero(Arena_Push(arena, sizeof(type) * (count), alignment, __FILE__, __LINE__), sizeof(type) * (count))
 
-#define PushArray(arena, type, count)                                         \
+#define PushArray(arena, type, count) \
 PushArrayAligned(arena, type, count, Max(ARENA_MIN_ALIGNMENT, alignof(type)))
 
 #define PushStruct(arena, type) PushArray(arena, type, 1)
 
-#define MakeArray(arena, type, count)                                         \
+#define MakeArray(arena, type, count) \
 ((type##_array){.data = PushArray(arena, type, (count)), .size = (count)})
+
+// Keep this around for when using sorting functions
+#if defined(DOT_COMPILER_MSVC)
+#define force_inline __forceinline __declspec(safebuffers)
+#define CompilerReset(ptr) __assume(ptr)
+#elif defined(DOT_COMPILER_GCC) || defined(DOT_DOMPILER_CLANG)
+#define force_inline __attribute__((always_inline))
+#define CompilerReset(ptr)
+#endif
 
 ////////////////////////////////////////////////////////////////
 //
 // String
 //
 // TODO: Must implement!!!
+
+// This will be used when String8 size matches on string8 compare
+#define MemoryCompare(a, b, size) memcmp((a), (b), (size))
+
+
 #define StrFmt "%.*s"
 #define StrArg(sv) (int)(sv).len, (sv).buff
 
@@ -464,6 +478,15 @@ Str8(u8 *str, u64 size){
     return(result);
 }
 
+// This is good enough for now
+internal inline u64 HashFromString8(String8 string, u64 seed){
+    u64 result = seed; // raddebugger uses 5381
+    for (u64 i = 0; i < string.size; ++i){
+        result = ((result << 5) + result) + string.str[i];
+    }
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////
 //
 // whatever
@@ -476,19 +499,37 @@ Str8(u8 *str, u64 size){
 //
 #define EachIndex(it, count) (u64 it = 0; it < (count); it += 1)
 #define EachElement(it, array) (u64 it = 0; it < ArrayCount(array); it += 1)
-#define EachEnumVal(type, it)                                                  \
+#define EachEnumVal(type, it) \
 (type it = (type)0; it < type##_COUNT; it = (type)(it + 1))
-#define EachNonZeroEnumVal(type, it)                                           \
+#define EachNonZeroEnumVal(type, it) \
 (type it = (type)1; it < type##_COUNT; it = (type)(it + 1))
 #define EachInRange(it, range) (u64 it = (range).min; it < (range).max; it += 1)
 #define EachNode(it, T, first) (T *it = first; it != 0; it = it->next)
 
-#define DeferLoop(begin, end)                                                  \
-for (int _i_ = ((begin), 0); !_i_; _i_ += 1, (end))
-#define DeferLoopChecked(begin, end)                                           \
-for (int _i_ = 2 * !(begin); (_i_ == 2 ? ((end), 0) : !_i_); _i_ += 1, (end))
+
+////////////////////////////////////////////////////////////////
+//
+// Useful Mem copy from raddebugger
+//
+#define MemoryCopy(dst, src, size)    memmove((dst), (src), (size))
+#define MemoryCopyStruct(d,s)  MemoryCopy((d),(s),sizeof(*(d)))
+#define MemoryCopyArray(d,s)   MemoryCopy((d),(s),sizeof(d))
+#define MemoryCopyTyped(d,s,c) MemoryCopy((d),(s),sizeof(*(d))*(c))
+#define MemoryCopyStr8(dst, s) MemoryCopy(dst, (s).str, (s).size)
 
 
+////////////////////////////////////////////////////////////////
+//
+// Defer for profile blocks, lock/unlock...
+// This accepts expressions that will run before and after a scope block once
+#define DeferLoop(before, after) \
+        for (int _once_defer_ = 0; _once_defer_ == 0;) \
+                for (before; _once_defer_++ == 0; after)
+
+
+#define DeferLoopCond(before, cond, after) \
+        for (int _once_cond_defer_ = 0; _once_cond_defer_ == 0;) \
+                for (before; _once_cond_defer_++ == 0 && (cond); after)
 
 ////////////////////////////////////////////////////////////////
 //
@@ -499,7 +540,8 @@ for (int _i_ = 2 * !(begin); (_i_ == 2 ? ((end), 0) : !_i_); _i_ += 1, (end))
 #elif defined(DOT_COMPILER_GCC) || defined(DOT_COMPILER_CLANG)
 #define thread_local __thread
 #else
-#error "No thread-local storage keyword available for this compiler in C99 mode"
+#error "No thread-local storage keyword available for this compiler"
 #endif
 
 #endif // !DOT
+

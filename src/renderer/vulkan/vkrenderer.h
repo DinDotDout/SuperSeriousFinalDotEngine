@@ -1,3 +1,5 @@
+#ifndef DOT_VK_RENDERER
+#define DOT_VK_RENDERER
 typedef struct DOT_RendererBackendDevice {
         VkDevice device;
         VkPhysicalDevice gpu;
@@ -51,3 +53,4 @@ internal DOT_RendererBackendVk* DOT_RendererBackendBase_AsVk(DOT_RendererBackend
 internal DOT_RendererBackendVk* DOT_RendererBackendVk_Create(Arena* arena);
 internal void DOT_RendererBackendVk_InitVulkan(DOT_RendererBackendBase* ctx, DOT_Window* window);
 internal void DOT_RendererBackendVk_ShutdownVulkan(DOT_RendererBackendBase* ctx);
+#endif

@@ -26,12 +26,12 @@ SYS_LIBS=" \
 "
 
 PROTO_SRCS=" \
-    extra/RGFW/relative-pointer-unstable-v1.c \
-    extra/RGFW/pointer-constraints-unstable-v1.c \
-    extra/RGFW/xdg-toplevel-icon-v1.c \
-    extra/RGFW/xdg-output-unstable-v1.c \
-    extra/RGFW/xdg-decoration-unstable-v1.c \
-    extra/RGFW/xdg-shell.c \
+    src/third_party/RGFW/relative-pointer-unstable-v1.c \
+    src/third_party/RGFW/pointer-constraints-unstable-v1.c \
+    src/third_party/RGFW/xdg-toplevel-icon-v1.c \
+    src/third_party/RGFW/xdg-output-unstable-v1.c \
+    src/third_party/RGFW/xdg-decoration-unstable-v1.c \
+    src/third_party/RGFW/xdg-shell.c \
 "
 
 # ./gen-wayland.sh
@@ -43,7 +43,7 @@ echo "[*] Compiling..."
 # gcc $CFLAGS -Iextra \
 #     src/vk10.c $SYS_LIBS $PROTO_SRCS \
 #     -o build/vk
-gcc $CFLAGS -Iextra \
-    src/dot_engine.c $SYS_LIBS $PROTO_SRCS \
+gcc $CFLAGS -I src/ \
+    src/dot_engine/dot_engine.c $SYS_LIBS $PROTO_SRCS \
     -o build/dot_engine
 echo "[+] Build complete: $OUT"
