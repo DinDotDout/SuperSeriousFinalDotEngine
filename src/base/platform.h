@@ -35,8 +35,7 @@ static u64 Platform_OSReadTimer(){
 }
 #endif
 
-static inline u64 Platform_ReadCPUTimer(void)
-{
+static inline u64 Platform_ReadCPUTimer(void){
 	return __rdtsc(); // NOTE: Only works on x86, update to support ARM
 }
 
