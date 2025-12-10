@@ -196,7 +196,7 @@ do { \
 // WARN: "##" allows us to not have and fmt but uses an extension
 #define DOT_ASSERT_IMPL(cond, params, fmt, ...) \
 do { \
-    if (!(cond)) { \
+    if(!(cond)){ \
         PrintDebug(params, "%s " fmt, #cond, ##__VA_ARGS__); \
         DEBUG_BREAK; \
     } \
@@ -370,7 +370,7 @@ internal inline u8 *Arena_Push(Arena *arena, usize size, usize alignment, char* 
     usize required = (aligned_address - cast(usize)arena->base) + size;
 
     DOT_ASSERT_FL((cast(usize)mem_offset % alignment) == 0, file, line);
-    if (DOT_Unlikely(required > arena->capacity)) {
+    if(DOT_Unlikely(required > arena->capacity)){
         DOT_ERROR_FL(file, line,
                      "Arena out of bounds: requested %zuKB (used=%zu), capacity=%zu",
                      (required / 1024), (arena->used / 1024), (arena->capacity / 1024));
@@ -387,7 +387,7 @@ internal inline u8 *Arena_Push_(Arena *arena, usize size, usize alignment, char*
     u8 *mem_offset = arena->base + arena->used + pad;
     DOT_ASSERT_FL((cast(usize)mem_offset % alignment) == 0, file, line, "Not aligned");
     usize required = arena->used + pad + size;
-    if (DOT_Unlikely(required > arena->capacity)) {
+    if(DOT_Unlikely(required > arena->capacity)){
         DOT_ERROR_FL(file, line,
                      "Arena out of bounds: requested %zuKB (used=%zu), capacity=%zu",
                      (required / 1024), (arena->used / 1024), (arena->capacity / 1024));
@@ -481,7 +481,7 @@ Str8(u8 *str, u64 size){
 // This is good enough for now
 internal inline u64 HashFromString8(String8 string, u64 seed){
     u64 result = seed; // raddebugger uses 5381
-    for (u64 i = 0; i < string.size; ++i){
+    for(u64 i = 0; i < string.size; ++i){
         result = ((result << 5) + result) + string.str[i];
     }
     return result;
@@ -497,8 +497,8 @@ internal inline u64 HashFromString8(String8 string, u64 seed){
 //
 // Useful it from raddebugger
 //
-#define EachIndex(it, count) (u64 it = 0; it < (count); it += 1)
-#define EachElement(it, array) (u64 it = 0; it < ArrayCount(array); it += 1)
+#define EachIndex(it, count) (u64 it = 0; it < (count); ++it)
+#define EachElement(it, array) (u64 it = 0; it < ArrayCount(array); ++it)
 #define EachEnumVal(type, it) \
 (type it = (type)0; it < type##_COUNT; it = (type)(it + 1))
 #define EachNonZeroEnumVal(type, it) \
@@ -523,13 +523,13 @@ internal inline u64 HashFromString8(String8 string, u64 seed){
 // Defer for profile blocks, lock/unlock...
 // This accepts expressions that will run before and after a scope block once
 #define DeferLoop(before, after) \
-        for (int _once_defer_ = 0; _once_defer_ == 0;) \
-                for (before; _once_defer_++ == 0; after)
+        for(int _once_defer_ = 0; _once_defer_ == 0;) \
+                for(before; _once_defer_++ == 0; after)
 
 
 #define DeferLoopCond(before, cond, after) \
-        for (int _once_cond_defer_ = 0; _once_cond_defer_ == 0;) \
-                for (before; _once_cond_defer_++ == 0 && (cond); after)
+        for(int _once_cond_defer_ = 0; _once_cond_defer_ == 0;) \
+                for(before; _once_cond_defer_++ == 0 && (cond); after)
 
 ////////////////////////////////////////////////////////////////
 //

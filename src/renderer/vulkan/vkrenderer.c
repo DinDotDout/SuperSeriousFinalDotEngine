@@ -1,3 +1,4 @@
+#include "vkrenderer.h"
 #include <vulkan/vulkan_core.h>
 #include "vk_helper.h"
 
@@ -23,7 +24,7 @@ internal inline VKAPI_ATTR u32 VKAPI_CALL DOT_VkDebugCallback(
     const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
     void* user_data) {
     Unused(message_type); Unused(user_data);
-    if (message_severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
+    if(message_severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT){
         DOT_PRINT("validation layer: %s\n", callback_data->pMessage);
     }
     return VK_FALSE;
@@ -45,29 +46,28 @@ internal inline bool DOT_VkDeviceAllRequiredExtensions(VkPhysicalDevice device){
     array(VkExtensionProperties) available_extensions = PushArray(temp.arena, VkExtensionProperties, extension_count);
     vkEnumerateDeviceExtensionProperties(device, NULL, &extension_count, available_extensions);
     bool found = true;
-    for EachElement(i, dot_renderer_backend_device_extension_names){
-    for EachIndex(j, extension_count){
-    if (strcmp(dot_renderer_backend_device_extension_names[i], available_extensions[j].extensionName) == 0){
-        DOT_PRINT("found %s", dot_renderer_backend_device_extension_names[i]);
-        found = true;
-        break;
+    for(u64 i = 0; i < ArrayCount(dot_renderer_backend_device_extension_names); ++i){
+        for(u64 j = 0; j < extension_count; ++j){
+            if(strcmp(dot_renderer_backend_device_extension_names[i], available_extensions[j].extensionName) == 0){
+                DOT_PRINT("found %s", dot_renderer_backend_device_extension_names[i]);
+                found = true;
+                break;
+            }
+        }
+        if(!found){
+            DOT_WARNING("Requested layer %s not found", dot_vk_layers[i]);
+            break;
+        }
     }
-}
-if (!found){
-    DOT_WARNING("Requested layer %s not found", dot_vk_layers[i]);
-    break;
-}
-
-    }
-TempArena_Restore(&temp);
-return found;
+    TempArena_Restore(&temp);
+    return found;
 }
 
 internal inline DOT_CandidateDeviceInfo DOT_VkPickBestDevice(VkInstance instance, VkSurfaceKHR surface){
     TempArena temp = Memory_GetScratch(NULL);
     u32 device_count = 0;
     vkEnumeratePhysicalDevices(instance, &device_count, NULL);
-    if (device_count == 0) {
+    if(device_count == 0){
         DOT_ERROR("No Vulkan-capable GPUs found");
     }
 
@@ -78,9 +78,9 @@ internal inline DOT_CandidateDeviceInfo DOT_VkPickBestDevice(VkInstance instance
     DOT_CandidateDeviceInfo best_device = {0};
     best_device.score = -1;
 
-    for (u32 i = 0; i < device_count; i++){
+    for(u32 i = 0; i < device_count; i++){
         VkPhysicalDevice dev = devices[i];
-        if (!DOT_VkDeviceAllRequiredExtensions(dev)){
+        if(!DOT_VkDeviceAllRequiredExtensions(dev)){
             continue;
         }
         VkPhysicalDeviceProperties props;
@@ -96,38 +96,38 @@ internal inline DOT_CandidateDeviceInfo DOT_VkPickBestDevice(VkInstance instance
         int graphics_idx = -1;
         int present_idx = -1;
         bool shared_present_graphics_queues = false;
-        for (u32 q = 0; q < queue_count; q++){
+        for(u32 q = 0; q < queue_count; q++){
             b32 present_support = false;
             vkGetPhysicalDeviceSurfaceSupportKHR(dev, q, surface, &present_support);
-            if ((qprops[q].queueFlags & VK_QUEUE_GRAPHICS_BIT) && present_support) {
+            if((qprops[q].queueFlags & VK_QUEUE_GRAPHICS_BIT) && present_support){
                 shared_present_graphics_queues  = true;
                 graphics_idx = q;
                 present_idx  = q;
                 break;
             }
         }
-        if (!shared_present_graphics_queues){
-            for (u32 q = 0; q < queue_count; q++) {
-                if (qprops[q].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+        if(!shared_present_graphics_queues){
+            for(u32 q = 0; q < queue_count; q++){
+                if(qprops[q].queueFlags & VK_QUEUE_GRAPHICS_BIT){
                     graphics_idx = q;
                 }
                 u32 present_support = false;
                 vkGetPhysicalDeviceSurfaceSupportKHR(dev, q, surface, &present_support);
-                if (present_support) {
+                if(present_support){
                     present_idx = q;
                 }
             }
         }
-        if (graphics_idx < 0 || present_idx < 0){
+        if(graphics_idx < 0 || present_idx < 0){
             continue;
         }
 
         int score = -1;
-        if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) score += 2000;
-        // if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) score += 100;
-        if (feats.geometryShader) score += 10;
+        if(props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) score += 2000;
+        // if(props.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) score += 100;
+        if(feats.geometryShader) score += 10;
         DOT_PRINT("graphics family: %d; present family: %i; score: %i", graphics_idx, present_idx, score);
-        if (score > best_device.score) {
+        if(score > best_device.score) {
             best_device.gpu = dev;
             best_device.graphics_family = cast(u16)graphics_idx;
             best_device.present_family = cast(u16)present_idx;
@@ -136,9 +136,10 @@ internal inline DOT_CandidateDeviceInfo DOT_VkPickBestDevice(VkInstance instance
         }
     }
 
-    if (best_device.score < 0) {
+    if(best_device.score < 0){
         DOT_ERROR("No suitable GPU found");
     }
+
     DOT_PRINT("best_device  graphics family: %d; present family: %i; score: %i", best_device.graphics_family, best_device.present_family, best_device.score);
     TempArena_Restore(&temp);
     return best_device;
@@ -146,33 +147,33 @@ internal inline DOT_CandidateDeviceInfo DOT_VkPickBestDevice(VkInstance instance
 
 internal inline bool DOT_VkAllLayers(){
     TempArena temp = Memory_GetScratch(NULL);
-    u32 layer_count = 0;
-    vkEnumerateInstanceLayerProperties(&layer_count, NULL);
-    array(VkLayerProperties) available_layers = PushArray(temp.arena, VkLayerProperties, layer_count);
-    vkEnumerateInstanceLayerProperties(&layer_count, available_layers);
+    u32 available_layer_count = 0;
+    vkEnumerateInstanceLayerProperties(&available_layer_count, NULL);
+    array(VkLayerProperties) available_layers = PushArray(temp.arena, VkLayerProperties, available_layer_count);
+    vkEnumerateInstanceLayerProperties(&available_layer_count, available_layers);
     bool found = true;
-    for EachElement(i, dot_vk_layers){
-    found = false;
-    for EachIndex(j, layer_count){
-    if (strcmp(dot_vk_layers[i], available_layers[j].layerName) == 0){
-        DOT_PRINT("Found Layer %s", dot_vk_layers[i]);
-        found = true;
-        break;
+    for(u64 i = 0; i < ArrayCount(dot_vk_layers); ++i){
+        found = false;
+        for(u64 j = 0; j < available_layer_count; ++j){
+            if(strcmp(dot_vk_layers[i], available_layers[j].layerName) == 0){
+                DOT_PRINT("Found Layer %s", dot_vk_layers[i]);
+                found = true;
+                break;
+            }
+        }
+        if(!found){
+            DOT_WARNING("Requested layer %s not found", dot_vk_layers[i]);
+            break;
+        }
     }
-}
-if (!found){
-    DOT_WARNING("Requested layer %s not found", dot_vk_layers[i]);
-    break;
-}
-    }
-TempArena_Restore(&temp);
-return found;
+    TempArena_Restore(&temp);
+    return found;
 }
 
 internal void DOT_RendererBackendVk_InitVulkan(DOT_RendererBackendBase* ctx, DOT_Window* window){
     DOT_RendererBackendVk *renderer_ctx = DOT_RendererBackendBase_AsVk(ctx);
     TempArena temp = Memory_GetScratch(NULL);
-    if (!DOT_VkAllLayers()){
+    if(!DOT_VkAllLayers()){
         DOT_ERROR("Could not find all requested layers");
     }
 
@@ -219,16 +220,16 @@ internal void DOT_RendererBackendVk_InitVulkan(DOT_RendererBackendBase* ctx, DOT
         PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT = 
             (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(renderer_ctx->instance, "vkCreateDebugUtilsMessengerEXT");
 
-        if (vkCreateDebugUtilsMessengerEXT) {
+        if(vkCreateDebugUtilsMessengerEXT) {
             VkCheck(vkCreateDebugUtilsMessengerEXT(renderer_ctx->instance, &debug_utils_info, NULL, &renderer_ctx->debug_messenger));
         }
 #endif
     }
 
-    // --- CREATE SURFACE --- 
+    // --- Create Surface --- 
     DOT_Window_CreateSurface(window, ctx);
  
-    // --- CREATE DEVICE --- 
+    // --- Create Device --- 
     {
         DOT_RendererBackendDevice renderer_device = {0};
         DOT_CandidateDeviceInfo candidate_device_info =
@@ -247,7 +248,7 @@ internal void DOT_RendererBackendVk_InitVulkan(DOT_RendererBackendBase* ctx, DOT
             .pQueuePriorities = &priority,
         };
 
-        if (!renderer_device.shared_present_graphics_queues) {
+        if(!renderer_device.shared_present_graphics_queues){
             queue_infos[queue_count++] = (VkDeviceQueueCreateInfo) {
                 .sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
                 .queueFamilyIndex = candidate_device_info.present_family,
@@ -266,7 +267,7 @@ internal void DOT_RendererBackendVk_InitVulkan(DOT_RendererBackendBase* ctx, DOT
         VkCheck(vkCreateDevice(candidate_device_info.gpu, &device_create_info, NULL, &renderer_device.device));
 
         vkGetDeviceQueue(renderer_device.device, candidate_device_info.graphics_family, 0, &renderer_device.graphics_queue);
-        if (renderer_device.shared_present_graphics_queues) {
+        if(renderer_device.shared_present_graphics_queues){
             renderer_device.present_queue = renderer_device.graphics_queue;
         } else {
             DOT_ERROR("Different present and graphics queues unsupported");
@@ -275,7 +276,7 @@ internal void DOT_RendererBackendVk_InitVulkan(DOT_RendererBackendBase* ctx, DOT
         renderer_ctx->device = renderer_device;
     }
  
-    // --- SURFACE CAPABILITIES ---
+    // --- Surface Capabilities ---
     {
         VkSurfaceCapabilities2KHR surface_capabilities = {
             .sType = VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR,
@@ -290,6 +291,8 @@ internal void DOT_RendererBackendVk_InitVulkan(DOT_RendererBackendBase* ctx, DOT
             array(VkSurfaceFormat2KHR) surface_formats;
             u32 format_count;
         } formats;
+        int (a) = 5;
+        (void) a;
 
         VkCheck(vkGetPhysicalDeviceSurfaceFormats2KHR(renderer_ctx->device.gpu, &surface_info, &formats.format_count, NULL));
         formats.surface_formats = PushArray(temp.arena, VkSurfaceFormat2KHR, formats.format_count);
@@ -310,7 +313,7 @@ internal void DOT_RendererBackendVk_ShutdownVulkan(DOT_RendererBackendBase* ctx)
 #ifndef NDEBUG
     PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT =
         (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(renderer_ctx->instance, "vkDestroyDebugUtilsMessengerEXT");
-    if (vkDestroyDebugUtilsMessengerEXT) {
+    if(vkDestroyDebugUtilsMessengerEXT){
         vkDestroyDebugUtilsMessengerEXT(renderer_ctx->instance, renderer_ctx->debug_messenger, NULL);
     }
 #endif

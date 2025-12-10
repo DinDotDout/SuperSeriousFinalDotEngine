@@ -8,7 +8,7 @@ TempArena Memory_GetScratch(Arena *alloc_arena){
     for EachElement(i, thread_ctx.arenas){
         Arena* candidate_temp = &thread_ctx.arenas[i];
         DOT_ASSERT(candidate_temp);
-        if (candidate_temp != alloc_arena)
+        if(candidate_temp != alloc_arena)
             return TempArena_Get(candidate_temp);
     }
     DOT_ERROR("Could not find a valid temporary arena");

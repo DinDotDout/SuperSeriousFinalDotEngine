@@ -8,7 +8,7 @@
 #define VkCheck(x) \
     do { \
         VkResult err = x; \
-        if (err < 0) { \
+        if(err < 0){ \
             printf("Detected Vulkan error: %s\n", string_VkResult(err)); \
             abort(); \
         } \

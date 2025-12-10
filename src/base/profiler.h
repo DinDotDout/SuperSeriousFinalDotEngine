@@ -1,5 +1,3 @@
-#define DOT_PROFILING_ENABLE
-
 typedef struct DOT_ProfileAnchor{
     u64 tsc_elapsed_exclusive;
     u64 tsc_elapsed_inclusive;
@@ -33,8 +31,7 @@ internal inline void DOT_ProfilerEnd(){
     profiler.end_tsc = Platform_ReadCPUTimer();
 }
 
-static void DOT_PrintTimeElapsed(u64 total_tsc_elapsed, DOT_ProfileAnchor *anchor)
-{
+static void DOT_PrintTimeElapsed(u64 total_tsc_elapsed, DOT_ProfileAnchor *anchor){
     f64 percent = 100.0 * ((f64)anchor->tsc_elapsed_exclusive / (f64)total_tsc_elapsed);
     printf("  %s[%lu]: %lu (%.2f%%", anchor->label, anchor->hit_count, anchor->tsc_elapsed_exclusive, percent);
     if(anchor->tsc_elapsed_inclusive != anchor->tsc_elapsed_exclusive)
@@ -86,14 +83,16 @@ internal inline void DOT_ProfileBlock_End(DOT_ProfileBlock* profile_block){
     ++anchor->hit_count;
     anchor->label = profile_block->label;
 }
-
-#define ProfilerEndOfCompilationUnit DOT_STATIC_ASSERT(__COUNTER__ < ArrayCount(profiler_anchors))
+#ifndef NDEBUG
+#define DOT_PROFILING_ENABLE
+#endif
 
 #ifdef DOT_PROFILING_ENABLE
 #define DOT_PROFILE_BLOCK(label) DeferLoop( \
             DOT_ProfileBlock DOT_CONCAT(profile_block_, __LINE__) =  DOT_ProfileBlock_Begin((label), __COUNTER__ + 1), \
             DOT_ProfileBlock_End(&DOT_CONCAT(profile_block_,  __LINE__)))
 
+#define ProfilerEndOfCompilationUnit DOT_STATIC_ASSERT(__COUNTER__ < ArrayCount(profiler_anchors)) // Does not work for now
 #else
 #define DOT_PROFILE_BLOCK(label) ((void)0)
 #endif
