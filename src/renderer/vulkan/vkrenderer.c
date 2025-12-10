@@ -18,6 +18,38 @@ internal DOT_RendererBackendVk* DOT_RendererBackendVk_Create(Arena* arena){
     return backend;
 }
 
+
+internal const DOT_RendererBackendVKSettings* DOT_VKSettings() {
+    static const char* instance_exts[] = {
+        VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME,
+        VK_KHR_SURFACE_EXTENSION_NAME,
+    #ifdef DOT_VK_EXT_DEBUG_UTILS_ENABLE
+        VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+    #endif
+        RGFW_VK_SURFACE,
+    };
+
+    static const char* device_exts[] = {
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+    };
+
+    static const char* vk_layers[] = {
+#ifdef DOT_VALIDATION_LAYERS_ENABLE
+            "VK_LAYER_KHRONOS_validation",
+#endif
+    };
+
+    static const DOT_RendererBackendVKSettings vk_settings = {
+        .instance_extension_names = instance_exts,
+        .instance_extension_count = ArrayCount(instance_exts),
+        .device_extension_names = device_exts,
+        .device_extension_count = ArrayCount(device_exts),
+        .layer_names = vk_layers,
+        .layer_count = ArrayCount(vk_layers),
+    };
+    return &vk_settings;
+}
+
 internal inline VKAPI_ATTR u32 VKAPI_CALL DOT_VkDebugCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
     VkDebugUtilsMessageTypeFlagsEXT message_type,
@@ -46,16 +78,18 @@ internal inline bool DOT_VkDeviceAllRequiredExtensions(VkPhysicalDevice device){
     array(VkExtensionProperties) available_extensions = PushArray(temp.arena, VkExtensionProperties, extension_count);
     vkEnumerateDeviceExtensionProperties(device, NULL, &extension_count, available_extensions);
     bool found = true;
-    for(u64 i = 0; i < ArrayCount(dot_renderer_backend_device_extension_names); ++i){
+
+    const DOT_RendererBackendVKSettings* vk_settings = DOT_VKSettings();
+    for(u64 i = 0; i < vk_settings->device_extension_count; ++i){
         for(u64 j = 0; j < extension_count; ++j){
-            if(strcmp(dot_renderer_backend_device_extension_names[i], available_extensions[j].extensionName) == 0){
-                DOT_PRINT("found %s", dot_renderer_backend_device_extension_names[i]);
+            if(strcmp(vk_settings->device_extension_names[i], available_extensions[j].extensionName) == 0){
+                DOT_PRINT("found %s", vk_settings->device_extension_names[i]);
                 found = true;
                 break;
             }
         }
         if(!found){
-            DOT_WARNING("Requested layer %s not found", dot_vk_layers[i]);
+            DOT_WARNING("Requested extension %s not found", vk_settings->device_extension_names[i]);
             break;
         }
     }
@@ -151,18 +185,20 @@ internal inline bool DOT_VkAllLayers(){
     vkEnumerateInstanceLayerProperties(&available_layer_count, NULL);
     array(VkLayerProperties) available_layers = PushArray(temp.arena, VkLayerProperties, available_layer_count);
     vkEnumerateInstanceLayerProperties(&available_layer_count, available_layers);
+
+    const DOT_RendererBackendVKSettings* vk_settings = DOT_VKSettings();
     bool found = true;
-    for(u64 i = 0; i < ArrayCount(dot_vk_layers); ++i){
+    for(u64 i = 0; i < vk_settings->layer_count; ++i){
         found = false;
         for(u64 j = 0; j < available_layer_count; ++j){
-            if(strcmp(dot_vk_layers[i], available_layers[j].layerName) == 0){
-                DOT_PRINT("Found Layer %s", dot_vk_layers[i]);
+            if(strcmp(vk_settings->layer_names[i], available_layers[j].layerName) == 0){
+                DOT_PRINT("Found Layer %s", vk_settings->layer_names[i]);
                 found = true;
                 break;
             }
         }
         if(!found){
-            DOT_WARNING("Requested layer %s not found", dot_vk_layers[i]);
+            DOT_WARNING("Requested layer %s not found", vk_settings->layer_names[i]);
             break;
         }
     }
@@ -177,14 +213,15 @@ internal void DOT_RendererBackendVk_InitVulkan(DOT_RendererBackendBase* ctx, DOT
         DOT_ERROR("Could not find all requested layers");
     }
 
+    const DOT_RendererBackendVKSettings* vk_settings = DOT_VKSettings();
     // --- Create Instance ---
     {
         VkInstanceCreateInfo instance_create_info = {
             .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-            .ppEnabledLayerNames     = dot_vk_layers,
-            .enabledLayerCount       = ArrayCount(dot_vk_layers),
-            .ppEnabledExtensionNames = dot_renderer_backend_extension_names,
-            .enabledExtensionCount   = ArrayCount(dot_renderer_backend_extension_names),
+            .ppEnabledLayerNames     = vk_settings->layer_names,
+            .enabledLayerCount       = vk_settings->layer_count,
+            .ppEnabledExtensionNames = vk_settings->instance_extension_names,
+            .enabledExtensionCount   = vk_settings->instance_extension_count,
             .pApplicationInfo        =
             &(VkApplicationInfo){
                 .sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO,
@@ -258,10 +295,12 @@ internal void DOT_RendererBackendVk_InitVulkan(DOT_RendererBackendBase* ctx, DOT
         }
 
         VkDeviceCreateInfo device_create_info = {
-            .sType                = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-            .pQueueCreateInfos    = queue_infos,
-            .queueCreateInfoCount = queue_count,
-            .pEnabledFeatures     = &(VkPhysicalDeviceFeatures){},
+            .sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+            .pQueueCreateInfos       = queue_infos,
+            .queueCreateInfoCount    = queue_count,
+            .pEnabledFeatures        = &(VkPhysicalDeviceFeatures){},
+            .ppEnabledExtensionNames = vk_settings->device_extension_names,
+            .enabledExtensionCount   = vk_settings->device_extension_count,
         };
 
         VkCheck(vkCreateDevice(candidate_device_info.gpu, &device_create_info, NULL, &renderer_device.device));
@@ -276,7 +315,7 @@ internal void DOT_RendererBackendVk_InitVulkan(DOT_RendererBackendBase* ctx, DOT
         renderer_ctx->device = renderer_device;
     }
  
-    // --- Surface Capabilities ---
+    // --- Check Swapchain Support ---
     {
         VkSurfaceCapabilities2KHR surface_capabilities = {
             .sType = VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR,
@@ -291,8 +330,6 @@ internal void DOT_RendererBackendVk_InitVulkan(DOT_RendererBackendBase* ctx, DOT
             array(VkSurfaceFormat2KHR) surface_formats;
             u32 format_count;
         } formats;
-        int (a) = 5;
-        (void) a;
 
         VkCheck(vkGetPhysicalDeviceSurfaceFormats2KHR(renderer_ctx->device.gpu, &surface_info, &formats.format_count, NULL));
         formats.surface_formats = PushArray(temp.arena, VkSurfaceFormat2KHR, formats.format_count);

@@ -1,5 +1,11 @@
 #ifndef DOT_VK_RENDERER
 #define DOT_VK_RENDERER
+
+#ifndef NDEBUG
+#define DOT_VALIDATION_LAYERS_ENABLE
+#define DOT_VK_EXT_DEBUG_UTILS_ENABLE
+#endif
+
 typedef struct DOT_RendererBackendDevice {
         VkDevice device;
         VkPhysicalDevice gpu;
@@ -10,7 +16,7 @@ typedef struct DOT_RendererBackendDevice {
 
 typedef struct DOT_RendererBackendVk {
         DOT_RendererBackendBase base;
-#ifndef NDEBUG
+#ifdef DOT_VK_EXT_DEBUG_UTILS_ENABLE
         VkDebugUtilsMessengerEXT debug_messenger; // This may trip us up if hot reloading different build types?
 #endif
         DOT_RendererBackendDevice device;
@@ -18,39 +24,23 @@ typedef struct DOT_RendererBackendVk {
         VkSurfaceKHR surface;
 } DOT_RendererBackendVk;
 
-// typedef struct {
-//     const char** extensions;
-//     size_t extension_count;
-//     const char** validation_layers;
-//     size_t layer_count;
-// } VulkanConfig;
 
-#ifndef NDEBUG
-#define DOT_VALIDATION_LAYERS_ENABLE
-#define DOT_VK_EXT_DEBUG_UTILS_ENABLE
-#endif
+typedef struct DOT_RendererBackendVKSettings{
+    const char** instance_extension_names;
+    const usize  instance_extension_count;
 
-const char* dot_renderer_backend_extension_names[] = {
-        VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME,
-        VK_KHR_SURFACE_EXTENSION_NAME,
-#ifdef DOT_VK_EXT_DEBUG_UTILS_ENABLE
-        VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-#endif
-        RGFW_VK_SURFACE, // NOTE: This should be queried from DOT_Window
-};
+    const char **device_extension_names;
+    const usize  device_extension_count;
 
-const char* dot_renderer_backend_device_extension_names[] = {
-        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-};
+    const char **layer_names;
+    const usize  layer_count;
+}DOT_RendererBackendVKSettings;
 
-const char* dot_vk_layers[] = {
-#ifdef DOT_VALIDATION_LAYERS_ENABLE
-        "VK_LAYER_KHRONOS_validation",
-#endif
-};
 
 internal DOT_RendererBackendVk* DOT_RendererBackendBase_AsVk(DOT_RendererBackendBase* base);
 internal DOT_RendererBackendVk* DOT_RendererBackendVk_Create(Arena* arena);
+internal const DOT_RendererBackendVKSettings* DOT_VKSettings();
+
 internal void DOT_RendererBackendVk_InitVulkan(DOT_RendererBackendBase* ctx, DOT_Window* window);
 internal void DOT_RendererBackendVk_ShutdownVulkan(DOT_RendererBackendBase* ctx);
 #endif
