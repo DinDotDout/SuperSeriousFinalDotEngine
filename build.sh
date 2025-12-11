@@ -11,15 +11,6 @@ CFLAGS="-g -std=c99 \
 OUT=${OUT:-app}
 
 # --- Libraries ---
-LIBS=" \
-    -D RGFW_WAYLAND \
-    relative-pointer-unstable-v1.c pointer-constraints-unstable-v1.c \
-    xdg-toplevel-icon-v1.c xdg-output-unstable-v1.c \
-    xdg-decoration-unstable-v1.c xdg-shell.c \
-    -lwayland-cursor -lwayland-client -lxkbcommon -lwayland-egl -lEGL \
-    -lvulkan -ldl -lpthread \
-"
-
 SYS_LIBS=" \
     -lwayland-cursor -lwayland-client -lxkbcommon \
     -lvulkan -ldl -lpthread \
