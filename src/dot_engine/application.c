@@ -6,7 +6,7 @@ void Application_Init(Application* app){
         .memory_size = app_config.thread_mem_size,
         .thread_id   = 0,
     });
-    app->permanent_arena = Arena_Alloc(.capacity = app_config.mem_size, .name = "Application");
+    app->permanent_arena = Arena_Alloc(.reserve_size = app_config.mem_size, .name = "Application");
     DOT_Window_Init(&app->window);
     DOT_Renderer_Init(&app->permanent_arena, &app->renderer, &app->window, app_config.renderer_config);
 }

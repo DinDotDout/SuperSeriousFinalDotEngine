@@ -43,7 +43,7 @@ static void DOT_PrintTimeElapsed(u64 total_tsc_elapsed, DOT_ProfileAnchor *ancho
 }
 
 internal inline void DOT_ProfilerPrint(){
-    u64 cpu_frequency = OS_EstimateCpuFreq();
+    u64 cpu_frequency = Platform_EstimateCpuFreq();
     u64 total_cpu_elapsed = profiler.end_tsc - profiler.start_tsc;
     if(cpu_frequency){
         printf("\nTotal time: %0.4fms (CPU freq %lu)\n", 1000.0 * (f64)total_cpu_elapsed / (f64)cpu_frequency, cpu_frequency);

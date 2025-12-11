@@ -4,6 +4,8 @@
 #define DOT_OS_POSIX
 #endif
 
+#define LARGE_PAGES MB(2)
+#define NORMAL_PAGES KB(4)
 
 #if defined(DOT_OS_WIN32)
 #include <intrin.h>
@@ -22,12 +24,13 @@ static u64 OS_ReadTimer(){
 #elif defined(DOT_OS_POSIX)
 #include <x86intrin.h>
 #include <sys/time.h>
+#include <sys/mman.h>
 
-static u64 Platform_OSGetTimerFreq(){
+internal u64 Platform_OSGetTimerFreq(){
     return 1000000;
 }
 
-static u64 Platform_OSReadTimer(){
+internal u64 Platform_OSReadTimer(){
     struct timeval value;
     gettimeofday(&value, 0);
     u64 result = Platform_OSGetTimerFreq()*(u64)value.tv_sec + (u64)value.tv_usec;
@@ -35,11 +38,11 @@ static u64 Platform_OSReadTimer(){
 }
 #endif
 
-static inline u64 Platform_ReadCPUTimer(void){
-	return __rdtsc(); // NOTE: Only works on x86, update to support ARM
+internal u64 Platform_ReadCPUTimer(void){
+    return __rdtsc(); // NOTE: Only works on x86, update to support ARM
 }
 
-u64 OS_EstimateCpuFreq(){
+internal u64 Platform_EstimateCpuFreq(){
     u64 msec_to_wait = 100;
     u64 os_freq = Platform_OSGetTimerFreq();
 
@@ -65,3 +68,25 @@ u64 OS_EstimateCpuFreq(){
     return cpu_freq;
 }
 
+internal inline void* OS_Reserve(usize size){
+    return mmap(NULL, size, PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+}
+
+internal inline b8 OS_Commit(void *ptr, u64 size){
+    mprotect(ptr, size, PROT_READ|PROT_WRITE);
+    // madvise(ptr, size, MADV_HUGEPAGE); // This is enabled by default
+    madvise(ptr, size, MADV_POPULATE_WRITE);
+    return true;
+}
+
+// For this to take effect we must align to 2M pages
+internal inline b8 OS_CommitLarge(void *ptr, u64 size){
+    mprotect(ptr, size, PROT_READ|PROT_WRITE);
+    // madvise(ptr, size, MADV_HUGEPAGE); // This is enabled by default
+    madvise(ptr, size, MADV_POPULATE_WRITE);
+    return true;
+}
+
+internal inline void OS_Release(void *ptr, u64 size){
+    munmap(ptr, size);
+}

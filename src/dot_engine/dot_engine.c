@@ -1,6 +1,6 @@
 #include "dot_engine.h"
-
 #include "base/dot.h"
+#include "base/arena.h"
 
 #include "base/platform.h"
 #include "base/profiler.h"
@@ -13,6 +13,7 @@
 #include "dot_engine/game.h"
 // #include "dot_engine/game.c"
 
+#include "base/arena.c"
 #include "base/thread_ctx.c" 
 #include "dot_engine/window.c"
 #include "renderer/renderer_backend.c"

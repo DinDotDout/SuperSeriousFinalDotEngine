@@ -4,11 +4,12 @@
 //
 // Needed headers
 //
+#define _GNU_SOURCE
+#include <stdlib.h>
+//
 #include <stdbool.h>
 // fprintf, FILE
 #include <stdio.h>
-// abort
-#include <stdlib.h>
 // memset
 #include <string.h>
 // va_start, va_end
@@ -276,156 +277,19 @@ internal inline void PrintDebug(const PrintDebugParams* params, const char* fmt,
 #if defined(DOT_COMPILER_MSVC)
 #define alignof(T) __alignof(T)
 #elif defined(DOT_COMPILER_CLANG)
-#define alignof(T) __alignof(T)
+#define alignof(T) __alignof__(T)
 #elif DOT_COMPILER_GCC
 #define alignof(T) __alignof__(T)
 #else
 #error alignof not defined for this compiler.
 #endif
 
+#define AlignPow2(x, b) (((x) + (b) - 1) & (~((b) - 1)))
+
 #define MemoryZero(s, z) memset((s), 0, (z))
 #define MemoryZeroStruct(s) MemoryZero((s), sizeof(*(s)))
 #define MemoryZeroArray(a) MemoryZero((a), sizeof(a))
 #define MemoryZeroTyped(m, c) MemoryZero((m), sizeof(*(m)) * (c))
-
-#ifdef NO_TRACK_MEMORY
-#define PRINT_ALLOC(message, ...)
-#else
-#define PRINT_ALLOC(message, ...) printf(message "\n", ##__VA_ARGS__);
-#endif
-
-#define ARENA_MIN_ALIGNMENT 8
-#define ARENA_MIN_CAPACITY KB(16)
-
-typedef struct Arena {
-    u64 used;
-    u64 capacity;
-    u8 *base;
-    char *name;
-} Arena;
-
-typedef struct ArenaInitParams {
-    u64 capacity;
-    char *reserve_location;
-    int reserve_line;
-    char *name;
-} ArenaInitParams;
-
-typedef struct MemoryArenaPushParams {
-    u64 size;
-    char* file;
-    char* line;
-    u8 alignment;
-} MemoryArenaPushParams;
-
-typedef struct TempArena {
-    u64 prevOffset;
-    Arena *arena;
-} TempArena;
-
-internal inline TempArena TempArena_Get(Arena *arena) {
-    TempArena sa;
-    sa.arena = arena;
-    sa.prevOffset = arena->used;
-    return sa;
-}
-
-internal inline void TempArena_Restore(TempArena *sa) {
-    sa->arena->used = sa->prevOffset;
-}
-
-internal inline Arena Arena_CreateFromMemory_(u8* base, ArenaInitParams* params) {
-    DOT_ASSERT_FL(base != NULL, params->reserve_location, params->reserve_line, "Invalid memory provided");
-    Arena a = {.base = base, .used = 0, .capacity = params->capacity, .name = params->name};
-    return a;
-}
-
-// TODO (joan): should expand to use mmap
-internal inline Arena Arena_Alloc_(ArenaInitParams *params) {
-    DOT_PRINT_FL(params->reserve_location, params->reserve_line, "Arena: requested %zuKB", params->capacity / 1024);
-    Arena arena = {.capacity = params->capacity, .name = params->name};
-    u8 *memory = (u8 *)malloc(params->capacity); // Malloc guarantes 8B aligned at least
-    DOT_ASSERT_FL(memory, params->reserve_location, params->reserve_line, "Could not allocate");
-    arena.base = memory;
-    return arena;
-}
-
-internal inline void Arena_Reset(Arena *arena) { arena->used = 0; }
-
-// Not needed as will last program duration probably.
-internal inline void Arena_Free(Arena *arena) {
-    free(arena->base);
-    arena->used = 0;
-    arena->capacity = 0;
-}
-
-#define AlignPow2(x, b) (((x) + (b) - 1) & (~((b) - 1)))
-
-internal inline u8 *Arena_Push(Arena *arena, usize size, usize alignment, char* file, u32 line) {
-    DOT_ASSERT_FL(size > 0, file, line);
-    usize current_address = cast(usize)arena->base + arena->used;
-    usize aligned_address = AlignPow2(current_address, alignment);
-    u8 *mem_offset = cast(u8*) aligned_address;
-
-    usize required = (aligned_address - cast(usize)arena->base) + size;
-
-    DOT_ASSERT_FL((cast(usize)mem_offset % alignment) == 0, file, line);
-    if(DOT_Unlikely(required > arena->capacity)){
-        DOT_ERROR_FL(file, line,
-                     "Arena out of bounds: requested %zuKB (used=%zu), capacity=%zu",
-                     (required / 1024), (arena->used / 1024), (arena->capacity / 1024));
-        return NULL;
-    }
-    arena->used = required;
-    return mem_offset;
-}
-
-internal inline u8 *Arena_Push_(Arena *arena, usize size, usize alignment, char* file, u32 line) {
-    DOT_ASSERT_FL(size > 0, file, line);
-    usize current_address = cast(usize)(arena->base + arena->used);
-    usize pad = (alignment - (current_address & (alignment - 1))) & (alignment - 1);
-    u8 *mem_offset = arena->base + arena->used + pad;
-    DOT_ASSERT_FL((cast(usize)mem_offset % alignment) == 0, file, line, "Not aligned");
-    usize required = arena->used + pad + size;
-    if(DOT_Unlikely(required > arena->capacity)){
-        DOT_ERROR_FL(file, line,
-                     "Arena out of bounds: requested %zuKB (used=%zu), capacity=%zu",
-                     (required / 1024), (arena->used / 1024), (arena->capacity / 1024));
-        return NULL;
-    }
-    arena->used += size + pad;
-    return mem_offset;
-}
-
-#define Arena_Alloc(...) \
-Arena_Alloc_(&(ArenaInitParams){ \
-    .capacity = ARENA_MIN_CAPACITY,\
-    .reserve_location = __FILE__, \
-    .reserve_line = __LINE__, \
-    .name = "Default", \
-    __VA_ARGS__})
-
-#define Arena_AllocFromMemory(memory, ...) \
-Arena_CreateFromMemory_((u8*) (memory), &(ArenaInitParams){ \
-    .capacity = ARENA_MIN_CAPACITY, \
-    .reserve_location = __FILE__, \
-    .reserve_line = __LINE__, \
-    .name = "Default",\
-    __VA_ARGS__})
-
-#define PushSize(arena, size) \
-MemoryZero(Arena_Push(arena, size, ARENA_MIN_ALIGNMENT, __FILE__, __LINE__), size)
-
-#define PushArrayAligned(arena, type, count, alignment) \
-(type *)MemoryZero(Arena_Push(arena, sizeof(type) * (count), alignment, __FILE__, __LINE__), sizeof(type) * (count))
-
-#define PushArray(arena, type, count) \
-PushArrayAligned(arena, type, count, Max(ARENA_MIN_ALIGNMENT, alignof(type)))
-
-#define PushStruct(arena, type) PushArray(arena, type, 1)
-
-#define MakeArray(arena, type, count) \
-((type##_array){.data = PushArray(arena, type, (count)), .size = (count)})
 
 // Keep this around for when using sorting functions
 #if defined(DOT_COMPILER_MSVC)
