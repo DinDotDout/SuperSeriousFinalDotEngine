@@ -11,7 +11,6 @@
 #include "renderer/renderer.h"
 #include "dot_engine/application.h"
 #include "dot_engine/game.h"
-// #include "dot_engine/game.c"
 
 #include "base/arena.c"
 #include "base/thread_ctx.c" 
