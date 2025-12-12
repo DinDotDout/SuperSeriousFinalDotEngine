@@ -8,5 +8,5 @@ typedef struct Application{
 
 void Application_Init(Application* app);
 void Application_Run(Application* app);
-void Application_ShutDown(Application* app);
+void Application_Shutdown(Application* app);
 #endif

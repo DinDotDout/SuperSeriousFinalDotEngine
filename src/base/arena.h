@@ -15,6 +15,8 @@ typedef struct Arena {
     u64 reserved;
     u8 *base;
     char *name;
+
+    u64 expand_commit_size;
 } Arena;
 
 typedef struct ArenaInitParams {

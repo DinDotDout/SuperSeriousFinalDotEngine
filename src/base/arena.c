@@ -16,32 +16,44 @@ internal Arena Arena_CreateFromMemory_(u8* base, ArenaInitParams* params){
 }
 
 // TODO (joan): should expand to use Platform_Reserve / Platform_Commit
-internal Arena Arena_Alloc_(ArenaInitParams *params){
+internal Arena* Arena_Alloc_(ArenaInitParams *params){
     DOT_PRINT_FL(params->reserve_location, params->reserve_line, "Arena: requested %zuKB", params->reserve_size / 1024);
-    Arena arena = {.reserved = params->reserve_size, .name = params->name};
-    u8 *memory = (u8 *)malloc(params->reserve_size); // Malloc guarantes 8B aligned at least
+    // u8 *memory = (u8 *)malloc(params->reserve_size); // Malloc guarantes 8B aligned at least
 
-    // u64 reserved = params->reserve_size;
-    // u64 initial_commit = params->commit_size;
-    // if (params->large_pages){
-    // reserved = AlignPow2(reserved, 
-    // u8 *memory = (u8 *)OS_Reserve(params->reserve_size); // align to page size
-    // }else{
-    // u64 reserved = params
-    // }
+    u64 reserved = params->reserve_size+sizeof(Arena);
+    u64 initial_commit = params->commit_size;
+    if(params->large_pages){
+        initial_commit = AlignPow2(initial_commit, LARGE_PAGES);
+        reserved = AlignPow2(reserved, LARGE_PAGES);
+    }else{
+        initial_commit = AlignPow2(initial_commit, REGULAR_PAGES);
+        reserved = AlignPow2(reserved, REGULAR_PAGES);
+    }
+    u8 *memory = cast(u8*)OS_Reserve(reserved); // align to page size
+    if(params->large_pages){
+        OS_CommitLarge(memory, initial_commit);
+    }else{
+        OS_Commit(memory, initial_commit);
+    }
+
     DOT_ASSERT_FL(memory, params->reserve_location, params->reserve_line, "Could not allocate");
-    arena.base = memory;
+    Arena* arena = cast(Arena*)memory; // aligning to page size means arena is already aligned
+    arena->base = memory+sizeof(Arena);
+    arena->reserved = reserved-sizeof(Arena);
+    arena->used = 0;
     return arena;
 }
 
-internal void Arena_Reset(Arena *arena){ arena->used = 0; }
+internal inline void Arena_Reset(Arena *arena){ arena->used = 0; }
 
 // Not needed as will last program duration probably.
-internal void Arena_Free(Arena *arena){
-    free(arena->base);
+internal inline void Arena_Free(Arena *arena){
+    OS_Release(arena->base, arena->reserved);
+    // free(arena->base);
     arena->used = 0;
     arena->reserved = 0;
 }
+
 
 // TODO (joan): should expand to use Platform_Reserve / Platform_Commit
 internal u8 *Arena_Push(Arena *arena, usize size, usize alignment, char* file, u32 line){

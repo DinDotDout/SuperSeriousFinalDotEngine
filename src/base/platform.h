@@ -1,52 +1,63 @@
 #if defined(_WIN32)
-#define DOT_OS_WIN32
+    #define DOT_OS_WINDOWS
+#elif defined(__unix__) || defined(__APPLE__) || defined(__linux__)
+    #define DOT_OS_POSIX
 #else
-#define DOT_OS_POSIX
+    #error "Unsupported platform"
 #endif
 
+#if defined(DOT_OS_POSIX)
+    #include "os/os_linux.h"
+#elif defined(DOT_OS_WINDOWS)
+    #include "os/os_windows.h"
+#endif
+
+#define REGULAR_PAGES KB(4)
 #define LARGE_PAGES MB(2)
-#define NORMAL_PAGES KB(4)
 
-#if defined(DOT_OS_WIN32)
-#include <intrin.h>
-#include <windows.h>
-static u64 OS_GetTimerFreq(){
-    LARGE_INTEGER freq;
-    QueryPerformanceFrequency(&freq);
-    return freq.QuadPart;
-}
-
-static u64 OS_ReadTimer(){
-    LARGE_INTEGER value;
-    QueryPerformanceCounter(&value);
-    return value.QuadPart;
-}
-#elif defined(DOT_OS_POSIX)
-#include <x86intrin.h>
-#include <sys/time.h>
-#include <sys/mman.h>
-
-internal u64 Platform_OSGetTimerFreq(){
-    return 1000000;
-}
-
-internal u64 Platform_OSReadTimer(){
-    struct timeval value;
-    gettimeofday(&value, 0);
-    u64 result = Platform_OSGetTimerFreq()*(u64)value.tv_sec + (u64)value.tv_usec;
-    return result;
-}
+////////////////////////////////////////////////////////////////
+//
+// Compiler
+//
+#if DOT_COMPILER_MSVC
+    #if defined(__SANITIZE_ADDRESS__)
+        #define DOT_ASAN_ENABLED
+        #define NO_ASAN __declspec(no_sanitize_address)
+    #else
+        #define NO_ASAN
+    #endif
+#elif DOT_COMPILER_GCC
+    #if defined(__has_feature)
+        #if __has_feature(address_sanitizer) || defined(__SANITIZE_ADDRESS__)
+            #define DOT_ASAN_ENABLED
+        #endif
+    #endif
 #endif
 
-internal u64 Platform_ReadCPUTimer(void){
+#if defined(DOT_ASAN_ENABLED)
+void __asan_poison_memory_region(void const volatile *addr, size_t size);
+void __asan_unpoison_memory_region(void const volatile *addr, size_t size);
+#define AsanPoison(addr, size)   __asan_poison_memory_region((addr), (size))
+#define AsanUnpoison(addr, size) __asan_unpoison_memory_region((addr), (size))
+#else
+#define AsanPoison(addr, size)   ((void)0)
+#define AsanUnpoison(addr, size) ((void)0)
+#endif
+
+
+////////////////////////////////////////////////////////////////
+//
+// Metrics
+//
+internal u64 Platform_CpuReadTimer(void){
     return __rdtsc(); // NOTE: Only works on x86, update to support ARM
 }
 
-internal u64 Platform_EstimateCpuFreq(){
+internal u64 Platform_CpuEstimateFreq(){
     u64 msec_to_wait = 100;
     u64 os_freq = Platform_OSGetTimerFreq();
 
-    u64 cpu_start = Platform_ReadCPUTimer();
+    u64 cpu_start = Platform_CpuReadTimer();
     u64 os_start = Platform_OSReadTimer();
     u64 os_end = 0;
     u64 os_elapsed = 0;
@@ -55,7 +66,7 @@ internal u64 Platform_EstimateCpuFreq(){
         os_end = Platform_OSReadTimer();
         os_elapsed = os_end - os_start;
     }
-    u64 cpu_end = Platform_ReadCPUTimer();
+    u64 cpu_end = Platform_CpuReadTimer();
     u64 cpu_elapsed = cpu_end - cpu_start;
     u64 cpu_freq = 0;
     if(os_elapsed){
@@ -66,27 +77,4 @@ internal u64 Platform_EstimateCpuFreq(){
     // printf("cpu elapsed: %lu\n", cpu_elapsed);
     // printf("cpu freq: %lu\n", cpu_freq);
     return cpu_freq;
-}
-
-internal inline void* OS_Reserve(usize size){
-    return mmap(NULL, size, PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-}
-
-internal inline b8 OS_Commit(void *ptr, u64 size){
-    mprotect(ptr, size, PROT_READ|PROT_WRITE);
-    // madvise(ptr, size, MADV_HUGEPAGE); // This is enabled by default
-    madvise(ptr, size, MADV_POPULATE_WRITE);
-    return true;
-}
-
-// For this to take effect we must align to 2M pages
-internal inline b8 OS_CommitLarge(void *ptr, u64 size){
-    mprotect(ptr, size, PROT_READ|PROT_WRITE);
-    // madvise(ptr, size, MADV_HUGEPAGE); // This is enabled by default
-    madvise(ptr, size, MADV_POPULATE_WRITE);
-    return true;
-}
-
-internal inline void OS_Release(void *ptr, u64 size){
-    munmap(ptr, size);
 }

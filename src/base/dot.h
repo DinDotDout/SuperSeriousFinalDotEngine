@@ -15,8 +15,6 @@
 // va_start, va_end
 #include <stdarg.h>
 
-
-
 ////////////////////////////////////////////////////////////////
 //
 // Compiler
@@ -35,9 +33,8 @@
 //
 // OS
 //
-
 #if defined(_WIN32)
-#define DOT_OS_WIN32
+#define DOT_OS_WINDOWS
 #else
 #define DOT_OS_POSIX
 #endif
@@ -181,7 +178,7 @@ do { \
 
 #define DOT_ERROR(...) DOT_ERROR_IMPL(PrintDebugParamsDefault(.print_debug_kind = LOG_LEVEL_ERROR), __VA_ARGS__)
 #define DOT_ERROR_FL(f, l, ...) DOT_ERROR_IMPL(PrintDebugParamsDefault(.print_debug_kind = LOG_LEVEL_ERROR, .file = (f), .line = (l)), __VA_ARGS__)
-#define TODO(msg) \
+#define DOT_TODO(msg) \
 do { \
     PrintDebug(PrintDebugParamsDefault(.print_debug_kind = LOG_LEVEL_ERROR), "TODO: %s", msg); \
     abort(); \

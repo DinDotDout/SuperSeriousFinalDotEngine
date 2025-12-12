@@ -24,11 +24,11 @@ typedef struct DOT_Profiler{
 global thread_local DOT_Profiler profiler;
 
 internal inline void DOT_ProfilerBegin(){
-    profiler.start_tsc = Platform_ReadCPUTimer();
+    profiler.start_tsc = Platform_CpuReadTimer();
 }
 
 internal inline void DOT_ProfilerEnd(){
-    profiler.end_tsc = Platform_ReadCPUTimer();
+    profiler.end_tsc = Platform_CpuReadTimer();
 }
 
 static void DOT_PrintTimeElapsed(u64 total_tsc_elapsed, DOT_ProfileAnchor *anchor){
@@ -43,7 +43,7 @@ static void DOT_PrintTimeElapsed(u64 total_tsc_elapsed, DOT_ProfileAnchor *ancho
 }
 
 internal inline void DOT_ProfilerPrint(){
-    u64 cpu_frequency = Platform_EstimateCpuFreq();
+    u64 cpu_frequency = Platform_CpuEstimateFreq();
     u64 total_cpu_elapsed = profiler.end_tsc - profiler.start_tsc;
     if(cpu_frequency){
         printf("\nTotal time: %0.4fms (CPU freq %lu)\n", 1000.0 * (f64)total_cpu_elapsed / (f64)cpu_frequency, cpu_frequency);
@@ -66,12 +66,12 @@ internal inline DOT_ProfileBlock DOT_ProfileBlock_Begin(char const *label, u32 a
     profile_block.old_tsc_elapsed_inclusive = anchor->tsc_elapsed_inclusive;
 
     profile_block_parent = anchor_index;
-    profile_block.start_tsc = Platform_ReadCPUTimer();
+    profile_block.start_tsc = Platform_CpuReadTimer();
     return profile_block;
 }
 
 internal inline void DOT_ProfileBlock_End(DOT_ProfileBlock* profile_block){
-    u64 elapsed = Platform_ReadCPUTimer() - profile_block->start_tsc;
+    u64 elapsed = Platform_CpuReadTimer() - profile_block->start_tsc;
     profile_block_parent = profile_block->parent_index;
 
     DOT_ProfileAnchor *parent = profiler_anchors + profile_block->parent_index;

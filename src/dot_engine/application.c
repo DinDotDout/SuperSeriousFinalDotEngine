@@ -17,7 +17,7 @@ void Application_Run(Application* app){
     }
 }
 
-void Application_ShutDown(Application* app){
+void Application_Shutdown(Application* app){
     DOT_Renderer_Shutdown(&app->renderer);
     DOT_Window_Destroy(&app->window);
 }
