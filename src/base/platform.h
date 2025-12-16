@@ -12,8 +12,8 @@
     #include "os/os_windows.h"
 #endif
 
-#define REGULAR_PAGES KB(4)
-#define LARGE_PAGES MB(2)
+#define REGULAR_PAGE_SIZE KB(4)
+#define LARGE_PAGE_SIZE MB(2)
 
 ////////////////////////////////////////////////////////////////
 //

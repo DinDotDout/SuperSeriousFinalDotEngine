@@ -3,7 +3,7 @@
 typedef struct Application{
         DOT_Renderer renderer;
         DOT_Window window;
-        Arena permanent_arena;
+        Arena* permanent_arena;
 } Application;
 
 void Application_Init(Application* app);

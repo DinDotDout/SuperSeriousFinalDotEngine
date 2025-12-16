@@ -6,7 +6,7 @@ typedef struct ThreadCtxOpts{
 }ThreadCtxOpts;
 
 typedef struct ThreadCtx{
-    Arena arenas[2];
+    Arena* arenas[2];
     u8 thread_id;
 }ThreadCtx;
 

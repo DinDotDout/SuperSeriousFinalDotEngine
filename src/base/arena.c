@@ -1,3 +1,4 @@
+#include "base/dot.h"
 internal TempArena TempArena_Get(Arena *arena){
     TempArena sa;
     sa.arena = arena;
@@ -10,67 +11,81 @@ internal void TempArena_Restore(TempArena *sa){
 }
 
 internal Arena Arena_CreateFromMemory_(u8* base, ArenaInitParams* params){
-    DOT_ASSERT_FL(base != NULL, params->reserve_location, params->reserve_line, "Invalid memory provided");
+    DOT_ASSERT_FL(base != NULL, params->reserve_file, params->reserve_line, "Invalid memory provided");
     Arena a = {.base = base, .used = 0, .reserved = params->reserve_size, .name = params->name};
     return a;
 }
 
-// TODO (joan): should expand to use Platform_Reserve / Platform_Commit
 internal Arena* Arena_Alloc_(ArenaInitParams *params){
-    DOT_PRINT_FL(params->reserve_location, params->reserve_line, "Arena: requested %zuKB", params->reserve_size / 1024);
-    // u8 *memory = (u8 *)malloc(params->reserve_size); // Malloc guarantes 8B aligned at least
+    DOT_ASSERT_FL(params->reserve_size > 0, params->reserve_file, params->reserve_line, "No reserve_size provided");
+    DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Arena: requested %M", params->reserve_size / 1024);
 
     u64 reserved = params->reserve_size+sizeof(Arena);
     u64 initial_commit = params->commit_size;
-    if(params->large_pages){
-        initial_commit = AlignPow2(initial_commit, LARGE_PAGES);
-        reserved = AlignPow2(reserved, LARGE_PAGES);
-    }else{
-        initial_commit = AlignPow2(initial_commit, REGULAR_PAGES);
-        reserved = AlignPow2(reserved, REGULAR_PAGES);
-    }
-    u8 *memory = cast(u8*)OS_Reserve(reserved); // align to page size
+    u64 expand_commit = params->expand_commit_size;
+    u64 page_size = params->large_pages ? LARGE_PAGE_SIZE : REGULAR_PAGE_SIZE;
+    reserved = AlignPow2(reserved, page_size);
+    initial_commit = AlignPow2(Max(initial_commit, page_size), page_size);
+    expand_commit = AlignPow2(Max(expand_commit, page_size), page_size);
+    void *memory = OS_Reserve(reserved);
     if(params->large_pages){
         OS_CommitLarge(memory, initial_commit);
     }else{
         OS_Commit(memory, initial_commit);
     }
 
-    DOT_ASSERT_FL(memory, params->reserve_location, params->reserve_line, "Could not allocate");
-    Arena* arena = cast(Arena*)memory; // aligning to page size means arena is already aligned
-    arena->base = memory+sizeof(Arena);
-    arena->reserved = reserved-sizeof(Arena);
-    arena->used = 0;
+    DOT_ASSERT_FL(memory, params->reserve_file, params->reserve_line, "Could not allocate");
+    Arena* arena = cast(Arena*)memory;
+    arena->base = memory;
+    arena->large_pages = params->large_pages;
+    arena->reserved = reserved;
+    arena->used = sizeof(Arena);
+    arena->committed = initial_commit;
+    arena->expand_commit_size = expand_commit;
+    AsanPoison(arena->base+arena->used, initial_commit-arena->used);
     return arena;
 }
 
-internal inline void Arena_Reset(Arena *arena){ arena->used = 0; }
-
-// Not needed as will last program duration probably.
-internal inline void Arena_Free(Arena *arena){
-    OS_Release(arena->base, arena->reserved);
-    // free(arena->base);
+internal void Arena_Reset(Arena *arena){ 
+    AsanPoison(arena->base, arena->used);
     arena->used = 0;
-    arena->reserved = 0;
 }
 
+internal void Arena_Free(Arena *arena){
+    OS_Release(arena->base, arena->reserved);
+    arena->used = 0;
+    arena->reserved = 0;
+    arena->expand_commit_size = 0;
+}
 
-// TODO (joan): should expand to use Platform_Reserve / Platform_Commit
-internal u8 *Arena_Push(Arena *arena, usize size, usize alignment, char* file, u32 line){
-    DOT_ASSERT_FL(size > 0, file, line);
-    usize current_address = cast(usize)arena->base + arena->used;
-    usize aligned_address = AlignPow2(current_address, alignment);
+internal void* Arena_Push(Arena *arena, usize alloc_size, usize alignment, char* file, u32 line){
+    DOT_ASSERT_FL(alloc_size > 0, file, line);
+    uptr arena_base = cast(uptr)arena->base;
+    uptr current_address =  arena_base + arena->used;
+    uptr aligned_address = AlignPow2(current_address, alignment);
     u8 *mem_offset = cast(u8*) aligned_address;
-
-    usize required = (aligned_address - cast(usize)arena->base) + size;
-
-    DOT_ASSERT_FL((cast(usize)mem_offset % alignment) == 0, file, line);
-    if(DOT_Unlikely(required > arena->reserved)){
+    DOT_ASSERT_FL((aligned_address % alignment) == 0, file, line, "Unaligned adress");
+    usize required_padded = aligned_address - current_address + alloc_size;
+    arena->used += required_padded;
+    if(DOT_Unlikely(arena->used > arena->reserved)){
         DOT_ERROR_FL(file, line,
-                     "Arena out of bounds: requested %zuKB (used=%zu), reserve_size=%zu",
-                     (required / 1024), (arena->used / 1024), (arena->reserved / 1024));
+                     "Arena out of bounds: requested = %M total used =  reserved = %M",
+                     (required_padded), (arena->reserved));
         return NULL;
     }
-    arena->used = required;
+
+    // NOTE: We only commit / touch the memory on the first run through
+    if(arena->used >= arena->committed){
+        usize leftover_size = arena->reserved - arena->committed;
+        usize commit_requirement = Min(leftover_size, arena->expand_commit_size);;
+        uptr commit_pos = arena_base + arena->committed;
+        if(arena->large_pages){
+            OS_CommitLarge(cast(void*)commit_pos, commit_requirement);
+        }else{
+            OS_Commit(cast(void*)commit_pos, commit_requirement);
+        }
+        arena->committed += commit_requirement;
+    }
+    AsanUnpoison(mem_offset, required_padded);
     return mem_offset;
 }

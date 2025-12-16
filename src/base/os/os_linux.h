@@ -1,4 +1,5 @@
 #include "base/dot.h"
+#include <linux/perf_event.h>
 #include <errno.h>
 #include <x86intrin.h>
 #include <sys/time.h>

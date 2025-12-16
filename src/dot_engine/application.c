@@ -8,7 +8,7 @@ void Application_Init(Application* app){
     });
     app->permanent_arena = Arena_Alloc(.reserve_size = app_config.mem_size, .name = "Application");
     DOT_Window_Init(&app->window);
-    DOT_Renderer_Init(&app->permanent_arena, &app->renderer, &app->window, app_config.renderer_config);
+    DOT_Renderer_Init(app->permanent_arena, &app->renderer, &app->window, app_config.renderer_config);
 }
 
 void Application_Run(Application* app){
