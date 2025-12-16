@@ -15,6 +15,11 @@
 // va_start, va_end
 #include <stdarg.h>
 
+#define STB_SPRINTF_STATIC
+#define STB_SPRINTF_NOUNALIGNED
+#define STB_SPRINTF_DECORATE(name) dot_##name
+#include "third_party/stb_sprintf.h"
+
 ////////////////////////////////////////////////////////////////
 //
 // Compiler
@@ -71,6 +76,21 @@ typedef u8 b8;
 typedef float f32;
 typedef double f64;
 
+#define U64_MAX 0xffffffffffffffffull
+#define U32_MAX 0xffffffff
+#define U16_MAX 0xffff
+#define U8_MAX  0xff
+
+#define I64_MAX (i64)0x7fffffffffffffffll
+#define I32_MAX (i32)0x7fffffff
+#define I16_MAX (i16)0x7fff
+#define I8_MAX  (i8)0x7f
+
+#define MIN_I64 (i64)0x8000000000000000ll
+#define MIN_I32 (i32)0x80000000
+#define MIN_I16 (i16)0x8000
+#define MIN_I8  (i8)0x80
+
 ////////////////////////////////////////////////////////////////
 //
 // Array
@@ -109,7 +129,6 @@ typedef double f64;
 //
 #define DEBUG_LOC_ARG __FILE__, __LINE__
 #define DEBUG_LOC_FMT "%s:%d"
-
 
 ////////////////////////////////////////////////////////////////
 //
@@ -158,8 +177,8 @@ typedef struct PrintDebugParams{
     u32 line;
 }PrintDebugParams;
 
-
-internal inline void PrintDebug(const PrintDebugParams* params, PRINTF_STRING const char* fmt, ...) PRINTF_LIKE(2, 3);
+#define DOT_MAX_LOG_LEVEL_LENGTH 128
+internal void PrintDebug(const PrintDebugParams* params, PRINTF_STRING const char* fmt, ...);
 
 #define PrintDebugParamsDefault(...) \
 &(PrintDebugParams) { \
@@ -210,31 +229,6 @@ do { \
 #define DOT_ASSERT_FL(...) ((void)0)
 #endif
 
-internal inline const char* PrintDebugKind_GetString(LogLevelKind debug_kind){
-    DOT_ASSERT(debug_kind < LOG_LEVEL_COUNT);
-    const char * ret = print_debug_str[debug_kind];
-    DOT_ASSERT(ret);
-    return ret;
-}
-
-#define DOT_MAX_LOG_LEVEL_LENGTH 128
-internal inline void PrintDebug(const PrintDebugParams* params, const char* fmt, ...){
-    char buf[DOT_MAX_LOG_LEVEL_LENGTH];
-    FILE* out = params->print_debug_kind == LOG_LEVEL_DEBUG ? stdout : stderr;
-
-    va_list args;
-    va_start(args, fmt);
-    vsnprintf(buf, sizeof(buf), fmt, args); // TODO: Swap for stb_vsntprintf
-    va_end(args);
-
-    const char* fmt_str = params->print_debug_kind == LOG_LEVEL_DEBUG ? "%s%s:%d -> %s\n" : "%s: %s:%d -> %s\n";
-    fprintf(out, fmt_str,
-        PrintDebugKind_GetString(params->print_debug_kind),
-        params->file,
-        params->line,
-        buf);
-}
-
 ////////////////////////////////////////////////////////////////
 //
 // Cast for easy cast grep
@@ -272,11 +266,11 @@ internal inline void PrintDebug(const PrintDebugParams* params, const char* fmt,
 //
 //
 #if defined(DOT_COMPILER_MSVC)
-#define alignof(T) __alignof(T)
+#define Alignof(T) __alignof(T)
 #elif defined(DOT_COMPILER_CLANG)
-#define alignof(T) __alignof__(T)
+#define Alignof(T) __alignof__(T)
 #elif DOT_COMPILER_GCC
-#define alignof(T) __alignof__(T)
+#define Alignof(T) __alignof__(T)
 #else
 #error alignof not defined for this compiler.
 #endif

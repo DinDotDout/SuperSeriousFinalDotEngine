@@ -1,9 +1,12 @@
 #include "dot_engine.h"
+
 #include "base/dot.h"
-#include "base/arena.h"
+#include "base/dot.c"
 
 #include "base/platform.h"
 #include "base/profiler.h"
+
+#include "base/arena.h"
 #include "base/thread_ctx.h"
 #include "dot_engine/window.h"
 #include "renderer/renderer_backend.h"
