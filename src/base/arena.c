@@ -18,7 +18,7 @@ internal Arena Arena_CreateFromMemory_(u8* base, ArenaInitParams* params){
 
 internal Arena* Arena_Alloc_(ArenaInitParams *params){
     DOT_ASSERT_FL(params->reserve_size > 0, params->reserve_file, params->reserve_line, "No reserve_size provided");
-    DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Arena: requested %M", params->reserve_size / 1024);
+    DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Arena: requested %M", params->reserve_size);
 
     u64 reserved = params->reserve_size+sizeof(Arena);
     u64 initial_commit = params->commit_size;
