@@ -3,12 +3,15 @@ set -euo pipefail
 
 # --- Config ---
 # CC=${CC:-cc}
+
 CFLAGS="-g -std=c99 \
+    -fsanitize=address,undefined \
     -fsanitize-recover=address,undefined \
     -Wall -Wextra -Wno-override-init -Wdiv-by-zero \
+    -Wno-unused-function \
     -lm"
 
-OUT=${OUT:-app}
+# OUT=${OUT:-app}
 
 # --- Libraries ---
 SYS_LIBS=" \
@@ -29,12 +32,11 @@ PROTO_SRCS=" \
 
 # --- Build ---
 echo "[*] Compiling..."
-# gcc $CFLAGS -I. -Iextra src/dot_engine.c $SYS_LIBS $PROTO_SRCS -o build/dot_engine
 
-# gcc $CFLAGS -Iextra \
-#     src/vk10.c $SYS_LIBS $PROTO_SRCS \
-#     -o build/vk
 gcc $CFLAGS -I src/ \
     src/dot_engine/dot_engine.c $SYS_LIBS $PROTO_SRCS \
     -o build/dot_engine
-echo "[+] Build complete: $OUT"
+
+gcc $CFLAGS -I src/ \
+    src/tests/arena_probe_page_fault.c -o build/arena_probe_page_fault
+# echo "[+] Build complete: $OUT"
