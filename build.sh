@@ -37,6 +37,11 @@ gcc $CFLAGS -I src/ \
     src/dot_engine/dot_engine.c $SYS_LIBS $PROTO_SRCS \
     -o build/dot_engine
 
-gcc $CFLAGS -I src/ \
+CFLAGS_TESTS="-g -std=c99 \
+    -Wall -Wextra -Wno-override-init -Wdiv-by-zero \
+    -Wno-unused-function \
+    -lm"
+
+gcc $CFLAGS_TESTS -I src/ \
     src/tests/arena_probe_page_fault.c -o build/arena_probe_page_fault
 # echo "[+] Build complete: $OUT"

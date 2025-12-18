@@ -12,8 +12,8 @@
     #include "os/os_windows.h"
 #endif
 
-#define REGULAR_PAGE_SIZE KB(4)
-#define LARGE_PAGE_SIZE MB(2)
+#define PLATFORM_REGULAR_PAGE_SIZE KB(4)
+#define PLATFORM_LARGE_PAGE_SIZE MB(2)
 
 ////////////////////////////////////////////////////////////////
 //
@@ -39,9 +39,11 @@ void __asan_poison_memory_region(void const volatile *addr, size_t size);
 void __asan_unpoison_memory_region(void const volatile *addr, size_t size);
 #define AsanPoison(addr, size)   __asan_poison_memory_region((addr), (size))
 #define AsanUnpoison(addr, size) __asan_unpoison_memory_region((addr), (size))
+#define NO_ASAN __attribute__((no_sanitize("all")))
 #else
 #define AsanPoison(addr, size)   ((void)0)
 #define AsanUnpoison(addr, size) ((void)0)
+#define NO_ASAN
 #endif
 
 

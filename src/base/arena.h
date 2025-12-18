@@ -17,7 +17,7 @@ typedef struct Arena {
     u64 reserved; // Total usable memory
     u64 committed;
     bool large_pages;
-    u64 expand_commit_size;
+    u64 commit_expand_size;
 
     char *name;
 } Arena;
@@ -26,7 +26,7 @@ typedef struct ArenaInitParams {
     u64 reserve_size; // Virt reserved memory
     u64 commit_size; // Forced initial populate
 
-    u64 expand_commit_size; // Commitsize after initial commit
+    u64 commit_expand_size; // Commitsize after initial commit
     bool large_pages;
 
     // Debug
@@ -49,7 +49,8 @@ typedef struct TempArena {
 
 internal TempArena TempArena_Get(Arena *arena);
 internal void TempArena_Restore(TempArena *sa);
-internal Arena Arena_CreateFromMemory_(u8* base, ArenaInitParams* params);
+
+internal Arena* Arena_CreateFromMemory_(u8* base, ArenaInitParams* params);
 internal Arena* Arena_Alloc_(ArenaInitParams *params);
 internal void Arena_Reset(Arena *arena);
 internal void Arena_Free(Arena *arena);
@@ -66,8 +67,7 @@ internal void* Arena_Push(Arena *arena, usize size, usize alignment, char* file,
 
 #define Arena_Alloc(...) Arena_Alloc_(ArenaDefaultParams(__VA_ARGS__))
 
-#define Arena_AllocFromMemory(memory, ...) \
-    Arena_CreateFromMemory_((u8*) (memory), ArenaDefaultParams(__VA_ARGS__))
+#define Arena_AllocFromMemory(memory, ...) Arena_CreateFromMemory_((u8*) (memory), ArenaDefaultParams(__VA_ARGS__))
 
 #define PushSize(arena, size) \
     MemoryZero(Arena_Push(arena, size, ARENA_MAX_ALIGNMENT, __FILE__, __LINE__), size)
