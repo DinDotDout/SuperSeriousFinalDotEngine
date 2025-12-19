@@ -9,7 +9,7 @@ internal DOT_RendererBackendBase* DOT_RendererBackend_Create(Arena* arena, DOT_R
     }
 }
 
-internal void DOT_RendererBackend_Sutdown(DOT_RendererBackendBase* backend){
+internal void DOT_RendererBackend_Shutdown(DOT_RendererBackendBase* backend){
     DOT_ASSERT(backend);
     backend->Shutdown(backend);
 }

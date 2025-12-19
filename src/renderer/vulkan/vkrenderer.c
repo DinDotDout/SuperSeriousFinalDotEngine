@@ -18,7 +18,6 @@ internal DOT_RendererBackendVk* DOT_RendererBackendVk_Create(Arena* arena){
     return backend;
 }
 
-
 internal const DOT_RendererBackendVKSettings* DOT_VKSettings() {
     static const char* instance_exts[] = {
         VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME,

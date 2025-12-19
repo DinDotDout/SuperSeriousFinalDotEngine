@@ -1,6 +1,5 @@
 .git
 .project.gf
-gen-wayland.sh
 tags
 tags.sh
 build

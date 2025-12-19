@@ -23,5 +23,5 @@ struct DOT_RendererBackendBase {
 };
 
 internal DOT_RendererBackendBase* DOT_RendererBackend_Create(Arena* arena, DOT_RendererBackendKind backend_kind);
-internal void DOT_RendererBackend_Sutdown(DOT_RendererBackendBase* backend);
+internal void DOT_RendererBackend_Shutdown(DOT_RendererBackendBase* backend);
 #endif

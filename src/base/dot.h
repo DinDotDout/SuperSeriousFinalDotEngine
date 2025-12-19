@@ -276,6 +276,7 @@ do { \
 #endif
 
 #define AlignPow2(x, b) (((x) + (b) - 1) & (~((b) - 1)))
+#define AlignDownPow2(x, b) ((x) & ~((b) - 1))
 
 #define MemoryZero(s, z) memset((s), 0, (z))
 #define MemoryZeroStruct(s) MemoryZero((s), sizeof(*(s)))

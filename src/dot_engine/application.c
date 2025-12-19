@@ -20,4 +20,7 @@ void Application_Run(Application* app){
 void Application_Shutdown(Application* app){
     DOT_Renderer_Shutdown(&app->renderer);
     DOT_Window_Destroy(&app->window);
+    // Arena_Free(app->permanent_arena);
+    // Arena_Free(thread_ctx.arenas[0]);
+    // Arena_Free(thread_ctx.arenas[1]);
 }

@@ -7,7 +7,7 @@ typedef struct RendererConfig{
 
 typedef struct DOT_Renderer{
         DOT_RendererBackendBase* backend;
-        Arena arena; // NOTE: Will the renderer need this or only the backend
+        Arena* arena; // NOTE: Will the renderer need this or only the backend
 }DOT_Renderer;
 
 internal void DOT_Renderer_Init(Arena* arena, DOT_Renderer* renderer, DOT_Window* window, RendererConfig config);
