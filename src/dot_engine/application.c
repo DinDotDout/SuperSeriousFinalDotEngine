@@ -2,11 +2,11 @@
 
 void Application_Init(Application* app){
     ApplicationConfig app_config = ApplicationConfig_Get();
+    app->permanent_arena = Arena_Alloc(.reserve_size = app_config.mem_size, .name = "Application");
     ThreadCtx_Init(&(ThreadCtxOpts){
         .memory_size = app_config.thread_mem_size,
         .thread_id   = 0,
     });
-    app->permanent_arena = Arena_Alloc(.reserve_size = app_config.mem_size, .name = "Application");
     DOT_Window_Init(&app->window);
     DOT_Renderer_Init(app->permanent_arena, &app->renderer, &app->window, app_config.renderer_config);
 }
@@ -20,7 +20,6 @@ void Application_Run(Application* app){
 void Application_Shutdown(Application* app){
     DOT_Renderer_Shutdown(&app->renderer);
     DOT_Window_Destroy(&app->window);
-    // Arena_Free(app->permanent_arena);
-    // Arena_Free(thread_ctx.arenas[0]);
-    // Arena_Free(thread_ctx.arenas[1]);
+    ThreadCtx_Destroy();
+    Arena_Free(app->permanent_arena);
 }

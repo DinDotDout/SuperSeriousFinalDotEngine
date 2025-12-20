@@ -1,7 +1,12 @@
 internal void ThreadCtx_Init(const ThreadCtxOpts* thread_ctx_opts){
     // TODO: Update thread id from thread_ctx_opts
-    thread_ctx.arenas[0] = Arena_Alloc(.reserve_size = thread_ctx_opts->memory_size, .name = "Th0 arena:" DOT_STR(0));
-    thread_ctx.arenas[1] = Arena_Alloc(.reserve_size = thread_ctx_opts->memory_size, .name = "Th0 arena:" DOT_STR(1));
+    thread_ctx.arenas[0] = Arena_Alloc(.reserve_size = thread_ctx_opts->memory_size, .name = "Th0 arena" DOT_STR(0));
+    thread_ctx.arenas[1] = Arena_Alloc(.reserve_size = thread_ctx_opts->memory_size, .name = "Th0 arena" DOT_STR(1));
+}
+
+internal void ThreadCtx_Destroy(){
+    Arena_Free(thread_ctx.arenas[0]);
+    Arena_Free(thread_ctx.arenas[1]);
 }
 
 TempArena Memory_GetScratch(Arena *alloc_arena){

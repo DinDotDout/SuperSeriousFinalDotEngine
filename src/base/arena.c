@@ -27,7 +27,7 @@ internal Arena* Arena_AllocFromMemory_(u8* memory, ArenaInitParams* params){
 
 internal Arena* Arena_Alloc_(ArenaInitParams *params){
     DOT_ASSERT_FL(params->reserve_size > 0, params->reserve_file, params->reserve_line, "No reserve_size provided");
-    DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Arena: requested %M", params->reserve_size);
+    DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Arena \"%s\": requested %M", params->name, params->reserve_size);
 
     u64 page_size = params->large_pages ? PLATFORM_LARGE_PAGE_SIZE : PLATFORM_REGULAR_PAGE_SIZE;
 
@@ -54,7 +54,7 @@ internal Arena* Arena_Alloc_(ArenaInitParams *params){
     arena->large_pages        = params->large_pages;
     arena->name               = params->name;
 
-    AsanPoison(arena->base+arena->used, initial_commit-arena->used);
+    AsanPoison(arena->base+arena->used, arena->reserved-arena->used);
     return arena;
 }
 
@@ -66,6 +66,7 @@ internal void Arena_Reset(Arena *arena){
 internal void Arena_Free(Arena *arena){
     u64 reserved = arena->reserved;
     void* base = arena->base;
+    DOT_PRINT("Arena \"%s\": freed %M", arena->name, arena->reserved);
     arena->used = 0;
     arena->reserved = 0;
     arena->commit_expand_size = 0;

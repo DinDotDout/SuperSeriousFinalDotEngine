@@ -16,6 +16,8 @@ internal thread_local const TempArena TempArena_Nil = {0};
 DOT_STATIC_ASSERT(ArrayCount(thread_ctx.arenas) > 1);
 
 internal void ThreadCtx_Init(const ThreadCtxOpts*);
+internal void ThreadCtx_Destroy();
+
 internal TempArena Memory_GetScratch(Arena *alloc_arena);
 
 
