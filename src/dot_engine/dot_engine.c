@@ -4,6 +4,8 @@
 #include "base/dot.c"
 
 #include "base/platform.h"
+
+#define DOT_PROFILER_IMPL
 #include "base/profiler.h"
 
 #include "base/arena.h"
