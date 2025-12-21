@@ -41,6 +41,11 @@ internal void DOT_Window_CreateSurface(DOT_Window* window, DOT_RendererBackendBa
     }
 }
 
+internal b8 DOT_Window_GetFrameBufferSize(DOT_Window* window, i32* w, i32* h){
+    DOT_WARNING("There does not seem to be way to query framebuffer size in RGFW. Returning window size");
+    return RGFW_window_getSize(window->window, w, h);
+}
+
 internal b8 DOT_Window_GetSize(DOT_Window* window, i32* w, i32* h){
     return RGFW_window_getSize(window->window, w, h);
 }
@@ -53,9 +58,4 @@ internal b8 DOT_Window_ShouldClose(DOT_Window* window){
         // }
     }
     return RGFW_window_shouldClose(window->window);
-}
-
-// TODO: Should we eventually return more than one capability
-internal inline const char* DOT_Window_GetCapabilities(){
-    return RGFW_VK_SURFACE;
 }

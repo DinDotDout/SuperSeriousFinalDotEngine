@@ -25,7 +25,7 @@ internal const DOT_RendererBackendVKSettings* DOT_VKSettings() {
     #ifdef DOT_VK_EXT_DEBUG_UTILS_ENABLE
         VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
     #endif
-        RGFW_VK_SURFACE,
+        DOT_VK_SURFACE,
     };
 
     static const char* device_exts[] = {
