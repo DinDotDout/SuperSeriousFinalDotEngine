@@ -24,10 +24,12 @@ typedef struct DOT_RendererBackendVk {
         VkSurfaceKHR surface;
 } DOT_RendererBackendVk;
 
-
+// We can make this a big struct for all the needed settings
 typedef struct DOT_RendererBackendVKSettings{
-    const char** instance_extension_names;
-    const usize  instance_extension_count;
+    struct InstanceVkSettings{
+        const char** instance_extension_names;
+        const usize  instance_extension_count;
+    }instance_settings;
 
     const char **device_extension_names;
     const usize  device_extension_count;
@@ -35,7 +37,6 @@ typedef struct DOT_RendererBackendVKSettings{
     const char **layer_names;
     const usize  layer_count;
 }DOT_RendererBackendVKSettings;
-
 
 internal DOT_RendererBackendVk* DOT_RendererBackendBase_AsVk(DOT_RendererBackendBase* base);
 internal DOT_RendererBackendVk* DOT_RendererBackendVk_Create(Arena* arena);

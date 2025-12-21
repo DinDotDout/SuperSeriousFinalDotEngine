@@ -41,6 +41,10 @@ internal void DOT_Window_CreateSurface(DOT_Window* window, DOT_RendererBackendBa
     }
 }
 
+internal b8 DOT_Window_GetSize(DOT_Window* window, i32* w, i32* h){
+    return RGFW_window_getSize(window->window, w, h);
+}
+
 internal b8 DOT_Window_ShouldClose(DOT_Window* window){
     RGFW_event event;
     while (RGFW_window_checkEvent(window->window, &event)) {

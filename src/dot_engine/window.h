@@ -9,6 +9,7 @@ internal void DOT_Window_MousePosCallback(RGFW_window *window, i32 x, i32 y, flo
 internal void DOT_Window_Init(DOT_Window* window);
 internal void DOT_Window_Destroy(DOT_Window* window);
 internal void DOT_Window_CreateSurface(DOT_Window* window, DOT_RendererBackendBase* backend);
+internal b8 DOT_Window_GetSize(DOT_Window* window, i32* w, i32* h);
 internal b8 DOT_Window_ShouldClose(DOT_Window* window);
 internal const char* DOT_Window_GetCapabilities();
 #endif
