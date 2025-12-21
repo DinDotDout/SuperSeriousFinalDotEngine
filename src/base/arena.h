@@ -1,11 +1,12 @@
 #ifndef ARENA_H
 #define ARENA_H
 
-#ifdef NO_TRACK_MEMORY
-#define PRINT_ALLOC(message, ...)
-#else
-#define PRINT_ALLOC(message, ...) printf(message "\n", ##__VA_ARGS__);
-#endif
+// --- ARENA ----
+//  Bump style allocator that allows specifying how much memory we want to
+// physically back it instead of allowing regular OS lazy page mapping. We can
+// specify initial commit size as well as how often subsequent ones will force
+// prefaulting again. Optionally, on LINUX we may use huge pages through THP
+//
 
 #define ARENA_MAX_ALIGNMENT 8 // only some 16b or SSE types will be bigger
 #define ARENA_MIN_CAPACITY KB(16)
@@ -22,7 +23,7 @@ typedef struct Arena{
     char *name;
 }Arena;
 
-typedef struct ArenaInitParams {
+typedef struct ArenaInitParams{
     u64 reserve_size; // Virt reserved memory
     u64 commit_size; // Forced initial populate
 
@@ -33,14 +34,14 @@ typedef struct ArenaInitParams {
     char *name;
     char *reserve_file;
     int   reserve_line;
-} ArenaInitParams;
+}ArenaInitParams;
 
-typedef struct MemoryArenaPushParams {
+typedef struct MemoryArenaPushParams{
     u64   size;
     char* file;
     char* line;
     u8    alignment;
-} MemoryArenaPushParams;
+}MemoryArenaPushParams;
 
 typedef struct TempArena {
     u64    prevOffset;

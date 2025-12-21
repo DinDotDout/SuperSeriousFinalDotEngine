@@ -1,4 +1,3 @@
-#include "base/dot.h"
 internal TempArena TempArena_Get(Arena *arena){
     TempArena sa;
     sa.arena = arena;
