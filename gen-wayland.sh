@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-OUTDIR="extra/RGFW"
+OUTDIR="src/third_party/RGFW"
 echo "[*] Generating Wayland protocol sources into $OUTDIR..."
 
 wayland-scanner client-header /usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml "$OUTDIR/xdg-shell.h"
