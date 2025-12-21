@@ -243,9 +243,9 @@ do { \
 #define MB(x) ((KB(x)) * (u64)1024)
 #define GB(x) ((MB(x)) * (u64)1024)
 
-
 #define Max(a, b) ((a) > (b) ? (a) : (b))
 #define Min(a, b) ((a) < (b) ? (a) : (b))
+#define Clamp(x, bot, top) (((x) < (bot)) ? (bot) : ((x) > (top)) ? (top) : (x))
 
 ////////////////////////////////////////////////////////////////
 //
@@ -402,9 +402,7 @@ internal inline u64 HashFromString8(String8 string, u64 seed){
 ////////////////////////////////////////////////////////////////
 //
 // This runs after static initialization and before main
-// We can maybe use this to auto subscribe plugins
 //
-
 #if defined(DOT_COMPILER_MSVC)
     #pragma section(".CRT$XCU",read)
     #define CONSTRUCTOR2_(fn, p) \
@@ -420,34 +418,4 @@ internal inline u64 HashFromString8(String8 string, u64 seed){
     #define CONSTRUCTOR(fn) \
         __attribute__((constructor)) static void fn(void)
 #endif
-
-/*
-    A bunch of macro magic to allow expanding CONSTRUCTOR logic
-    this basically allows doing something like this:
-
-    #define DOT_PLUGIN_FOO_ENABLED 1  // 1 or 0
-    CONDITIONAL_CONSTRUCTOR(DOT_PLUGIN_FOO_ENABLED, DOT_PluginInit){}
-
-    This will autoregister the Init method to be called before main.
-    Not definig the macro at all we cause errors so be sure to add it
-*/
-
-#define FEATURE_ENABLED_1 1
-#define FEATURE_ENABLED_0 0
-#define FEATURE_ENABLED_  1
-
-#define FEATURE_ENABLED(flag) FEATURE_ENABLED_##flag
-
-#define _CONDITIONAL_CONSTRUCTOR_1(fn) CONSTRUCTOR(fn)
-#define _CONDITIONAL_CONSTRUCTOR_0(fn) static void fn()
-
-#define _CONDITIONAL_CONSTRUCTOR2(enabled, fn) \
-    _CONDITIONAL_CONSTRUCTOR_##enabled(fn)
-
-#define _CONDITIONAL_CONSTRUCTOR(enabled, fn) \
-    _CONDITIONAL_CONSTRUCTOR2(enabled, fn)
-
-#define CONDITIONAL_CONSTRUCTOR(flag, fn) \
-    _CONDITIONAL_CONSTRUCTOR(FEATURE_ENABLED(flag), fn)
-
 #endif // !DOT_H

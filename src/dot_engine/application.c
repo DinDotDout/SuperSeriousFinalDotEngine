@@ -7,6 +7,7 @@ void Application_Init(Application* app){
         .memory_size = app_config.thread_mem_size,
         .thread_id   = 0,
     });
+    Plugin_RunInit();
     DOT_Window_Init(&app->window);
     DOT_Renderer_Init(app->permanent_arena, &app->renderer, &app->window, app_config.renderer_config);
 }
@@ -20,6 +21,9 @@ void Application_Run(Application* app){
 void Application_Shutdown(Application* app){
     DOT_Renderer_Shutdown(&app->renderer);
     DOT_Window_Destroy(&app->window);
+    Plugin_RunEnd();
+    // NOTE: We do this to keep asan happy tho he OS will reclaim the memory
+    // either way we could disable cleanup on final builds to speed up shutdown
     ThreadCtx_Destroy();
     Arena_Free(app->permanent_arena);
 }

@@ -2,9 +2,7 @@
 #define DOT_PROFILER_H
 
 #ifndef NDEBUG
-#define DOT_PROFILING_ENABLE 1
-#else
-#define DOT_PROFILING_ENABLE 0
+#define DOT_PROFILING_ENABLE
 #endif
 
 typedef struct DOT_ProfileAnchor{
@@ -31,13 +29,19 @@ typedef struct DOT_Profiler{
 }DOT_Profiler;
 
 global thread_local DOT_Profiler profiler;
-
-internal inline void DOT_ProfilerBegin();
+internal inline void DOT_ProfilerInit();
 internal inline void DOT_ProfilerEnd();
 internal inline void DOT_PrintTimeElapsed(u64 total_tsc_elapsed, DOT_ProfileAnchor *anchor);
 internal inline void DOT_ProfilerPrint();
 internal inline DOT_ProfileBlock DOT_ProfileBlock_Begin(char const *label, u32 anchor_index);
 internal inline void DOT_ProfileBlock_End(DOT_ProfileBlock* profile_block);
+
+#ifdef DOT_PROFILING_ENABLE
+PluginRegister(Profiler,
+    .Init = DOT_ProfilerInit,
+    .End = DOT_ProfilerEnd,
+);
+#endif
 
 #ifdef DOT_PROFILING_ENABLE
 #define DOT_PROFILE_BLOCK(label) DeferLoop( \
@@ -79,9 +83,8 @@ internal inline void DOT_ProfilerEnd(){
     DOT_ProfilerPrint();
 }
 
-CONDITIONAL_CONSTRUCTOR(DOT_PROFILING_ENABLE, DOT_ProfilerBegin){
+static inline void DOT_ProfilerInit(){
     profiler.start_tsc = Platform_CpuReadTimer();
-    atexit(DOT_ProfilerEnd);
 }
 
 internal inline DOT_ProfileBlock DOT_ProfileBlock_Begin(char const *label, u32 anchor_index){

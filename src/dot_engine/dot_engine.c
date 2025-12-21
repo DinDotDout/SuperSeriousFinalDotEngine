@@ -5,10 +5,12 @@
 
 #include "base/platform.h"
 
+#include "base/arena.h"
+#include "base/plugin.h"
+
 #define DOT_PROFILER_IMPL
 #include "base/profiler.h"
 
-#include "base/arena.h"
 #include "base/thread_ctx.h"
 #include "dot_engine/window.h"
 #include "renderer/renderer_backend.h"
@@ -27,13 +29,9 @@
 #include "dot_engine/game.c"
 
 int main() {
-    DOT_ProfilerBegin();
     Application app;
     Application_Init(&app);
     Application_Run(&app);
     Application_Shutdown(&app);
-
-    DOT_ProfilerEnd();
-    DOT_ProfilerPrint();
     return 0;
 }

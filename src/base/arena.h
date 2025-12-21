@@ -10,7 +10,7 @@
 #define ARENA_MAX_ALIGNMENT 8 // only some 16b or SSE types will be bigger
 #define ARENA_MIN_CAPACITY KB(16)
 
-typedef struct Arena {
+typedef struct Arena{
     u64 used;
     u8 *base;
 
@@ -20,7 +20,7 @@ typedef struct Arena {
     u64 commit_expand_size;
 
     char *name;
-} Arena;
+}Arena;
 
 typedef struct ArenaInitParams {
     u64 reserve_size; // Virt reserved memory
