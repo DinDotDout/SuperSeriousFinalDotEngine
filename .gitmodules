@@ -1,0 +1,3 @@
+[submodule "src/third_party/RGFW"]
+	path = src/third_party/RGFW
+	url = https://github.com/ColleagueRiley/RGFW
