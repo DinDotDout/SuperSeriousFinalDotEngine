@@ -109,3 +109,25 @@ internal void* Arena_Push(Arena *arena, usize alloc_size, usize alignment, char*
     AsanUnpoison(mem_offset, required_padded);
     return mem_offset;
 }
+
+internal void Arena_PrintDebug(Arena* arena){
+    if (!arena){
+        DOT_PRINT("Arena: <null>\n");
+        return;
+    }
+
+    const u64 page_size = arena->large_pages
+        ? PLATFORM_LARGE_PAGE_SIZE
+        : PLATFORM_REGULAR_PAGE_SIZE;
+
+    const u64 committed_pages = arena->committed / page_size;
+    const u64 reserved_pages  = arena->reserved / page_size;
+
+    DOT_PRINT("Arena '%s'", arena->name ? arena->name : "<unnamed>");
+    DOT_PRINT("  Base:              %p", arena->base);
+    DOT_PRINT("  Used:              %M", arena->used - sizeof(Arena));
+    DOT_PRINT("  Committed:         %M (%llu pages)", arena->committed, committed_pages);
+    DOT_PRINT("  Reserved:          %M (%llu pages)", arena->reserved,  reserved_pages);
+    DOT_PRINT("  Page size:         %M (%s)", page_size, arena->large_pages ? "large pages" : "regular pages");
+    DOT_PRINT("  Commit expand:     %M\n", arena->commit_expand_size);
+}

@@ -5,6 +5,8 @@ internal void ThreadCtx_Init(const ThreadCtxOpts* thread_ctx_opts){
 }
 
 internal void ThreadCtx_Destroy(){
+    // Arena_PrintDebug(thread_ctx.arenas[0]);
+    // Arena_PrintDebug(thread_ctx.arenas[1]);
     Arena_Free(thread_ctx.arenas[0]);
     Arena_Free(thread_ctx.arenas[1]);
 }

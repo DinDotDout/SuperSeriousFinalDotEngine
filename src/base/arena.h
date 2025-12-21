@@ -26,35 +26,36 @@ typedef struct ArenaInitParams {
     u64 reserve_size; // Virt reserved memory
     u64 commit_size; // Forced initial populate
 
-    u64 commit_expand_size; // Commitsize after initial commit
+    u64  commit_expand_size; // Commitsize after initial commit
     bool large_pages;
 
     // Debug
     char *name;
     char *reserve_file;
-    int reserve_line;
+    int   reserve_line;
 } ArenaInitParams;
 
 typedef struct MemoryArenaPushParams {
-    u64 size;
+    u64   size;
     char* file;
     char* line;
-    u8 alignment;
+    u8    alignment;
 } MemoryArenaPushParams;
 
 typedef struct TempArena {
-    u64 prevOffset;
+    u64    prevOffset;
     Arena *arena;
 } TempArena;
 
 internal TempArena TempArena_Get(Arena *arena);
-internal void TempArena_Restore(TempArena *temp);
+internal void      TempArena_Restore(TempArena *temp);
 
 internal Arena* Arena_AllocFromMemory_(u8* base, ArenaInitParams* params);
 internal Arena* Arena_Alloc_(ArenaInitParams *params);
-internal void Arena_Reset(Arena *arena);
-internal void Arena_Free(Arena *arena);
-internal void* Arena_Push(Arena *arena, usize size, usize alignment, char* file, u32 line);
+internal void   Arena_Reset(Arena *arena);
+internal void   Arena_Free(Arena *arena);
+internal void*  Arena_Push(Arena *arena, usize size, usize alignment, char* file, u32 line);
+internal void   Arena_PrintDebug(Arena *arena);
 
 #define ArenaDefaultParams(...) \
     &(ArenaInitParams){ \
@@ -67,8 +68,8 @@ internal void* Arena_Push(Arena *arena, usize size, usize alignment, char* file,
         __VA_ARGS__}
 
 #define Arena_Alloc(...) Arena_Alloc_(ArenaDefaultParams(__VA_ARGS__))
-
-#define Arena_AllocFromMemory(memory, ...) Arena_AllocFromMemory_((u8*) (memory), ArenaDefaultParams(__VA_ARGS__))
+#define Arena_AllocFromMemory(memory, ...) \
+    Arena_AllocFromMemory_((u8*) (memory), ArenaDefaultParams(__VA_ARGS__))
 
 #define PushSizeNoZero(arena, size) \
   Arena_Push(arena, size, ARENA_MAX_ALIGNMENT, __FILE__, __LINE__)
@@ -82,10 +83,10 @@ internal void* Arena_Push(Arena *arena, usize size, usize alignment, char* file,
 #define PushArray(arena, type, count) \
     PushArrayAligned(arena, type, count, Max(ARENA_MAX_ALIGNMENT, Alignof(type)))
 
-#define PushArrayNoZero(arena, type, count) \
-    (type *)Arena_Push(arena, sizeof(type) * (count), \
-                       Max(ARENA_MAX_ALIGNMENT, Alignof(type)), \
-                       __FILE__, __LINE__)
+#define PushArrayNoZero(arena, type, count)                                    \
+  (type *)Arena_Push(arena, sizeof(type) * (count),                            \
+                     Max(ARENA_MAX_ALIGNMENT, Alignof(type)), __FILE__,        \
+                     __LINE__)
 
 #define PushStruct(arena, type) PushArray(arena, type, 1)
 
