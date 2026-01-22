@@ -59,10 +59,11 @@
 // size
 #include <stddef.h>
 // precise int
-#include <stdint.h>
 typedef uintptr_t uptr;
 typedef size_t usize;
 
+#ifndef DOT_INT_SKIP
+#include <stdint.h>
 typedef int8_t i8;
 typedef int16_t i16;
 typedef int32_t i32;
@@ -71,6 +72,8 @@ typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
+#endif
+
 typedef u32 b32;
 typedef u8 b8;
 typedef float f32;
@@ -418,4 +421,48 @@ internal inline u64 HashFromString8(String8 string, u64 seed){
     #define CONSTRUCTOR(fn) \
         __attribute__((constructor)) static void fn(void)
 #endif
+
+
+#if defined(NDEBUG)
+    #define DOT_DEBUG 0
+else
+    #define DOT_DEBUG 1
+#endif
+
+///////////////////////////////////////////////////////////////
+/// IMPLS
+///
+
+#ifdef DOT_IMPLEMENTATION
+
+#define STB_SPRINTF_IMPLEMENTATION
+#define STB_SPRINTF_STATIC
+#define STB_SPRINTF_NOUNALIGNED
+#include "third_party/stb_sprintf.h"
+
+internal inline const char* PrintDebugKind_GetString(LogLevelKind debug_kind){
+    DOT_ASSERT(debug_kind < LOG_LEVEL_COUNT);
+    const char* ret = print_debug_str[debug_kind];
+    DOT_ASSERT(ret);
+    return ret;
+}
+
+internal void PrintDebug(const PrintDebugParams* params, const char* fmt, ...){
+    char buf[DOT_MAX_LOG_LEVEL_LENGTH];
+    FILE* out = params->print_debug_kind == LOG_LEVEL_DEBUG ? stdout : stderr;
+
+    va_list args;
+    va_start(args, fmt);
+    dot_vsnprintf(buf, sizeof(buf), fmt, args); // TODO: Swap for stb_vsntprintf
+    va_end(args);
+
+    const char* fmt_str = params->print_debug_kind == LOG_LEVEL_DEBUG ? "%s%s:%d -> %s\n" : "%s: %s:%d -> %s\n";
+    fprintf(out, fmt_str,
+        PrintDebugKind_GetString(params->print_debug_kind),
+        params->file,
+        params->line,
+        buf);
+}
+#endif
+
 #endif // !DOT_H
