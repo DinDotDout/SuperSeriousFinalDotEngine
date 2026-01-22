@@ -1,27 +1,26 @@
-#ifndef DOT_RENDERER_BACKEND
-#define DOT_RENDERER_BACKEND
+#ifndef RENDERER_BACKEND
+#define RENDERER_BACKEND
 // NOTE: Do we even need to split backend and frontend in different files
-typedef u8 DOT_RendererBackendKind;
+typedef u8 RendererBackendKind;
 enum{
-        DOT_RENDERER_BACKEND_INVALID,
-        DOT_RENDERER_BACKEND_VK,
-        DOT_RENDERER_BACKEND_GL,
-        DOT_RENDERER_BACKEND_DX12,
-        DOT_RENDERER_BACKEND_COUNT,
+        RENDERER_BACKEND_INVALID,
+        RENDERER_BACKEND_VK,
+        RENDERER_BACKEND_GL,
+        RENDERER_BACKEND_DX12,
+        RENDERER_BACKEND_COUNT,
 };
 
-typedef struct DOT_RendererBackendBase DOT_RendererBackendBase;
-typedef struct DOT_Window DOT_Window;
-typedef void (*DOT_RendererBackend_InitFn)(DOT_RendererBackendBase* ctx, DOT_Window* window);
-typedef void (*DOT_RendererBackend_ShutdownFn)(DOT_RendererBackendBase* ctx);
+typedef struct RendererBackendBase RendererBackendBase;
+typedef void (*RendererBackend_InitFn)(RendererBackendBase* ctx, DOT_Window* window);
+typedef void (*RendererBackend_ShutdownFn)(RendererBackendBase* ctx);
 
-struct DOT_RendererBackendBase {
-        DOT_RendererBackendKind backend_kind;
+struct RendererBackendBase{
+        RendererBackendKind backend_kind;
         Arena* arena;
-        DOT_RendererBackend_InitFn Init;
-        DOT_RendererBackend_ShutdownFn Shutdown;
+        RendererBackend_InitFn Init;
+        RendererBackend_ShutdownFn Shutdown;
 };
 
-internal DOT_RendererBackendBase* DOT_RendererBackend_Create(Arena* arena, DOT_RendererBackendKind backend_kind);
-internal void DOT_RendererBackend_Shutdown(DOT_RendererBackendBase* backend);
+internal RendererBackendBase* RendererBackend_Create(Arena* arena, RendererBackendKind backend_kind);
+internal void RendererBackend_Shutdown(RendererBackendBase* backend);
 #endif

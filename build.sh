@@ -12,13 +12,15 @@ CFLAGS="-g -std=c99 \
     -fsanitize=address,undefined \
     -fsanitize-recover=address,undefined \
     -Wall -Wextra -Wno-override-init -Wdiv-by-zero \
-    -Wno-unused-function \
-    -lm"
+    -Wno-unused-function -Werror=vla \
+"
+
 
 # OUT=${OUT:-app}
 
 # --- Libraries ---
 SYS_LIBS=" \
+    -lm \
     -lwayland-cursor -lwayland-client -lxkbcommon \
     -lvulkan -ldl -lpthread \
 "
@@ -37,10 +39,10 @@ PROTO_SRCS=" \
 # --- Build ---
 # echo "[*] Compiling..."
 
-gcc $CFLAGS -I src/ \
+clang $CFLAGS -I src/ \
+    -Wl,-Tplugins_section.ld \
     src/dot_engine/dot_engine.c $SYS_LIBS $PROTO_SRCS \
     -o build/dot_engine
-
 
 # gcc $CFLAGS_TESTS -I src/ \
 #     src/tests/arena_probe_page_fault.c -o build/arena_probe_page_fault

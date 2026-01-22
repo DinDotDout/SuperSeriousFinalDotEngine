@@ -1,7 +1,9 @@
 #include "renderer/vulkan/vk_helper.h"
 // HACK: Create window here for now
 float mouse_data[2] = {0.0f, 0.0f};
-void DOT_Window_MousePosCallback(RGFW_window *window, i32 x, i32 y, float vecX, float vecY) {
+
+internal void
+DOT_Window_MousePosCallback(RGFW_window *window, i32 x, i32 y, float vecX, float vecY) {
     RGFW_UNUSED(vecX);
     RGFW_UNUSED(vecY);
     // printf("mouse moved %i %i\n", x, y);
@@ -26,14 +28,15 @@ internal void DOT_Window_Destroy(DOT_Window* window){
 
 // TODO: May need to pass in backend base and upcast based on type to do per backend things
 // Or just make specific functions and pass in proper parameters
-internal void DOT_Window_CreateSurface(DOT_Window* window, DOT_RendererBackendBase* backend){
+internal void DOT_Window_CreateSurface(DOT_Window* window, struct RendererBackendBase* backend){
     switch (backend->backend_kind) {
-        case DOT_RENDERER_BACKEND_VK:
-            DOT_RendererBackendVk* vk_ctx = DOT_RendererBackendBase_AsVk(backend);
+        case RENDERER_BACKEND_VK:{
+            RendererBackendVk* vk_ctx = RendererBackendBase_AsVk(backend);
             VkCheck(RGFW_window_createSurface_Vulkan(window->window, vk_ctx->instance, &vk_ctx->surface));
             break;
-        case DOT_RENDERER_BACKEND_GL:
-        case DOT_RENDERER_BACKEND_DX12:
+        }
+        case RENDERER_BACKEND_GL:
+        case RENDERER_BACKEND_DX12:
             DOT_ERROR("Backend not implemented");
             break;
         default: DOT_ERROR("Backend not set");

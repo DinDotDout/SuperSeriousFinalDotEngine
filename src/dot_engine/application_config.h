@@ -2,7 +2,7 @@
 #define APPLICATION_SCRATCH_MEM_SIZE KB(64)
 #define ENGINE_RENDERER_MEM_SIZE KB(256)
 
-#define ENGINE_RENDERER_BACKEND DOT_RENDERER_BACKEND_VK
+#define ENGINE_RENDERER_BACKEND RENDERER_BACKEND_VK
 
 typedef struct ApplicationConfig {
     u64 thread_mem_size; // Per arena (we have 2 arenas)

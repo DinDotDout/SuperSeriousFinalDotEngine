@@ -9,17 +9,18 @@ void Application_Init(Application* app){
     });
     Plugin_RunInit();
     DOT_Window_Init(&app->window);
-    DOT_Renderer_Init(app->permanent_arena, &app->renderer, &app->window, app_config.renderer_config);
+    Renderer_Init(app->permanent_arena, &app->renderer, &app->window, app_config.renderer_config);
 }
 
 void Application_Run(Application* app){
-    u8 running = true;
-    while (running && !DOT_Window_ShouldClose(&app->window)){
-    }
+    (void) app;
+    // u8 running = true;
+    // while (running && !DOT_Window_ShouldClose(&app->window)){
+    // }
 }
 
 void Application_Shutdown(Application* app){
-    DOT_Renderer_Shutdown(&app->renderer);
+    Renderer_Shutdown(&app->renderer);
     DOT_Window_Destroy(&app->window);
     Plugin_RunEnd();
     // NOTE: We do this to keep asan happy tho he OS will reclaim the memory
