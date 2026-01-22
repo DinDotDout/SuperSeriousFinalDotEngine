@@ -1,12 +1,41 @@
 #ifndef DOT_ENGINE_H
 #define DOT_ENGINE_H
 
+// third_party
 #define _GNU_SOURCE
-
-
 #define RGFW_VULKAN
 #define RGFW_WAYLAND
 #define RGFW_IMPLEMENTATION
-#include "../third_party/RGFW/RGFW.h"
+#define RGFWDEF static inline
+#include "third_party/RGFW/RGFW.h"
 // #include "third_party/RGFW/RGFW.h"
+
+// engine
+#define DOT_INT_SKIP // Already defined by rgfw
+#define DOT_IMPLEMENTATION
+#include "base/dot.h"
+
+#include "base/platform.h"
+#include "base/arena.h"
+#include "base/plugin.h"
+
+#define DOT_PROFILER_IMPL
+#include "base/profiler.h"
+
+#include "base/thread_ctx.h"
+#include "dot_engine/window.h"
+#include "renderer/renderer_backend.h"
+#include "renderer/vulkan/vkrenderer.h"
+#include "renderer/renderer.h"
+#include "dot_engine/application.h"
+#include "dot_engine/game.h"
+
+#include "base/arena.c"
+#include "base/thread_ctx.c" 
+#include "dot_engine/window.c"
+#include "renderer/renderer_backend.c"
+#include "renderer/vulkan/vkrenderer.c"
+#include "renderer/renderer.c"
+#include "dot_engine/application.c"
+#include "dot_engine/game.c"
 #endif
