@@ -38,8 +38,8 @@ typedef struct ArenaInitParams{
 
 typedef struct MemoryArenaPushParams{
     u64   size;
-    char* file;
-    char* line;
+    char *file;
+    char *line;
     u8    alignment;
 }MemoryArenaPushParams;
 
@@ -55,7 +55,7 @@ internal Arena* arena_alloc_from_memory_(u8* base, ArenaInitParams* params);
 internal Arena* arena_alloc_(ArenaInitParams *params);
 internal void   arena_reset(Arena *arena);
 internal void   arena_free(Arena *arena);
-internal void*  arena_push(Arena *arena, usize size, usize alignment, char* file, u32 line);
+internal void*  arena_push(Arena *arena, usize size, usize alignment, b8 zero, char *file, u32 line);
 internal void   arena_print_debug(Arena *arena);
 
 #define ARENA_DEFAULT_PARAMS(...) \
@@ -73,20 +73,20 @@ internal void   arena_print_debug(Arena *arena);
     arena_alloc_from_memory_((u8*) (memory), ARENA_DEFAULT_PARAMS(__VA_ARGS__))
 
 #define PUSH_SIZE_NO_ZERO(arena, size) \
-  arena_push(arena, size, ARENA_MAX_ALIGNMENT, __FILE__, __LINE__)
+  arena_push(arena, size, ARENA_MAX_ALIGNMENT, false, __FILE__, __LINE__)
 
 #define PUSH_SIZE(arena, size) \
-  MEMORY_ZERO(arena_push(arena, size, ARENA_MAX_ALIGNMENT, __FILE__, __LINE__), size)
+  arena_push(arena, size, ARENA_MAX_ALIGNMENT, true,__FILE__, __LINE__)
 
 #define PUSH_ARRAY_ALIGNED(arena, type, count, alignment) \
-    (type *)MEMORY_ZERO(arena_push(arena, sizeof(type) * (count), alignment, __FILE__, __LINE__), sizeof(type) * (count))
+    (type *)arena_push(arena, sizeof(type) * (count), alignment, true, __FILE__, __LINE__)
 
 #define PUSH_ARRAY(arena, type, count) \
     PUSH_ARRAY_ALIGNED(arena, type, count, MAX(ARENA_MAX_ALIGNMENT, ALIGNOF(type)))
 
-#define PUSH_ARRAY_NO_ZERO(arena, type, count)                                    \
-  (type *)arena_push(arena, sizeof(type) * (count),                            \
-                     MAX(ARENA_MAX_ALIGNMENT, ALIGNOF(type)), __FILE__,        \
+#define PUSH_ARRAY_NO_ZERO(arena, type, count) \
+  (type *)arena_push(arena, sizeof(type) * (count), \
+                     MAX(ARENA_MAX_ALIGNMENT, ALIGNOF(type)), false, __FILE__, \
                      __LINE__)
 
 #define PUSH_STRUCT(arena, type) PUSH_ARRAY(arena, type, 1)

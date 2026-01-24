@@ -45,7 +45,6 @@ arena_alloc_(ArenaInitParams *params){
     }else{
         os_commit(memory, initial_commit);
     }
-
     DOT_ASSERT_FL(memory, params->reserve_file, params->reserve_line, "Could not allocate");
 
     Arena* arena = cast(Arena*)memory;
@@ -79,7 +78,7 @@ arena_free(Arena *arena){
 }
 
 internal void*
-arena_push(Arena *arena, usize alloc_size, usize alignment, char* file, u32 line){
+arena_push(Arena *arena, usize alloc_size, usize alignment, b8 zero, char* file, u32 line){
     DOT_ASSERT_FL(alloc_size > 0, file, line);
     uptr arena_base = cast(uptr)arena->base;
     uptr current_address =  arena_base + arena->used;
@@ -113,6 +112,9 @@ arena_push(Arena *arena, usize alloc_size, usize alignment, char* file, u32 line
         arena->committed += commit_size;
     }
     ASAN_UNPOISON(mem_offset, required_padded);
+    if(zero){
+        MEMORY_ZERO(mem_offset, required_padded);
+    }
     return mem_offset;
 }
 
