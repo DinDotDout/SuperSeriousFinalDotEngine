@@ -64,9 +64,6 @@ struct Plugin{
 
 void plugins_init(void) {
     Plugin* begin = (Plugin*) &__start_plugins[0];
-    // char* help = (char*)begin;
-    // help = help-8;
-    // begin = (Plugin*)help;
     const Plugin* end = &__stop_plugins[0];
     DOT_PRINT("PLUGINS INIT!!");
     DOT_PRINT("Plugin count: %td", end - begin);

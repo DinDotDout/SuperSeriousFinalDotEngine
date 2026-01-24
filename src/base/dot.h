@@ -61,11 +61,10 @@
 // size
 #include <stddef.h>
 // precise int
-typedef uintptr_t uptr;
 typedef size_t usize;
+#include <stdint.h>
 
 #ifndef DOT_INT_SKIP
-#include <stdint.h>
 typedef int8_t i8;
 typedef int16_t i16;
 typedef int32_t i32;
@@ -75,6 +74,7 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 #endif
+typedef uintptr_t uptr;
 
 typedef u32 b32;
 typedef u8 b8;
@@ -167,7 +167,7 @@ typedef enum DOT_LogLevelKind{
     LOG_LEVEL_COUNT,
 }DOT_LogLevelKind;
 
-global const char* print_debug_str[] = {
+global const char *print_debug_str[] = {
     [LOG_LEVEL_DEBUG]     = "",
     [LOG_LEVEL_ASSERT]    = "Assertion failed",
     [LOG_LEVEL_ERROR]     = "Error",
@@ -178,12 +178,12 @@ DOT_STATIC_ASSERT(LOG_LEVEL_COUNT == ARRAY_COUNT(print_debug_str));
 
 typedef struct DOT_PrintDebugParams{
     DOT_LogLevelKind print_debug_kind;
-    const char* file;
+    const char *file;
     u32 line;
 }DOT_PrintDebugParams;
 
 #define DOT_MAX_LOG_LEVEL_LENGTH 128
-internal void dot_print_debug_(const DOT_PrintDebugParams* params, PRINTF_STRING const char* fmt, ...);
+internal void dot_print_debug_(const DOT_PrintDebugParams* params, PRINTF_STRING const char *fmt, ...);
 
 #define DOT_PRINT_DEBUG_PARAMS_DEFAULT(...) \
 &(DOT_PrintDebugParams) { \
@@ -360,12 +360,13 @@ internal inline u64 HashFromString8(String8 string, u64 seed){
 //
 #define EACH_INDEX(it, count) (u64 it = 0; it < (count); ++it)
 #define EACH_ELEMENT(it, array) (u64 it = 0; it < ARRAY_COUNT(array); ++it)
-// #define EachEnumVal(type, it) \
-// (type it = (type)0; it < type##_COUNT; it = (type)(it + 1))
-// #define EachNonZeroEnumVal(type, it) \
-// (type it = (type)1; it < type##_COUNT; it = (type)(it + 1))
-// #define EachInRange(it, range) (u64 it = (range).min; it < (range).max; it += 1)
-// #define EachNode(it, T, first) (T *it = first; it != 0; it = it->next)
+#define EACH_ENUM_VAL(type, it) \
+(type it = (type)0; it < type##_COUNT; it = (type)(it + 1))
+#define EACH_NON_ZERO_ENUM_VAL(type, it) \
+(type it = (type)1; it < type##_COUNT; it = (type)(it + 1))
+
+#define EACH_IN_RANGE(it, range) (u64 it = (range).min; it < (range).max; it += 1)
+#define EACH_NODE(it, T, first) (T *it = first; it != 0; it = it->next)
 
 
 ////////////////////////////////////////////////////////////////
@@ -445,13 +446,13 @@ else
 internal inline const char*
 print_log_level_kind(DOT_LogLevelKind debug_kind){
     DOT_ASSERT(debug_kind < LOG_LEVEL_COUNT);
-    const char* ret = print_debug_str[debug_kind];
+    const char *ret = print_debug_str[debug_kind];
     DOT_ASSERT(ret);
     return ret;
 }
 
 void
-dot_print_debug_(const DOT_PrintDebugParams* params, const char* fmt, ...){
+dot_print_debug_(const DOT_PrintDebugParams* params, const char *fmt, ...){
     char buf[DOT_MAX_LOG_LEVEL_LENGTH];
     FILE* out = params->print_debug_kind == LOG_LEVEL_DEBUG ? stdout : stderr;
 
@@ -460,7 +461,7 @@ dot_print_debug_(const DOT_PrintDebugParams* params, const char* fmt, ...){
     dot_vsnprintf(buf, sizeof(buf), fmt, args); // TODO: Swap for stb_vsntprintf
     va_end(args);
 
-    const char* fmt_str = params->print_debug_kind == LOG_LEVEL_DEBUG ? "%s%s:%d -> %s\n" : "%s: %s:%d -> %s\n";
+    const char *fmt_str = params->print_debug_kind == LOG_LEVEL_DEBUG ? "%s%s:%d -> %s\n" : "%s: %s:%d -> %s\n";
     fprintf(out, fmt_str,
         print_log_level_kind(params->print_debug_kind),
         params->file,
