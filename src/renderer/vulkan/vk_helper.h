@@ -3,9 +3,9 @@
 #include <vulkan/vk_enum_string_helper.h>
 
 #ifdef NDEBUG
-#define VkCheck(x) x
+#define VK_CHECK(x) x
 #else
-#define VkCheck(x) \
+#define VK_CHECK(x) \
     do { \
         VkResult err = x; \
         if(err < 0){ \
@@ -33,8 +33,8 @@
         __VA_ARGS__ \
     }
 
-internal const char*
-VkSystemAllocationScopeName(VkSystemAllocationScope s) {
+internal const char *
+vk_system_allocations_scope_name(VkSystemAllocationScope s) {
     switch(s){
         case VK_SYSTEM_ALLOCATION_SCOPE_COMMAND:
             return "COMMAND";
@@ -54,10 +54,10 @@ VkSystemAllocationScopeName(VkSystemAllocationScope s) {
 internal inline
 void* vk_alloc(void* data, usize size, usize alignment, VkSystemAllocationScope scope){
     UNUSED(data); UNUSED(size); UNUSED(alignment); UNUSED(scope);
-    DOT_PRINT("VK Alloc: size=%M; scope=\n", size, VkSystemAllocationScopeName(scope));
+    DOT_PRINT("VK Alloc: size=%M; scope=\n", size, vk_system_allocations_scope_name(scope));
 
     Arena* arena = cast(Arena*)data;
-    void* mem = arena_push(arena, size, alignment, __FILE__, __LINE__);
+    void* mem = arena_push(arena, size, alignment, true, __FILE__, __LINE__);
     arena_print_debug(arena);
     return mem;
 }
@@ -65,9 +65,9 @@ void* vk_alloc(void* data, usize size, usize alignment, VkSystemAllocationScope 
 internal inline
 void* vk_realloc(void* data, void* old_mem, usize size, usize alignment, VkSystemAllocationScope scope){
     UNUSED(data); UNUSED(size); UNUSED(alignment); UNUSED(scope); UNUSED(old_mem);
-    DOT_PRINT("VK Realloc: size=%M; scope=%s", size, VkSystemAllocationScopeName(scope) );
+    DOT_PRINT("VK Realloc: size=%M; scope=%s", size, vk_system_allocations_scope_name(scope) );
     Arena* arena = cast(Arena*)data;
-    void* mem = arena_push(arena, size, alignment, __FILE__, __LINE__);
+    void* mem = arena_push(arena, size, alignment, true, __FILE__, __LINE__);
     arena_print_debug(arena);
     return mem;
 }
@@ -83,7 +83,7 @@ void vk_free(void* data, void* mem){
 internal inline
 void vk_internal_alloc(void* data, usize size, VkInternalAllocationType alloc_type, VkSystemAllocationScope scope){
     UNUSED(data); UNUSED(size); UNUSED(scope); UNUSED(alloc_type);
-    DOT_PRINT( "VK Internal Alloc: size=%M; scope=%s", size, VkSystemAllocationScopeName(scope) );
+    DOT_PRINT( "VK Internal Alloc: size=%M; scope=%s", size, vk_system_allocations_scope_name(scope) );
     // Arena* arena = cast(Arena*)data;
     // arena_print_debug(arena);
 }
@@ -91,16 +91,303 @@ void vk_internal_alloc(void* data, usize size, VkInternalAllocationType alloc_ty
 void
 vk_internal_free(void* data, usize size, VkInternalAllocationType alloc_type, VkSystemAllocationScope scope){
     UNUSED(data); UNUSED(size); UNUSED(scope); UNUSED(alloc_type);
-    DOT_PRINT( "VK Internal Free: size=%M; scope=%s", size, VkSystemAllocationScopeName(scope) );
+    DOT_PRINT( "VK Internal Free: size=%M; scope=%s", size, vk_system_allocations_scope_name(scope) );
 }
 
+#ifdef VK_USE_CUSTOM_ALLOCATOR
 #define VkAllocatorParams(arena) (VkAllocationCallbacks){ \
     .pUserData = arena, \
-    .pfnAllocation = VkAlloc, \
-    .pfnReallocation = VkRealloc, \
-    .pfnFree = VkFree, \
-    .pfnInternalAllocation = VkInternalAlloc, \
-    .pfnInternalFree = VkInternalFree, \
+    .pfnAllocation = vk_alloc, \
+    .pfnReallocation = vk_realloc, \
+    .pfnFree = vk_free, \
+    .pfnInternalAllocation = vk_internal_alloc, \
+    .pfnInternalFree = vk_internal_free, \
+}
+#else
+#define VkAllocatorParams(arena) NULL
+#endif
+
+internal inline bool
+vk_all_layers(const RendererBackendVk_Settings* vk_settings){
+    TempArena temp = thread_ctx_get_temp(NULL);
+    u32 available_layer_count = 0;
+    vkEnumerateInstanceLayerProperties(&available_layer_count, NULL);
+    array(VkLayerProperties) available_layers = PUSH_ARRAY(temp.arena, VkLayerProperties, available_layer_count);
+    vkEnumerateInstanceLayerProperties(&available_layer_count, available_layers);
+    bool all_found = true;
+    for(u64 i = 0; i < vk_settings->layer_settings.layer_count; ++i){
+        bool found = false;
+        const char *layer_name = vk_settings->layer_settings.layer_names[i];
+        for(u64 j = 0; j < available_layer_count; ++j){
+            if(strcmp(layer_name, available_layers[j].layerName) == 0){
+                DOT_PRINT("Found Layer %s", layer_name);
+                found = true;
+                break;
+            }
+        }
+        if(!found){ // Might aswell list all missing layers
+            all_found = false;
+            DOT_WARNING("Requested layer %s not found", layer_name);
+        }
+    }
+    temp_arena_restore(&temp);
+    return all_found;
+}
+
+internal inline bool
+vk_instance_all_required_extensions(const RendererBackendVk_Settings* vk_settings){
+    TempArena temp = thread_ctx_get_temp(NULL);
+    u32 extension_count;
+    vkEnumerateInstanceExtensionProperties(NULL, &extension_count, NULL);
+    array(VkExtensionProperties) available_extensions = PUSH_ARRAY(temp.arena, VkExtensionProperties, extension_count);
+    vkEnumerateInstanceExtensionProperties(NULL, &extension_count, available_extensions);
+
+    bool all_found = true;
+    for(u64 i = 0; i < vk_settings->instance_settings.instance_extension_count; ++i){
+        bool found = false;
+        const char *instance_extension_name = vk_settings->instance_settings.instance_extension_names[i];
+        for(u64 j = 0; j < extension_count; ++j){
+            if(strcmp(instance_extension_name, available_extensions[j].extensionName) == 0){
+                DOT_PRINT("Found instance extension \"%s\"", instance_extension_name);
+                found = true;
+                break;
+            }
+        }
+        if(!found){ // Might aswell list all missing dev extensions
+            all_found = false;
+            DOT_WARNING("Requested instance extension \"%s\" not found", instance_extension_name);
+        }
+    }
+    temp_arena_restore(&temp);
+    return all_found;
+}
+
+internal inline bool
+vk_physical_device_all_required_extensions(const RendererBackendVk_Settings* vk_settings, VkPhysicalDevice device){
+    TempArena temp = thread_ctx_get_temp(NULL);
+    u32 extension_count;
+    vkEnumerateDeviceExtensionProperties(device, NULL, &extension_count, NULL);
+    array(VkExtensionProperties) available_extensions = PUSH_ARRAY(temp.arena, VkExtensionProperties, extension_count);
+    vkEnumerateDeviceExtensionProperties(device, NULL, &extension_count, available_extensions);
+
+    bool all_found = true;
+    for(u64 i = 0; i < vk_settings->device_settings.device_extension_count; ++i){
+        bool found = false;
+        const char *device_extension_name = vk_settings->device_settings.device_extension_names[i];
+        for(u64 j = 0; j < extension_count; ++j){
+            if(strcmp(device_extension_name, available_extensions[j].extensionName) == 0){
+                DOT_PRINT("Found extension \"%s\"", device_extension_name);
+                found = true;
+                break;
+            }
+        }
+        if(!found){  // Might aswell list all missing physical dev extensions
+            all_found = false;
+            DOT_WARNING("Requested extension %s not found", device_extension_name);
+            break;
+        }
+    }
+    temp_arena_restore(&temp);
+    return all_found;
+}
+
+typedef struct VkSwapchainDetails{
+    VkSurfaceFormatKHR            best_surface_format;
+    VkPresentModeKHR              best_present_mode;
+    VkExtent2D                    surface_extent;
+    VkSurfaceTransformFlagBitsKHR current_transform;
+    u32                           image_count;
+}VkSwapchainDetails;
+
+internal inline
+b8 vk_physical_device_swapchain_support(const RendererBackendVk_Settings *vk_settings, VkPhysicalDevice gpu, VkSurfaceKHR surface, DOT_Window* window, VkSwapchainDetails* details){
+    TempArena temp = thread_ctx_get_temp(NULL);
+    typedef struct SwapchainSupportDetails{
+        VkSurfaceCapabilities2KHR surface_capabilities;
+
+        array(VkSurfaceFormat2KHR) surface_formats;
+        u32 format_count;
+
+        array(VkPresentModeKHR) present_modes;
+        u32 present_modes_count;
+    }SwapchainSupportDetails;
+
+    SwapchainSupportDetails swapchain_support_details = {
+        .surface_capabilities = VkSurfaceCapabilities2KHRParams(),
+    };
+
+    // 2KHR version expect this instead of just surface....
+    VkPhysicalDeviceSurfaceInfo2KHR surface_info = VkPhysicalDeviceSurfaceInfo2KHRParams(.surface = surface);
+    // --- Query Surface Capabilities ---
+    vkGetPhysicalDeviceSurfaceCapabilities2KHR(gpu, &surface_info, &swapchain_support_details.surface_capabilities);
+ 
+    // --- Query Surface Formats ---
+    VK_CHECK(vkGetPhysicalDeviceSurfaceFormats2KHR(gpu, &surface_info, &swapchain_support_details.format_count, NULL));
+    swapchain_support_details.surface_formats = PUSH_ARRAY(temp.arena, VkSurfaceFormat2KHR, swapchain_support_details.format_count);
+    for(u32 it = 0; it < swapchain_support_details.format_count; ++it){
+        swapchain_support_details.surface_formats[it] = VkSurfaceFormat2KHRParams();
+    }
+    vkGetPhysicalDeviceSurfaceFormats2KHR(gpu, &surface_info, &swapchain_support_details.format_count, swapchain_support_details.surface_formats);
+ 
+    // --- Query Present Modes ---
+    vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &swapchain_support_details.present_modes_count, NULL);
+    swapchain_support_details.present_modes = PUSH_ARRAY(temp.arena, VkPresentModeKHR, swapchain_support_details.present_modes_count);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &swapchain_support_details.present_modes_count, swapchain_support_details.present_modes);
+    bool has_support = swapchain_support_details.format_count > 0 && swapchain_support_details.present_modes_count > 0;
+    if(has_support && details != NULL){
+        VkSurfaceCapabilitiesKHR surface_capabilities = swapchain_support_details.surface_capabilities.surfaceCapabilities; // ...
+        VkExtent2D surface_extent = surface_capabilities.currentExtent; // ...
+        if(surface_extent.width == U32_MAX){ // Should we just do this outside this func?
+            i32 w, h;
+            dot_window_get_framebuffer_size(window, &w, &h);
+            surface_extent.width  = w;
+            surface_extent.height = h;
+
+            surface_extent.width = CLAMP(surface_extent.width, surface_capabilities.minImageExtent.width, surface_capabilities.maxImageExtent.width);
+            surface_extent.height = CLAMP(surface_extent.height, surface_capabilities.minImageExtent.height, surface_capabilities.maxImageExtent.height);
+        }
+
+        VkFormat         preferred_format             = vk_settings->swapchain_settings.preferred_format;
+        VkColorSpaceKHR  preferred_colorspace         = vk_settings->swapchain_settings.preferred_colorspace;
+        VkPresentModeKHR preferred_present_mode       = vk_settings->swapchain_settings.preferred_present_mode;
+
+        VkSurfaceFormat2KHR desired_format = swapchain_support_details.surface_formats[0]; // Keep this one if none found
+        array(VkSurfaceFormat2KHR) surface_formats = swapchain_support_details.surface_formats;
+        for(u32 i = 0; i < swapchain_support_details.format_count; ++i){
+            VkSurfaceFormat2KHR desiredVk_format = surface_formats[i];
+            if (desiredVk_format.surfaceFormat.format == preferred_format &&
+                desiredVk_format.surfaceFormat.colorSpace == preferred_colorspace){
+                desired_format = desiredVk_format;
+                break;
+            }
+        }
+
+        VkPresentModeKHR desired_present_mode = VK_PRESENT_MODE_FIFO_KHR; // Keep this one if none found for now
+        array(VkPresentModeKHR) present_modes = swapchain_support_details.present_modes;
+        for(u32 i = 0; i < swapchain_support_details.present_modes_count; ++i){
+            if (present_modes[i] == preferred_present_mode){
+                desired_present_mode = present_modes[i];
+                break;
+            }
+        }
+        details->best_present_mode   = desired_present_mode;
+        details->best_surface_format = desired_format.surfaceFormat;
+        details->surface_extent      = surface_extent;
+        details->image_count         = surface_capabilities.minImageCount+1;
+        if(surface_capabilities.maxImageCount > 0 && details->image_count > surface_capabilities.maxImageCount){
+            details->image_count = surface_capabilities.maxImageCount;
+        }
+        DOT_PRINT("IMAGESS image count :%u min image count %u max image count: %u", details->image_count, surface_capabilities.minImageCount, surface_capabilities.maxImageCount);
+        details->current_transform   = surface_capabilities.currentTransform;
+    }
+    temp_arena_restore(&temp);
+    return has_support;
+}
+
+typedef struct VkCandidateDeviceInfo{
+    VkPhysicalDevice gpu;
+    u16 graphics_family;
+    u16 present_family;
+    i32 score;
+    b8 shared_present_graphics_queues;
+}VkCandidateDeviceInfo;
+
+internal inline VkCandidateDeviceInfo
+vk_pick_best_device(const RendererBackendVk_Settings *vk_settings,
+                    VkInstance instance, VkSurfaceKHR surface,
+                    DOT_Window *window) {
+    TempArena temp = thread_ctx_get_temp(NULL);
+    u32 device_count = 0;
+    vkEnumeratePhysicalDevices(instance, &device_count, NULL);
+    if (device_count == 0) {
+        DOT_ERROR("No Vulkan-capable GPUs found");
+    }
+
+    array(VkPhysicalDevice) devices =
+        PUSH_ARRAY(temp.arena, VkPhysicalDevice, device_count);
+    vkEnumeratePhysicalDevices(instance, &device_count, devices);
+    DOT_PRINT("device count %i", device_count);
+
+    VkCandidateDeviceInfo best_device = {0};
+    best_device.score = -1;
+
+    for (u32 i = 0; i < device_count; i++) {
+        VkPhysicalDevice dev = devices[i];
+        // We to first ensure we have what we want before even rating the device
+        if (!vk_physical_device_all_required_extensions(vk_settings, dev) ||
+            !vk_physical_device_swapchain_support(vk_settings, dev, surface, window, NULL)) {
+            continue;
+        }
+        VkPhysicalDeviceProperties device_properties;
+        VkPhysicalDeviceFeatures device_features;
+        vkGetPhysicalDeviceProperties(dev, &device_properties);
+        vkGetPhysicalDeviceFeatures(dev, &device_features);
+
+        u32 queue_count = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(dev, &queue_count, NULL);
+        array(VkQueueFamilyProperties) queue_properties =
+            PUSH_ARRAY(temp.arena, VkQueueFamilyProperties, queue_count);
+        vkGetPhysicalDeviceQueueFamilyProperties(dev, &queue_count,
+                                                 queue_properties);
+
+        int graphics_idx = -1;
+        int present_idx = -1;
+        bool shared_present_graphics_queues = false;
+        for (u32 q = 0; q < queue_count; q++) {
+            b32 present_support = false;
+            vkGetPhysicalDeviceSurfaceSupportKHR(dev, q, surface, &present_support);
+            if ((queue_properties[q].queueFlags & VK_QUEUE_GRAPHICS_BIT) &&
+                present_support) {
+                shared_present_graphics_queues = true;
+                graphics_idx = q;
+                present_idx = q;
+                break;
+            }
+        }
+        if (!shared_present_graphics_queues) {
+            for (u32 q = 0; q < queue_count; q++) {
+                if (queue_properties[q].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+                    graphics_idx = q;
+                }
+                u32 present_support = false;
+                vkGetPhysicalDeviceSurfaceSupportKHR(dev, q, surface, &present_support);
+                if (present_support) {
+                    present_idx = q;
+                }
+            }
+        }
+        if (graphics_idx < 0 || present_idx < 0) {
+            continue;
+        }
+
+        int score = -1;
+        if (device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+            score += 2000;
+        // if(device_properties.deviceType ==
+        // VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) score += 100;
+        if (device_features.geometryShader)
+            score += 10;
+        DOT_PRINT("graphics family: %d; present family: %i; score: %i",
+                  graphics_idx, present_idx, score);
+        if (score > best_device.score) {
+            best_device.gpu = dev;
+            best_device.graphics_family = cast(u16) graphics_idx;
+            best_device.present_family = cast(u16) present_idx;
+            best_device.score = score;
+            best_device.shared_present_graphics_queues =
+                shared_present_graphics_queues;
+        }
+    }
+
+    if (best_device.score < 0) {
+        DOT_ERROR("No suitable GPU found");
+    }
+
+    DOT_PRINT("best_device  graphics family: %d; present family: %i; score: %i",
+              best_device.graphics_family, best_device.present_family,
+              best_device.score);
+    temp_arena_restore(&temp);
+    return best_device;
 }
 
 #endif // !VK_HELPER_H

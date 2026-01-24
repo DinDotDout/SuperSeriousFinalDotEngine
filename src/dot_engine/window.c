@@ -35,7 +35,7 @@ dot_window_create_surface(DOT_Window* window, struct RendererBackend* backend){
     switch (backend->backend_kind) {
         case RENDERER_BACKEND_VK:{
             RendererBackendVk* vk_ctx = renderer_backend_as_vk(backend);
-            VkCheck(RGFW_window_createSurface_Vulkan(window->window, vk_ctx->instance, &vk_ctx->surface));
+            VK_CHECK(RGFW_window_createSurface_Vulkan(window->window, vk_ctx->instance, &vk_ctx->surface));
             break;
         }
         case RENDERER_BACKEND_GL:

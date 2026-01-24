@@ -19,9 +19,10 @@ renderer_backend_vk_create(Arena* arena){
     return backend;
 }
 
-internal const RendererBackendVKSettings*
+// NOTE: Might want to remove const to make some things tweakable
+internal const RendererBackendVk_Settings*
 renderer_backend_vk_settings() {
-    static const char* instance_exts[] = {
+    static const char *instance_exts[] = {
         VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME,
         VK_KHR_SURFACE_EXTENSION_NAME,
     #ifdef VK_EXT_DEBUG_UTILS_ENABLE
@@ -30,17 +31,17 @@ renderer_backend_vk_settings() {
         DOT_VK_SURFACE,
     };
 
-    static const char* device_exts[] = {
+    static const char *device_exts[] = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
     };
 
-    static const char* vk_layers[] = {
+    static const char *vk_layers[] = {
     #ifdef VALIDATION_LAYERS_ENABLE
             "VK_LAYER_KHRONOS_validation",
     #endif
     };
 
-    static const RendererBackendVKSettings vk_settings = {
+    static const RendererBackendVk_Settings vk_settings = {
         .instance_settings = {
             .instance_extension_names = instance_exts,
             .instance_extension_count = ARRAY_COUNT(instance_exts),
@@ -58,6 +59,9 @@ renderer_backend_vk_settings() {
             .preferred_colorspace   = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
             .preferred_present_mode = VK_PRESENT_MODE_MAILBOX_KHR,
         },
+        .frame_settings = {
+            .frame_overlap = 2,
+        }
     };
     return &vk_settings;
 }
@@ -75,294 +79,22 @@ renderere_backend_vk_debug_callback(
     return VK_FALSE;
 }
 
-typedef struct CandidateDeviceInfo{
-    VkPhysicalDevice gpu;
-    u16 graphics_family;
-    u16 present_family;
-    i32 score;
-    b8 shared_present_graphics_queues;
-}CandidateDeviceInfo;
-
-internal inline bool
-vk_physical_device_all_required_extensions(VkPhysicalDevice device){
-    TempArena temp = thread_ctx_get_temp(NULL);
-    u32 extension_count;
-    vkEnumerateDeviceExtensionProperties(device, NULL, &extension_count, NULL);
-    array(VkExtensionProperties) available_extensions = PUSH_ARRAY(temp.arena, VkExtensionProperties, extension_count);
-    vkEnumerateDeviceExtensionProperties(device, NULL, &extension_count, available_extensions);
-
-    bool all_found = true;
-    const RendererBackendVKSettings* vk_settings = renderer_backend_vk_settings();
-    for(u64 i = 0; i < vk_settings->device_settings.device_extension_count; ++i){
-        bool found = false;
-        const char* device_extension_name = vk_settings->device_settings.device_extension_names[i];
-        for(u64 j = 0; j < extension_count; ++j){
-            if(strcmp(device_extension_name, available_extensions[j].extensionName) == 0){
-                DOT_PRINT("Found extension \"%s\"", device_extension_name);
-                found = true;
-                break;
-            }
-        }
-        if(!found){  // Might aswell list all missing physical dev extensions
-            all_found = false;
-            DOT_WARNING("Requested extension %s not found", device_extension_name);
-            break;
-        }
-    }
-    temp_arena_restore(&temp);
-    return all_found;
-}
-
-internal inline bool
-vk_instance_all_required_extensions(){
-    TempArena temp = thread_ctx_get_temp(NULL);
-    u32 extension_count;
-    vkEnumerateInstanceExtensionProperties(NULL, &extension_count, NULL);
-    array(VkExtensionProperties) available_extensions = PUSH_ARRAY(temp.arena, VkExtensionProperties, extension_count);
-    vkEnumerateInstanceExtensionProperties(NULL, &extension_count, available_extensions);
-
-    bool all_found = true;
-    const RendererBackendVKSettings* vk_settings = renderer_backend_vk_settings();
-    for(u64 i = 0; i < vk_settings->instance_settings.instance_extension_count; ++i){
-        bool found = false;
-        const char* instance_extension_name = vk_settings->instance_settings.instance_extension_names[i];
-        for(u64 j = 0; j < extension_count; ++j){
-            if(strcmp(instance_extension_name, available_extensions[j].extensionName) == 0){
-                DOT_PRINT("Found instance extension \"%s\"", instance_extension_name);
-                found = true;
-                break;
-            }
-        }
-        if(!found){ // Might aswell list all missing dev extensions
-            all_found = false;
-            DOT_WARNING("Requested instance extension \"%s\" not found", instance_extension_name);
-        }
-    }
-    temp_arena_restore(&temp);
-    return all_found;
-}
-
-typedef struct SwapchainDetails{
-    VkSurfaceFormatKHR               best_surface_format;
-    VkPresentModeKHR                 best_present_mode;
-    VkExtent2D                       surface_extent;
-    VkSurfaceTransformFlagBitsKHR    current_transform;
-    u32                              image_count;
-}SwapchainDetails;
-
-internal inline
-b8 vk_physical_device_swapchain_support(VkPhysicalDevice gpu, VkSurfaceKHR surface, DOT_Window* window, SwapchainDetails* details){
-    TempArena temp = thread_ctx_get_temp(NULL);
-    typedef struct SwapchainSupportDetails{
-        VkSurfaceCapabilities2KHR surface_capabilities;
-
-        array(VkSurfaceFormat2KHR) surface_formats;
-        u32 format_count;
-
-        array(VkPresentModeKHR) present_modes;
-        u32 present_modes_count;
-    }SwapchainSupportDetails;
-
-    SwapchainSupportDetails swapchain_support_details = {
-        .surface_capabilities = VkSurfaceCapabilities2KHRParams(),
-    };
-
-    // 2KHR version expect this instead of just surface....
-    VkPhysicalDeviceSurfaceInfo2KHR surface_info = VkPhysicalDeviceSurfaceInfo2KHRParams(.surface = surface);
-    // --- Query Surface Capabilities ---
-    vkGetPhysicalDeviceSurfaceCapabilities2KHR(gpu, &surface_info, &swapchain_support_details.surface_capabilities);
- 
-    // --- Query Surface Formats ---
-    VkCheck(vkGetPhysicalDeviceSurfaceFormats2KHR(gpu, &surface_info, &swapchain_support_details.format_count, NULL));
-    swapchain_support_details.surface_formats = PUSH_ARRAY(temp.arena, VkSurfaceFormat2KHR, swapchain_support_details.format_count);
-    for(u32 it = 0; it < swapchain_support_details.format_count; ++it){
-        swapchain_support_details.surface_formats[it] = VkSurfaceFormat2KHRParams();
-    }
-    vkGetPhysicalDeviceSurfaceFormats2KHR(gpu, &surface_info, &swapchain_support_details.format_count, swapchain_support_details.surface_formats);
- 
-    // --- Query Present Modes ---
-    vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &swapchain_support_details.present_modes_count, NULL);
-    swapchain_support_details.present_modes = PUSH_ARRAY(temp.arena, VkPresentModeKHR, swapchain_support_details.present_modes_count);
-    vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &swapchain_support_details.present_modes_count, swapchain_support_details.present_modes);
-    bool has_support = swapchain_support_details.format_count > 0 && swapchain_support_details.present_modes_count > 0;
-    if(has_support && details != NULL){
-        VkSurfaceCapabilitiesKHR surface_capabilities = swapchain_support_details.surface_capabilities.surfaceCapabilities; // ...
-        VkExtent2D surface_extent = surface_capabilities.currentExtent; // ...
-        if(surface_extent.width == U32_MAX){ // Should we just do this outside this func?
-            i32 w, h;
-            dot_window_get_framebuffer_size(window, &w, &h);
-            surface_extent.width  = w;
-            surface_extent.height = h;
-
-            surface_extent.width = CLAMP(surface_extent.width, surface_capabilities.minImageExtent.width, surface_capabilities.maxImageExtent.width);
-            surface_extent.height = CLAMP(surface_extent.height, surface_capabilities.minImageExtent.height, surface_capabilities.maxImageExtent.height);
-        }
-
-        const RendererBackendVKSettings* settings = renderer_backend_vk_settings();
-        VkFormat         preferred_format             = settings->swapchain_settings.preferred_format;
-        VkColorSpaceKHR  preferred_colorspace         = settings->swapchain_settings.preferred_colorspace;
-        VkPresentModeKHR preferred_present_mode       = settings->swapchain_settings.preferred_present_mode;
-
-        VkSurfaceFormat2KHR desired_format = swapchain_support_details.surface_formats[0]; // Keep this one if none found
-        array(VkSurfaceFormat2KHR) surface_formats = swapchain_support_details.surface_formats;
-        for(u32 i = 0; i < swapchain_support_details.format_count; ++i){
-            VkSurfaceFormat2KHR desiredVk_format = surface_formats[i];
-            if (desiredVk_format.surfaceFormat.format == preferred_format &&
-                desiredVk_format.surfaceFormat.colorSpace == preferred_colorspace){
-                desired_format = desiredVk_format;
-                break;
-            }
-        }
-
-        VkPresentModeKHR desired_present_mode = VK_PRESENT_MODE_FIFO_KHR; // Keep this one if none found for now
-        array(VkPresentModeKHR) present_modes = swapchain_support_details.present_modes;
-        for(u32 i = 0; i < swapchain_support_details.present_modes_count; ++i){
-            if (present_modes[i] == preferred_present_mode){
-                desired_present_mode = present_modes[i];
-                break;
-            }
-        }
-        details->best_present_mode   = desired_present_mode;
-        details->best_surface_format = desired_format.surfaceFormat;
-        details->surface_extent      = surface_extent;
-        details->image_count         = surface_capabilities.minImageCount+1;
-        if(surface_capabilities.maxImageCount > 0 && details->image_count > surface_capabilities.maxImageCount){
-            details->image_count = surface_capabilities.maxImageCount;
-        }
-        DOT_PRINT("IMAGESS %u %u %u", details->image_count, surface_capabilities.minImageCount, surface_capabilities.maxImageCount);
-        details->current_transform   = surface_capabilities.currentTransform;
-    }
-    temp_arena_restore(&temp);
-    return has_support;
-}
-
-internal inline CandidateDeviceInfo
-vk_pick_best_device(VkInstance instance, VkSurfaceKHR surface, DOT_Window* window){
-    TempArena temp = thread_ctx_get_temp(NULL);
-    u32 device_count = 0;
-    vkEnumeratePhysicalDevices(instance, &device_count, NULL);
-    if(device_count == 0){
-        DOT_ERROR("No Vulkan-capable GPUs found");
-    }
-
-    array(VkPhysicalDevice) devices = PUSH_ARRAY(temp.arena, VkPhysicalDevice, device_count);
-    vkEnumeratePhysicalDevices(instance, &device_count, devices);
-    DOT_PRINT("device count %i", device_count);
-
-    CandidateDeviceInfo best_device = {0};
-    best_device.score = -1;
-
-    for(u32 i = 0; i < device_count; i++){
-        VkPhysicalDevice dev = devices[i];
-        // We to first ensure we have what we want before even rating the device
-        if(!vk_physical_device_all_required_extensions(dev) || !vk_physical_device_swapchain_support(dev, surface, window, NULL)){
-            continue;
-        }
-        VkPhysicalDeviceProperties device_properties;
-        VkPhysicalDeviceFeatures device_features;
-        vkGetPhysicalDeviceProperties(dev, &device_properties);
-        vkGetPhysicalDeviceFeatures(dev, &device_features);
-
-        u32 queue_count = 0;
-        vkGetPhysicalDeviceQueueFamilyProperties(dev, &queue_count, NULL);
-        array(VkQueueFamilyProperties) queue_properties = PUSH_ARRAY(temp.arena, VkQueueFamilyProperties, queue_count);
-        vkGetPhysicalDeviceQueueFamilyProperties(dev, &queue_count, queue_properties);
-
-        int graphics_idx = -1;
-        int present_idx = -1;
-        bool shared_present_graphics_queues = false;
-        for(u32 q = 0; q < queue_count; q++){
-            b32 present_support = false;
-            vkGetPhysicalDeviceSurfaceSupportKHR(dev, q, surface, &present_support);
-            if((queue_properties[q].queueFlags & VK_QUEUE_GRAPHICS_BIT) && present_support){
-                shared_present_graphics_queues  = true;
-                graphics_idx = q;
-                present_idx  = q;
-                break;
-            }
-        }
-        if(!shared_present_graphics_queues){
-            for(u32 q = 0; q < queue_count; q++){
-                if(queue_properties[q].queueFlags & VK_QUEUE_GRAPHICS_BIT){
-                    graphics_idx = q;
-                }
-                u32 present_support = false;
-                vkGetPhysicalDeviceSurfaceSupportKHR(dev, q, surface, &present_support);
-                if(present_support){
-                    present_idx = q;
-                }
-            }
-        }
-        if(graphics_idx < 0 || present_idx < 0){
-            continue;
-        }
-
-        int score = -1;
-        if(device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) score += 2000;
-        // if(device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) score += 100;
-        if(device_features.geometryShader) score += 10;
-        DOT_PRINT("graphics family: %d; present family: %i; score: %i", graphics_idx, present_idx, score);
-        if(score > best_device.score) {
-            best_device.gpu = dev;
-            best_device.graphics_family = cast(u16)graphics_idx;
-            best_device.present_family = cast(u16)present_idx;
-            best_device.score = score;
-            best_device.shared_present_graphics_queues = shared_present_graphics_queues;
-        }
-    }
-
-    if(best_device.score < 0){
-        DOT_ERROR("No suitable GPU found");
-    }
-
-    DOT_PRINT("best_device  graphics family: %d; present family: %i; score: %i", best_device.graphics_family, best_device.present_family, best_device.score);
-    temp_arena_restore(&temp);
-    return best_device;
-}
-
-internal inline bool
-vk_all_layers(){
-    TempArena temp = thread_ctx_get_temp(NULL);
-    u32 available_layer_count = 0;
-    vkEnumerateInstanceLayerProperties(&available_layer_count, NULL);
-    array(VkLayerProperties) available_layers = PUSH_ARRAY(temp.arena, VkLayerProperties, available_layer_count);
-    vkEnumerateInstanceLayerProperties(&available_layer_count, available_layers);
-
-    const RendererBackendVKSettings* vk_settings = renderer_backend_vk_settings();
-    bool all_found = true;
-    for(u64 i = 0; i < vk_settings->layer_settings.layer_count; ++i){
-        bool found = false;
-        const char* layer_name = vk_settings->layer_settings.layer_names[i];
-        for(u64 j = 0; j < available_layer_count; ++j){
-            if(strcmp(layer_name, available_layers[j].layerName) == 0){
-                DOT_PRINT("Found Layer %s", layer_name);
-                found = true;
-                break;
-            }
-        }
-        if(!found){ // Might aswell list all missing layers
-            all_found = false;
-            DOT_WARNING("Requested layer %s not found", layer_name);
-        }
-    }
-    temp_arena_restore(&temp);
-    return all_found;
-}
 
 internal void
-renderer_backend_vk_init(RendererBackend* ctx, DOT_Window* window){
-    RendererBackendVk *renderer_ctx = renderer_backend_as_vk(ctx);
-    // renderer_ctx->vk_allocator = VkAllcocatorParams(ctx->arena);
+renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* window){
+    RendererBackendVk *vk_ctx = renderer_backend_as_vk(base_ctx);
+    Arena* ctx_arena = vk_ctx->base.arena;
+    // vk_ctx->vk_allocator = VkAllocatorParams(ctx_arena);
     TempArena temp = thread_ctx_get_temp(NULL);
-    if(!vk_all_layers()){
+    const RendererBackendVk_Settings* vk_settings = renderer_backend_vk_settings();
+    if(!vk_all_layers(vk_settings)){
         DOT_ERROR("Could not find all requested layers");
     }
 
-    if(!vk_instance_all_required_extensions()){
+    if(!vk_instance_all_required_extensions(vk_settings)){
         DOT_ERROR("Could not find all requested instance extensions");
     }
 
-    const RendererBackendVKSettings* vk_settings = renderer_backend_vk_settings();
     // --- Create Instance ---
     {
         VkInstanceCreateInfo instance_create_info = {
@@ -397,25 +129,25 @@ renderer_backend_vk_init(RendererBackend* ctx, DOT_Window* window){
             instance_create_info.pNext = &debug_utils_info;
         }
 
-        VkCheck(vkCreateInstance(&instance_create_info, NULL, &renderer_ctx->instance));
+        VK_CHECK(vkCreateInstance(&instance_create_info, NULL, &vk_ctx->instance));
 
         if(VK_EXT_DEBUG_UTILS_ENABLE){
             PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT =
-                (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(renderer_ctx->instance, "vkCreateDebugUtilsMessengerEXT");
+                (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(vk_ctx->instance, "vkCreateDebugUtilsMessengerEXT");
 
             if(vkCreateDebugUtilsMessengerEXT) {
-                VkCheck(vkCreateDebugUtilsMessengerEXT(renderer_ctx->instance, &debug_utils_info, NULL, &renderer_ctx->debug_messenger));
+                VK_CHECK(vkCreateDebugUtilsMessengerEXT(vk_ctx->instance, &debug_utils_info, NULL, &vk_ctx->debug_messenger));
             }
         }
     }
 
     // --- Create Surface --- 
-    dot_window_create_surface(window, ctx);
+    dot_window_create_surface(window, base_ctx);
  
     // --- Create Device --- 
     {
-        RendererBackendDevice* device = &renderer_ctx->device;
-        CandidateDeviceInfo candidate_device_info = vk_pick_best_device(renderer_ctx->instance, renderer_ctx->surface, window);
+        RendererBackendVk_Device* device = &vk_ctx->device;
+        VkCandidateDeviceInfo candidate_device_info = vk_pick_best_device(vk_settings, vk_ctx->instance, vk_ctx->surface, window);
         device->gpu = candidate_device_info.gpu;
         device->graphics_queue_idx = candidate_device_info.graphics_family;
         device->present_queue_idx = candidate_device_info.present_family;
@@ -450,7 +182,7 @@ renderer_backend_vk_init(RendererBackend* ctx, DOT_Window* window){
             .enabledExtensionCount   = vk_settings->device_settings.device_extension_count,
         };
 
-        VkCheck(vkCreateDevice(candidate_device_info.gpu, &device_create_info, NULL, &device->device));
+        VK_CHECK(vkCreateDevice(candidate_device_info.gpu, &device_create_info, NULL, &device->device));
         vkGetDeviceQueue(device->device, candidate_device_info.graphics_family, 0, &device->graphics_queue);
         if(shared_present_graphics_queues){
             device->present_queue = device->graphics_queue;
@@ -459,14 +191,19 @@ renderer_backend_vk_init(RendererBackend* ctx, DOT_Window* window){
             vkGetDeviceQueue(device->device, candidate_device_info.present_family, 0, &device->present_queue);
         }
     }
+    // TODO: We will probably need to move this to its own function to allow recreation
     // --- Create Swapchain ---
     {
-        RendererBackendSwapchain* swapchain = &renderer_ctx->swapchain;
-        SwapchainDetails details;
-        vk_physical_device_swapchain_support(renderer_ctx->device.gpu, renderer_ctx->surface, window, &details);
+        RendererBackendVk_Swapchain* swapchain = &vk_ctx->swapchain;
+        VkSwapchainDetails details = {0};
+        vk_physical_device_swapchain_support(vk_settings, vk_ctx->device.gpu, vk_ctx->surface, window, &details);
+        swapchain->extent = details.surface_extent;
+        swapchain->image_format = details.best_surface_format.format;
+        swapchain->images_count = details.image_count;
+
         VkSwapchainCreateInfoKHR swapchain_create_info = {
             .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-            .surface          = renderer_ctx->surface,
+            .surface          = vk_ctx->surface,
             .minImageCount    = details.image_count,
             .imageFormat      = details.best_surface_format.format,
             .imageColorSpace  = details.best_surface_format.colorSpace,
@@ -480,81 +217,101 @@ renderer_backend_vk_init(RendererBackend* ctx, DOT_Window* window){
             .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
             .oldSwapchain     = VK_NULL_HANDLE, // Will need to update this for recreation
         };
-        if(renderer_ctx->device.graphics_queue_idx != renderer_ctx->device.present_queue_idx){
+        if(vk_ctx->device.graphics_queue_idx != vk_ctx->device.present_queue_idx){
             DOT_ERROR("Different present and graphics queues unsupported");
-            u32 queues[] = {renderer_ctx->device.graphics_queue_idx, renderer_ctx->device.present_queue_idx};
+            u32 queues[] = {vk_ctx->device.graphics_queue_idx, vk_ctx->device.present_queue_idx};
             swapchain_create_info.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
             swapchain_create_info.pQueueFamilyIndices = queues;
             swapchain_create_info.queueFamilyIndexCount = ARRAY_COUNT(queues);
         }
-        VkCheck(vkCreateSwapchainKHR(
-            renderer_ctx->device.device, &swapchain_create_info,
-            NULL, &swapchain->swapchain));
-
-        swapchain->extent = details.surface_extent;
-        swapchain->image_format = details.best_surface_format.format;
+        VK_CHECK(vkCreateSwapchainKHR(vk_ctx->device.device, &swapchain_create_info, NULL, &swapchain->swapchain));
  
         //  --- Create Images ---
         {
-            VkDevice device = renderer_ctx->device.device;
+            VkDevice device = vk_ctx->device.device;
             vkGetSwapchainImagesKHR(device, swapchain->swapchain, &swapchain->images_count, NULL);
-            swapchain->images = PUSH_ARRAY(ctx->arena, VkImage, swapchain->images_count);
+            swapchain->images = PUSH_ARRAY(ctx_arena, VkImage, swapchain->images_count);
             vkGetSwapchainImagesKHR(device, swapchain->swapchain, &swapchain->images_count, swapchain->images);
-            // VkImageView images_views;
+            DOT_PRINT("IMAGEDDDD %u", &swapchain->images_count);
         }
         //  --- Create Image Views ---
         {
-            // VkSwapchainKHR* swapchain = &renderer_ctx->swapchain.swapchain;
-            VkDevice device = renderer_ctx->device.device;
-            // vkGetSwapchainImagesKHR(device, swapchain, &renderer_ctx->swapchain.images_count, NULL);
-            // swapchain->image_views = PUSH_ARRAY(ctx->arena, VkImageView, swapchain->images_count);
-            renderer_ctx->swapchain.image_views = PUSH_ARRAY(ctx->arena, VkImageView, swapchain->images_count);
+            VkDevice device = vk_ctx->device.device;
+            swapchain->image_views = PUSH_ARRAY(ctx_arena, VkImageView, swapchain->images_count);
+            VkImageViewCreateInfo image_create_info = {
+                .sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                .format   = swapchain->image_format,
+                .components = {
+                    .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                    .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                    .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                    .a = VK_COMPONENT_SWIZZLE_IDENTITY,
+                },
+                .subresourceRange = {
+                    .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .baseMipLevel   = 0,
+                    .levelCount     = 1,
+                    .baseArrayLayer = 0,
+                    .layerCount     = 1,
+                }
+            };
+
             for(u32 i = 0; i < swapchain->images_count; ++i){
-                VkImageViewCreateInfo image_create_info = {
-                    .sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                    .image    = swapchain->images[i],
-                    .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                    .format   = swapchain->image_format,
-                    .components = {
-                        .r = VK_COMPONENT_SWIZZLE_IDENTITY,
-                        .g = VK_COMPONENT_SWIZZLE_IDENTITY,
-                        .b = VK_COMPONENT_SWIZZLE_IDENTITY,
-                        .a = VK_COMPONENT_SWIZZLE_IDENTITY,
-                    },
-                    .subresourceRange = {
-                        .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-                        .baseMipLevel   = 0,
-                        .levelCount     = 1,
-                        .baseArrayLayer = 0,
-                        .layerCount     = 1,
-                    }
-                };
-                // VkCheck(vkCreateImageView(device, &image_create_info, NULL, &swapchain->image_views[i]));
-                VkCheck(vkCreateImageView(device, &image_create_info, NULL, &renderer_ctx->swapchain.image_views[i]));
+                image_create_info.image    = swapchain->images[i];
+                VK_CHECK(vkCreateImageView(device, &image_create_info, NULL, &swapchain->image_views[i]));
             }
-            // vkGetSwapchainImagesKHR(device, swapchain, &renderer_ctx->swapchain.images_count, renderer_ctx->swapchain.images);
-            // VkImageView images_views;
+        }
+    }
+    // --- Create Commands ---
+    {
+        // WARN: Any allocation that can be recreated may be need to be pushed onto its own arena alloc ctx
+        // to avoid leaking
+        u8 frame_overlap = vk_settings->frame_settings.frame_overlap;
+        vk_ctx->frames = PUSH_ARRAY(ctx_arena, RendererBackendVk_FrameData, frame_overlap);
+
+        VkCommandPoolCreateInfo command_pool_info = {
+            .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+            .flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+            .queueFamilyIndex = vk_ctx->device.graphics_queue_idx,
+        };
+        VkCommandBufferAllocateInfo cmd_alloc_info = {
+            .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+            .commandBufferCount = 1,
+        };
+        VkDevice device = vk_ctx->device.device;
+        for(u8 i = 0; i < frame_overlap; ++i){
+            RendererBackendVk_FrameData *frame_data = &vk_ctx->frames[i];
+            VK_CHECK(vkCreateCommandPool(device, &command_pool_info, NULL, &frame_data->command_pool));
+            cmd_alloc_info.commandPool = frame_data->command_pool;
+            VK_CHECK(vkAllocateCommandBuffers(device, &cmd_alloc_info, &frame_data->command_buffer));
         }
     }
     temp_arena_restore(&temp);
 }
 
 internal void
-renderer_backend_vk_shutdown(RendererBackend* ctx) {
-    RendererBackendVk *renderer_ctx = renderer_backend_as_vk(ctx);
-    VkDevice device = renderer_ctx->device.device;
-    for(u32 i = 0; i < renderer_ctx->swapchain.images_count; ++i){
-        vkDestroyImageView(device, renderer_ctx->swapchain.image_views[i], NULL);
+renderer_backend_vk_shutdown(RendererBackend* base_ctx) {
+    RendererBackendVk *vk_ctx = renderer_backend_as_vk(base_ctx);
+    VkDevice device = vk_ctx->device.device;
+    const RendererBackendVk_Settings *settings = renderer_backend_vk_settings();
+    vkDeviceWaitIdle(device);
+    for(u32 i = 0; i < settings->frame_settings.frame_overlap; ++i){
+        vkDestroyCommandPool(device, vk_ctx->frames[i].command_pool, NULL);
     }
-    vkDestroySwapchainKHR(device, renderer_ctx->swapchain.swapchain, NULL);
-    vkDestroySurfaceKHR(renderer_ctx->instance, renderer_ctx->surface, NULL);
-    vkDestroyDevice(renderer_ctx->device.device, NULL);
+    for(u32 i = 0; i < vk_ctx->swapchain.images_count; ++i){
+        vkDestroyImageView(device, vk_ctx->swapchain.image_views[i], NULL);
+    }
+    vkDestroySwapchainKHR(device, vk_ctx->swapchain.swapchain, NULL);
+    vkDestroySurfaceKHR(vk_ctx->instance, vk_ctx->surface, NULL);
+    vkDestroyDevice(vk_ctx->device.device, NULL);
     if(VK_EXT_DEBUG_UTILS_ENABLE){
         PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT =
-            (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(renderer_ctx->instance, "vkDestroyDebugUtilsMessengerEXT");
+            (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(vk_ctx->instance, "vkDestroyDebugUtilsMessengerEXT");
         if(vkDestroyDebugUtilsMessengerEXT){
-            vkDestroyDebugUtilsMessengerEXT(renderer_ctx->instance, renderer_ctx->debug_messenger, NULL);
+            vkDestroyDebugUtilsMessengerEXT(vk_ctx->instance, vk_ctx->debug_messenger, NULL);
         }
     }
-    vkDestroyInstance(renderer_ctx->instance, NULL);
+    vkDestroyInstance(vk_ctx->instance, NULL);
 }

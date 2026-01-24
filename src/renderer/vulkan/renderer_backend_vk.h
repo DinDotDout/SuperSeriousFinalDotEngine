@@ -9,42 +9,7 @@
 #define VK_EXT_DEBUG_UTILS_ENABLE 1
 #endif
 
-typedef struct RendererBackendDevice{
-    VkDevice         device;
-    VkPhysicalDevice gpu;
-
-    VkQueue graphics_queue;
-    u32     graphics_queue_idx;
-
-    VkQueue present_queue;
-    u32     present_queue_idx;
-}RendererBackendDevice;
-
-typedef struct RendererBackendSwapchain{
-    VkSwapchainKHR swapchain;
-    VkExtent2D     extent;
-    VkFormat       image_format;
-
-    VkImage*       images;
-    VkImageView*   image_views;
-    u32            images_count; // Shared between images and images views
-}RendererBackendSwapchain;
-
-typedef struct RendererBackendVk{
-    RendererBackend      base;
-    RendererBackendDevice    device;
-    RendererBackendSwapchain swapchain;
-    VkInstance               instance;
-    VkSurfaceKHR             surface;
-    // Aparantly vk expects a malloc like allocator, which I don't intend on make or using for now
-    // so our arenas do not work
-    // VkAllocationCallbacks        vk_allocator;
-// #ifdef VK_EXT_DEBUG_UTILS_ENABLE
-    VkDebugUtilsMessengerEXT debug_messenger;
-// #endif
-}RendererBackendVk;
-
-typedef struct RendererBackendVKSettings{
+typedef struct RendererBackendVk_Settings{
     struct InstanceVkSettings{
         const char **instance_extension_names;
         const usize  instance_extension_count;
@@ -62,11 +27,59 @@ typedef struct RendererBackendVKSettings{
         VkColorSpaceKHR  preferred_colorspace;
         VkPresentModeKHR preferred_present_mode;
     }swapchain_settings;
-}RendererBackendVKSettings;
+    struct FrameSettings{
+        u8 frame_overlap;
+    }frame_settings;
+}RendererBackendVk_Settings;
+
+typedef struct RendererBackendVk_Device{
+    VkDevice         device;
+    VkPhysicalDevice gpu;
+
+    VkQueue graphics_queue;
+    u32     graphics_queue_idx;
+
+    VkQueue present_queue;
+    u32     present_queue_idx;
+}RendererBackendVk_Device;
+
+typedef struct RendererBackendVk_Swapchain{
+    VkSwapchainKHR swapchain;
+    VkExtent2D     extent;
+    VkFormat       image_format;
+
+    VkImage*       images;
+    VkImageView*   image_views;
+    u32            images_count; // Shared between images and images views
+}RendererBackendVk_Swapchain;
+
+
+#define RENDERER_BACKEND_VK_FRAME_OVERLAP 2
+typedef struct RendererBackendVk_FrameData{
+    VkCommandPool command_pool;
+    VkCommandBuffer command_buffer;
+}RendererBackendVk_FrameData;
+
+typedef struct RendererBackendVk{
+    RendererBackend               base;
+    RendererBackendVk_Device      device;
+    RendererBackendVk_Swapchain   swapchain;
+    VkInstance                    instance;
+    VkSurfaceKHR                  surface;
+
+    u8                            frame_count;
+    RendererBackendVk_FrameData*  frames;
+
+    // NOTE: Aparantly vk expects a malloc like allocator, which I don't intend on make or using for now
+    // so our push arenas do not work
+    VkAllocationCallbacks    vk_allocator; // Unused for now
+    VkDebugUtilsMessengerEXT debug_messenger;
+}RendererBackendVk;
+
 
 internal RendererBackendVk* renderer_backend_as_vk(RendererBackend* base);
 internal RendererBackendVk* renderer_backend_vk_create(Arena* arena);
-internal const RendererBackendVKSettings* renderer_backend_vk_settings();
+internal const RendererBackendVk_Settings* renderer_backend_vk_settings();
 
 internal void renderer_backend_vk_init(RendererBackend* ctx, DOT_Window* window);
 internal void renderer_backend_vk_shutdown(RendererBackend* ctx);
