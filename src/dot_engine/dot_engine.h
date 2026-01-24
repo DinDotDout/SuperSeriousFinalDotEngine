@@ -3,12 +3,22 @@
 
 // third_party
 #define _GNU_SOURCE
+
+#ifdef USE_VOLK
+#define VK_NO_PROTOTYPES
+#define VK_USE_PLATFORM_WAYLAND_KHR
+#include "third_party/volk/volk.h"
+#endif
+
 #define RGFW_VULKAN
-#define RGFW_WAYLAND
+
+#ifndef _WIN32
+#define RGFW_WAYLAND // wayland is be in debug mode by default for now
+#endif
+
 #define RGFW_IMPLEMENTATION
 #define RGFWDEF static inline
 #include "third_party/RGFW/RGFW.h"
-// #include "third_party/RGFW/RGFW.h"
 
 // engine
 #define DOT_INT_SKIP // Already defined by rgfw
