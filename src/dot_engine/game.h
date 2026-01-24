@@ -9,18 +9,18 @@ typedef struct DOT_Game{
 }DOT_Game;
 
 #ifdef DOT_HOT_RELOAD
-typedef struct DOT_Game_Vtable DOT_Game_Vtable;
-struct DOT_Game_Vtable{
-    b8(*Game_Init)(DOT_Game* game, DOT_Game_Vtable *vtable);
+typedef struct DOT_GameVtable DOT_GameVtable;
+struct DOT_GameVtable{
+    b8(*Game_Init)(DOT_Game* game, DOT_GameVtable *vtable);
     void(*Game_Shutdown)(void);
 };
 
-DOT_Game_Vtable game_vtable;
+DOT_GameVtable game_vtable;
 #else
 #include "renderer/renderer.h"
 #endif
 
-void DOT_Game_Bootstrap();
-b8 DOT_Game_Init(DOT_Game* game);
-void DOT_Game_Shutdown(DOT_Game* game);
+void dot_game_bootstrap();
+b8 dot_game_init(DOT_Game* game);
+void dot_game_shutdown(DOT_Game* game);
 #endif

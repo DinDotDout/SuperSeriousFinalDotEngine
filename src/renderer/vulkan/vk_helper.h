@@ -33,7 +33,8 @@
         __VA_ARGS__ \
     }
 
-internal const char* VkSystemAllocationScopeName(VkSystemAllocationScope s) {
+internal const char*
+VkSystemAllocationScopeName(VkSystemAllocationScope s) {
     switch(s){
         case VK_SYSTEM_ALLOCATION_SCOPE_COMMAND:
             return "COMMAND";
@@ -50,41 +51,46 @@ internal const char* VkSystemAllocationScopeName(VkSystemAllocationScope s) {
     }
 }
 
-internal inline void* VkAlloc(void* data, usize size, usize alignment, VkSystemAllocationScope scope){
-    Unused(data); Unused(size); Unused(alignment); Unused(scope);
+internal inline
+void* vk_alloc(void* data, usize size, usize alignment, VkSystemAllocationScope scope){
+    UNUSED(data); UNUSED(size); UNUSED(alignment); UNUSED(scope);
     DOT_PRINT("VK Alloc: size=%M; scope=\n", size, VkSystemAllocationScopeName(scope));
 
     Arena* arena = cast(Arena*)data;
-    void* mem = Arena_Push(arena, size, alignment, __FILE__, __LINE__);
-    Arena_PrintDebug(arena);
+    void* mem = arena_push(arena, size, alignment, __FILE__, __LINE__);
+    arena_print_debug(arena);
     return mem;
 }
 
-internal inline void* VkRealloc(void* data, void* old_mem, usize size, usize alignment, VkSystemAllocationScope scope){
-    Unused(data); Unused(size); Unused(alignment); Unused(scope); Unused(old_mem);
+internal inline
+void* vk_realloc(void* data, void* old_mem, usize size, usize alignment, VkSystemAllocationScope scope){
+    UNUSED(data); UNUSED(size); UNUSED(alignment); UNUSED(scope); UNUSED(old_mem);
     DOT_PRINT("VK Realloc: size=%M; scope=%s", size, VkSystemAllocationScopeName(scope) );
     Arena* arena = cast(Arena*)data;
-    void* mem = Arena_Push(arena, size, alignment, __FILE__, __LINE__);
-    Arena_PrintDebug(arena);
+    void* mem = arena_push(arena, size, alignment, __FILE__, __LINE__);
+    arena_print_debug(arena);
     return mem;
 }
 
-internal inline void VkFree(void* data, void* mem){
-    Unused(data); Unused(mem);
+internal inline
+void vk_free(void* data, void* mem){
+    UNUSED(data); UNUSED(mem);
     Arena* arena = cast(Arena*)data;
     DOT_PRINT("VK free");
-    Arena_PrintDebug(arena);
+    arena_print_debug(arena);
 }
 
-internal inline void VkInternalAlloc(void* data, usize size, VkInternalAllocationType alloc_type, VkSystemAllocationScope scope){
-    Unused(data); Unused(size); Unused(scope); Unused(alloc_type);
+internal inline
+void vk_internal_alloc(void* data, usize size, VkInternalAllocationType alloc_type, VkSystemAllocationScope scope){
+    UNUSED(data); UNUSED(size); UNUSED(scope); UNUSED(alloc_type);
     DOT_PRINT( "VK Internal Alloc: size=%M; scope=%s", size, VkSystemAllocationScopeName(scope) );
     // Arena* arena = cast(Arena*)data;
-    // Arena_PrintDebug(arena);
+    // arena_print_debug(arena);
 }
 
-void VkInternalFree(void* data, usize size, VkInternalAllocationType alloc_type, VkSystemAllocationScope scope){
-    Unused(data); Unused(size); Unused(scope); Unused(alloc_type);
+void
+vk_internal_free(void* data, usize size, VkInternalAllocationType alloc_type, VkSystemAllocationScope scope){
+    UNUSED(data); UNUSED(size); UNUSED(scope); UNUSED(alloc_type);
     DOT_PRINT( "VK Internal Free: size=%M; scope=%s", size, VkSystemAllocationScopeName(scope) );
 }
 

@@ -48,17 +48,17 @@ typedef struct TempArena {
     Arena *arena;
 } TempArena;
 
-internal TempArena TempArena_Get(Arena *arena);
-internal void      TempArena_Restore(TempArena *temp);
+internal TempArena temp_arena_get(Arena *arena);
+internal void      temp_arena_restore(TempArena *temp);
 
-internal Arena* Arena_AllocFromMemory_(u8* base, ArenaInitParams* params);
-internal Arena* Arena_Alloc_(ArenaInitParams *params);
-internal void   Arena_Reset(Arena *arena);
-internal void   Arena_Free(Arena *arena);
-internal void*  Arena_Push(Arena *arena, usize size, usize alignment, char* file, u32 line);
-internal void   Arena_PrintDebug(Arena *arena);
+internal Arena* arena_alloc_from_memory_(u8* base, ArenaInitParams* params);
+internal Arena* arena_alloc_(ArenaInitParams *params);
+internal void   arena_reset(Arena *arena);
+internal void   arena_free(Arena *arena);
+internal void*  arena_push(Arena *arena, usize size, usize alignment, char* file, u32 line);
+internal void   arena_print_debug(Arena *arena);
 
-#define ArenaDefaultParams(...) \
+#define ARENA_DEFAULT_PARAMS(...) \
     &(ArenaInitParams){ \
         .reserve_size       = ARENA_MIN_CAPACITY,\
         .commit_expand_size = PLATFORM_REGULAR_PAGE_SIZE, \
@@ -68,30 +68,30 @@ internal void   Arena_PrintDebug(Arena *arena);
         .name               = "Default", \
         __VA_ARGS__}
 
-#define Arena_Alloc(...) Arena_Alloc_(ArenaDefaultParams(__VA_ARGS__))
-#define Arena_AllocFromMemory(memory, ...) \
-    Arena_AllocFromMemory_((u8*) (memory), ArenaDefaultParams(__VA_ARGS__))
+#define ARENA_ALLOC(...) arena_alloc_(ARENA_DEFAULT_PARAMS(__VA_ARGS__))
+#define ARENA_ALLOC_FROM_MEMORY(memory, ...) \
+    arena_alloc_from_memory_((u8*) (memory), ARENA_DEFAULT_PARAMS(__VA_ARGS__))
 
-#define PushSizeNoZero(arena, size) \
-  Arena_Push(arena, size, ARENA_MAX_ALIGNMENT, __FILE__, __LINE__)
+#define PUSH_SIZE_NO_ZERO(arena, size) \
+  arena_push(arena, size, ARENA_MAX_ALIGNMENT, __FILE__, __LINE__)
 
-#define PushSize(arena, size) \
-  MemoryZero(Arena_Push(arena, size, ARENA_MAX_ALIGNMENT, __FILE__, __LINE__), size)
+#define PUSH_SIZE(arena, size) \
+  MEMORY_ZERO(arena_push(arena, size, ARENA_MAX_ALIGNMENT, __FILE__, __LINE__), size)
 
-#define PushArrayAligned(arena, type, count, alignment) \
-    (type *)MemoryZero(Arena_Push(arena, sizeof(type) * (count), alignment, __FILE__, __LINE__), sizeof(type) * (count))
+#define PUSH_ARRAY_ALIGNED(arena, type, count, alignment) \
+    (type *)MEMORY_ZERO(arena_push(arena, sizeof(type) * (count), alignment, __FILE__, __LINE__), sizeof(type) * (count))
 
-#define PushArray(arena, type, count) \
-    PushArrayAligned(arena, type, count, Max(ARENA_MAX_ALIGNMENT, Alignof(type)))
+#define PUSH_ARRAY(arena, type, count) \
+    PUSH_ARRAY_ALIGNED(arena, type, count, MAX(ARENA_MAX_ALIGNMENT, ALIGNOF(type)))
 
-#define PushArrayNoZero(arena, type, count)                                    \
-  (type *)Arena_Push(arena, sizeof(type) * (count),                            \
-                     Max(ARENA_MAX_ALIGNMENT, Alignof(type)), __FILE__,        \
+#define PUSH_ARRAY_NO_ZERO(arena, type, count)                                    \
+  (type *)arena_push(arena, sizeof(type) * (count),                            \
+                     MAX(ARENA_MAX_ALIGNMENT, ALIGNOF(type)), __FILE__,        \
                      __LINE__)
 
-#define PushStruct(arena, type) PushArray(arena, type, 1)
+#define PUSH_STRUCT(arena, type) PUSH_ARRAY(arena, type, 1)
 
-#define MakeArray(arena, type, count) \
-    ((type##_array){.data = PushArray(arena, type, (count)), .size = (count)})
+#define MAKE_ARRAY(arena, type, count) \
+    ((type##_array){.data = PUSH_ARRAY(arena, type, (count)), .size = (count)})
 
 #endif

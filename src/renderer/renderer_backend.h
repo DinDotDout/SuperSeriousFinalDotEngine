@@ -10,17 +10,17 @@ enum{
         RENDERER_BACKEND_COUNT,
 };
 
-typedef struct RendererBackendBase RendererBackendBase;
-typedef void (*RendererBackend_InitFn)(RendererBackendBase* ctx, DOT_Window* window);
-typedef void (*RendererBackend_ShutdownFn)(RendererBackendBase* ctx);
+typedef struct RendererBackend RendererBackend;
+typedef void (*RendererBackend_InitFn)(RendererBackend* ctx, DOT_Window* window);
+typedef void (*RendererBackend_ShutdownFn)(RendererBackend* ctx);
 
-struct RendererBackendBase{
+struct RendererBackend{
         RendererBackendKind backend_kind;
         Arena* arena;
         RendererBackend_InitFn Init;
         RendererBackend_ShutdownFn Shutdown;
 };
 
-internal RendererBackendBase* RendererBackend_Create(Arena* arena, RendererBackendKind backend_kind);
-internal void RendererBackend_Shutdown(RendererBackendBase* backend);
+internal RendererBackend* renderer_backend_create(Arena* arena, RendererBackendKind backend_kind);
+internal void renderer_backend_shutdown(RendererBackend* backend);
 #endif

@@ -1,5 +1,7 @@
 #ifndef DOT
 #define DOT
+// NOTE: Should i prefix all of this with some macro and alloc prefix stripping?
+
 ////////////////////////////////////////////////////////////////
 //
 // Needed headers
@@ -89,16 +91,16 @@ typedef double f64;
 #define I16_MAX (i16)0x7fff
 #define I8_MAX  (i8)0x7f
 
-#define MIN_I64 (i64)0x8000000000000000ll
-#define MIN_I32 (i32)0x80000000
-#define MIN_I16 (i16)0x8000
-#define MIN_I8  (i8)0x80
+#define I64_MIN (i64)0x8000000000000000ll
+#define I32_MIN (i32)0x80000000
+#define I16_MIN (i16)0x8000
+#define I8_MIN  (i8)0x80
 
 ////////////////////////////////////////////////////////////////
 //
 // Array
 //
-#define ArrayCount(arr) sizeof(arr) / sizeof(arr[0])
+#define ARRAY_COUNT(arr) sizeof(arr) / sizeof(arr[0])
 #define array(T) T*
 
 ////////////////////////////////////////////////////////////////
@@ -123,8 +125,8 @@ typedef double f64;
 #define DOT_STR_HELPER(x) #x
 #define DOT_STR(x) DOT_STR_HELPER(x)
 
-#define DOT_CONCAT2(x, y) x ## y
-#define DOT_CONCAT(x, y) DOT_CONCAT2(x, y)
+#define DOT_CONCAT_2(x, y) x ## y
+#define DOT_CONCAT(x, y) DOT_CONCAT_2(x, y)
 
 ////////////////////////////////////////////////////////////////
 //
@@ -157,13 +159,13 @@ typedef int DOT_CONCAT(DOT_STATIC_ASSERT_, __COUNTER__) [(x) ? 1 : -1]
   #define PRINTF_STRING
 #endif
 
-typedef enum LogLevelKind{
+typedef enum DOT_LogLevelKind{
     LOG_LEVEL_DEBUG,
     LOG_LEVEL_ERROR,
     LOG_LEVEL_WARNING,
     LOG_LEVEL_ASSERT,
     LOG_LEVEL_COUNT,
-}LogLevelKind;
+}DOT_LogLevelKind;
 
 global const char* print_debug_str[] = {
     [LOG_LEVEL_DEBUG]     = "",
@@ -172,19 +174,19 @@ global const char* print_debug_str[] = {
     [LOG_LEVEL_WARNING]   = "Warning",
 };
 
-DOT_STATIC_ASSERT(LOG_LEVEL_COUNT == ArrayCount(print_debug_str));
+DOT_STATIC_ASSERT(LOG_LEVEL_COUNT == ARRAY_COUNT(print_debug_str));
 
-typedef struct PrintDebugParams{
-    LogLevelKind print_debug_kind;
+typedef struct DOT_PrintDebugParams{
+    DOT_LogLevelKind print_debug_kind;
     const char* file;
     u32 line;
-}PrintDebugParams;
+}DOT_PrintDebugParams;
 
 #define DOT_MAX_LOG_LEVEL_LENGTH 128
-internal void PrintDebug(const PrintDebugParams* params, PRINTF_STRING const char* fmt, ...);
+internal void dot_print_debug_(const DOT_PrintDebugParams* params, PRINTF_STRING const char* fmt, ...);
 
-#define PrintDebugParamsDefault(...) \
-&(PrintDebugParams) { \
+#define DOT_PRINT_DEBUG_PARAMS_DEFAULT(...) \
+&(DOT_PrintDebugParams) { \
     .print_debug_kind = LOG_LEVEL_DEBUG, \
     .file = __FILE__, \
     .line = __LINE__, \
@@ -193,36 +195,36 @@ internal void PrintDebug(const PrintDebugParams* params, PRINTF_STRING const cha
 // --- Error Macros ---
 #define DOT_ERROR_IMPL(params, ...) \
 do { \
-    PrintDebug(params, __VA_ARGS__); \
+    dot_print_debug_(params, __VA_ARGS__); \
     DEBUG_BREAK; \
     abort(); \
 } while(0)
 
-#define DOT_ERROR(...) DOT_ERROR_IMPL(PrintDebugParamsDefault(.print_debug_kind = LOG_LEVEL_ERROR), __VA_ARGS__)
-#define DOT_ERROR_FL(f, l, ...) DOT_ERROR_IMPL(PrintDebugParamsDefault(.print_debug_kind = LOG_LEVEL_ERROR, .file = (f), .line = (l)), __VA_ARGS__)
+#define DOT_ERROR(...) DOT_ERROR_IMPL(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = LOG_LEVEL_ERROR), __VA_ARGS__)
+#define DOT_ERROR_FL(f, l, ...) DOT_ERROR_IMPL(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = LOG_LEVEL_ERROR, .file = (f), .line = (l)), __VA_ARGS__)
 #define DOT_TODO(msg) \
 do { \
-    PrintDebug(PrintDebugParamsDefault(.print_debug_kind = LOG_LEVEL_ERROR), "TODO: %s", msg); \
+    dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = LOG_LEVEL_ERROR), "TODO: %s", msg); \
     abort(); \
 } while(0)
 
 #ifndef NDEBUG
 // --- Printing Macros ---
-#define DOT_PRINT(...) PrintDebug(PrintDebugParamsDefault(), __VA_ARGS__)
-#define DOT_PRINT_FL(f, l, ...) PrintDebug(PrintDebugParamsDefault(.file = (f), .line = (l)), __VA_ARGS__)
-#define DOT_WARNING(...) PrintDebug(PrintDebugParamsDefault(.print_debug_kind = LOG_LEVEL_WARNING), __VA_ARGS__)
-#define DOT_WARNING_FL(f, l, ...) PrintDebug(PrintDebugParamsDefault(.file = (f), .line = (l), .print_debug_kind = LOG_LEVEL_WARNING), __VA_ARGS__)
+#define DOT_PRINT(...) dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(), __VA_ARGS__)
+#define DOT_PRINT_FL(f, l, ...) dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.file = (f), .line = (l)), __VA_ARGS__)
+#define DOT_WARNING(...) dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = LOG_LEVEL_WARNING), __VA_ARGS__)
+#define DOT_WARNING_FL(f, l, ...) dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.file = (f), .line = (l), .print_debug_kind = LOG_LEVEL_WARNING), __VA_ARGS__)
 // --- Assertion Macros ---
 // WARN: "##" allows us to not have and fmt but uses an extension
 #define DOT_ASSERT_IMPL(cond, params, fmt, ...) \
 do { \
     if(!(cond)){ \
-        PrintDebug(params, "%s " fmt, #cond, ##__VA_ARGS__); \
+        dot_print_debug_(params, "%s " fmt, #cond, ##__VA_ARGS__); \
         DEBUG_BREAK; \
     } \
 } while(0)
-#define DOT_ASSERT(cond, ...) DOT_ASSERT_IMPL((cond), PrintDebugParamsDefault(.print_debug_kind = LOG_LEVEL_ASSERT), __VA_ARGS__)
-#define DOT_ASSERT_FL(cond, f, l, ...) DOT_ASSERT_IMPL((cond), PrintDebugParamsDefault(.print_debug_kind = LOG_LEVEL_ASSERT, .file = f, .line = l), __VA_ARGS__)
+#define DOT_ASSERT(cond, ...) DOT_ASSERT_IMPL((cond), DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = LOG_LEVEL_ASSERT), __VA_ARGS__)
+#define DOT_ASSERT_FL(cond, f, l, ...) DOT_ASSERT_IMPL((cond), DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = LOG_LEVEL_ASSERT, .file = f, .line = l), __VA_ARGS__)
 #else
 #define DOT_PRINT(...) ((void)0)
 #define DOT_PRINT_FL(f, l, ...) ((void)0)
@@ -246,17 +248,17 @@ do { \
 #define MB(x) ((KB(x)) * (u64)1024)
 #define GB(x) ((MB(x)) * (u64)1024)
 
-#define Max(a, b) ((a) > (b) ? (a) : (b))
-#define Min(a, b) ((a) < (b) ? (a) : (b))
-#define Clamp(x, bot, top) (((x) < (bot)) ? (bot) : ((x) > (top)) ? (top) : (x))
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define CLAMP(x, bot, top) (((x) < (bot)) ? (bot) : ((x) > (top)) ? (top) : (x))
 
 ////////////////////////////////////////////////////////////////
 //
 // Processor hints
 //
 #if defined(__GNUC__) || defined(__clang__)
-#define DOT_Likely(x) __builtin_expect(!!(x), 1)
-#define DOT_Unlikely(x) __builtin_expect(!!(x), 0)
+#define DOT_LIKELY(x) __builtin_expect(!!(x), 1)
+#define DOT_UNLIKELY(x) __builtin_expect(!!(x), 0)
 #else
 #define Dot_Likely(x) (x)
 #define Dot_Unlikely(x) (x)
@@ -269,30 +271,30 @@ do { \
 //
 //
 #if defined(DOT_COMPILER_MSVC)
-#define Alignof(T) __alignof(T)
+#define ALIGNOF(T) __alignof(T)
 #elif defined(DOT_COMPILER_CLANG)
-#define Alignof(T) __alignof__(T)
+#define ALIGNOF(T) __alignof__(T)
 #elif DOT_COMPILER_GCC
-#define Alignof(T) __alignof__(T)
+#define ALIGNOF(T) __alignof__(T)
 #else
 #error alignof not defined for this compiler.
 #endif
 
-#define AlignPow2(x, b) (((x) + (b) - 1) & (~((b) - 1)))
-#define AlignDownPow2(x, b) ((x) & ~((b) - 1))
+#define ALIGN_POW2(x, b) (((x) + (b) - 1) & (~((b) - 1)))
+#define ALIGN_DOWN_POW2(x, b) ((x) & ~((b) - 1))
 
-#define MemoryZero(s, z) memset((s), 0, (z))
-#define MemoryZeroStruct(s) MemoryZero((s), sizeof(*(s)))
-#define MemoryZeroArray(a) MemoryZero((a), sizeof(a))
-#define MemoryZeroTyped(m, c) MemoryZero((m), sizeof(*(m)) * (c))
+#define MEMORY_ZERO(s, z) memset((s), 0, (z))
+#define MEMORY_ZERO_STRUCT(s) MEMORY_ZERO((s), sizeof(*(s)))
+#define MEMORY_ZERO_ARRAY(a) MEMORY_ZERO((a), sizeof(a))
+#define MEMORY_ZERO_TYPED(m, c) MEMORY_ZERO((m), sizeof(*(m)) * (c))
 
 // Keep this around for when using sorting functions
 #if defined(DOT_COMPILER_MSVC)
 #define force_inline __forceinline __declspec(safebuffers)
-#define CompilerReset(ptr) __assume(ptr)
+#define COMPILER_RESET(ptr) __assume(ptr)
 #elif defined(DOT_COMPILER_GCC) || defined(DOT_DOMPILER_CLANG)
 #define force_inline __attribute__((always_inline))
-#define CompilerReset(ptr)
+#define COMPILER_RESET(ptr)
 #endif
 
 ////////////////////////////////////////////////////////////////
@@ -302,7 +304,7 @@ do { \
 // TODO: Must implement!!!
 
 // This will be used when String8 size matches on string8 compare
-#define MemoryCompare(a, b, size) memcmp((a), (b), (size))
+#define MEMORY_COMPARE(a, b, size) memcmp((a), (b), (size))
 
 
 #define StrFmt "%.*s"
@@ -350,43 +352,43 @@ internal inline u64 HashFromString8(String8 string, u64 seed){
 //
 // whatever
 //
-#define Unused(something) (void)something
+#define UNUSED(something) (void)something
 
 ////////////////////////////////////////////////////////////////
 //
 // Useful it from raddebugger
 //
-#define EachIndex(it, count) (u64 it = 0; it < (count); ++it)
-#define EachElement(it, array) (u64 it = 0; it < ArrayCount(array); ++it)
-#define EachEnumVal(type, it) \
-(type it = (type)0; it < type##_COUNT; it = (type)(it + 1))
-#define EachNonZeroEnumVal(type, it) \
-(type it = (type)1; it < type##_COUNT; it = (type)(it + 1))
-#define EachInRange(it, range) (u64 it = (range).min; it < (range).max; it += 1)
-#define EachNode(it, T, first) (T *it = first; it != 0; it = it->next)
+#define EACH_INDEX(it, count) (u64 it = 0; it < (count); ++it)
+#define EACH_ELEMENT(it, array) (u64 it = 0; it < ARRAY_COUNT(array); ++it)
+// #define EachEnumVal(type, it) \
+// (type it = (type)0; it < type##_COUNT; it = (type)(it + 1))
+// #define EachNonZeroEnumVal(type, it) \
+// (type it = (type)1; it < type##_COUNT; it = (type)(it + 1))
+// #define EachInRange(it, range) (u64 it = (range).min; it < (range).max; it += 1)
+// #define EachNode(it, T, first) (T *it = first; it != 0; it = it->next)
 
 
 ////////////////////////////////////////////////////////////////
 //
 // Useful Mem copy from raddebugger
 //
-#define MemoryCopy(dst, src, size)    memmove((dst), (src), (size))
-#define MemoryCopyStruct(d,s)  MemoryCopy((d),(s),sizeof(*(d)))
-#define MemoryCopyArray(d,s)   MemoryCopy((d),(s),sizeof(d))
-#define MemoryCopyTyped(d,s,c) MemoryCopy((d),(s),sizeof(*(d))*(c))
-#define MemoryCopyStr8(dst, s) MemoryCopy(dst, (s).str, (s).size)
+#define MEM_COPY(dst, src, size)    memmove((dst), (src), (size))
+#define MEM_COPY_STRUCT(d,s)  MEM_COPY((d),(s),sizeof(*(d)))
+#define MEM_COPY_ARRAY(d,s)   MEM_COPY((d),(s),sizeof(d))
+// #define MemoryCopyTyped(d,s,c) MEM_COPY((d),(s),sizeof(*(d))*(c))
+#define MEM_COPY_STRING8(dst, s) MEM_COPY(dst, (s).str, (s).size)
 
 
 ////////////////////////////////////////////////////////////////
 //
 // Defer for profile blocks, lock/unlock...
 // This accepts expressions that will run before and after a scope block once
-#define DeferLoop(before, after) \
+#define DEFER_LOOP(before, after) \
         for(int _once_defer_ = 0; _once_defer_ == 0;) \
                 for(before; _once_defer_++ == 0; after)
 
 
-#define DeferLoopCond(before, cond, after) \
+#define DEFER_LOOP_COND(before, cond, after) \
         for(int _once_cond_defer_ = 0; _once_cond_defer_ == 0;) \
                 for(before; _once_cond_defer_++ == 0 && (cond); after)
 
@@ -440,14 +442,16 @@ else
 #define STB_SPRINTF_NOUNALIGNED
 #include "third_party/stb_sprintf.h"
 
-internal inline const char* PrintDebugKind_GetString(LogLevelKind debug_kind){
+internal inline const char*
+print_log_level_kind(DOT_LogLevelKind debug_kind){
     DOT_ASSERT(debug_kind < LOG_LEVEL_COUNT);
     const char* ret = print_debug_str[debug_kind];
     DOT_ASSERT(ret);
     return ret;
 }
 
-internal void PrintDebug(const PrintDebugParams* params, const char* fmt, ...){
+void
+dot_print_debug_(const DOT_PrintDebugParams* params, const char* fmt, ...){
     char buf[DOT_MAX_LOG_LEVEL_LENGTH];
     FILE* out = params->print_debug_kind == LOG_LEVEL_DEBUG ? stdout : stderr;
 
@@ -458,7 +462,7 @@ internal void PrintDebug(const PrintDebugParams* params, const char* fmt, ...){
 
     const char* fmt_str = params->print_debug_kind == LOG_LEVEL_DEBUG ? "%s%s:%d -> %s\n" : "%s: %s:%d -> %s\n";
     fprintf(out, fmt_str,
-        PrintDebugKind_GetString(params->print_debug_kind),
+        print_log_level_kind(params->print_debug_kind),
         params->file,
         params->line,
         buf);

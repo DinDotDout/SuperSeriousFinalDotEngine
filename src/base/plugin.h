@@ -9,19 +9,19 @@
 
 
 typedef struct Plugin Plugin;
-typedef void (*Plugin_InitFn)();
-typedef void (*Plugin_EndFn)();
-internal inline void Plugin_InitStub(){ }
-internal inline void Plugin_EndStub(){ }
-internal const Plugin_InitFn plugin_init_stub = Plugin_InitStub;
-internal const Plugin_EndFn plugin_end_stub = Plugin_EndStub;
+typedef void (*PluginInitFn)();
+typedef void (*PluginEndFn)();
+internal inline void plugin_init_stub(){ }
+internal inline void plugin_end_stub(){ }
+internal const PluginInitFn plugin_init_stub_pfn = plugin_init_stub;
+internal const PluginEndFn plugin_end_stub_pfn = plugin_end_stub;
 struct Plugin{
     const char *name;
     char *file;
     int line;
     void *user_data;
-    Plugin_InitFn Init;
-    Plugin_EndFn End;
+    PluginInitFn init;
+    PluginEndFn end;
 };
 
 // TODO: Needs testing on windows
@@ -47,8 +47,8 @@ struct Plugin{
     .name = "Unnamed", \
     .file = __FILE__, \
     .line = __LINE__, \
-    .Init = Plugin_InitStub, \
-    .End = Plugin_EndStub, \
+    .init = plugin_init_stub, \
+    .end = plugin_end_stub, \
     __VA_ARGS__ \
 }
 
@@ -57,12 +57,12 @@ struct Plugin{
         .name = #n, \
         .file = __FILE__, \
         .line = __LINE__, \
-        .Init = Plugin_InitStub, \
-        .End = Plugin_EndStub, \
+        .init = plugin_init_stub_pfn, \
+        .end = plugin_end_stub_pfn, \
         __VA_ARGS__ \
     }
 
-void Plugin_RunInit(void) {
+void plugins_init(void) {
     Plugin* begin = (Plugin*) &__start_plugins[0];
     // char* help = (char*)begin;
     // help = help-8;
@@ -75,11 +75,11 @@ void Plugin_RunInit(void) {
     DOT_PRINT("%p", end);
     for (const Plugin* p = begin; p != end; ++p){
         DOT_PRINT_FL(p->file, p->line, "PLUGIN: %s->Init()", p->name);
-        p->Init();
+        p->init();
     }
 }
 
-internal inline void Plugin_RunEnd(){
+internal inline void plugins_end(){
     const Plugin* begin = &__start_plugins[0];
     const Plugin* end = &__stop_plugins[0];
     DOT_PRINT("PLUGINS END!!");
@@ -88,7 +88,7 @@ internal inline void Plugin_RunEnd(){
     DOT_PRINT("%p", end);
     for (const Plugin* p = begin; p != end; ++p){
         DOT_PRINT_FL(p->file, p->line, "PLUGIN: %s->End()", p->name);
-        p->End();
+        p->end();
     }
 }
 #endif // !PLUGIN_H

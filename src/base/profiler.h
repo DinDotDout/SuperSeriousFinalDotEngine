@@ -29,32 +29,34 @@ typedef struct DOT_Profiler{
 }DOT_Profiler;
 
 global thread_local DOT_Profiler profiler;
-internal void DOT_ProfilerInit();
-internal void DOT_ProfilerEnd();
-internal inline void DOT_PrintTimeElapsed(u64 total_tsc_elapsed, DOT_ProfileAnchor *anchor);
-internal inline void DOT_ProfilerPrint();
-internal inline DOT_ProfileBlock DOT_ProfileBlock_Begin(char const *label, u32 anchor_index);
-internal inline void DOT_ProfileBlock_End(DOT_ProfileBlock* profile_block);
+internal void dot_profiler_init();
+internal void dot_profiler_end();
+internal inline void dot_print_time_elapsed(u64 total_tsc_elapsed, DOT_ProfileAnchor *anchor);
+internal inline void dot_profiler_print();
+internal inline DOT_ProfileBlock dot_profile_block_begin(char const *label, u32 anchor_index);
+internal inline void dot_profile_block_end(DOT_ProfileBlock* profile_block);
 
 #ifdef DOT_PROFILING_ENABLE
 PluginRegister(Profiler, 0,
-    .Init = DOT_ProfilerInit,
-    .End = DOT_ProfilerEnd,
+    .init = dot_profiler_init,
+    .end = dot_profiler_end,
 );
 #endif
 
 #ifdef DOT_PROFILING_ENABLE
-#define DOT_PROFILE_BLOCK(label) DeferLoop( \
-            DOT_ProfileBlock DOT_CONCAT(profile_block_, __LINE__) =  DOT_ProfileBlock_Begin((label), __COUNTER__ + 1), \
-            DOT_ProfileBlock_End(&DOT_CONCAT(profile_block_,  __LINE__)))
+#define DOT_PROFILE_BLOCK(label) DEFER_LOOP( \
+            DOT_ProfileBlock DOT_CONCAT(profile_block_, __LINE__) =  dot_profile_block_begin((label), __COUNTER__ + 1), \
+            dot_profile_block_end(&DOT_CONCAT(profile_block_,  __LINE__)))
 
-#define ProfilerEndOfCompilationUnit DOT_STATIC_ASSERT(__COUNTER__ < ArrayCount(profiler_anchors)) // Does not work for now
+#define ProfilerEndOfCompilationUnit DOT_STATIC_ASSERT(__COUNTER__ < ARRAY_COUNT(profiler_anchors)) // Does not work for now
 #else
 #define DOT_PROFILE_BLOCK(label) ((void)0)
 #endif
 
 #ifdef DOT_PROFILER_IMPL
-internal void DOT_PrintTimeElapsed(u64 total_tsc_elapsed, DOT_ProfileAnchor *anchor){
+
+internal void
+dot_print_time_elapsed(u64 total_tsc_elapsed, DOT_ProfileAnchor *anchor){
     f64 percent = 100.0 * ((f64)anchor->tsc_elapsed_exclusive / (f64)total_tsc_elapsed);
     printf("  %s[%lu]: %lu (%.2f%%", anchor->label, anchor->hit_count, anchor->tsc_elapsed_exclusive, percent);
     if(anchor->tsc_elapsed_inclusive != anchor->tsc_elapsed_exclusive){
@@ -64,30 +66,34 @@ internal void DOT_PrintTimeElapsed(u64 total_tsc_elapsed, DOT_ProfileAnchor *anc
     printf(")\n");
 }
 
-internal inline void DOT_ProfilerPrint(){
-    u64 cpu_frequency = Platform_CpuEstimateFreq();
+internal inline void
+dot_profiler_print(){
+    u64 cpu_frequency = platform_cpu_estimate_freq();
     u64 total_cpu_elapsed = profiler.end_tsc - profiler.start_tsc;
     if(cpu_frequency){
         printf("\nTotal time: %0.4fms (CPU freq %lu)\n", 1000.0 * (f64)total_cpu_elapsed / (f64)cpu_frequency, cpu_frequency);
     }
-    for(u32 idx = 0; idx < ArrayCount(profiler_anchors); ++idx){
+    for(u32 idx = 0; idx < ARRAY_COUNT(profiler_anchors); ++idx){
         DOT_ProfileAnchor *anchor = profiler_anchors + idx;
         if(anchor->tsc_elapsed_inclusive) {
-            DOT_PrintTimeElapsed(total_cpu_elapsed, anchor);
+            dot_print_time_elapsed(total_cpu_elapsed, anchor);
         }
     }
 }
 
-internal void DOT_ProfilerInit(){
-    profiler.start_tsc = Platform_CpuReadTimer();
+internal void
+dot_profiler_init(){
+    profiler.start_tsc = platform_cpu_read_timer();
 }
 
-internal void DOT_ProfilerEnd(){
-    profiler.end_tsc = Platform_CpuReadTimer();
-    DOT_ProfilerPrint();
+internal void
+dot_profiler_end(){
+    profiler.end_tsc = platform_cpu_read_timer();
+    dot_profiler_print();
 }
 
-internal inline DOT_ProfileBlock DOT_ProfileBlock_Begin(char const *label, u32 anchor_index){
+internal inline DOT_ProfileBlock
+dot_profile_block_begin(char const *label, u32 anchor_index){
     DOT_ProfileBlock profile_block = {0};
     profile_block.parent_index = profile_block_parent;
     profile_block.anchor_index = anchor_index;
@@ -97,12 +103,13 @@ internal inline DOT_ProfileBlock DOT_ProfileBlock_Begin(char const *label, u32 a
     profile_block.old_tsc_elapsed_inclusive = anchor->tsc_elapsed_inclusive;
 
     profile_block_parent = anchor_index;
-    profile_block.start_tsc = Platform_CpuReadTimer();
+    profile_block.start_tsc = platform_cpu_read_timer();
     return profile_block;
 }
 
-internal inline void DOT_ProfileBlock_End(DOT_ProfileBlock* profile_block){
-    u64 elapsed = Platform_CpuReadTimer() - profile_block->start_tsc;
+internal inline void
+dot_profile_block_end(DOT_ProfileBlock* profile_block){
+    u64 elapsed = platform_cpu_read_timer() - profile_block->start_tsc;
     profile_block_parent = profile_block->parent_index;
 
     DOT_ProfileAnchor *parent = profiler_anchors + profile_block->parent_index;

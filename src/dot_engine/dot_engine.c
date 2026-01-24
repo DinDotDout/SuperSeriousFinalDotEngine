@@ -2,8 +2,8 @@
 
 int main() {
     Application app;
-    Application_Init(&app);
-    Application_Run(&app);
-    Application_Shutdown(&app);
+    application_init(&app);
+    application_run(&app);
+    application_shutdown(&app);
     return 0;
 }

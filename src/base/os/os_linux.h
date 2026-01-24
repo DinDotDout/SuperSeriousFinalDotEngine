@@ -4,14 +4,16 @@
 #include <sys/time.h>
 #include <sys/mman.h>
 
-internal u64 Platform_OSGetTimerFreq(){
+internal u64
+platform_os_get_timer_freq(){
     return 1000000;
 }
 
-internal u64 Platform_OSReadTimer(){
+internal u64
+platform_os_read_timer(){
     struct timeval value;
     gettimeofday(&value, 0);
-    u64 result = Platform_OSGetTimerFreq()*(u64)value.tv_sec + (u64)value.tv_usec;
+    u64 result = platform_os_get_timer_freq()*(u64)value.tv_sec + (u64)value.tv_usec;
     return result;
 }
 
@@ -19,25 +21,28 @@ internal u64 Platform_OSReadTimer(){
 //
 // Platform Memory
 //
-internal inline void* OS_Reserve(usize size){
+internal inline void*
+os_reserve(usize size){
     void* result = mmap(NULL, size, PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-    if(DOT_Unlikely(result == MAP_FAILED)){
+    if(DOT_UNLIKELY(result == MAP_FAILED)){
         result = NULL;
     }
     return result;
 }
 
-// Large pages in user space only work through THP, so this does the same as OS_Reserve
-internal inline void* OS_ReserveLarge(usize size){
+// Large pages in user space only work through THP, so this does the same as os_reserve
+internal inline void*
+os_reserve_large(usize size){
     void* result = mmap(NULL, size, PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-    if(DOT_Unlikely(result == MAP_FAILED)){
+    if(DOT_UNLIKELY(result == MAP_FAILED)){
         result = NULL;
     }
     return result;
 }
 
-internal inline b8 OS_Commit(void *ptr, u64 size){
-    if(DOT_Unlikely(mprotect(ptr, size, PROT_READ|PROT_WRITE) != 0)){
+internal inline b8
+os_commit(void *ptr, u64 size){
+    if(DOT_UNLIKELY(mprotect(ptr, size, PROT_READ|PROT_WRITE) != 0)){
         DOT_ERROR("Failed to commit memory (errno=%d): %s\n", errno, strerror(errno));
         return false;
     }
@@ -46,8 +51,9 @@ internal inline b8 OS_Commit(void *ptr, u64 size){
 }
 
 // To maximize THP taking effect we must pass in aligned to 2M pages
-internal inline b8 OS_CommitLarge(void *ptr, u64 size){
-    if(DOT_Unlikely(mprotect(ptr, size, PROT_READ|PROT_WRITE) != 0)){
+internal inline b8
+os_commit_large(void *ptr, u64 size){
+    if(DOT_UNLIKELY(mprotect(ptr, size, PROT_READ|PROT_WRITE) != 0)){
         DOT_ERROR("Failed to commit memory (errno=%d): %s\n", errno, strerror(errno));
         return false;
     }
@@ -56,6 +62,7 @@ internal inline b8 OS_CommitLarge(void *ptr, u64 size){
     return true;
 }
 
-internal inline void OS_Release(void *ptr, u64 size){
+internal inline
+void os_release(void *ptr, u64 size){
     munmap(ptr, size);
 }

@@ -7,13 +7,13 @@ typedef struct DOT_Window{
         RGFW_window *window;
 }DOT_Window;
 
-struct RendererBackendBase;
-internal void DOT_Window_MousePosCallback(RGFW_window *window, i32 x, i32 y, float vecX, float vecY);
-internal void DOT_Window_Init(DOT_Window* window);
-internal void DOT_Window_Destroy(DOT_Window* window);
-internal void DOT_Window_CreateSurface(DOT_Window* window, struct RendererBackendBase* backend);
-internal b8   DOT_Window_GetFrameBufferSize(DOT_Window* window, i32* w, i32* h);
-internal b8   DOT_Window_GetSize(DOT_Window* window, i32* w, i32* h);
-internal b8   DOT_Window_ShouldClose(DOT_Window* window);
+struct RendererBackend;
+internal void dot_window_mouse_pos_callback(RGFW_window *window, i32 x, i32 y, float vecX, float vecY);
+internal void dot_window_init(DOT_Window* window);
+internal void dot_window_destroy(DOT_Window* window);
+internal void dot_window_creates_urface(DOT_Window* window, struct RendererBackend* backend);
+internal b8   dot_window_get_framebuffer_size(DOT_Window* window, i32* w, i32* h);
+internal b8   dot_window_get_size(DOT_Window* window, i32* w, i32* h);
+internal b8   dot_window_shoul_dclose(DOT_Window* window);
 
 #endif // !DOT_WINDOW_H

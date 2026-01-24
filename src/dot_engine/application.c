@@ -1,30 +1,33 @@
 #include "dot_engine/application_config.h"
 
-void Application_Init(Application* app){
-    ApplicationConfig app_config = ApplicationConfig_Get();
-    app->permanent_arena = Arena_Alloc(.reserve_size = app_config.mem_size, .name = "Application");
-    ThreadCtx_Init(&(ThreadCtxOpts){
+internal void
+application_init(Application* app){
+    ApplicationConfig app_config = application_config_get();
+    app->permanent_arena = ARENA_ALLOC(.reserve_size = app_config.mem_size, .name = "application");
+    threadctx_init(&(ThreadCtxOpts){
         .memory_size = app_config.thread_mem_size,
         .thread_id   = 0,
     });
-    Plugin_RunInit();
-    DOT_Window_Init(&app->window);
-    Renderer_Init(app->permanent_arena, &app->renderer, &app->window, app_config.renderer_config);
+    plugins_init();
+    dot_window_init(&app->window);
+    renderer_init(app->permanent_arena, &app->renderer, &app->window, app_config.renderer_config);
 }
 
-void Application_Run(Application* app){
+internal void
+application_run(Application* app){
     (void) app;
     // u8 running = true;
-    // while (running && !DOT_Window_ShouldClose(&app->window)){
+    // while (running && !dot_window_shouldclose(&app->window)){
     // }
 }
 
-void Application_Shutdown(Application* app){
-    Renderer_Shutdown(&app->renderer);
-    DOT_Window_Destroy(&app->window);
-    Plugin_RunEnd();
-    // NOTE: We do this to keep asan happy tho he OS will reclaim the memory
+internal void
+application_shutdown(Application* app){
+    renderer_shutdown(&app->renderer);
+    dot_window_destroy(&app->window);
+    plugins_end();
+    // note: we do this to keep asan happy tho he os will reclaim the memory
     // either way we could disable cleanup on final builds to speed up shutdown
-    ThreadCtx_Destroy();
-    Arena_Free(app->permanent_arena);
+    threadctx_destroy();
+    arena_free(app->permanent_arena);
 }

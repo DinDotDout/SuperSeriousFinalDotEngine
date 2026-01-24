@@ -12,7 +12,7 @@ typedef struct ApplicationConfig {
 
 
 // TODO: Add validation to ensure subregions fit when we start adding more memory requirements
-internal ApplicationConfig ApplicationConfig_Get() {
+internal ApplicationConfig application_config_get() {
     static ApplicationConfig app_config = {
         .mem_size = APPLICATION_MEM_SIZE,
         .thread_mem_size = APPLICATION_SCRATCH_MEM_SIZE,

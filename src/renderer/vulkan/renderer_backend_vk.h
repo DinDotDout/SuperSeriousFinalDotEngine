@@ -31,7 +31,7 @@ typedef struct RendererBackendSwapchain{
 }RendererBackendSwapchain;
 
 typedef struct RendererBackendVk{
-    RendererBackendBase      base;
+    RendererBackend      base;
     RendererBackendDevice    device;
     RendererBackendSwapchain swapchain;
     VkInstance               instance;
@@ -64,10 +64,10 @@ typedef struct RendererBackendVKSettings{
     }swapchain_settings;
 }RendererBackendVKSettings;
 
-internal RendererBackendVk* RendererBackendBase_AsVk(RendererBackendBase* base);
-internal RendererBackendVk* RendererBackendVk_Create(Arena* arena);
-internal const RendererBackendVKSettings* RendererBackendVk_Settings();
+internal RendererBackendVk* renderer_backend_as_vk(RendererBackend* base);
+internal RendererBackendVk* renderer_backend_vk_create(Arena* arena);
+internal const RendererBackendVKSettings* renderer_backend_vk_settings();
 
-internal void RendererBackendVk_Init(RendererBackendBase* ctx, DOT_Window* window);
-internal void RendererBackendVk_Shutdown(RendererBackendBase* ctx);
+internal void renderer_backend_vk_init(RendererBackend* ctx, DOT_Window* window);
+internal void renderer_backend_vk_shutdown(RendererBackend* ctx);
 #endif

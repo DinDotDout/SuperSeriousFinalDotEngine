@@ -6,7 +6,7 @@ typedef struct Application{
         Arena* permanent_arena;
 } Application;
 
-void Application_Init(Application* app);
-void Application_Run(Application* app);
-void Application_Shutdown(Application* app);
+internal void application_init(Application* app);
+internal void application_run(Application* app);
+internal void application_shutdown(Application* app);
 #endif
