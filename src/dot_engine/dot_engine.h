@@ -20,19 +20,9 @@
 #define RGFWDEF static inline
 #include "third_party/RGFW/RGFW.h"
 
-// engine
-#define DOT_INT_SKIP // Already defined by rgfw
-#define DOT_IMPLEMENTATION
-#include "base/dot.h"
+#define DOT_INT_SKIP // Already included ints by rgfw
+#include "base/base_inc.h"
 
-#include "base/platform.h"
-#include "base/arena.h"
-#include "base/plugin.h"
-
-#define DOT_PROFILER_IMPL
-#include "base/profiler.h"
-
-#include "base/thread_ctx.h"
 #include "dot_engine/window.h"
 #include "renderer/renderer_backend.h"
 #include "renderer/vulkan/renderer_backend_vk.h"
@@ -40,8 +30,7 @@
 #include "dot_engine/application.h"
 #include "dot_engine/game.h"
 
-#include "base/arena.c"
-#include "base/thread_ctx.c" 
+
 #include "dot_engine/window.c"
 #include "renderer/renderer_backend.c"
 #include "renderer/vulkan/renderer_backend_vk.c"

@@ -22,22 +22,22 @@ renderer_backend_vk_create(Arena* arena){
 // NOTE: Might want to remove const to make some things tweakable
 internal const RendererBackendVk_Settings*
 renderer_backend_vk_settings() {
-    static const char *instance_exts[] = {
-        VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME,
-        VK_KHR_SURFACE_EXTENSION_NAME,
+    static const String8 instance_exts[] = {
+        String8Lit(VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME),
+        String8Lit(VK_KHR_SURFACE_EXTENSION_NAME),
     #ifdef VK_EXT_DEBUG_UTILS_ENABLE
-        VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+        String8Lit(VK_EXT_DEBUG_UTILS_EXTENSION_NAME),
     #endif
-        DOT_VK_SURFACE,
+        String8Lit(DOT_VK_SURFACE),
     };
 
-    static const char *device_exts[] = {
-        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+    static const String8 device_exts[] = {
+        String8Lit(VK_KHR_SWAPCHAIN_EXTENSION_NAME),
     };
 
-    static const char *vk_layers[] = {
+    static const String8 vk_layers[] = {
     #ifdef VALIDATION_LAYERS_ENABLE
-            "VK_LAYER_KHRONOS_validation",
+            String8Lit("VK_LAYER_KHRONOS_validation"),
     #endif
     };
 
@@ -99,9 +99,15 @@ renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* window){
     {
         VkInstanceCreateInfo instance_create_info = {
             .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-            .ppEnabledLayerNames     = vk_settings->layer_settings.layer_names,
+            .ppEnabledLayerNames     = string8_array_to_str_array(
+                temp.arena,
+                vk_settings->layer_settings.layer_count,
+                vk_settings->layer_settings.layer_names),
             .enabledLayerCount       = vk_settings->layer_settings.layer_count,
-            .ppEnabledExtensionNames = vk_settings->instance_settings.instance_extension_names,
+            .ppEnabledExtensionNames = string8_array_to_str_array(
+                                            temp.arena,
+                                            vk_settings->instance_settings.instance_extension_count,
+                                            vk_settings->instance_settings.instance_extension_names),
             .enabledExtensionCount   = vk_settings->instance_settings.instance_extension_count,
             .pApplicationInfo        =
             &(VkApplicationInfo){
@@ -178,7 +184,10 @@ renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* window){
             .pQueueCreateInfos       = queue_infos,
             .queueCreateInfoCount    = queue_count,
             .pEnabledFeatures        = &(VkPhysicalDeviceFeatures){},
-            .ppEnabledExtensionNames = vk_settings->device_settings.device_extension_names,
+            .ppEnabledExtensionNames = string8_array_to_str_array(
+                temp.arena,
+                vk_settings->device_settings.device_extension_count,
+                vk_settings->device_settings.device_extension_names),
             .enabledExtensionCount   = vk_settings->device_settings.device_extension_count,
         };
 
@@ -232,7 +241,6 @@ renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* window){
             vkGetSwapchainImagesKHR(device, swapchain->swapchain, &swapchain->images_count, NULL);
             swapchain->images = PUSH_ARRAY(ctx_arena, VkImage, swapchain->images_count);
             vkGetSwapchainImagesKHR(device, swapchain->swapchain, &swapchain->images_count, swapchain->images);
-            DOT_PRINT("IMAGEDDDD %u", &swapchain->images_count);
         }
         //  --- Create Image Views ---
         {

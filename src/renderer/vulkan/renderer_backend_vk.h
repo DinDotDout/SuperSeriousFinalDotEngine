@@ -11,16 +11,16 @@
 
 typedef struct RendererBackendVk_Settings{
     struct InstanceVkSettings{
-        const char **instance_extension_names;
+        const String8 *instance_extension_names;
         const usize  instance_extension_count;
     }instance_settings;
     struct DeviceVkSettings{
-        const char **device_extension_names;
-        const usize  device_extension_count;
+        const String8 *device_extension_names;
+        const usize    device_extension_count;
     }device_settings;
     struct LayerVkSettings{
-        const char **layer_names;
-        const usize  layer_count;
+        const String8 *layer_names;
+        const usize    layer_count;
     }layer_settings;
     struct SwapchainVkSettings{
         VkFormat         preferred_format;

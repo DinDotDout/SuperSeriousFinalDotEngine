@@ -17,10 +17,10 @@
 // va_start, va_end
 #include <stdarg.h>
 
-#define STB_SPRINTF_STATIC
-#define STB_SPRINTF_NOUNALIGNED
-#define STB_SPRINTF_DECORATE(name) dot_##name
-#include "third_party/stb_sprintf.h"
+// #define STB_SPRINTF_STATIC
+// #define STB_SPRINTF_NOUNALIGNED
+// #define STB_SPRINTF_DECORATE(name) dot_##name
+// #include "third_party/stb_sprintf.h"
 
 ////////////////////////////////////////////////////////////////
 //
@@ -288,6 +288,9 @@ do { \
 #define MEMORY_ZERO_ARRAY(a) MEMORY_ZERO((a), sizeof(a))
 #define MEMORY_ZERO_TYPED(m, c) MEMORY_ZERO((m), sizeof(*(m)) * (c))
 
+#define MEMORY_COMPARE(a, b, size) memcmp((a), (b), (size))
+#define MEMORY_EQUAL(a, b, size) (memcmp((a), (b), (size)) == 0)
+
 // Keep this around for when using sorting functions
 #if defined(DOT_COMPILER_MSVC)
 #define force_inline __forceinline __declspec(safebuffers)
@@ -297,56 +300,6 @@ do { \
 #define COMPILER_RESET(ptr)
 #endif
 
-////////////////////////////////////////////////////////////////
-//
-// String
-//
-// TODO: Must implement!!!
-
-// This will be used when String8 size matches on string8 compare
-#define MEMORY_COMPARE(a, b, size) memcmp((a), (b), (size))
-
-
-#define StrFmt "%.*s"
-#define StrArg(sv) (int)(sv).len, (sv).buff
-
-#define MIN_STRING8_SIZE
-
-#define Str8Lit(s)  str8((u8*)(s), sizeof(s) - 1)
-#define Str8Comp(s)  (String8){(u8*)(s), sizeof(s) - 1}
-
-typedef struct String8 {
-    u8 *str;
-    u64 size;
-} String8;
-
-typedef struct String8Node String8Node;
-struct String8Node {
-    String8Node *next;
-    String8 str;
-};
-
-// Impl should be a collapsable string list into a regular String8
-typedef struct StringBuilder {
-    String8Node *head;
-    String8Node *tail;
-    u32 *count;
-} StringBuilder;
-
-internal inline String8
-Str8(u8 *str, u64 size){
-    String8 result = {str, size};
-    return(result);
-}
-
-// This is good enough for now
-internal inline u64 HashFromString8(String8 string, u64 seed){
-    u64 result = seed; // raddebugger uses 5381
-    for(u64 i = 0; i < string.size; ++i){
-        result = ((result << 5) + result) + string.str[i];
-    }
-    return result;
-}
 
 ////////////////////////////////////////////////////////////////
 //
@@ -377,7 +330,6 @@ internal inline u64 HashFromString8(String8 string, u64 seed){
 #define MEM_COPY_STRUCT(d,s)  MEM_COPY((d),(s),sizeof(*(d)))
 #define MEM_COPY_ARRAY(d,s)   MEM_COPY((d),(s),sizeof(d))
 // #define MemoryCopyTyped(d,s,c) MEM_COPY((d),(s),sizeof(*(d))*(c))
-#define MEM_COPY_STRING8(dst, s) MEM_COPY(dst, (s).str, (s).size)
 
 
 ////////////////////////////////////////////////////////////////
@@ -430,44 +382,6 @@ internal inline u64 HashFromString8(String8 string, u64 seed){
     #define DOT_DEBUG 0
 else
     #define DOT_DEBUG 1
-#endif
-
-///////////////////////////////////////////////////////////////
-/// IMPLS
-///
-
-#ifdef DOT_IMPLEMENTATION
-
-#define STB_SPRINTF_IMPLEMENTATION
-#define STB_SPRINTF_STATIC
-#define STB_SPRINTF_NOUNALIGNED
-#include "third_party/stb_sprintf.h"
-
-internal inline const char*
-print_log_level_kind(DOT_LogLevelKind debug_kind){
-    DOT_ASSERT(debug_kind < LOG_LEVEL_COUNT);
-    const char *ret = print_debug_str[debug_kind];
-    DOT_ASSERT(ret);
-    return ret;
-}
-
-void
-dot_print_debug_(const DOT_PrintDebugParams* params, const char *fmt, ...){
-    char buf[DOT_MAX_LOG_LEVEL_LENGTH];
-    FILE* out = params->print_debug_kind == LOG_LEVEL_DEBUG ? stdout : stderr;
-
-    va_list args;
-    va_start(args, fmt);
-    dot_vsnprintf(buf, sizeof(buf), fmt, args); // TODO: Swap for stb_vsntprintf
-    va_end(args);
-
-    const char *fmt_str = params->print_debug_kind == LOG_LEVEL_DEBUG ? "%s%s:%d -> %s\n" : "%s: %s:%d -> %s\n";
-    fprintf(out, fmt_str,
-        print_log_level_kind(params->print_debug_kind),
-        params->file,
-        params->line,
-        buf);
-}
 #endif
 
 #endif // !DOT_H

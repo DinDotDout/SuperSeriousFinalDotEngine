@@ -117,9 +117,9 @@ vk_all_layers(const RendererBackendVk_Settings* vk_settings){
     bool all_found = true;
     for(u64 i = 0; i < vk_settings->layer_settings.layer_count; ++i){
         bool found = false;
-        const char *layer_name = vk_settings->layer_settings.layer_names[i];
+        const String8 layer_name = vk_settings->layer_settings.layer_names[i];
         for(u64 j = 0; j < available_layer_count; ++j){
-            if(strcmp(layer_name, available_layers[j].layerName) == 0){
+            if(string8_equal(layer_name, string8_cstring(available_layers[j].layerName))){
                 DOT_PRINT("Found Layer %s", layer_name);
                 found = true;
                 break;
@@ -145,9 +145,11 @@ vk_instance_all_required_extensions(const RendererBackendVk_Settings* vk_setting
     bool all_found = true;
     for(u64 i = 0; i < vk_settings->instance_settings.instance_extension_count; ++i){
         bool found = false;
-        const char *instance_extension_name = vk_settings->instance_settings.instance_extension_names[i];
+        const String8 instance_extension_name = vk_settings->instance_settings.instance_extension_names[i];
         for(u64 j = 0; j < extension_count; ++j){
-            if(strcmp(instance_extension_name, available_extensions[j].extensionName) == 0){
+            char* name = available_extensions[j].extensionName;
+            String8 other_instance_extension_name = string8_cstring(name);
+            if(string8_equal(instance_extension_name, other_instance_extension_name)){
                 DOT_PRINT("Found instance extension \"%s\"", instance_extension_name);
                 found = true;
                 break;
@@ -173,9 +175,9 @@ vk_physical_device_all_required_extensions(const RendererBackendVk_Settings* vk_
     bool all_found = true;
     for(u64 i = 0; i < vk_settings->device_settings.device_extension_count; ++i){
         bool found = false;
-        const char *device_extension_name = vk_settings->device_settings.device_extension_names[i];
+        String8 device_extension_name = vk_settings->device_settings.device_extension_names[i];
         for(u64 j = 0; j < extension_count; ++j){
-            if(strcmp(device_extension_name, available_extensions[j].extensionName) == 0){
+            if(string8_equal(device_extension_name, string8_cstring(available_extensions[j].extensionName)) == 0){
                 DOT_PRINT("Found extension \"%s\"", device_extension_name);
                 found = true;
                 break;
