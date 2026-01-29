@@ -13,9 +13,8 @@ renderer_backend_vk_create(Arena* arena){
     RendererBackendVk* backend = PUSH_STRUCT(arena, RendererBackendVk);
     RendererBackend* base = &backend->base;
     base->backend_kind = RENDERER_BACKEND_VK;
-    base->Init = renderer_backend_vk_init;
-    base->Shutdown = renderer_backend_vk_shutdown;
-    base->arena = arena; // NOTE: Should probably use make arena from...
+    base->init = renderer_backend_vk_init;
+    base->shutdown = renderer_backend_vk_shutdown;
     return backend;
 }
 
@@ -83,7 +82,7 @@ renderere_backend_vk_debug_callback(
 internal void
 renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* window){
     RendererBackendVk *vk_ctx = renderer_backend_as_vk(base_ctx);
-    Arena* ctx_arena = vk_ctx->base.arena;
+    Arena* ctx_arena = vk_ctx->base.permanent_arena;
     // vk_ctx->vk_allocator = VkAllocatorParams(ctx_arena);
     TempArena temp = thread_ctx_get_temp(NULL);
     const RendererBackendVk_Settings* vk_settings = renderer_backend_vk_settings();
@@ -276,6 +275,7 @@ renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* window){
         // WARN: Any allocation that can be recreated may be need to be pushed onto its own arena alloc ctx
         // to avoid leaking
         u8 frame_overlap = vk_settings->frame_settings.frame_overlap;
+        vk_ctx->frame_count = frame_overlap;
         vk_ctx->frames = PUSH_ARRAY(ctx_arena, RendererBackendVk_FrameData, frame_overlap);
 
         VkCommandPoolCreateInfo command_pool_info = {

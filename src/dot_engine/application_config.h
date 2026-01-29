@@ -1,6 +1,8 @@
+#include "renderer/renderer_backend.h"
 #define APPLICATION_MEM_SIZE MB(1)
 #define APPLICATION_SCRATCH_MEM_SIZE KB(64)
 #define ENGINE_RENDERER_MEM_SIZE KB(256)
+#define ENGINE_RENDERER_BACKEND_MEM_SIZE KB(128)
 
 #define ENGINE_RENDERER_BACKEND RENDERER_BACKEND_VK
 
@@ -18,7 +20,10 @@ internal ApplicationConfig application_config_get() {
         .thread_mem_size = APPLICATION_SCRATCH_MEM_SIZE,
         .renderer_config = (RendererConfig) {
             .mem_size = ENGINE_RENDERER_MEM_SIZE,
-            .backend_kind = ENGINE_RENDERER_BACKEND,
+            .backend_config = (RendererBackendConfig){
+                .memory_size = ENGINE_RENDERER_BACKEND_MEM_SIZE,
+                .backend_kind = ENGINE_RENDERER_BACKEND,
+            }
         },
     };
     return app_config;

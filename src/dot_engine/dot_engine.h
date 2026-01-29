@@ -30,7 +30,6 @@
 #include "dot_engine/application.h"
 #include "dot_engine/game.h"
 
-
 #include "dot_engine/window.c"
 #include "renderer/renderer_backend.c"
 #include "renderer/vulkan/renderer_backend_vk.c"

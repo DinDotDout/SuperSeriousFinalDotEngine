@@ -51,8 +51,8 @@ vk_system_allocations_scope_name(VkSystemAllocationScope s) {
     }
 }
 
-internal inline
-void* vk_alloc(void* data, usize size, usize alignment, VkSystemAllocationScope scope){
+internal inline void*
+vk_alloc(void* data, usize size, usize alignment, VkSystemAllocationScope scope){
     UNUSED(data); UNUSED(size); UNUSED(alignment); UNUSED(scope);
     DOT_PRINT("VK Alloc: size=%M; scope=\n", size, vk_system_allocations_scope_name(scope));
 
@@ -148,8 +148,7 @@ vk_instance_all_required_extensions(const RendererBackendVk_Settings* vk_setting
         const String8 instance_extension_name = vk_settings->instance_settings.instance_extension_names[i];
         for(u64 j = 0; j < extension_count; ++j){
             char* name = available_extensions[j].extensionName;
-            String8 other_instance_extension_name = string8_cstring(name);
-            if(string8_equal(instance_extension_name, other_instance_extension_name)){
+            if(string8_equal(instance_extension_name, string8_cstring(name))){
                 DOT_PRINT("Found instance extension \"%s\"", instance_extension_name);
                 found = true;
                 break;

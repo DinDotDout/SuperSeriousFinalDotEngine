@@ -11,7 +11,8 @@
 #define ARENA_MAX_ALIGNMENT 8 // only some 16b or SSE types will be bigger
 #define ARENA_MIN_CAPACITY KB(16)
 
-typedef struct Arena{
+typedef struct Arena Arena;
+struct Arena{
     u64 used;
     u8 *base;
 
@@ -20,10 +21,16 @@ typedef struct Arena{
     bool large_pages;
     u64 commit_expand_size;
 
+    // Debug
+    Arena *parent;
     char *name;
-}Arena;
+};
 
 typedef struct ArenaInitParams{
+    // These 2 will be used to alloc from if not empty, otherwise we will make a new alloc
+    Arena *parent;
+    u8 *buffer;
+
     u64 reserve_size; // Virt reserved memory
     u64 commit_size; // Forced initial populate
 
@@ -51,8 +58,10 @@ typedef struct TempArena {
 internal TempArena temp_arena_get(Arena *arena);
 internal void      temp_arena_restore(TempArena *temp);
 
-internal Arena* arena_alloc_from_memory_(u8* base, ArenaInitParams* params);
 internal Arena* arena_alloc_(ArenaInitParams *params);
+internal Arena* arena_alloc_from_memory(ArenaInitParams* params);
+internal Arena* arena_alloc_from_arena(ArenaInitParams* params);
+internal Arena* arena_alloc_from_os(ArenaInitParams *params);
 internal void   arena_reset(Arena *arena);
 internal void   arena_free(Arena *arena);
 internal void*  arena_push(Arena *arena, usize size, usize alignment, b8 zero, char *file, u32 line);
@@ -69,8 +78,6 @@ internal void   arena_print_debug(Arena *arena);
         __VA_ARGS__}
 
 #define ARENA_ALLOC(...) arena_alloc_(ARENA_DEFAULT_PARAMS(__VA_ARGS__))
-#define ARENA_ALLOC_FROM_MEMORY(memory, ...) \
-    arena_alloc_from_memory_((u8*) (memory), ARENA_DEFAULT_PARAMS(__VA_ARGS__))
 
 #define PUSH_SIZE_NO_ZERO(arena, size) \
   arena_push(arena, size, ARENA_MAX_ALIGNMENT, false, __FILE__, __LINE__)

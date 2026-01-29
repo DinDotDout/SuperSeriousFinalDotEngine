@@ -182,7 +182,7 @@ typedef struct DOT_PrintDebugParams{
     u32 line;
 }DOT_PrintDebugParams;
 
-#define DOT_MAX_LOG_LEVEL_LENGTH 128
+#define DOT_MAX_LOG_LEVEL_LENGTH 256
 internal void dot_print_debug_(const DOT_PrintDebugParams* params, PRINTF_STRING const char *fmt, ...);
 
 #define DOT_PRINT_DEBUG_PARAMS_DEFAULT(...) \

@@ -11,24 +11,51 @@ temp_arena_restore(TempArena *temp){
     temp->arena->used = temp->prevOffset;
 }
 
+force_inline internal Arena*
+arena_alloc_(ArenaInitParams* params){
+    Arena* arena;
+    if(params->buffer){
+        arena = arena_alloc_from_memory(params);
+    }else if(params->parent){
+        arena = arena_alloc_from_arena(params);
+    }else{
+        arena = arena_alloc_from_os(params);
+    }
+    return arena;
+}
+
+
 // WARN: Since for now we only get memory from arenas, we will always have
 // subarenas with prefaulted memory so we set committed == reserved
 internal Arena*
-arena_alloc_from_memory_(u8* memory, ArenaInitParams* params){
-    DOT_ASSERT_FL(memory != NULL, params->reserve_file, params->reserve_line, "Invalid memory provided");
-    Arena* arena = cast(Arena*)memory;
-    arena->base               = memory+sizeof(Arena);
+arena_alloc_from_memory(ArenaInitParams* params){
+    DOT_ASSERT_FL(params->buffer != NULL, params->reserve_file, params->reserve_line, "Invalid memory provided");
+    DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Allocating arena from buffer");
+    Arena* arena              = cast(Arena*) params->buffer;
+    arena->base               = params->buffer+sizeof(Arena);
     arena->used               = 0;
-    arena->committed          = params->reserve_size;
     arena->reserved           = params->reserve_size;
+    arena->committed          = params->reserve_size; // We make the assumption that it is prefaulted for now
     arena->commit_expand_size = params->commit_expand_size;
     arena->large_pages        = params->large_pages;
     arena->name               = params->name;
+    arena->parent             = params->parent;
     return arena;
 }
 
 internal Arena*
-arena_alloc_(ArenaInitParams *params){
+arena_alloc_from_arena(ArenaInitParams* params){
+    DOT_ASSERT_FL(params->parent != NULL, params->reserve_file, params->reserve_line, "Invalid memory provided");
+    DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Allocating arena from parent");
+    u8* mem = PUSH_SIZE_NO_ZERO(params->parent, params->reserve_size);
+    params->buffer = mem;
+    Arena* new_arena = arena_alloc_from_memory(params);
+    return new_arena;
+}
+
+internal Arena*
+arena_alloc_from_os(ArenaInitParams *params){
+    DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Allocating arena from os");
     DOT_ASSERT_FL(params->reserve_size > 0, params->reserve_file, params->reserve_line, "No reserve_size provided");
     DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Arena \"%s\": requested %M", params->name, params->reserve_size);
 
@@ -63,11 +90,12 @@ arena_alloc_(ArenaInitParams *params){
 internal void
 arena_reset(Arena *arena){
     ASAN_POISON(arena->base, arena->committed);
-    arena->used = sizeof(Arena); // Keep arena data valid :)
+    arena->used = sizeof(Arena);
 }
 
 internal void
 arena_free(Arena *arena){
+    DOT_ASSERT(arena->parent == NULL, "Trying to free sub-arena '%s' with parent '%s'!\nThis arena does not own the memory!", arena->name, arena->parent->name);
     u64 reserved = arena->reserved;
     void* base = arena->base;
     DOT_PRINT("Arena \"%s\": freed %M", arena->name, arena->reserved);
@@ -83,7 +111,7 @@ arena_push(Arena *arena, usize alloc_size, usize alignment, b8 zero, char* file,
     uptr arena_base = cast(uptr)arena->base;
     uptr current_address =  arena_base + arena->used;
     uptr aligned_address = ALIGN_POW2(current_address, alignment);
-    u8 *mem_offset = cast(u8*) aligned_address;
+    void *mem_offset = cast(void*) aligned_address;
     DOT_ASSERT_FL((aligned_address % alignment) == 0, file, line, "Unaligned address");
     usize required_padded = aligned_address - current_address + alloc_size;
     arena->used += required_padded;
@@ -133,6 +161,9 @@ arena_print_debug(Arena* arena){
     const u64 reserved_pages  = arena->reserved / page_size;
 
     DOT_PRINT("Arena '%s'", arena->name ? arena->name : "<unnamed>");
+    if(arena->parent){
+        DOT_PRINT("Arena parent: '%s'", arena->parent ? arena->parent->name : "no parent");
+    }
     DOT_PRINT("  Base:              %p", arena->base);
     DOT_PRINT("  Used:              %M", arena->used - sizeof(Arena));
     DOT_PRINT("  Committed:         %M (%llu pages)", arena->committed, committed_pages);
