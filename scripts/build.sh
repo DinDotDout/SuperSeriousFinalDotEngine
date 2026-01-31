@@ -14,10 +14,6 @@ CFLAGS="-g -std=c99 \
     -Wall -Wextra -Wno-override-init -Wdiv-by-zero \
     -Wno-unused-function -Werror=vla \
 "
-
-
-# OUT=${OUT:-app}
-
 # --- Libraries ---
 SYS_LIBS=" \
     -lm \

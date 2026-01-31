@@ -278,7 +278,6 @@ b8 vk_physical_device_swapchain_support(const RendererBackendVk_Settings *vk_set
         if(surface_capabilities.maxImageCount > 0 && details->image_count > surface_capabilities.maxImageCount){
             details->image_count = surface_capabilities.maxImageCount;
         }
-        DOT_PRINT("IMAGESS image count :%u min image count %u max image count: %u", details->image_count, surface_capabilities.minImageCount, surface_capabilities.maxImageCount);
         details->current_transform   = surface_capabilities.currentTransform;
     }
     temp_arena_restore(&temp);

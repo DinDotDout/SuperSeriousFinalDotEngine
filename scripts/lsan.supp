@@ -1,0 +1,4 @@
+# Vulkan loader leaks (intentional)
+leak:wl_proxy_create_for_id
+leak:wayland-client.c
+leak:vkEnumerateInstanceExtensionProperties
