@@ -18,7 +18,7 @@ struct Arena{
 
     u64 reserved; // Total usable memory
     u64 committed;
-    bool large_pages;
+    b8 large_pages;
     u64 commit_expand_size;
 
     // Debug
@@ -51,7 +51,7 @@ typedef struct MemoryArenaPushParams{
 }MemoryArenaPushParams;
 
 typedef struct TempArena {
-    u64    prevOffset;
+    u64    prev_offset;
     Arena *arena;
 } TempArena;
 
@@ -70,6 +70,7 @@ internal void   arena_print_debug(Arena *arena);
 #define ARENA_DEFAULT_PARAMS(...) \
     &(ArenaInitParams){ \
         .reserve_size       = ARENA_MIN_CAPACITY,\
+        .parent             = NULL, \
         .commit_expand_size = PLATFORM_REGULAR_PAGE_SIZE, \
         .large_pages        = false, \
         .reserve_file       = __FILE__, \
