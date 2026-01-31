@@ -33,13 +33,24 @@ threadctx_destroy(){
 }
 
 internal TempArena
-threadctx_get_temp(Arena *alloc_arena){
+threadctx_get_temp(Arena **avoid, u32 avoid_count){
     for(u8 i = 0; i < thread_ctx.temp_arena_count; ++i){
-        Arena* candidate_temp = thread_ctx.temp_arenas[i];
+        Arena *candidate_temp = thread_ctx.temp_arenas[i];
         DOT_ASSERT(candidate_temp);
-        if(candidate_temp != alloc_arena)
+
+        // Check if candidate_temp is in the avoid list
+        b32 collision = false;
+        for(u32 j = 0; j < avoid_count; ++j){
+            if(candidate_temp == avoid[j]){
+                collision = true;
+                break;
+            }
+        }
+
+        if(!collision){
             return temp_arena_get(candidate_temp);
+        }
     }
-    DOT_ERROR("Could not find a valid temporary arena");
-    return TempArena_Nil;
+
+    DOT_ERROR("Could not find non-colliding TempArena. Try increasing temp_arena_count.");
 }

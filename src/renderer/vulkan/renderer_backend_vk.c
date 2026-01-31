@@ -87,7 +87,7 @@ renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* window){
     RendererBackendVk *vk_ctx = renderer_backend_as_vk(base_ctx);
     Arena* ctx_arena = vk_ctx->base.permanent_arena;
     // vk_ctx->vk_allocator = VkAllocatorParams(ctx_arena);
-    TempArena temp = threadctx_get_temp(NULL);
+    TempArena temp = threadctx_get_temp(NULL, 0);
     const RendererBackendVk_Settings* vk_settings = renderer_backend_vk_settings();
     if(!vk_all_layers(vk_settings)){
         DOT_ERROR("Could not find all requested layers");

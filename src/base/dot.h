@@ -103,12 +103,21 @@ typedef double f64;
 #define TO_MSEC(t) ((t)*(u64)1000000)
 
 ////////////////////////////////////////////////////////////////
+//
+// Array + size
+#define VA_ARG_COUNT_T(T, ...) \
+    (sizeof((T[]){ __VA_ARGS__ }) / sizeof(T))
+
+#define ARRAY_PARAM(T, ...) \
+    (T[]){__VA_ARGS__}, (u32) VA_ARG_COUNT_T(T, __VA_ARGS__)
 
 ////////////////////////////////////////////////////////////////
 //
 // Array
 
 #define ARRAY_COUNT(arr) sizeof(arr) / sizeof(arr[0])
+
+// This is for when allocating from an arena and we have an actual array
 #define array(T) T*
 
 ////////////////////////////////////////////////////////////////

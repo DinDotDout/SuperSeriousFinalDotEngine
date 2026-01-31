@@ -109,7 +109,7 @@ vk_internal_free(void* data, usize size, VkInternalAllocationType alloc_type, Vk
 
 internal inline b8
 vk_all_layers(const RendererBackendVk_Settings* vk_settings){
-    TempArena temp = threadctx_get_temp(NULL);
+    TempArena temp = threadctx_get_temp(NULL, 0);
     u32 available_layer_count = 0;
     vkEnumerateInstanceLayerProperties(&available_layer_count, NULL);
     array(VkLayerProperties) available_layers = PUSH_ARRAY(temp.arena, VkLayerProperties, available_layer_count);
@@ -136,7 +136,7 @@ vk_all_layers(const RendererBackendVk_Settings* vk_settings){
 
 internal inline b8
 vk_instance_all_required_extensions(const RendererBackendVk_Settings* vk_settings){
-    TempArena temp = threadctx_get_temp(NULL);
+    TempArena temp = threadctx_get_temp(NULL, 0);
     u32 extension_count;
     vkEnumerateInstanceExtensionProperties(NULL, &extension_count, NULL);
     array(VkExtensionProperties) available_extensions = PUSH_ARRAY(temp.arena, VkExtensionProperties, extension_count);
@@ -165,7 +165,7 @@ vk_instance_all_required_extensions(const RendererBackendVk_Settings* vk_setting
 
 internal inline b8
 vk_physical_device_all_required_extensions(const RendererBackendVk_Settings* vk_settings, VkPhysicalDevice device){
-    TempArena temp = threadctx_get_temp(NULL);
+    TempArena temp = threadctx_get_temp(NULL, 0);
     u32 extension_count;
     vkEnumerateDeviceExtensionProperties(device, NULL, &extension_count, NULL);
     array(VkExtensionProperties) available_extensions = PUSH_ARRAY(temp.arena, VkExtensionProperties, extension_count);
@@ -202,7 +202,7 @@ typedef struct VkSwapchainDetails{
 
 internal inline
 b8 vk_physical_device_swapchain_support(const RendererBackendVk_Settings *vk_settings, VkPhysicalDevice gpu, VkSurfaceKHR surface, DOT_Window* window, VkSwapchainDetails* details){
-    TempArena temp = threadctx_get_temp(NULL);
+    TempArena temp = threadctx_get_temp(NULL, 0);
     typedef struct SwapchainSupportDetails{
         VkSurfaceCapabilities2KHR surface_capabilities;
 
@@ -296,7 +296,7 @@ internal inline VkCandidateDeviceInfo
 vk_pick_best_device(const RendererBackendVk_Settings *vk_settings,
                     VkInstance instance, VkSurfaceKHR surface,
                     DOT_Window *window) {
-    TempArena temp = threadctx_get_temp(NULL);
+    TempArena temp = threadctx_get_temp(NULL, 0);
     u32 device_count = 0;
     vkEnumeratePhysicalDevices(instance, &device_count, NULL);
     if (device_count == 0) {
