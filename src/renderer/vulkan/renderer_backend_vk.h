@@ -53,11 +53,12 @@ typedef struct RendererBackendVk_Swapchain{
     u32            images_count; // Shared between images and images views
 }RendererBackendVk_Swapchain;
 
-
-#define RENDERER_BACKEND_VK_FRAME_OVERLAP 2
+// #define RENDERER_BACKEND_VK_FRAME_OVERLAP 2
 typedef struct RendererBackendVk_FrameData{
-    VkCommandPool command_pool;
+    VkCommandPool   command_pool;
     VkCommandBuffer command_buffer;
+    VkSemaphore     swapchain_semaphore, render_semaphore;
+    VkFence         render_fence;
 }RendererBackendVk_FrameData;
 
 typedef struct RendererBackendVk{
@@ -70,9 +71,9 @@ typedef struct RendererBackendVk{
     u8                            frame_count;
     RendererBackendVk_FrameData*  frames;
 
-    // NOTE: Aparantly vk expects a malloc like allocator, which I don't intend on make or using for now
-    // so our push arenas do not work
-    VkAllocationCallbacks    vk_allocator; // Unused for now
+    // NOTE: vk expects a malloc like allocator, which I don't intend on make or using for now
+    // so our push arenas do not work for this :(
+    VkAllocationCallbacks    vk_allocator;
     VkDebugUtilsMessengerEXT debug_messenger;
 }RendererBackendVk;
 
@@ -83,4 +84,6 @@ internal const RendererBackendVk_Settings* renderer_backend_vk_settings();
 
 internal void renderer_backend_vk_init(RendererBackend* ctx, DOT_Window* window);
 internal void renderer_backend_vk_shutdown(RendererBackend* ctx);
+internal void renderer_backend_vk_draw(RendererBackend* base_ctx, u8 current_frame);
+
 #endif

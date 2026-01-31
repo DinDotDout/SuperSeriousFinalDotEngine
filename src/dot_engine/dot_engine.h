@@ -21,19 +21,17 @@
 #include "third_party/RGFW/RGFW.h"
 
 #define DOT_INT_SKIP // Already included ints by rgfw
-#include "base/base_inc.h"
+#include "base/base_include.h"
 
 #include "dot_engine/window.h"
-#include "renderer/renderer_backend.h"
-#include "renderer/vulkan/renderer_backend_vk.h"
 #include "renderer/renderer.h"
+#include "renderer/vulkan/renderer_backend_vk.h"
 #include "dot_engine/application.h"
 #include "dot_engine/game.h"
 
 #include "dot_engine/window.c"
-#include "renderer/renderer_backend.c"
-#include "renderer/vulkan/renderer_backend_vk.c"
 #include "renderer/renderer.c"
+#include "renderer/vulkan/renderer_backend_vk.c"
 #include "dot_engine/application.c"
 #include "dot_engine/game.c"
 #endif

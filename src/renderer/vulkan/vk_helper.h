@@ -107,16 +107,16 @@ vk_internal_free(void* data, usize size, VkInternalAllocationType alloc_type, Vk
 #define VkAllocatorParams(arena) NULL
 #endif
 
-internal inline bool
+internal inline b8
 vk_all_layers(const RendererBackendVk_Settings* vk_settings){
-    TempArena temp = thread_ctx_get_temp(NULL);
+    TempArena temp = threadctx_get_temp(NULL);
     u32 available_layer_count = 0;
     vkEnumerateInstanceLayerProperties(&available_layer_count, NULL);
     array(VkLayerProperties) available_layers = PUSH_ARRAY(temp.arena, VkLayerProperties, available_layer_count);
     vkEnumerateInstanceLayerProperties(&available_layer_count, available_layers);
-    bool all_found = true;
+    b8 all_found = true;
     for(u64 i = 0; i < vk_settings->layer_settings.layer_count; ++i){
-        bool found = false;
+        b8 found = false;
         const String8 layer_name = vk_settings->layer_settings.layer_names[i];
         for(u64 j = 0; j < available_layer_count; ++j){
             if(string8_equal(layer_name, string8_cstring(available_layers[j].layerName))){
@@ -134,17 +134,17 @@ vk_all_layers(const RendererBackendVk_Settings* vk_settings){
     return all_found;
 }
 
-internal inline bool
+internal inline b8
 vk_instance_all_required_extensions(const RendererBackendVk_Settings* vk_settings){
-    TempArena temp = thread_ctx_get_temp(NULL);
+    TempArena temp = threadctx_get_temp(NULL);
     u32 extension_count;
     vkEnumerateInstanceExtensionProperties(NULL, &extension_count, NULL);
     array(VkExtensionProperties) available_extensions = PUSH_ARRAY(temp.arena, VkExtensionProperties, extension_count);
     vkEnumerateInstanceExtensionProperties(NULL, &extension_count, available_extensions);
 
-    bool all_found = true;
+    b8 all_found = true;
     for(u64 i = 0; i < vk_settings->instance_settings.instance_extension_count; ++i){
-        bool found = false;
+        b8 found = false;
         const String8 instance_extension_name = vk_settings->instance_settings.instance_extension_names[i];
         for(u64 j = 0; j < extension_count; ++j){
             char* name = available_extensions[j].extensionName;
@@ -163,17 +163,17 @@ vk_instance_all_required_extensions(const RendererBackendVk_Settings* vk_setting
     return all_found;
 }
 
-internal inline bool
+internal inline b8
 vk_physical_device_all_required_extensions(const RendererBackendVk_Settings* vk_settings, VkPhysicalDevice device){
-    TempArena temp = thread_ctx_get_temp(NULL);
+    TempArena temp = threadctx_get_temp(NULL);
     u32 extension_count;
     vkEnumerateDeviceExtensionProperties(device, NULL, &extension_count, NULL);
     array(VkExtensionProperties) available_extensions = PUSH_ARRAY(temp.arena, VkExtensionProperties, extension_count);
     vkEnumerateDeviceExtensionProperties(device, NULL, &extension_count, available_extensions);
 
-    bool all_found = true;
+    b8 all_found = true;
     for(u64 i = 0; i < vk_settings->device_settings.device_extension_count; ++i){
-        bool found = false;
+        b8 found = false;
         String8 device_extension_name = vk_settings->device_settings.device_extension_names[i];
         for(u64 j = 0; j < extension_count; ++j){
             if(string8_equal(device_extension_name, string8_cstring(available_extensions[j].extensionName)) == 0){
@@ -202,7 +202,7 @@ typedef struct VkSwapchainDetails{
 
 internal inline
 b8 vk_physical_device_swapchain_support(const RendererBackendVk_Settings *vk_settings, VkPhysicalDevice gpu, VkSurfaceKHR surface, DOT_Window* window, VkSwapchainDetails* details){
-    TempArena temp = thread_ctx_get_temp(NULL);
+    TempArena temp = threadctx_get_temp(NULL);
     typedef struct SwapchainSupportDetails{
         VkSurfaceCapabilities2KHR surface_capabilities;
 
@@ -234,7 +234,7 @@ b8 vk_physical_device_swapchain_support(const RendererBackendVk_Settings *vk_set
     vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &swapchain_support_details.present_modes_count, NULL);
     swapchain_support_details.present_modes = PUSH_ARRAY(temp.arena, VkPresentModeKHR, swapchain_support_details.present_modes_count);
     vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &swapchain_support_details.present_modes_count, swapchain_support_details.present_modes);
-    bool has_support = swapchain_support_details.format_count > 0 && swapchain_support_details.present_modes_count > 0;
+    b8 has_support = swapchain_support_details.format_count > 0 && swapchain_support_details.present_modes_count > 0;
     if(has_support && details != NULL){
         VkSurfaceCapabilitiesKHR surface_capabilities = swapchain_support_details.surface_capabilities.surfaceCapabilities; // ...
         VkExtent2D surface_extent = surface_capabilities.currentExtent; // ...
@@ -297,15 +297,14 @@ internal inline VkCandidateDeviceInfo
 vk_pick_best_device(const RendererBackendVk_Settings *vk_settings,
                     VkInstance instance, VkSurfaceKHR surface,
                     DOT_Window *window) {
-    TempArena temp = thread_ctx_get_temp(NULL);
+    TempArena temp = threadctx_get_temp(NULL);
     u32 device_count = 0;
     vkEnumeratePhysicalDevices(instance, &device_count, NULL);
     if (device_count == 0) {
         DOT_ERROR("No Vulkan-capable GPUs found");
     }
 
-    array(VkPhysicalDevice) devices =
-        PUSH_ARRAY(temp.arena, VkPhysicalDevice, device_count);
+    array(VkPhysicalDevice) devices = PUSH_ARRAY(temp.arena, VkPhysicalDevice, device_count);
     vkEnumeratePhysicalDevices(instance, &device_count, devices);
     DOT_PRINT("device count %i", device_count);
 
@@ -333,7 +332,7 @@ vk_pick_best_device(const RendererBackendVk_Settings *vk_settings,
 
         int graphics_idx = -1;
         int present_idx = -1;
-        bool shared_present_graphics_queues = false;
+        b8 shared_present_graphics_queues = false;
         for (u32 q = 0; q < queue_count; q++) {
             b32 present_support = false;
             vkGetPhysicalDeviceSurfaceSupportKHR(dev, q, surface, &present_support);

@@ -5,7 +5,7 @@
 ////////////////////////////////////////////////////////////////
 //
 // Needed headers
-//
+
 #define _GNU_SOURCE
 #include <stdlib.h>
 //
@@ -25,7 +25,7 @@
 ////////////////////////////////////////////////////////////////
 //
 // Compiler
-//
+
 #if defined(_MSC_VER)
 #define DOT_COMPILER_MSVC 1
 #elif defined(__GNUC__)
@@ -39,7 +39,7 @@
 ////////////////////////////////////////////////////////////////
 //
 // OS
-//
+
 #if defined(_WIN32)
 #define DOT_OS_WINDOWS
 #else
@@ -49,7 +49,7 @@
 ////////////////////////////////////////////////////////////////
 //
 // Nice qualifiers
-//
+
 #define internal static
 #define local_persist static
 #define global static
@@ -57,7 +57,7 @@
 ////////////////////////////////////////////////////////////////
 //
 // Sane type renames
-//
+
 // size
 #include <stddef.h>
 // precise int
@@ -98,15 +98,23 @@ typedef double f64;
 
 ////////////////////////////////////////////////////////////////
 //
-// Array
+// TIME
+#define TO_USEC(t) ((t)*(u64)1000000000)
+#define TO_MSEC(t) ((t)*(u64)1000000)
+
+////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////
 //
+// Array
+
 #define ARRAY_COUNT(arr) sizeof(arr) / sizeof(arr[0])
 #define array(T) T*
 
 ////////////////////////////////////////////////////////////////
 //
 // Debug
-//
+
 #if defined(DOT_COMPILER_MSVC)
 #define DEBUG_BREAK __debugbreak()
 #elif defined(DOT_COMPILER_GCC)
@@ -121,7 +129,7 @@ typedef double f64;
 ////////////////////////////////////////////////////////////////
 //
 // String concat
-//
+
 #define DOT_STR_HELPER(x) #x
 #define DOT_STR(x) DOT_STR_HELPER(x)
 
@@ -131,21 +139,20 @@ typedef double f64;
 ////////////////////////////////////////////////////////////////
 //
 // Source location helper
-//
+
 #define DEBUG_LOC_ARG __FILE__, __LINE__
 #define DEBUG_LOC_FMT "%s:%d"
 
 ////////////////////////////////////////////////////////////////
 //
 // Static Debug
-//
+
 #define DOT_STATIC_ASSERT(x) \
 typedef int DOT_CONCAT(DOT_STATIC_ASSERT_, __COUNTER__) [(x) ? 1 : -1]
 
 ////////////////////////////////////////////////////////////////
 //
 // Debug utils
-//
 
 #if defined(DOT_COMPILER_MSVC)
   #include <sal.h>
@@ -193,9 +200,9 @@ internal void dot_print_debug_(const DOT_PrintDebugParams* params, PRINTF_STRING
     __VA_ARGS__}
 
 // --- Error Macros ---
-#define DOT_ERROR_IMPL(params, ...) \
+#define DOT_ERROR_IMPL(params, fmt, ...) \
 do { \
-    dot_print_debug_(params, __VA_ARGS__); \
+    dot_print_debug_(params, fmt, ##__VA_ARGS__); \
     DEBUG_BREAK; \
     abort(); \
 } while(0)
@@ -209,11 +216,13 @@ do { \
 } while(0)
 
 #ifndef NDEBUG
+
 // --- Printing Macros ---
 #define DOT_PRINT(...) dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(), __VA_ARGS__)
 #define DOT_PRINT_FL(f, l, ...) dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.file = (f), .line = (l)), __VA_ARGS__)
 #define DOT_WARNING(...) dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = LOG_LEVEL_WARNING), __VA_ARGS__)
 #define DOT_WARNING_FL(f, l, ...) dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.file = (f), .line = (l), .print_debug_kind = LOG_LEVEL_WARNING), __VA_ARGS__)
+
 // --- Assertion Macros ---
 // WARN: "##" allows us to not have and fmt but uses an extension
 #define DOT_ASSERT_IMPL(cond, params, fmt, ...) \
@@ -224,7 +233,7 @@ do { \
     } \
 } while(0)
 #define DOT_ASSERT(cond, ...) DOT_ASSERT_IMPL((cond), DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = LOG_LEVEL_ASSERT), __VA_ARGS__)
-#define DOT_ASSERT_FL(cond, f, l, ...) DOT_ASSERT_IMPL((cond), DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = LOG_LEVEL_ASSERT, .file = f, .line = l), __VA_ARGS__)
+#define DOT_ASSERT_FL(cond, f, l, ...) DOT_ASSERT_IMPL((cond), DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = LOG_LEVEL_ASSERT, .file = (f), .line = (l)), __VA_ARGS__)
 #else
 #define DOT_PRINT(...) ((void)0)
 #define DOT_PRINT_FL(f, l, ...) ((void)0)
@@ -237,13 +246,13 @@ do { \
 ////////////////////////////////////////////////////////////////
 //
 // Cast for easy cast grep
-//
+
 #define cast(t) (t)
 
 ////////////////////////////////////////////////////////////////
 //
 // B size utils
-//
+
 #define KB(x) ((x) * (u64)1024)
 #define MB(x) ((KB(x)) * (u64)1024)
 #define GB(x) ((MB(x)) * (u64)1024)
@@ -255,7 +264,7 @@ do { \
 ////////////////////////////////////////////////////////////////
 //
 // Processor hints
-//
+
 #if defined(__GNUC__) || defined(__clang__)
 #define DOT_LIKELY(x) __builtin_expect(!!(x), 1)
 #define DOT_UNLIKELY(x) __builtin_expect(!!(x), 0)
@@ -268,8 +277,7 @@ do { \
 ////////////////////////////////////////////////////////////////
 //
 // Memory
-//
-//
+
 #if defined(DOT_COMPILER_MSVC)
 #define ALIGNOF(T) __alignof(T)
 #elif defined(DOT_COMPILER_CLANG)
@@ -304,13 +312,13 @@ do { \
 ////////////////////////////////////////////////////////////////
 //
 // whatever
-//
+
 #define UNUSED(something) (void)something
 
 ////////////////////////////////////////////////////////////////
 //
 // Useful it from raddebugger
-//
+
 #define EACH_INDEX(it, count) (u64 it = 0; it < (count); ++it)
 #define EACH_ELEMENT(it, array) (u64 it = 0; it < ARRAY_COUNT(array); ++it)
 #define EACH_ENUM_VAL(type, it) \
@@ -325,7 +333,7 @@ do { \
 ////////////////////////////////////////////////////////////////
 //
 // Useful Mem copy from raddebugger
-//
+
 #define MEM_COPY(dst, src, size)    memmove((dst), (src), (size))
 #define MEM_COPY_STRUCT(d,s)  MEM_COPY((d),(s),sizeof(*(d)))
 #define MEM_COPY_ARRAY(d,s)   MEM_COPY((d),(s),sizeof(d))
@@ -336,6 +344,7 @@ do { \
 //
 // Defer for profile blocks, lock/unlock...
 // This accepts expressions that will run before and after a scope block once
+
 #define DEFER_LOOP(before, after) \
         for(int _once_defer_ = 0; _once_defer_ == 0;) \
                 for(before; _once_defer_++ == 0; after)
@@ -348,7 +357,7 @@ do { \
 ////////////////////////////////////////////////////////////////
 //
 // Threading
-//
+
 #if defined(DOT_COMPILER_MSVC)
 #define thread_local __declspec(thread)
 #elif defined(DOT_COMPILER_GCC) || defined(DOT_COMPILER_CLANG)
@@ -360,7 +369,7 @@ do { \
 ////////////////////////////////////////////////////////////////
 //
 // This runs after static initialization and before main
-//
+
 #if defined(DOT_COMPILER_MSVC)
     #pragma section(".CRT$XCU",read)
     #define CONSTRUCTOR2_(fn, p) \
