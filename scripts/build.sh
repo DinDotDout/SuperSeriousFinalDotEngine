@@ -26,21 +26,21 @@ SYS_LIBS=" \
 "
 
 PROTO_SRCS=" \
-    src/third_party/RGFW/relative-pointer-unstable-v1.c \
-    src/third_party/RGFW/pointer-constraints-unstable-v1.c \
-    src/third_party/RGFW/xdg-toplevel-icon-v1.c \
-    src/third_party/RGFW/xdg-output-unstable-v1.c \
-    src/third_party/RGFW/xdg-decoration-unstable-v1.c \
-    src/third_party/RGFW/xdg-shell.c \
+    src/gen-wayland/relative-pointer-unstable-v1.c \
+    src/gen-wayland/pointer-constraints-unstable-v1.c \
+    src/gen-wayland/xdg-toplevel-icon-v1.c \
+    src/gen-wayland/xdg-output-unstable-v1.c \
+    src/gen-wayland/xdg-decoration-unstable-v1.c \
+    src/gen-wayland/xdg-shell.c \
 "
 
-# ./gen-wayland.sh
+./scripts/gen-wayland.sh
 
 # --- Build ---
 # echo "[*] Compiling..."
 
 clang $CFLAGS -I src/ \
-    -Wl,-Tplugins_section.ld \
+    -Wl,-Tscripts/plugins_section.ld \
     src/dot_engine/dot_engine.c $SYS_LIBS $PROTO_SRCS \
     -o build/dot_engine
 
