@@ -2,15 +2,16 @@
 
 internal void
 application_init(Application* app){
-    ApplicationConfig app_config = application_config_get();
-    app->permanent_arena = ARENA_ALLOC(.reserve_size = app_config.mem_size, .name = "Application Arena");
+    ApplicationConfig* app_config = application_config_get();
+    app->permanent_arena = ARENA_ALLOC(.reserve_size = app_config->mem_size, .name = "Application Arena");
     threadctx_init(&(ThreadCtxOpts){
-        .memory_size = app_config.thread_mem_size,
-        .thread_id   = 0,
+        .memory_size                 = app_config->thread_mem_size,
+        .per_thread_temp_arena_count = app_config->per_thread_temp_arena_count,
+        .thread_id                   = 0,
     });
     plugins_init();
     dot_window_init(&app->window);
-    renderer_init(app->permanent_arena, &app->renderer, &app->window, &app_config.renderer_config);
+    renderer_init(app->permanent_arena, &app->renderer, &app->window, &app_config->renderer_config);
 }
 
 internal void
