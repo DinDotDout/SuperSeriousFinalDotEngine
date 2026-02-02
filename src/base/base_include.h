@@ -12,8 +12,6 @@
 #include "base/arena.h"
 #include "base/string.h"
 #include "base/plugin.h"
-
-#define DOT_PROFILER_IMPL
 #include "base/profiler.h"
 #include "base/thread_ctx.h"
 
