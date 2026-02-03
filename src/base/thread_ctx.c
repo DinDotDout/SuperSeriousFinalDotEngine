@@ -1,24 +1,26 @@
 internal void
-threadctx_init(const ThreadCtxOpts* thread_ctx_opts){
+threadctx_init(const ThreadCtxOptions* thread_ctx_opts, u8 thread_id){
     DOT_ASSERT(thread_ctx_opts);
     DOT_ASSERT(thread_ctx_opts->per_thread_temp_arena_count > 1,
         "We need at least two temp_arenas to double buffer through callstack");
 
     u8 temp_arena_count = thread_ctx_opts->per_thread_temp_arena_count;
     // NOTE: Storing space for the temp_arena array is causing page overhang
-    // that we are taking advantage off to then store Thread SubArena names. If
-    // this ever blows up we know where to check first
-    u64 total_memory = thread_ctx_opts->memory_size + sizeof(Arena*)*temp_arena_count;
-    u64 per_arena_memory = thread_ctx_opts->memory_size / temp_arena_count;
+    // that we are taking advantage off to then store Thread SubArena names and other metadata. If
+    // this ever blows up we can just increase the memory
+    u64 total_memory = thread_ctx_opts->per_thread_temp_arena_size * temp_arena_count + sizeof(Arena*)*temp_arena_count;
+    u64 per_arena_memory = thread_ctx_opts->per_thread_temp_arena_size;
 
     Arena *main_arena = ARENA_ALLOC(.reserve_size = total_memory, .name = "Thread Arena");
+    thread_ctx.thread_id        = thread_id;
     thread_ctx.temp_arena_count = temp_arena_count;
     thread_ctx.temp_arenas      = PUSH_ARRAY(main_arena, Arena*, temp_arena_count);
+
     for(u8 i = 0; i < temp_arena_count; ++i){
         thread_ctx.temp_arenas[i] = ARENA_ALLOC(
             .parent       = main_arena,
             .reserve_size = per_arena_memory,
-            .name         =  cstr_format(main_arena, "Thread SubArena %u", i),
+            .name         = cstr_format(main_arena, "Thread SubArena %u", i),
         );
     }
 }

@@ -281,7 +281,7 @@ renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* window){
         // WARN: Any allocation that can be recreated may be need to be pushed onto its own arena alloc ctx to avoid leaking
         vk_ctx->frame_count = frame_overlap;
         vk_ctx->frames = PUSH_ARRAY(ctx_arena, RendererBackendVk_FrameData, frame_overlap);
-        // --- Create Commands ---
+        // --- Create Commands Buffers ---
         {
             VkCommandPoolCreateInfo command_pool_info = {
                 .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -297,7 +297,7 @@ renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* window){
                 RendererBackendVk_FrameData *frame_data = &vk_ctx->frames[i];
                 VK_CHECK(vkCreateCommandPool(device, &command_pool_info, NULL, &frame_data->command_pool));
                 cmd_alloc_info.commandPool = frame_data->command_pool;
-                VK_CHECK(vkAllocateCommandBuffers(device, &cmd_alloc_info, &frame_data->command_buffer));
+                VK_CHECK(vkAllocateCommandBuffers(device, &cmd_alloc_info, &frame_data->frame_command_buffer));
             }
         }
         // --- Init Sync Structures ---
@@ -325,9 +325,9 @@ renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* window){
 
 internal void
 renderer_backend_vk_shutdown(RendererBackend* base_ctx){
+    const RendererBackendVk_Settings *settings = renderer_backend_vk_settings();
     RendererBackendVk *vk_ctx = renderer_backend_as_vk(base_ctx);
     VkDevice device = vk_ctx->device.device;
-    const RendererBackendVk_Settings *settings = renderer_backend_vk_settings();
     vkDeviceWaitIdle(device);
     for(u32 i = 0; i < settings->frame_settings.frame_overlap; ++i){
         RendererBackendVk_FrameData* frame_data = &vk_ctx->frames[i];
@@ -363,5 +363,13 @@ renderer_backend_vk_draw(RendererBackend* base_ctx, u8 current_frame){
 
     u32 swapchainImageIndex;
 	VK_CHECK(vkAcquireNextImageKHR(device, vk_ctx->swapchain.swapchain, TO_USEC(1), frame_data->swapchain_semaphore, NULL, &swapchainImageIndex));
+    VkCommandBuffer cmd = frame_data->frame_command_buffer;
+    VK_CHECK(vkResetCommandBuffer(cmd, 0));
+    VkCommandBufferBeginInfo cmd_begin_info = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+    };
+    VK_CHECK(vkBeginCommandBuffer(cmd, &cmd_begin_info));
+
 }
 

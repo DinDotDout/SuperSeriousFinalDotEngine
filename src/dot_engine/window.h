@@ -14,6 +14,6 @@ internal void dot_window_destroy(DOT_Window* window);
 internal void dot_window_creates_urface(DOT_Window* window, struct RendererBackend* backend);
 internal b8   dot_window_get_framebuffer_size(DOT_Window* window, i32* w, i32* h);
 internal b8   dot_window_get_size(DOT_Window* window, i32* w, i32* h);
-internal b8   dot_window_shoul_dclose(DOT_Window* window);
+internal b8   dot_window_should_close(DOT_Window* window);
 
 #endif // !DOT_WINDOW_H

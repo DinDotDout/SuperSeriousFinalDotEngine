@@ -26,6 +26,9 @@
 #include "dot_engine/window.h"
 #include "renderer/renderer.h"
 #include "renderer/vulkan/renderer_backend_vk.h"
+#include "dot_engine/plugin.h"
+#define DOT_PROFILER_IMPL
+#include "dot_engine/profiler.h"
 #include "dot_engine/application.h"
 #include "dot_engine/game.h"
 

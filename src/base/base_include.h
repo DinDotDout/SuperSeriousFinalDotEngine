@@ -11,8 +11,6 @@
 #include "base/platform.h"
 #include "base/arena.h"
 #include "base/string.h"
-#include "base/plugin.h"
-#include "base/profiler.h"
 #include "base/thread_ctx.h"
 
 #include "base/dot.c"
@@ -21,7 +19,5 @@
 #include "base/arena.c"
 #include "base/string.c"
 #include "base/thread_ctx.c"
-#define DOT_PROFILER_IMPL
-#include "base/profiler.h"
 
 #endif // BASE_INC_H

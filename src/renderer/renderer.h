@@ -11,9 +11,16 @@ enum{
 };
 
 typedef struct RendererBackendConfig{
-    u64                 memory_size;
     RendererBackendKind backend_kind;
+    u64                 backend_memory_size;
 }RendererBackendConfig;
+
+typedef struct RendererConfig{
+    u64                   renderer_memory_size;
+    u64                   frame_arena_size;
+    u8                    frame_overlap;
+    RendererBackendConfig backend_config;
+}RendererConfig;
 
 typedef struct RendererBackend RendererBackend;
 typedef void (*RendererBackend_InitFn)(RendererBackend *ctx, DOT_Window *window);
@@ -28,14 +35,6 @@ struct RendererBackend{
     RendererBackend_Draw       draw;
 };
 
-
-typedef struct RendererConfig{
-    u64                   mem_size;
-    u64                   frame_arena_size;
-    u8                    frame_overlap;
-    RendererBackendConfig backend_config;
-}RendererConfig;
-
 typedef struct FrameData{
     Arena *temp_arena;
 }FrameData;
@@ -45,7 +44,7 @@ typedef struct DOT_Renderer{
     Arena           *permanent_arena;
 
     u64              current_frame;
-    u8               frame_count;
+    u8               frame_overlap;
     FrameData       *frame_data;
 }DOT_Renderer;
 

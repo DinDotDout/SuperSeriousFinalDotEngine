@@ -56,7 +56,7 @@ typedef struct RendererBackendVk_Swapchain{
 // #define RENDERER_BACKEND_VK_FRAME_OVERLAP 2
 typedef struct RendererBackendVk_FrameData{
     VkCommandPool   command_pool;
-    VkCommandBuffer command_buffer;
+    VkCommandBuffer frame_command_buffer;
     VkSemaphore     swapchain_semaphore, render_semaphore;
     VkFence         render_fence;
 }RendererBackendVk_FrameData;

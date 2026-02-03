@@ -2,6 +2,22 @@
 #define VK_HELPER_H
 #include <vulkan/vk_enum_string_helper.h>
 
+typedef struct VkSwapchainDetails{
+    VkSurfaceFormatKHR            best_surface_format;
+    VkPresentModeKHR              best_present_mode;
+    VkExtent2D                    surface_extent;
+    VkSurfaceTransformFlagBitsKHR current_transform;
+    u32                           image_count;
+}VkSwapchainDetails;
+
+typedef struct VkCandidateDeviceInfo{
+    VkPhysicalDevice gpu;
+    u16 graphics_family;
+    u16 present_family;
+    i32 score;
+    b8 shared_present_graphics_queues;
+}VkCandidateDeviceInfo;
+
 #ifdef NDEBUG
 #define VK_CHECK(x) x
 #else
@@ -32,80 +48,6 @@
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR, \
         __VA_ARGS__ \
     }
-
-internal const char *
-vk_system_allocations_scope_name(VkSystemAllocationScope s) {
-    switch(s){
-        case VK_SYSTEM_ALLOCATION_SCOPE_COMMAND:
-            return "COMMAND";
-        case VK_SYSTEM_ALLOCATION_SCOPE_OBJECT:
-            return "OBJECT";
-        case VK_SYSTEM_ALLOCATION_SCOPE_CACHE:
-            return "CACHE";
-        case VK_SYSTEM_ALLOCATION_SCOPE_DEVICE:
-            return "DEVICE";
-        case VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE:
-            return "INSTANCE";
-        default:
-            return "UNKNOWN";
-    }
-}
-
-internal inline void*
-vk_alloc(void* data, usize size, usize alignment, VkSystemAllocationScope scope){
-    UNUSED(data); UNUSED(size); UNUSED(alignment); UNUSED(scope);
-    DOT_PRINT("VK Alloc: size=%M; scope=\n", size, vk_system_allocations_scope_name(scope));
-
-    Arena* arena = cast(Arena*)data;
-    void* mem = arena_push(arena, size, alignment, true, __FILE__, __LINE__);
-    arena_print_debug(arena);
-    return mem;
-}
-
-internal inline
-void* vk_realloc(void* data, void* old_mem, usize size, usize alignment, VkSystemAllocationScope scope){
-    UNUSED(data); UNUSED(size); UNUSED(alignment); UNUSED(scope); UNUSED(old_mem);
-    DOT_PRINT("VK Realloc: size=%M; scope=%s", size, vk_system_allocations_scope_name(scope) );
-    Arena* arena = cast(Arena*)data;
-    void* mem = arena_push(arena, size, alignment, true, __FILE__, __LINE__);
-    arena_print_debug(arena);
-    return mem;
-}
-
-internal inline
-void vk_free(void* data, void* mem){
-    UNUSED(data); UNUSED(mem);
-    Arena* arena = cast(Arena*)data;
-    DOT_PRINT("VK free");
-    arena_print_debug(arena);
-}
-
-internal inline
-void vk_internal_alloc(void* data, usize size, VkInternalAllocationType alloc_type, VkSystemAllocationScope scope){
-    UNUSED(data); UNUSED(size); UNUSED(scope); UNUSED(alloc_type);
-    DOT_PRINT( "VK Internal Alloc: size=%M; scope=%s", size, vk_system_allocations_scope_name(scope) );
-    // Arena* arena = cast(Arena*)data;
-    // arena_print_debug(arena);
-}
-
-void
-vk_internal_free(void* data, usize size, VkInternalAllocationType alloc_type, VkSystemAllocationScope scope){
-    UNUSED(data); UNUSED(size); UNUSED(scope); UNUSED(alloc_type);
-    DOT_PRINT( "VK Internal Free: size=%M; scope=%s", size, vk_system_allocations_scope_name(scope) );
-}
-
-#ifdef VK_USE_CUSTOM_ALLOCATOR
-#define VkAllocatorParams(arena) (VkAllocationCallbacks){ \
-    .pUserData = arena, \
-    .pfnAllocation = vk_alloc, \
-    .pfnReallocation = vk_realloc, \
-    .pfnFree = vk_free, \
-    .pfnInternalAllocation = vk_internal_alloc, \
-    .pfnInternalFree = vk_internal_free, \
-}
-#else
-#define VkAllocatorParams(arena) NULL
-#endif
 
 internal inline b8
 vk_all_layers(const RendererBackendVk_Settings* vk_settings){
@@ -192,16 +134,14 @@ vk_physical_device_all_required_extensions(const RendererBackendVk_Settings* vk_
     return all_found;
 }
 
-typedef struct VkSwapchainDetails{
-    VkSurfaceFormatKHR            best_surface_format;
-    VkPresentModeKHR              best_present_mode;
-    VkExtent2D                    surface_extent;
-    VkSurfaceTransformFlagBitsKHR current_transform;
-    u32                           image_count;
-}VkSwapchainDetails;
+internal inline b8
+vk_physical_device_swapchain_support(
+    const RendererBackendVk_Settings *vk_settings,
+    VkPhysicalDevice gpu,
+    VkSurfaceKHR surface,
+    DOT_Window* window,
+    VkSwapchainDetails* details){
 
-internal inline
-b8 vk_physical_device_swapchain_support(const RendererBackendVk_Settings *vk_settings, VkPhysicalDevice gpu, VkSurfaceKHR surface, DOT_Window* window, VkSwapchainDetails* details){
     TempArena temp = threadctx_get_temp(NULL, 0);
     typedef struct SwapchainSupportDetails{
         VkSurfaceCapabilities2KHR surface_capabilities;
@@ -284,18 +224,13 @@ b8 vk_physical_device_swapchain_support(const RendererBackendVk_Settings *vk_set
     return has_support;
 }
 
-typedef struct VkCandidateDeviceInfo{
-    VkPhysicalDevice gpu;
-    u16 graphics_family;
-    u16 present_family;
-    i32 score;
-    b8 shared_present_graphics_queues;
-}VkCandidateDeviceInfo;
-
 internal inline VkCandidateDeviceInfo
-vk_pick_best_device(const RendererBackendVk_Settings *vk_settings,
-                    VkInstance instance, VkSurfaceKHR surface,
-                    DOT_Window *window) {
+vk_pick_best_device(
+    const RendererBackendVk_Settings *vk_settings,
+    VkInstance instance,
+    VkSurfaceKHR surface,
+    DOT_Window *window){
+
     TempArena temp = threadctx_get_temp(NULL, 0);
     u32 device_count = 0;
     vkEnumeratePhysicalDevices(instance, &device_count, NULL);
@@ -310,11 +245,11 @@ vk_pick_best_device(const RendererBackendVk_Settings *vk_settings,
     VkCandidateDeviceInfo best_device = {0};
     best_device.score = -1;
 
-    for (u32 i = 0; i < device_count; i++) {
+    for (u32 i = 0; i < device_count; i++){
         VkPhysicalDevice dev = devices[i];
         // We to first ensure we have what we want before even rating the device
         if (!vk_physical_device_all_required_extensions(vk_settings, dev) ||
-            !vk_physical_device_swapchain_support(vk_settings, dev, surface, window, NULL)) {
+            !vk_physical_device_swapchain_support(vk_settings, dev, surface, window, NULL)){
             continue;
         }
         VkPhysicalDeviceProperties device_properties;
@@ -332,7 +267,7 @@ vk_pick_best_device(const RendererBackendVk_Settings *vk_settings,
         int graphics_idx = -1;
         int present_idx = -1;
         b8 shared_present_graphics_queues = false;
-        for (u32 q = 0; q < queue_count; q++) {
+        for (u32 q = 0; q < queue_count; q++){
             b32 present_support = false;
             vkGetPhysicalDeviceSurfaceSupportKHR(dev, q, surface, &present_support);
             if ((queue_properties[q].queueFlags & VK_QUEUE_GRAPHICS_BIT) &&
@@ -343,9 +278,9 @@ vk_pick_best_device(const RendererBackendVk_Settings *vk_settings,
                 break;
             }
         }
-        if (!shared_present_graphics_queues) {
-            for (u32 q = 0; q < queue_count; q++) {
-                if (queue_properties[q].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+        if (!shared_present_graphics_queues){
+            for (u32 q = 0; q < queue_count; q++){
+                if (queue_properties[q].queueFlags & VK_QUEUE_GRAPHICS_BIT){
                     graphics_idx = q;
                 }
                 u32 present_support = false;
@@ -355,7 +290,7 @@ vk_pick_best_device(const RendererBackendVk_Settings *vk_settings,
                 }
             }
         }
-        if (graphics_idx < 0 || present_idx < 0) {
+        if (graphics_idx < 0 || present_idx < 0){
             continue;
         }
 
@@ -368,7 +303,7 @@ vk_pick_best_device(const RendererBackendVk_Settings *vk_settings,
             score += 10;
         DOT_PRINT("graphics family: %d; present family: %i; score: %i",
                   graphics_idx, present_idx, score);
-        if (score > best_device.score) {
+        if (score > best_device.score){
             best_device.gpu = dev;
             best_device.graphics_family = cast(u16) graphics_idx;
             best_device.present_family = cast(u16) present_idx;
@@ -378,7 +313,7 @@ vk_pick_best_device(const RendererBackendVk_Settings *vk_settings,
         }
     }
 
-    if (best_device.score < 0) {
+    if (best_device.score < 0){
         DOT_ERROR("No suitable GPU found");
     }
 
@@ -388,5 +323,97 @@ vk_pick_best_device(const RendererBackendVk_Settings *vk_settings,
     temp_arena_restore(&temp);
     return best_device;
 }
+
+internal VkImageSubresourceRange
+vk_image_subresource_range(VkImageAspectFlags aspect_mask){
+    VkImageSubresourceRange subImage = {
+        .aspectMask = aspect_mask,
+        .baseMipLevel = 0,
+        .levelCount = VK_REMAINING_MIP_LEVELS,
+        .baseArrayLayer = 0,
+        .layerCount = VK_REMAINING_ARRAY_LAYERS,
+    };
+
+    return subImage;
+}
+
+internal void
+vk_transition_image(VkCommandBuffer cmd, VkImage image, VkImageLayout current_layout, VkImageLayout new_layout) {
+    VkImageAspectFlags aspect_mask = (new_layout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+
+    VkDependencyInfo dep_info = {
+        .sType                   = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+        .imageMemoryBarrierCount = 1,
+        .pImageMemoryBarriers = &(VkImageMemoryBarrier2) {
+            .sType            = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+            .srcStageMask     = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+            .srcAccessMask    = VK_ACCESS_2_MEMORY_WRITE_BIT,
+            .dstStageMask     = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+            .dstAccessMask    = VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT,
+            .oldLayout        = current_layout,
+            .newLayout        = new_layout,
+            .image            = image,
+            .subresourceRange = vk_image_subresource_range(aspect_mask),
+        } ,
+    };
+
+    vkCmdPipelineBarrier2(cmd, &dep_info);
+}
+
+internal void*
+vk_alloc(void* data, usize size, usize alignment, VkSystemAllocationScope scope){
+    UNUSED(data); UNUSED(size); UNUSED(alignment); UNUSED(scope);
+    DOT_PRINT("VK Alloc: size=%M; scope=\n", size, string_VkSystemAllocationScope(scope));
+
+    Arena* arena = cast(Arena*)data;
+    void* mem = arena_push(arena, size, alignment, true, __FILE__, __LINE__);
+    arena_print_debug(arena);
+    return mem;
+}
+
+internal void*
+vk_realloc(void* data, void* old_mem, usize size, usize alignment, VkSystemAllocationScope scope){
+    UNUSED(data); UNUSED(size); UNUSED(alignment); UNUSED(scope); UNUSED(old_mem);
+    DOT_PRINT("VK Realloc: size=%M; scope=%s", size, string_VkSystemAllocationScope(scope) );
+    Arena* arena = cast(Arena*)data;
+    void* mem = arena_push(arena, size, alignment, true, __FILE__, __LINE__);
+    arena_print_debug(arena);
+    return mem;
+}
+
+internal void
+vk_free(void* data, void* mem){
+    UNUSED(data); UNUSED(mem);
+    Arena* arena = cast(Arena*)data;
+    DOT_PRINT("VK free");
+    arena_print_debug(arena);
+}
+
+internal void
+vk_internal_alloc(void* data, usize size, VkInternalAllocationType alloc_type, VkSystemAllocationScope scope){
+    UNUSED(data); UNUSED(size); UNUSED(scope); UNUSED(alloc_type);
+    DOT_PRINT( "VK Internal Alloc: size=%M; scope=%s", size, string_VkSystemAllocationScope(scope) );
+    // Arena* arena = cast(Arena*)data;
+    // arena_print_debug(arena);
+}
+
+internal void
+vk_internal_free(void* data, usize size, VkInternalAllocationType alloc_type, VkSystemAllocationScope scope){
+    UNUSED(data); UNUSED(size); UNUSED(scope); UNUSED(alloc_type);
+    DOT_PRINT( "VK Internal Free: size=%M; scope=%s", size, string_VkSystemAllocationScope(scope) );
+}
+
+#ifdef VK_USE_CUSTOM_ALLOCATOR
+#define VkAllocatorParams(arena) (VkAllocationCallbacks){ \
+    .pUserData = arena, \
+    .pfnAllocation = vk_alloc, \
+    .pfnReallocation = vk_realloc, \
+    .pfnFree = vk_free, \
+    .pfnInternalAllocation = vk_internal_alloc, \
+    .pfnInternalFree = vk_internal_free, \
+}
+#else
+#define VkAllocatorParams(arena) NULL
+#endif // !VK_USE_CUSTOM_ALLOCATOR
 
 #endif // !VK_HELPER_H
