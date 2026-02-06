@@ -15,7 +15,7 @@ dot_window_mouse_pos_callback(RGFW_window *window, i32 x, i32 y, float vecX, flo
 
 // TODO: RGFW_createWindow is doing malloc, override this
 internal void
-dot_window_init(DOT_Window* window){
+dot_window_init(DOT_Window *window){
     window->window = RGFW_createWindow("Super Final DOT Engine", 0, 0, 500, 500,
                                         RGFW_windowAllowDND | RGFW_windowCenter);
 
@@ -24,7 +24,7 @@ dot_window_init(DOT_Window* window){
 }
 
 internal void
-dot_window_destroy(DOT_Window* window){
+dot_window_destroy(DOT_Window *window){
         RGFW_window_close(window->window);
 }
 
@@ -49,18 +49,18 @@ dot_window_create_surface(DOT_Window* window, struct RendererBackend* backend){
 }
 
 internal b8
-dot_window_get_framebuffer_size(DOT_Window* window, i32* w, i32* h){
+dot_window_get_framebuffer_size(DOT_Window *window, i32 *w, i32 *h){
     DOT_WARNING("There does not seem to be way to query framebuffer size in RGFW. Returning window size");
     return RGFW_window_getSize(window->window, w, h);
 }
 
 internal b8
-dot_window_get_size(DOT_Window* window, i32* w, i32* h){
+dot_window_get_size(DOT_Window *window, i32 *w, i32* h){
     return RGFW_window_getSize(window->window, w, h);
 }
 
 internal b8
-dot_window_should_close(DOT_Window* window){
+dot_window_should_close(DOT_Window *window){
     RGFW_event event;
     while (RGFW_window_checkEvent(window->window, &event)) {
         if(event.type == RGFW_quit){

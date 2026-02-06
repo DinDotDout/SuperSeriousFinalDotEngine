@@ -1,6 +1,4 @@
-#include "renderer/vulkan/renderer_backend_vk.h"
 #include <vulkan/vulkan_core.h>
-#include "base/dot.h"
 #include "vk_helper.h"
 
 internal RendererBackendVk*
@@ -86,9 +84,10 @@ renderere_backend_vk_debug_callback(
 }
 
 
-internal void
-renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* window)
-{
+internal void renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* window) {
+#ifdef USE_VOLK
+        volkInitialize();
+#endif
     RendererBackendVk *vk_ctx = renderer_backend_as_vk(base_ctx);
     Arena* ctx_arena = vk_ctx->base.permanent_arena;
     // vk_ctx->vk_allocator = VkAllocatorParams(ctx_arena);
@@ -144,7 +143,9 @@ renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* window)
         }
 
         VK_CHECK(vkCreateInstance(&instance_create_info, NULL, &vk_ctx->instance));
-
+#ifdef USE_VOLK
+        volkLoadInstance(vk_ctx->instance);
+#endif
         if(VK_EXT_DEBUG_UTILS_ENABLE){
             PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT =
                 (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(vk_ctx->instance, "vkCreateDebugUtilsMessengerEXT");
@@ -200,6 +201,10 @@ renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* window)
         };
 
         VK_CHECK(vkCreateDevice(candidate_device_info.gpu, &device_create_info, NULL, &device->device));
+
+#ifdef USE_VOLK
+        volkLoadDevice(device->device);
+#endif
         vkGetDeviceQueue(device->device, candidate_device_info.graphics_family, 0, &device->graphics_queue);
         if(shared_present_graphics_queues){
             device->present_queue = device->graphics_queue;
@@ -397,16 +402,20 @@ renderer_backend_vk_draw(RendererBackend* base_ctx, u8 current_frame, u64 frame)
 	//finalize the command buffer (we can no longer add commands, but it can now be executed)
 	VK_CHECK(vkEndCommandBuffer(cmd));
 
-    VkCommandBufferSubmitInfo cmdinfo = vk_command_buffer_submit_info(cmd);	
+    VkCommandBufferSubmitInfo cmd_info = vk_command_buffer_submit_info(cmd);
+    VkSemaphoreSubmitInfo wait_info = vk_semaphore_submit_info(
+        VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
+        frame_data->swapchain_semaphore
+    );
+    VkSemaphoreSubmitInfo signal_info = vk_semaphore_submit_info(
+        VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, frame_data->render_semaphore);
 
-	VkSemaphoreSubmitInfo waitInfo = vk_semaphore_submit_info(VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR, frame_data->swapchain_semaphore);
-	VkSemaphoreSubmitInfo signalInfo = vk_semaphore_submit_info(VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, frame_data->render_semaphore);	
+    VkSubmitInfo2 submit = vk_submit_info(&cmd_info, &signal_info, &wait_info);
 
-	VkSubmitInfo2 submit = vk_submit_info(&cmdinfo,&signalInfo,&waitInfo);	
-
-	//submit command buffer to the queue and execute it.
-	// _renderFence will now block until the graphic commands finish execution
-	VK_CHECK(vkQueueSubmit2(vk_ctx->device.graphics_queue, 1, &submit, frame_data->render_fence));
+    // submit command buffer to the queue and execute it.
+    //  _renderFence will now block until the graphic commands finish execution
+    VK_CHECK(vkQueueSubmit2(vk_ctx->device.graphics_queue, 1, &submit,
+                            frame_data->render_fence));
 
     VkPresentInfoKHR presentInfo = {
 	    .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,

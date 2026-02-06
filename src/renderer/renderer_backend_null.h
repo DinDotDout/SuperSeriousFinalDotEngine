@@ -1,7 +1,6 @@
 #ifndef RENDERER_BACKEND_NULL_H
 #define RENDERER_BACKEND_NULL_H
 
-#include "base/dot.h"
 typedef struct RendererBackendNull{
     RendererBackend base;
 }RendererBackendNull;

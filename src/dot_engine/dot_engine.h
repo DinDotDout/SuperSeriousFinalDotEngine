@@ -1,17 +1,16 @@
 #ifndef DOT_ENGINE_H
 #define DOT_ENGINE_H
 
-// third_party
 #define _GNU_SOURCE
 
 #ifdef USE_VOLK
     #define VK_NO_PROTOTYPES
     #define VK_USE_PLATFORM_WAYLAND_KHR
+    #define VOLK_IMPLEMENTATION
     #include "third_party/volk/volk.h"
 #endif
 
 #define RGFW_VULKAN
-
 #ifndef _WIN32
     #define RGFW_WAYLAND // RGFW_WAYLAND is in debug mode by default for now
 #endif
