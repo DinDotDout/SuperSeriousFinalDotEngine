@@ -2,13 +2,13 @@
 #define ARENA_H
 
 // --- ARENA ----
-//  Bump style allocator that allows specifying how much memory we want to
+// Bump style allocator that allows specifying how much memory we want to
 // physically back it instead of allowing regular OS lazy page mapping. We can
 // specify initial commit size as well as how often subsequent ones will force
 // prefaulting again. Optionally, on LINUX we may use huge pages through THP
 //
 
-#define ARENA_MAX_ALIGNMENT 8 // only some 16b or SSE types will be bigger
+#define ARENA_MAX_ALIGNMENT 16
 #define ARENA_MIN_CAPACITY KB(16)
 
 typedef struct Arena Arena;
@@ -27,7 +27,7 @@ struct Arena{
 };
 
 typedef struct ArenaInitParams{
-    // These 2 will be used to alloc from if not empty, otherwise we will make a new alloc
+    // These 2 will be used to alloc from if not empty, otherwise we will make a new os alloc
     Arena *parent;
     u8 *buffer;
 
@@ -43,24 +43,17 @@ typedef struct ArenaInitParams{
     int   reserve_line;
 }ArenaInitParams;
 
-typedef struct MemoryArenaPushParams{
-    u64   size;
-    char *file;
-    char *line;
-    u8    alignment;
-}MemoryArenaPushParams;
-
-typedef struct TempArena {
+typedef struct TempArena{
     u64    prev_offset;
     Arena *arena;
-} TempArena;
+}TempArena;
 
 internal TempArena temp_arena_get(Arena *arena);
 internal void      temp_arena_restore(TempArena *temp);
 
 internal Arena* arena_alloc_(ArenaInitParams *params);
-internal Arena* arena_alloc_from_memory(ArenaInitParams* params);
-internal Arena* arena_alloc_from_arena(ArenaInitParams* params);
+internal Arena* arena_alloc_from_memory(ArenaInitParams *params);
+internal Arena* arena_alloc_from_arena(ArenaInitParams *params);
 internal Arena* arena_alloc_from_os(ArenaInitParams *params);
 internal void   arena_reset(Arena *arena);
 internal void   arena_free(Arena *arena);
@@ -94,12 +87,11 @@ internal void   arena_print_debug(Arena *arena);
 
 #define PUSH_ARRAY_NO_ZERO(arena, type, count) \
   (type *)arena_push(arena, sizeof(type) * (count), \
-                     MAX(ARENA_MAX_ALIGNMENT, ALIGNOF(type)), false, __FILE__, \
-                     __LINE__)
+                     MAX(ARENA_MAX_ALIGNMENT, ALIGNOF(type)), false, __FILE__, __LINE__)
 
 #define PUSH_STRUCT(arena, type) PUSH_ARRAY(arena, type, 1)
 
 #define MAKE_ARRAY(arena, type, count) \
     ((type##_array){.data = PUSH_ARRAY(arena, type, (count)), .size = (count)})
 
-#endif
+#endif // !ARENA_H

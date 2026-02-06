@@ -12,7 +12,7 @@ temp_arena_restore(TempArena *temp){
 }
 
 force_inline internal Arena*
-arena_alloc_(ArenaInitParams* params){
+arena_alloc_(ArenaInitParams *params){
     Arena* arena;
     if(params->buffer){
         // NOTE: Keeping this use case just in case, if we ever end up using it
@@ -32,7 +32,7 @@ arena_alloc_(ArenaInitParams* params){
 // WARN: Since for now we only get memory from arenas, we will always have
 // subarenas with prefaulted memory so we set committed == reserved
 internal Arena*
-arena_alloc_from_memory(ArenaInitParams* params){
+arena_alloc_from_memory(ArenaInitParams *params){
     DOT_ASSERT_FL(params->buffer != NULL, params->reserve_file, params->reserve_line, "Invalid memory provided");
     DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Allocating arena from buffer");
     Arena* arena              = cast(Arena*) params->buffer;
@@ -48,7 +48,7 @@ arena_alloc_from_memory(ArenaInitParams* params){
 }
 
 internal Arena*
-arena_alloc_from_arena(ArenaInitParams* params){
+arena_alloc_from_arena(ArenaInitParams *params){
     DOT_ASSERT_FL(params->parent != NULL, params->reserve_file, params->reserve_line, "Invalid memory provided");
     DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Allocating arena from parent");
     u8* mem = PUSH_SIZE_NO_ZERO(params->parent, params->reserve_size);
@@ -110,7 +110,7 @@ arena_free(Arena *arena){
 }
 
 internal void*
-arena_push(Arena *arena, usize alloc_size, usize alignment, b8 zero, char* file, u32 line){
+arena_push(Arena *arena, usize alloc_size, usize alignment, b8 zero, char *file, u32 line){
     DOT_ASSERT_FL(alloc_size > 0, file, line);
     uptr arena_base = cast(uptr)arena->base;
     uptr current_address =  arena_base + arena->used;
@@ -120,18 +120,20 @@ arena_push(Arena *arena, usize alloc_size, usize alignment, b8 zero, char* file,
     usize required_padded = aligned_address - current_address + alloc_size;
     arena->used += required_padded;
 
-    i64 page_overhang = arena->used - arena->committed;
-    if(page_overhang > 0){
+    // NOTE: Up to here we have calculated how much memory do we need exactly. We will now check
+    // if we need to further commit pages to back up our needs
+    b8 need_more_pages = arena->used > arena->committed;
+    if(need_more_pages){
+        i64 needed_memory = arena->used - arena->committed;
         u64 page_size = arena->large_pages ? PLATFORM_LARGE_PAGE_SIZE
                                         : PLATFORM_REGULAR_PAGE_SIZE;
-
-        usize need_aligned = ALIGN_POW2(page_overhang, page_size);
-        usize leftover     = arena->reserved - arena->committed;
+        usize need_aligned = ALIGN_POW2(needed_memory, page_size);
         usize commit_size  = MAX(arena->commit_expand_size, need_aligned);
-        if(commit_size > leftover) commit_size = need_aligned;
-        if(DOT_UNLIKELY(commit_size > leftover)){
+        usize arena_leftover_memory = arena->reserved - arena->committed;
+        if(commit_size > arena_leftover_memory) commit_size = need_aligned;
+        if(DOT_UNLIKELY(commit_size > arena_leftover_memory)){
             DOT_ERROR_FL(file, line,
-                "Can't commit more memory! needed = %M; leftover = %M", commit_size, leftover);
+                "Can't commit more memory! needed = %M; leftover = %M", commit_size, arena_leftover_memory);
             return NULL;
         }
 
