@@ -5,15 +5,15 @@
 #define _GNU_SOURCE
 
 #ifdef USE_VOLK
-#define VK_NO_PROTOTYPES
-#define VK_USE_PLATFORM_WAYLAND_KHR
-#include "third_party/volk/volk.h"
+    #define VK_NO_PROTOTYPES
+    #define VK_USE_PLATFORM_WAYLAND_KHR
+    #include "third_party/volk/volk.h"
 #endif
 
 #define RGFW_VULKAN
 
 #ifndef _WIN32
-#define RGFW_WAYLAND // wayland is be in debug mode by default for now
+    #define RGFW_WAYLAND // RGFW_WAYLAND is in debug mode by default for now
 #endif
 
 #define RGFW_IMPLEMENTATION

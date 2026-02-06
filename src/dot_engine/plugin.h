@@ -34,11 +34,11 @@ struct Plugin{
     __declspec(allocate("plugins$a")) extern const Plugin __start_plugins;
     __declspec(allocate("plugins$z")) extern const Plugin __stop_plugins;
 #else
-    // Plugins will be used as an array, so we have to tell asan to not poison in between elements
+    // Plugins will be used as an array, so we have to tell asan to not poison in between elements.
+    // This is not needed in GCC and it will actually give a warning
     #define PLUGIN_SECTION(priority) \
         __attribute__((used, section(".plugins." #priority))) \
         __attribute__((no_sanitize("address")))
-
     extern const Plugin __start_plugins[];
     extern const Plugin __stop_plugins[];
 #endif
