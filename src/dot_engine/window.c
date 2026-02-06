@@ -32,12 +32,13 @@ dot_window_destroy(DOT_Window* window){
 // Or just make specific functions and pass in proper parameters
 internal void
 dot_window_create_surface(DOT_Window* window, struct RendererBackend* backend){
-    switch (backend->backend_kind) {
+    switch (backend->backend_kind){
         case RENDERER_BACKEND_VK:{
             RendererBackendVk* vk_ctx = renderer_backend_as_vk(backend);
             VK_CHECK(RGFW_window_createSurface_Vulkan(window->window, vk_ctx->instance, &vk_ctx->surface));
             break;
         }
+        case RENDERER_BACKEND_NULL:
         case RENDERER_BACKEND_GL:
         case RENDERER_BACKEND_DX12:
             DOT_ERROR("Backend not implemented");

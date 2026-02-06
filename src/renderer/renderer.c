@@ -6,7 +6,8 @@ renderer_backend_create(Arena *arena, RendererBackendConfig *backend_config){
     );
     RendererBackend *base;
     switch (backend_config->backend_kind){
-    case RENDERER_BACKEND_VK: base = cast(RendererBackend*) renderer_backend_vk_create(backend_arena); break;
+    case RENDERER_BACKEND_VK:   base = cast(RendererBackend*) renderer_backend_vk_create(backend_arena); break;
+    case RENDERER_BACKEND_NULL: base = cast(RendererBackend*) renderer_backend_null_create(backend_arena); break;
     // case RENDERER_BACKEND_GL: base = cast(RendererBackend*) renderer_backend_gl_create(arena); break;
     // case RENDERER_BACKEND_DX: base = cast(RendererBackend*) renderer_backend_dx_create(arena); break;
     default:
