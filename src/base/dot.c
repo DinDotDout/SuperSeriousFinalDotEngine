@@ -23,4 +23,3 @@ dot_print_debug_(const DOT_PrintDebugParams* params, const char *fmt, ...){
         params->line,
         buf);
 }
-

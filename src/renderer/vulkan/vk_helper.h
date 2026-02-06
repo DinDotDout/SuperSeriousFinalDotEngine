@@ -50,7 +50,8 @@ typedef struct VkCandidateDeviceInfo{
     }
 
 internal inline b8
-vk_all_layers(const RendererBackendVk_Settings* vk_settings){
+vk_all_layers(const RBVK_Settings* vk_settings)
+{
     TempArena temp = threadctx_get_temp(NULL, 0);
     u32 available_layer_count = 0;
     vkEnumerateInstanceLayerProperties(&available_layer_count, NULL);
@@ -77,7 +78,8 @@ vk_all_layers(const RendererBackendVk_Settings* vk_settings){
 }
 
 internal inline b8
-vk_instance_all_required_extensions(const RendererBackendVk_Settings* vk_settings){
+vk_instance_all_required_extensions(const RBVK_Settings* vk_settings)
+{
     TempArena temp = threadctx_get_temp(NULL, 0);
     u32 extension_count;
     vkEnumerateInstanceExtensionProperties(NULL, &extension_count, NULL);
@@ -106,7 +108,8 @@ vk_instance_all_required_extensions(const RendererBackendVk_Settings* vk_setting
 }
 
 internal inline b8
-vk_physical_device_all_required_extensions(const RendererBackendVk_Settings* vk_settings, VkPhysicalDevice device){
+vk_physical_device_all_required_extensions(const RBVK_Settings* vk_settings, VkPhysicalDevice device)
+{
     TempArena temp = threadctx_get_temp(NULL, 0);
     u32 extension_count;
     vkEnumerateDeviceExtensionProperties(device, NULL, &extension_count, NULL);
@@ -136,12 +139,12 @@ vk_physical_device_all_required_extensions(const RendererBackendVk_Settings* vk_
 
 internal inline b8
 vk_physical_device_swapchain_support(
-    const RendererBackendVk_Settings *vk_settings,
+    const RBVK_Settings *vk_settings,
     VkPhysicalDevice gpu,
     VkSurfaceKHR surface,
     DOT_Window* window,
-    VkSwapchainDetails* details){
-
+    VkSwapchainDetails* details)
+{
     TempArena temp = threadctx_get_temp(NULL, 0);
     typedef struct SwapchainSupportDetails{
         VkSurfaceCapabilities2KHR surface_capabilities;
@@ -188,9 +191,9 @@ vk_physical_device_swapchain_support(
             surface_extent.height = CLAMP(surface_extent.height, surface_capabilities.minImageExtent.height, surface_capabilities.maxImageExtent.height);
         }
 
-        VkFormat         preferred_format             = vk_settings->swapchain_settings.preferred_format;
-        VkColorSpaceKHR  preferred_colorspace         = vk_settings->swapchain_settings.preferred_colorspace;
-        VkPresentModeKHR preferred_present_mode       = vk_settings->swapchain_settings.preferred_present_mode;
+        VkFormat         preferred_format       = vk_settings->swapchain_settings.preferred_format;
+        VkColorSpaceKHR  preferred_colorspace   = vk_settings->swapchain_settings.preferred_colorspace;
+        VkPresentModeKHR preferred_present_mode = vk_settings->swapchain_settings.preferred_present_mode;
 
         VkSurfaceFormat2KHR desired_format = swapchain_support_details.surface_formats[0]; // Keep this one if none found
         array(VkSurfaceFormat2KHR) surface_formats = swapchain_support_details.surface_formats;
@@ -226,11 +229,11 @@ vk_physical_device_swapchain_support(
 
 internal inline VkCandidateDeviceInfo
 vk_pick_best_device(
-    const RendererBackendVk_Settings *vk_settings,
+    const RBVK_Settings *vk_settings,
     VkInstance instance,
     VkSurfaceKHR surface,
-    DOT_Window *window){
-
+    DOT_Window *window)
+{
     TempArena temp = threadctx_get_temp(NULL, 0);
     u32 device_count = 0;
     vkEnumeratePhysicalDevices(instance, &device_count, NULL);
@@ -325,7 +328,8 @@ vk_pick_best_device(
 }
 
 internal VkImageSubresourceRange
-vk_image_subresource_range(VkImageAspectFlags aspect_mask){
+vk_image_subresource_range(VkImageAspectFlags aspect_mask)
+{
     VkImageSubresourceRange subImage = {
         .aspectMask = aspect_mask,
         .baseMipLevel = 0,
@@ -333,18 +337,23 @@ vk_image_subresource_range(VkImageAspectFlags aspect_mask){
         .baseArrayLayer = 0,
         .layerCount = VK_REMAINING_ARRAY_LAYERS,
     };
-
     return subImage;
 }
 
+// NOTE: Should make this a macro with default params?
 internal void
-vk_transition_image(VkCommandBuffer cmd, VkImage image, VkImageLayout current_layout, VkImageLayout new_layout) {
-    VkImageAspectFlags aspect_mask = (new_layout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
-
+vk_transition_image(
+    VkCommandBuffer cmd,
+    VkImage image,
+    VkImageLayout current_layout,
+    VkImageLayout new_layout)
+{
+    VkImageAspectFlags aspect_mask = (new_layout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL)
+    	? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
     VkDependencyInfo dep_info = {
         .sType                   = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
         .imageMemoryBarrierCount = 1,
-        .pImageMemoryBarriers = &(VkImageMemoryBarrier2) {
+        .pImageMemoryBarriers = &(VkImageMemoryBarrier2){
             .sType            = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
             .srcStageMask     = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
             .srcAccessMask    = VK_ACCESS_2_MEMORY_WRITE_BIT,
@@ -360,8 +369,59 @@ vk_transition_image(VkCommandBuffer cmd, VkImage image, VkImageLayout current_la
     vkCmdPipelineBarrier2(cmd, &dep_info);
 }
 
+
+internal VkSemaphoreSubmitInfo
+vk_semaphore_submit_info(VkPipelineStageFlags2 stageMask, VkSemaphore semaphore)
+{
+	VkSemaphoreSubmitInfo submitInfo = {
+	    .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+	    .semaphore = semaphore,
+	    .stageMask = stageMask,
+	    .deviceIndex = 0,
+	    .value = 1
+    };
+
+	return submitInfo;
+}
+
+internal VkCommandBufferSubmitInfo
+vk_command_buffer_submit_info(VkCommandBuffer cmd)
+{
+	VkCommandBufferSubmitInfo info = {
+	    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+	    .pNext = NULL,
+	    .commandBuffer = cmd,
+	    .deviceMask = 0,
+    };
+	return info;
+}
+
+internal VkSubmitInfo2
+vk_submit_info(
+    VkCommandBufferSubmitInfo* cmd,
+    VkSemaphoreSubmitInfo* signal_semaphore_info,
+    VkSemaphoreSubmitInfo* wait_semaphore_info)
+{
+    VkSubmitInfo2 info = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+        .pNext = NULL,
+
+        .waitSemaphoreInfoCount = wait_semaphore_info == NULL ? 0 : 1,
+        .pWaitSemaphoreInfos = wait_semaphore_info,
+
+        .signalSemaphoreInfoCount = signal_semaphore_info == NULL ? 0 : 1,
+        .pSignalSemaphoreInfos = signal_semaphore_info,
+
+        .commandBufferInfoCount = 1,
+        .pCommandBufferInfos = cmd,
+    };
+
+    return info;
+}
+
 internal void*
-vk_alloc(void* data, usize size, usize alignment, VkSystemAllocationScope scope){
+vk_alloc(void* data, usize size, usize alignment, VkSystemAllocationScope scope)
+{
     UNUSED(data); UNUSED(size); UNUSED(alignment); UNUSED(scope);
     DOT_PRINT("VK Alloc: size=%M; scope=\n", size, string_VkSystemAllocationScope(scope));
 
@@ -372,7 +432,8 @@ vk_alloc(void* data, usize size, usize alignment, VkSystemAllocationScope scope)
 }
 
 internal void*
-vk_realloc(void* data, void* old_mem, usize size, usize alignment, VkSystemAllocationScope scope){
+vk_realloc(void* data, void* old_mem, usize size, usize alignment, VkSystemAllocationScope scope)
+{
     UNUSED(data); UNUSED(size); UNUSED(alignment); UNUSED(scope); UNUSED(old_mem);
     DOT_PRINT("VK Realloc: size=%M; scope=%s", size, string_VkSystemAllocationScope(scope) );
     Arena* arena = cast(Arena*)data;
@@ -382,7 +443,8 @@ vk_realloc(void* data, void* old_mem, usize size, usize alignment, VkSystemAlloc
 }
 
 internal void
-vk_free(void* data, void* mem){
+vk_free(void* data, void* mem)
+{
     UNUSED(data); UNUSED(mem);
     Arena* arena = cast(Arena*)data;
     DOT_PRINT("VK free");
@@ -390,15 +452,17 @@ vk_free(void* data, void* mem){
 }
 
 internal void
-vk_internal_alloc(void* data, usize size, VkInternalAllocationType alloc_type, VkSystemAllocationScope scope){
+vk_internal_alloc(void* data, usize size, VkInternalAllocationType alloc_type, VkSystemAllocationScope scope)
+{
     UNUSED(data); UNUSED(size); UNUSED(scope); UNUSED(alloc_type);
-    DOT_PRINT( "VK Internal Alloc: size=%M; scope=%s", size, string_VkSystemAllocationScope(scope) );
+    DOT_PRINT("VK Internal Alloc: size=%M; scope=%s", size, string_VkSystemAllocationScope(scope));
     // Arena* arena = cast(Arena*)data;
     // arena_print_debug(arena);
 }
 
 internal void
-vk_internal_free(void* data, usize size, VkInternalAllocationType alloc_type, VkSystemAllocationScope scope){
+vk_internal_free(void* data, usize size, VkInternalAllocationType alloc_type, VkSystemAllocationScope scope)
+{
     UNUSED(data); UNUSED(size); UNUSED(scope); UNUSED(alloc_type);
     DOT_PRINT( "VK Internal Free: size=%M; scope=%s", size, string_VkSystemAllocationScope(scope) );
 }

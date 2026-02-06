@@ -26,7 +26,7 @@ typedef struct RendererConfig{
 typedef struct RendererBackend RendererBackend;
 typedef void (*RendererBackend_InitFn)(RendererBackend *ctx, DOT_Window *window);
 typedef void (*RendererBackend_ShutdownFn)(RendererBackend *ctx);
-typedef void (*RendererBackend_Draw)(RendererBackend *ctx, u8 current_frame);
+typedef void (*RendererBackend_Draw)(RendererBackend *ctx, u8 current_frame, u64 frame);
 
 struct RendererBackend{
     RendererBackendKind        backend_kind;
@@ -52,4 +52,4 @@ typedef struct DOT_Renderer{
 internal RendererBackend* renderer_backend_create(Arena *arena, RendererBackendConfig *config);
 internal void renderer_init(Arena *arena, DOT_Renderer *renderer, DOT_Window *window, RendererConfig *config);
 internal void renderer_shutdown(DOT_Renderer *renderer);
-#endif
+#endif // !RENDERER_H

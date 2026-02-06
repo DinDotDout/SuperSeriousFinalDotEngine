@@ -9,6 +9,7 @@
 #define DOT_INT_SKIP
 #include "base/dot.h"
 #include "base/platform.h"
+#include "base/math.h"
 #include "base/arena.h"
 #include "base/string.h"
 #include "base/thread_ctx.h"
@@ -20,4 +21,4 @@
 #include "base/string.c"
 #include "base/thread_ctx.c"
 
-#endif // BASE_INC_H
+#endif // !BASE_INC_H

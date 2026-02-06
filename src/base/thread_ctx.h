@@ -29,4 +29,4 @@ internal TempArena threadctx_get_temp(Arena **avoid, u32 avoid_count);
 
 // TODO: Implement threading
 #define MUTEX_SCOPE(mutex) DEFER_LOOP(mutex_Lock(mutex), mutex_unlock(mutex))
-#endif
+#endif // !THREAD_CTX

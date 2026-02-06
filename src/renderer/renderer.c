@@ -45,6 +45,6 @@ renderer_shutdown(DOT_Renderer *renderer){
 internal void
 renderer_draw(DOT_Renderer *renderer){
     RendererBackend *backend = renderer->backend;
-    backend->draw(backend, renderer->current_frame % renderer->frame_overlap);
+    backend->draw(backend, renderer->current_frame % renderer->frame_overlap, renderer->current_frame);
     ++renderer->current_frame;
 }

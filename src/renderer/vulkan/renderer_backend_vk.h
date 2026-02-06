@@ -1,5 +1,5 @@
-#ifndef VK_RENDERER
-#define VK_RENDERER
+#ifndef RENDERER_BACKEND_VK_H
+#define RENDERER_BACKEND_VK_H
 
 #ifdef NDEBUG
 #define VALIDATION_LAYERS_ENABLE 0
@@ -9,7 +9,7 @@
 #define VK_EXT_DEBUG_UTILS_ENABLE 1
 #endif
 
-typedef struct RendererBackendVk_Settings{
+typedef struct RBVK_Settings{
     struct InstanceVkSettings{
         const String8 *instance_extension_names;
         const usize  instance_extension_count;
@@ -30,9 +30,9 @@ typedef struct RendererBackendVk_Settings{
     struct FrameSettings{
         u8 frame_overlap;
     }frame_settings;
-}RendererBackendVk_Settings;
+}RBVK_Settings;
 
-typedef struct RendererBackendVk_Device{
+typedef struct RBVK_Device{
     VkDevice         device;
     VkPhysicalDevice gpu;
 
@@ -41,35 +41,34 @@ typedef struct RendererBackendVk_Device{
 
     VkQueue present_queue;
     u32     present_queue_idx;
-}RendererBackendVk_Device;
+}RBVK_Device;
 
-typedef struct RendererBackendVk_Swapchain{
+typedef struct RBVK_Swapchain{
     VkSwapchainKHR swapchain;
     VkExtent2D     extent;
     VkFormat       image_format;
 
-    VkImage*       images;
-    VkImageView*   image_views;
+    VkImage       *images;
+    VkImageView   *image_views;
     u32            images_count; // Shared between images and images views
-}RendererBackendVk_Swapchain;
+}RBVK_Swapchain;
 
-// #define RENDERER_BACKEND_VK_FRAME_OVERLAP 2
-typedef struct RendererBackendVk_FrameData{
+typedef struct RBVK_FrameData{
     VkCommandPool   command_pool;
     VkCommandBuffer frame_command_buffer;
     VkSemaphore     swapchain_semaphore, render_semaphore;
     VkFence         render_fence;
-}RendererBackendVk_FrameData;
+}RBVK_FrameData;
 
 typedef struct RendererBackendVk{
-    RendererBackend               base;
-    RendererBackendVk_Device      device;
-    RendererBackendVk_Swapchain   swapchain;
-    VkInstance                    instance;
-    VkSurfaceKHR                  surface;
+    RendererBackend base;
+    RBVK_Device     device;
+    RBVK_Swapchain  swapchain;
+    VkInstance      instance;
+    VkSurfaceKHR    surface;
 
-    u8                            frame_count;
-    RendererBackendVk_FrameData*  frames;
+    u8              frame_count;
+    RBVK_FrameData *frames;
 
     // NOTE: vk expects a malloc like allocator, which I don't intend on make or using for now
     // so our push arenas do not work for this :(
@@ -80,10 +79,10 @@ typedef struct RendererBackendVk{
 
 internal RendererBackendVk* renderer_backend_as_vk(RendererBackend* base);
 internal RendererBackendVk* renderer_backend_vk_create(Arena* arena);
-internal const RendererBackendVk_Settings* renderer_backend_vk_settings();
+internal const RBVK_Settings* renderer_backend_vk_settings();
 
-internal void renderer_backend_vk_init(RendererBackend* ctx, DOT_Window* window);
-internal void renderer_backend_vk_shutdown(RendererBackend* ctx);
-internal void renderer_backend_vk_draw(RendererBackend* base_ctx, u8 current_frame);
+internal void renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* window);
+internal void renderer_backend_vk_shutdown(RendererBackend* base_ctx);
+internal void renderer_backend_vk_draw(RendererBackend* base_ctx, u8 current_frame, u64 frame);
 
-#endif
+#endif // !RENDERER_BACKEND_VK_H

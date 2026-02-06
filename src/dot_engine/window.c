@@ -63,9 +63,9 @@ internal b8
 dot_window_should_close(DOT_Window* window){
     RGFW_event event;
     while (RGFW_window_checkEvent(window->window, &event)) {
-        // if(event.type == RGFW_quit){
-        //     break;
-        // }
+        if(event.type == RGFW_quit){
+            break;
+        }
     }
     return RGFW_window_shouldClose(window->window);
 }

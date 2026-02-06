@@ -23,4 +23,4 @@ DOT_GameVtable game_vtable;
 void dot_game_bootstrap();
 b8 dot_game_init(DOT_Game* game);
 void dot_game_shutdown(DOT_Game* game);
-#endif
+#endif // !DOT_GAME_H
