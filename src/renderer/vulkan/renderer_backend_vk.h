@@ -17,6 +17,7 @@ typedef struct RBVK_Settings{
     struct DeviceVkSettings{
         const String8 *device_extension_names;
         const usize    device_extension_count;
+        const void*    device_features;
     }device_settings;
     struct LayerVkSettings{
         const String8 *layer_names;
@@ -58,6 +59,7 @@ typedef struct RBVK_FrameData{
     VkCommandBuffer frame_command_buffer;
     VkSemaphore     swapchain_semaphore, render_semaphore;
     VkFence         render_fence;
+    Arena          *frame_arena;
 }RBVK_FrameData;
 
 typedef struct RendererBackendVk{
@@ -67,8 +69,8 @@ typedef struct RendererBackendVk{
     VkInstance      instance;
     VkSurfaceKHR    surface;
 
-    u8              frame_count;
-    RBVK_FrameData *frames;
+    u8              frame_data_count;
+    RBVK_FrameData *frame_datas;
 
     // NOTE: vk expects a malloc like allocator, which I don't intend on make or using for now
     // so our push arenas do not work for this :(

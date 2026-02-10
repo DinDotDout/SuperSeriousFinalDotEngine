@@ -34,6 +34,21 @@ renderer_backend_vk_settings()
         String8Lit(DOT_VK_SURFACE),
     };
 
+    static const VkPhysicalDeviceVulkan13Features features13 = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+        .synchronization2 = VK_TRUE,
+        .dynamicRendering = true,
+    };
+    static const VkPhysicalDeviceVulkan12Features features12 = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+        .pNext = (void*) &features13,
+        .bufferDeviceAddress = true,
+        .descriptorIndexing = true,
+        .descriptorBindingPartiallyBound = true,
+        .descriptorBindingVariableDescriptorCount = true,
+        .runtimeDescriptorArray = true,
+    };
+
     static const String8 device_exts[] = {
         String8Lit(VK_KHR_SWAPCHAIN_EXTENSION_NAME),
     };
@@ -52,6 +67,7 @@ renderer_backend_vk_settings()
         .device_settings = {
             .device_extension_names = device_exts,
             .device_extension_count = ARRAY_COUNT(device_exts),
+            .device_features        = &features12,
         },
         .layer_settings = {
             .layer_names = vk_layers,
@@ -192,12 +208,13 @@ internal void renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* wi
             .sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
             .pQueueCreateInfos       = queue_infos,
             .queueCreateInfoCount    = queue_count,
-            // .pEnabledFeatures        = &(VkPhysicalDeviceFeatures){}, // 
+            .pEnabledFeatures        = &(VkPhysicalDeviceFeatures){},
             .ppEnabledExtensionNames = string8_array_to_str_array(
                 temp.arena,
                 vk_settings->device_settings.device_extension_count,
                 vk_settings->device_settings.device_extension_names),
             .enabledExtensionCount   = vk_settings->device_settings.device_extension_count,
+            .pNext = vk_settings->device_settings.device_features,
         };
 
         VK_CHECK(vkCreateDevice(candidate_device_info.gpu, &device_create_info, NULL, &device->device));
@@ -223,6 +240,7 @@ internal void renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* wi
         swapchain->image_format = details.best_surface_format.format;
         swapchain->images_count = details.image_count;
 
+        VkExtent2D window_extents = {window->window->w, window->window->h};
         VkSwapchainCreateInfoKHR swapchain_create_info = {
             .sType            = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
             .surface          = vk_ctx->surface,
@@ -238,6 +256,7 @@ internal void renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* wi
             .compositeAlpha   = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
             .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
             .oldSwapchain     = VK_NULL_HANDLE, // Will need to update this for recreation
+            .imageExtent      = window_extents,
         };
         if(vk_ctx->device.graphics_queue_idx != vk_ctx->device.present_queue_idx){
             DOT_ERROR("Different present and graphics queues unsupported");
@@ -247,8 +266,16 @@ internal void renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* wi
             swapchain_create_info.queueFamilyIndexCount = ARRAY_COUNT(queues);
         }
         VK_CHECK(vkCreateSwapchainKHR(vk_ctx->device.device, &swapchain_create_info, NULL, &swapchain->swapchain));
+        VkExtent3D draw_image = {
+            .width  = window_extents.width,
+            .height = window_extents.height,
+            .depth  = 1,
+        };
+        (void) draw_image;
+
+        // VkImageCreateInfo image_info = vk_image_create_info();
  
-        //  --- Create Images ---
+        //  --- Create Swapchain Images ---
         {
             VkDevice device = vk_ctx->device.device;
             vkGetSwapchainImagesKHR(device, swapchain->swapchain, &swapchain->images_count, NULL);
@@ -289,8 +316,8 @@ internal void renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* wi
         u8 frame_overlap = vk_settings->frame_settings.frame_overlap;
         VkDevice device = vk_ctx->device.device;
         // WARN: Any allocation that can be recreated may be need to be pushed onto its own arena alloc ctx to avoid leaking
-        vk_ctx->frame_count = frame_overlap;
-        vk_ctx->frames = PUSH_ARRAY(ctx_arena, RBVK_FrameData, frame_overlap);
+        vk_ctx->frame_data_count = frame_overlap;
+        vk_ctx->frame_datas = PUSH_ARRAY(ctx_arena, RBVK_FrameData, frame_overlap);
         // --- Create Commands Buffers ---
         {
             VkCommandPoolCreateInfo command_pool_info = {
@@ -304,10 +331,11 @@ internal void renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* wi
                 .commandBufferCount = 1,
             };
             for(u8 i = 0; i < frame_overlap; ++i){
-                RBVK_FrameData *frame_data = &vk_ctx->frames[i];
+                RBVK_FrameData *frame_data = &vk_ctx->frame_datas[i];
                 VK_CHECK(vkCreateCommandPool(device, &command_pool_info, NULL, &frame_data->command_pool));
                 cmd_alloc_info.commandPool = frame_data->command_pool;
                 VK_CHECK(vkAllocateCommandBuffers(device, &cmd_alloc_info, &frame_data->frame_command_buffer));
+                frame_data->frame_arena = ARENA_ALLOC(.parent = ctx_arena, .reserve_size = KB(32));
             }
         }
         // --- Init Sync Structures ---
@@ -323,7 +351,7 @@ internal void renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* wi
                 .pNext = NULL,
             };
             for(u8 i = 0; i < frame_overlap; ++i){
-                RBVK_FrameData *frame_data = &vk_ctx->frames[i];
+                RBVK_FrameData *frame_data = &vk_ctx->frame_datas[i];
                 VK_CHECK(vkCreateFence(device, &fence_create_info, NULL, &frame_data->render_fence));
                 VK_CHECK(vkCreateSemaphore(device, &semaphore_create_info, NULL, &frame_data->render_semaphore));
                 VK_CHECK(vkCreateSemaphore(device, &semaphore_create_info, NULL, &frame_data->swapchain_semaphore));
@@ -341,7 +369,7 @@ renderer_backend_vk_shutdown(RendererBackend* base_ctx)
     VkDevice device = vk_ctx->device.device;
     vkDeviceWaitIdle(device);
     for(u32 i = 0; i < settings->frame_settings.frame_overlap; ++i){
-        RBVK_FrameData* frame_data = &vk_ctx->frames[i];
+        RBVK_FrameData* frame_data = &vk_ctx->frame_datas[i];
         vkDestroyCommandPool(device, frame_data->command_pool, NULL);
         vkDestroyFence(device, frame_data->render_fence, NULL);
         vkDestroySemaphore(device, frame_data->render_semaphore, NULL);
@@ -368,7 +396,7 @@ renderer_backend_vk_draw(RendererBackend* base_ctx, u8 current_frame, u64 frame)
 {
     UNUSED(base_ctx); UNUSED(current_frame);
     RendererBackendVk *vk_ctx = renderer_backend_as_vk(base_ctx);
-    RBVK_FrameData *frame_data = &vk_ctx->frames[current_frame];
+    RBVK_FrameData *frame_data = &vk_ctx->frame_datas[current_frame];
     VkDevice device = vk_ctx->device.device;
     VK_CHECK(vkWaitForFences(device, 1, &frame_data->render_fence, true, TO_USEC(1)));
     VK_CHECK(vkResetFences(device, 1, &frame_data->render_fence));
@@ -397,7 +425,7 @@ renderer_backend_vk_draw(RendererBackend* base_ctx, u8 current_frame, u64 frame)
 	vkCmdClearColorImage(cmd, current_image, VK_IMAGE_LAYOUT_GENERAL, &clear_value, 1, &clear_range);
 
 	//make the swapchain image into presentable mode
-	vk_transition_image(cmd, current_image,VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+	vk_transition_image(cmd, current_image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
 	//finalize the command buffer (we can no longer add commands, but it can now be executed)
 	VK_CHECK(vkEndCommandBuffer(cmd));
@@ -422,12 +450,9 @@ renderer_backend_vk_draw(RendererBackend* base_ctx, u8 current_frame, u64 frame)
 	    .pNext = NULL,
 	    .pSwapchains = &vk_ctx->swapchain.swapchain,
 	    .swapchainCount = 1,
+	    .pWaitSemaphores = &frame_data->render_semaphore,
+	    .waitSemaphoreCount = 1,
+	    .pImageIndices = &swapchain_image_idx,
 	};
-
-	presentInfo.pWaitSemaphores = &frame_data->render_semaphore;
-	presentInfo.waitSemaphoreCount = 1;
-
-	presentInfo.pImageIndices = &swapchain_image_idx;
 	VK_CHECK(vkQueuePresentKHR(vk_ctx->device.graphics_queue, &presentInfo));
-
 }

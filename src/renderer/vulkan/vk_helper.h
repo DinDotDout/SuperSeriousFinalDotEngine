@@ -180,7 +180,7 @@ vk_physical_device_swapchain_support(
     b8 has_support = swapchain_support_details.format_count > 0 && swapchain_support_details.present_modes_count > 0;
     if(has_support && details != NULL){
         VkSurfaceCapabilitiesKHR surface_capabilities = swapchain_support_details.surface_capabilities.surfaceCapabilities; // ...
-        VkExtent2D surface_extent = surface_capabilities.currentExtent; // ...
+        VkExtent2D surface_extent = surface_capabilities.currentExtent;
         if(surface_extent.width == U32_MAX){ // Should we just do this outside this func?
             i32 w, h;
             dot_window_get_framebuffer_size(window, &w, &h);
@@ -414,6 +414,51 @@ vk_submit_info(
 
         .commandBufferInfoCount = 1,
         .pCommandBufferInfos = cmd,
+    };
+
+    return info;
+}
+
+internal VkImageCreateInfo
+vk_image_create_info(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent)
+{
+    VkImageCreateInfo info = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .pNext = NULL,
+
+        .imageType = VK_IMAGE_TYPE_2D,
+
+        .format = format,
+        .extent = extent,
+
+        .mipLevels = 1,
+        .arrayLayers = 1,
+
+        //for MSAA. we will not be using it by default, so default it to 1 sample per pixel.
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+
+        //optimal tiling, which means the image is stored on the best gpu format
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = usageFlags,
+    };
+
+    return info;
+}
+
+VkImageViewCreateInfo vk_imageview_create_info(VkFormat format, VkImage image, VkImageAspectFlags aspectFlags)
+{
+    // build a image-view for the depth image to use for rendering
+    VkImageViewCreateInfo info = {
+    .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+    .pNext = NULL,
+    .viewType = VK_IMAGE_VIEW_TYPE_2D,
+    .image = image,
+    .format = format,
+    .subresourceRange.baseMipLevel = 0,
+    .subresourceRange.levelCount = 1,
+    .subresourceRange.baseArrayLayer = 0,
+    .subresourceRange.layerCount = 1,
+    .subresourceRange.aspectMask = aspectFlags,
     };
 
     return info;
