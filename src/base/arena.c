@@ -122,9 +122,13 @@ arena_push(Arena *arena, usize alloc_size, usize alignment, b8 zero, char *file,
 
     // NOTE: Up to here we have calculated how much memory do we need exactly. We will now check
     // if we need to further commit pages to back up our needs
+    u64 need_zero = required_padded;
+    // NOTE: Fresh OS pages are zeroed, so we only need to zero the portion we already owned
     b8 need_more_pages = arena->used > arena->committed;
     if(need_more_pages){
         i64 needed_memory = arena->used - arena->committed;
+        need_zero -= needed_memory;
+
         u64 page_size = arena->large_pages ? PLATFORM_LARGE_PAGE_SIZE
                                         : PLATFORM_REGULAR_PAGE_SIZE;
         usize need_aligned = ALIGN_POW2(needed_memory, page_size);
@@ -136,7 +140,6 @@ arena_push(Arena *arena, usize alloc_size, usize alignment, b8 zero, char *file,
                 "Can't commit more memory! needed = %M; leftover = %M", commit_size, arena_leftover_memory);
             return NULL;
         }
-
         uptr commit_pos = arena_base + arena->committed;
         if(arena->large_pages){
             os_commit_large((void*)commit_pos, commit_size);
@@ -146,8 +149,8 @@ arena_push(Arena *arena, usize alloc_size, usize alignment, b8 zero, char *file,
         arena->committed += commit_size;
     }
     ASAN_UNPOISON(mem_offset, required_padded);
-    if(zero){
-        MEMORY_ZERO(mem_offset, required_padded);
+    if(zero && need_zero > 0){
+        MEMORY_ZERO(mem_offset, need_zero);
     }
     return mem_offset;
 }
