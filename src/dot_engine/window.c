@@ -1,7 +1,6 @@
 #include "renderer/vulkan/vk_helper.h"
-// HACK: Create window here for now
-float mouse_data[2] = {0.0f, 0.0f};
 
+float mouse_data[2] = {0.0f, 0.0f};
 internal void
 dot_window_mouse_pos_callback(RGFW_window *window, i32 x, i32 y, float vecX, float vecY) {
     RGFW_UNUSED(vecX);
@@ -20,7 +19,7 @@ dot_window_init(DOT_Window *window){
                                         RGFW_windowAllowDND | RGFW_windowCenter);
 
     RGFW_window_setExitKey(window->window, RGFW_escape);
-    RGFW_setMousePosCallback(dot_window_mouse_pos_callback);
+    // RGFW_setMousePosCallback(dot_window_mouse_pos_callback);
 }
 
 internal void
@@ -33,18 +32,19 @@ dot_window_destroy(DOT_Window *window){
 internal void
 dot_window_create_surface(DOT_Window* window, struct RendererBackend* backend){
     switch (backend->backend_kind){
-        case RENDERER_BACKEND_VK:{
-            RendererBackendVk* vk_ctx = renderer_backend_as_vk(backend);
-            VK_CHECK(RGFW_window_createSurface_Vulkan(window->window, vk_ctx->instance, &vk_ctx->surface));
-            break;
-        }
-        case RENDERER_BACKEND_NULL:
-        case RENDERER_BACKEND_GL:
-        case RENDERER_BACKEND_DX12:
-            DOT_ERROR("Backend not implemented");
-            break;
-        default: DOT_ERROR("Backend not set");
-            break;
+    case RendererBackendKind_Vk:{
+        RendererBackendVk* vk_ctx = renderer_backend_as_vk(backend);
+        VK_CHECK(RGFW_window_createSurface_Vulkan(window->window, vk_ctx->instance, &vk_ctx->surface));
+    break;
+    }
+    case RendererBackendKind_Null: 
+    break;
+    case RendererBackendKind_Gl:
+    case RendererBackendKind_Dx12:
+        DOT_ERROR("Backend not implemented");
+    break;
+    default: DOT_ERROR("Backend not set");
+    break;
     }
 }
 
@@ -63,9 +63,7 @@ internal b8
 dot_window_should_close(DOT_Window *window){
     RGFW_event event;
     while (RGFW_window_checkEvent(window->window, &event)) {
-        if(event.type == RGFW_quit){
-            break;
-        }
     }
+
     return RGFW_window_shouldClose(window->window);
 }

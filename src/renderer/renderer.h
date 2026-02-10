@@ -1,14 +1,12 @@
 #ifndef RENDERER_H
 #define RENDERER_H
 
-typedef u8 RendererBackendKind;
-enum{
-    RENDERER_BACKEND_INVALID,
-    RENDERER_BACKEND_VK,
-    RENDERER_BACKEND_GL,
-    RENDERER_BACKEND_DX12,
-    RENDERER_BACKEND_NULL,
-    RENDERER_BACKEND_COUNT,
+typedef DOT_ENUM(u8, RendererBackendKind){
+    RendererBackendKind_Null,
+    RendererBackendKind_Vk,
+    RendererBackendKind_Gl,
+    RendererBackendKind_Dx12,
+    RendererBackendKind_Count,
 };
 
 typedef struct RendererBackendConfig{

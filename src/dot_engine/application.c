@@ -13,8 +13,7 @@ application_init(Application* app){
 
 internal void
 application_run(Application* app){
-    u8 running = true;
-    while (running && !dot_window_should_close(&app->window)){
+    while(!dot_window_should_close(&app->window)){
         renderer_draw(&app->renderer);
     }
 }

@@ -5,7 +5,7 @@ internal RendererBackendVk*
 renderer_backend_as_vk(RendererBackend *base)
 {
     DOT_ASSERT(base);
-    DOT_ASSERT(base->backend_kind == RENDERER_BACKEND_VK);
+    DOT_ASSERT(base->backend_kind == RendererBackendKind_Vk);
     return cast(RendererBackendVk*) base;
 }
 
@@ -14,7 +14,7 @@ renderer_backend_vk_create(Arena *arena)
 {
     RendererBackendVk *backend = PUSH_STRUCT(arena, RendererBackendVk);
     RendererBackend *base = &backend->base;
-    base->backend_kind = RENDERER_BACKEND_VK;
+    base->backend_kind = RendererBackendKind_Vk;
     base->init         = renderer_backend_vk_init;
     base->shutdown     = renderer_backend_vk_shutdown;
     base->draw         = renderer_backend_vk_draw;

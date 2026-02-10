@@ -23,7 +23,7 @@ internal RendererBackendNull*
 renderer_backend_null_create(Arena* arena){
 	RendererBackendNull *backend = PUSH_STRUCT(arena, RendererBackendNull);
     RendererBackend *base = &backend->base;
-    base->backend_kind = RENDERER_BACKEND_NULL;
+    base->backend_kind = RendererBackendKind_Null;
     base->init         = renderer_backend_null_init;
     base->shutdown     = renderer_backend_null_shutdown;
     base->draw         = renderer_backend_null_draw;

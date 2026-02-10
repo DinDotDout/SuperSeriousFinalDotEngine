@@ -1,6 +1,5 @@
-#ifndef DOT
-#define DOT
-// NOTE: Should i prefix all of this with some macro and alloc prefix stripping?
+#ifndef DOT_H
+#define DOT_H
 
 ////////////////////////////////////////////////////////////////
 //
@@ -56,9 +55,18 @@
 
 ////////////////////////////////////////////////////////////////
 //
+// This is a way to get some consistency out of enum types in c
+
+#define DOT_ENUM(T, name) T name; enum
+
+
+#define CONST_INT_BLOCK enum
+
+////////////////////////////////////////////////////////////////
+//
 // Sane type renames
 
-// size
+// size_t
 #include <stddef.h>
 // precise int
 typedef size_t usize;
@@ -99,12 +107,14 @@ typedef double f64;
 ////////////////////////////////////////////////////////////////
 //
 // TIME
+
 #define TO_USEC(t) ((t)*(u64)1000000000)
 #define TO_MSEC(t) ((t)*(u64)1000000)
 
 ////////////////////////////////////////////////////////////////
 //
 // Array + size
+
 #define VA_ARG_COUNT_T(T, ...) \
     (sizeof((T[]){ __VA_ARGS__ }) / sizeof(T))
 
@@ -175,22 +185,22 @@ typedef int DOT_CONCAT(DOT_STATIC_ASSERT_, __COUNTER__) [(x) ? 1 : -1]
   #define PRINTF_STRING
 #endif
 
-typedef enum DOT_LogLevelKind{
-    LOG_LEVEL_DEBUG,
-    LOG_LEVEL_ERROR,
-    LOG_LEVEL_WARNING,
-    LOG_LEVEL_ASSERT,
-    LOG_LEVEL_COUNT,
-}DOT_LogLevelKind;
-
-global const char *print_debug_str[] = {
-    [LOG_LEVEL_DEBUG]     = "",
-    [LOG_LEVEL_ASSERT]    = "Assertion failed",
-    [LOG_LEVEL_ERROR]     = "Error",
-    [LOG_LEVEL_WARNING]   = "Warning",
+typedef DOT_ENUM(u8, DOT_LogLevelKind){
+    DOT_LogLevelKind_Debug,
+    DOT_LogLevelKind_Error,
+    DOT_LogLevelKind_Warning,
+    DOT_LogLevelKind_Assert,
+    DOT_LogLevelKind_Count,
 };
 
-DOT_STATIC_ASSERT(LOG_LEVEL_COUNT == ARRAY_COUNT(print_debug_str));
+global const char *print_debug_str[] = {
+    [DOT_LogLevelKind_Debug]     = "",
+    [DOT_LogLevelKind_Warning]   = "Warning",
+    [DOT_LogLevelKind_Assert]    = "Assertion failed",
+    [DOT_LogLevelKind_Error]     = "Error",
+};
+
+DOT_STATIC_ASSERT(DOT_LogLevelKind_Count == ARRAY_COUNT(print_debug_str));
 
 typedef struct DOT_PrintDebugParams{
     DOT_LogLevelKind print_debug_kind;
@@ -203,7 +213,7 @@ internal void dot_print_debug_(const DOT_PrintDebugParams* params, PRINTF_STRING
 
 #define DOT_PRINT_DEBUG_PARAMS_DEFAULT(...) \
 &(DOT_PrintDebugParams) { \
-    .print_debug_kind = LOG_LEVEL_DEBUG, \
+    .print_debug_kind = DOT_LogLevelKind_Debug, \
     .file = __FILE__, \
     .line = __LINE__, \
     __VA_ARGS__}
@@ -216,11 +226,11 @@ do { \
     abort(); \
 } while(0)
 
-#define DOT_ERROR(...) DOT_ERROR_IMPL(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = LOG_LEVEL_ERROR), __VA_ARGS__)
-#define DOT_ERROR_FL(f, l, ...) DOT_ERROR_IMPL(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = LOG_LEVEL_ERROR, .file = (f), .line = (l)), __VA_ARGS__)
+#define DOT_ERROR(...) DOT_ERROR_IMPL(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error), __VA_ARGS__)
+#define DOT_ERROR_FL(f, l, ...) DOT_ERROR_IMPL(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error, .file = (f), .line = (l)), __VA_ARGS__)
 #define DOT_TODO(msg) \
 do { \
-    dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = LOG_LEVEL_ERROR), "TODO: %s", msg); \
+    dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error), "TODO: %s", msg); \
     abort(); \
 } while(0)
 
@@ -229,8 +239,8 @@ do { \
 // --- Printing Macros ---
 #define DOT_PRINT(...) dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(), __VA_ARGS__)
 #define DOT_PRINT_FL(f, l, ...) dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.file = (f), .line = (l)), __VA_ARGS__)
-#define DOT_WARNING(...) dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = LOG_LEVEL_WARNING), __VA_ARGS__)
-#define DOT_WARNING_FL(f, l, ...) dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.file = (f), .line = (l), .print_debug_kind = LOG_LEVEL_WARNING), __VA_ARGS__)
+#define DOT_WARNING(...) dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Warning), __VA_ARGS__)
+#define DOT_WARNING_FL(f, l, ...) dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.file = (f), .line = (l), .print_debug_kind = DOT_LogLevelKind_Warning), __VA_ARGS__)
 
 // --- Assertion Macros ---
 // WARN: "##" allows us to not have and fmt but uses an extension
@@ -241,8 +251,8 @@ do { \
         DEBUG_BREAK; \
     } \
 } while(0)
-#define DOT_ASSERT(cond, ...) DOT_ASSERT_IMPL((cond), DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = LOG_LEVEL_ASSERT), __VA_ARGS__)
-#define DOT_ASSERT_FL(cond, f, l, ...) DOT_ASSERT_IMPL((cond), DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = LOG_LEVEL_ASSERT, .file = (f), .line = (l)), __VA_ARGS__)
+#define DOT_ASSERT(cond, ...) DOT_ASSERT_IMPL((cond), DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error), __VA_ARGS__)
+#define DOT_ASSERT_FL(cond, f, l, ...) DOT_ASSERT_IMPL((cond), DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error, .file = (f), .line = (l)), __VA_ARGS__)
 #else
 #define DOT_PRINT(...) ((void)0)
 #define DOT_PRINT_FL(f, l, ...) ((void)0)
