@@ -12,8 +12,10 @@
     #include "os/os_windows.h"
 #endif
 
-#define PLATFORM_REGULAR_PAGE_SIZE KB(4)
-#define PLATFORM_LARGE_PAGE_SIZE MB(2)
+CONST_INT_BLOCK{
+    PLATFORM_REGULAR_PAGE_SIZE = KB(4),
+    PLATFORM_LARGE_PAGE_SIZE = MB(2),
+};
 
 ////////////////////////////////////////////////////////////////
 //

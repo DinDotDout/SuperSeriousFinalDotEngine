@@ -1,14 +1,17 @@
 internal void
 threadctx_init(const ThreadCtxOptions* thread_ctx_opts, u8 thread_id){
     DOT_ASSERT(thread_ctx_opts);
-    DOT_ASSERT(thread_ctx_opts->per_thread_temp_arena_count > 1,
-        "We need at least two temp_arenas to double buffer through callstack");
+    if(thread_ctx_opts->per_thread_temp_arena_count > 1){
+      DOT_WARNING("We probably need at least two temp_arenas to double buffer "
+        "through callstack");
+    }
 
     u8 temp_arena_count = thread_ctx_opts->per_thread_temp_arena_count;
-    // NOTE: Storing space for the temp_arena array is causing page overhang
-    // that we are taking advantage off to then store Thread SubArena names and other metadata. If
-    // this ever blows up we can just increase the memory
-    u64 total_memory = thread_ctx_opts->per_thread_temp_arena_size * temp_arena_count + sizeof(Arena*)*temp_arena_count;
+
+    // NOTE: Storing space for the actual arena backing + extra page for arena metadata
+    u64 total_memory = thread_ctx_opts->per_thread_temp_arena_size * temp_arena_count
+        + MAX(sizeof(Arena) * temp_arena_count, PLATFORM_REGULAR_PAGE_SIZE);
+
     u64 per_arena_memory = thread_ctx_opts->per_thread_temp_arena_size;
 
     Arena *main_arena = ARENA_ALLOC(.reserve_size = total_memory, .name = "Thread Arena");
