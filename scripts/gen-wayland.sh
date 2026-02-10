@@ -2,8 +2,6 @@
 set -euo pipefail
 
 OUTDIR="src/gen-wayland/"
-# echo "[*] Generating Wayland protocol sources into $OUTDIR..."
-
 mkdir -p "$OUTDIR"
 
 generate_if_missing() {
@@ -34,4 +32,8 @@ generate_if_missing public-code   /usr/share/wayland-protocols/unstable/pointer-
 generate_if_missing client-header /usr/share/wayland-protocols/unstable/xdg-output/xdg-output-unstable-v1.xml "$OUTDIR/xdg-output-unstable-v1.h"
 generate_if_missing public-code   /usr/share/wayland-protocols/unstable/xdg-output/xdg-output-unstable-v1.xml "$OUTDIR/xdg-output-unstable-v1.c"
 
-# echo "[+] Protocol sources ready in $OUTDIR"
+generate_if_missing client-header /usr/share/wayland-protocols/unstable/xdg-output/xdg-output-unstable-v1.xml "$OUTDIR/xdg-output-unstable-v1.h"
+generate_if_missing public-code   /usr/share/wayland-protocols/unstable/xdg-output/xdg-output-unstable-v1.xml "$OUTDIR/xdg-output-unstable-v1.c"
+
+generate_if_missing client-header /usr/share/wayland-protocols/staging/pointer-warp/pointer-warp-v1.xml "$OUTDIR/pointer-warp-v1.h"
+generate_if_missing public-code /usr/share/wayland-protocols/staging/pointer-warp/pointer-warp-v1.xml "$OUTDIR/pointer-warp-v1.c"

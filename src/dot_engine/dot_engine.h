@@ -11,10 +11,6 @@
 #endif
 
 #define RGFW_VULKAN
-#ifndef _WIN32
-    #define RGFW_WAYLAND // RGFW_WAYLAND is in debug mode by default for now
-#endif
-
 #define RGFW_IMPLEMENTATION
 #define RGFWDEF static inline
 #include "third_party/RGFW/RGFW.h"
