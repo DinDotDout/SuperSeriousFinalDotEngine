@@ -56,6 +56,8 @@ PluginRegister(Profiler, 0,
     #define DOT_PROFILE_BLOCK(label) ((void)0)
 #endif
 
+#endif // !DOT_PROFILER_H
+
 #ifdef DOT_PROFILER_IMPL
 internal void
 dot_print_time_elapsed(u64 total_tsc_elapsed, DOT_ProfileAnchor *anchor){
@@ -123,5 +125,4 @@ dot_profile_block_end(DOT_ProfileBlock* profile_block){
     ++anchor->hit_count;
     anchor->label = profile_block->label;
 }
-#endif
-#endif // DOT_PROFILER_H
+#endif // !DOT_PROFILER_IMPL

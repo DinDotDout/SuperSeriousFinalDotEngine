@@ -17,11 +17,8 @@
 
 #define DOT_INT_SKIP // Already included ints by rgfw
 #include "base/base_include.h"
-
 #include "dot_engine/window.h"
-#include "renderer/renderer.h"
-#include "renderer/renderer_backend_null.h"
-#include "renderer/vulkan/renderer_backend_vk.h"
+#include "renderer/renderer_include.h"
 #include "dot_engine/plugin.h"
 #define DOT_PROFILER_IMPL
 #include "dot_engine/profiler.h"
@@ -29,8 +26,6 @@
 #include "dot_engine/game.h"
 
 #include "dot_engine/window.c"
-#include "renderer/renderer.c"
-#include "renderer/vulkan/renderer_backend_vk.c"
 #include "dot_engine/application.c"
 #include "dot_engine/game.c"
 #endif // !DOT_ENGINE_H

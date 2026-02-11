@@ -28,17 +28,15 @@ arena_alloc_(ArenaInitParams *params){
     return arena;
 }
 
-
-// WARN: Since for now we only get memory from arenas, we will always have
-// subarenas with prefaulted memory so we set committed == reserved
 internal Arena*
 arena_alloc_from_memory(ArenaInitParams *params){
     DOT_ASSERT_FL(params->buffer != NULL, params->reserve_file, params->reserve_line, "Invalid memory provided");
     DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Allocating arena from buffer");
+    // NOTE: Since we don't own the memory it must be backed and we assume it is committed (reserve == commit)
     Arena* arena              = cast(Arena*) params->buffer;
     arena->base               = params->buffer;
     arena->reserved           = params->reserve_size;
-    arena->committed          = params->reserve_size; // We make the assumption that it is prefaulted for now
+    arena->committed          = params->reserve_size;
     arena->commit_expand_size = params->commit_expand_size;
     arena->large_pages        = params->large_pages;
     arena->name               = params->name;
@@ -51,8 +49,7 @@ internal Arena*
 arena_alloc_from_arena(ArenaInitParams *params){
     DOT_ASSERT_FL(params->parent != NULL, params->reserve_file, params->reserve_line, "Invalid memory provided");
     DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Allocating arena from parent");
-    u8* mem = PUSH_SIZE_NO_ZERO(params->parent, params->reserve_size);
-    params->buffer = mem;
+    params->buffer = PUSH_SIZE_NO_ZERO(params->parent, params->reserve_size);
     Arena* new_arena = arena_alloc_from_memory(params);
     return new_arena;
 }

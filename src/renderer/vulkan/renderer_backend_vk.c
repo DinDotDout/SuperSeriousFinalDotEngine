@@ -1,6 +1,3 @@
-#include <vulkan/vulkan_core.h>
-#include "vk_helper.h"
-
 internal RendererBackendVk*
 renderer_backend_as_vk(RendererBackend *base)
 {
@@ -100,7 +97,8 @@ renderere_backend_vk_debug_callback(
 }
 
 
-internal void renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* window) {
+internal void renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* window)
+{
 #ifdef USE_VOLK
         volkInitialize();
 #endif
@@ -109,11 +107,11 @@ internal void renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* wi
     // vk_ctx->vk_allocator = VkAllocatorParams(ctx_arena);
     TempArena temp = threadctx_get_temp(NULL, 0);
     const RBVK_Settings* vk_settings = renderer_backend_vk_settings();
-    if(!vk_all_layers(vk_settings)){
+    if(!vk_helper_all_layers(vk_settings)){
         DOT_ERROR("Could not find all requested layers");
     }
 
-    if(!vk_instance_all_required_extensions(vk_settings)){
+    if(!vk_helper_instance_all_required_extensions(vk_settings)){
         DOT_ERROR("Could not find all requested instance extensions");
     }
 
@@ -177,7 +175,7 @@ internal void renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* wi
  
     // --- Create Device --- 
     {
-        VkCandidateDeviceInfo candidate_device_info = vk_pick_best_device(vk_settings, vk_ctx->instance, vk_ctx->surface, window);
+        VkHelper_CandidateDeviceInfo candidate_device_info = vk_helper_pick_best_device(vk_settings, vk_ctx->instance, vk_ctx->surface, window);
         RBVK_Device* device = &vk_ctx->device;
         device->gpu                      = candidate_device_info.gpu;
         device->graphics_queue_idx       = candidate_device_info.graphics_family;
@@ -230,12 +228,16 @@ internal void renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* wi
             vkGetDeviceQueue(device->device, candidate_device_info.present_family, 0, &device->present_queue);
         }
     }
+    {
+        RBVK_Device *device = &vk_ctx->device;
+        vk_memory_pools_create(device->gpu, device->device, &vk_ctx->memory_pools);
+    }
     // TODO: We will probably need to move this to its own function to allow recreation
     // --- Create Swapchain ---
     {
         RBVK_Swapchain* swapchain = &vk_ctx->swapchain;
-        VkSwapchainDetails details = {0};
-        vk_physical_device_swapchain_support(vk_settings, vk_ctx->device.gpu, vk_ctx->surface, window, &details);
+        VkHelper_SwapchainDetails details = {0};
+        vk_helper_physical_device_swapchain_support(vk_settings, vk_ctx->device.gpu, vk_ctx->surface, window, &details);
         swapchain->extent = details.surface_extent;
         swapchain->image_format = details.best_surface_format.format;
         swapchain->images_count = details.image_count;
@@ -266,12 +268,33 @@ internal void renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* wi
             swapchain_create_info.queueFamilyIndexCount = ARRAY_COUNT(queues);
         }
         VK_CHECK(vkCreateSwapchainKHR(vk_ctx->device.device, &swapchain_create_info, NULL, &swapchain->swapchain));
-        VkExtent3D draw_image = {
+        VkExtent3D draw_image_extent = {
             .width  = window_extents.width,
             .height = window_extents.height,
             .depth  = 1,
         };
-        (void) draw_image;
+
+        VkImageCreateInfo image_info = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+            .pNext = NULL,
+            .imageType = VK_IMAGE_TYPE_2D,
+            .format = VK_FORMAT_R16G16B16A16_SFLOAT,
+            .extent = draw_image_extent,
+
+            .mipLevels = 1,
+            .arrayLayers = 1,
+
+            // for MSAA. we will not be using it by default, so default it to 1
+            // sample per pixel.
+            .samples = VK_SAMPLE_COUNT_1_BIT,
+            // optimal tiling, which means the image is stored on the best gpu format
+            .tiling = VK_IMAGE_TILING_OPTIMAL,
+            .usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                     VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                     VK_IMAGE_USAGE_STORAGE_BIT |
+                     VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+        };
+        (void) image_info;
 
         // VkImageCreateInfo image_info = vk_image_create_info();
  
@@ -379,6 +402,7 @@ renderer_backend_vk_shutdown(RendererBackend* base_ctx)
         vkDestroyImageView(device, vk_ctx->swapchain.image_views[i], NULL);
     }
     vkDestroySwapchainKHR(device, vk_ctx->swapchain.swapchain, NULL);
+    vk_memory_pools_destoy(device, &vk_ctx->memory_pools);
     vkDestroySurfaceKHR(vk_ctx->instance, vk_ctx->surface, NULL);
     vkDestroyDevice(vk_ctx->device.device, NULL);
     if(VK_EXT_DEBUG_UTILS_ENABLE){
@@ -414,7 +438,7 @@ renderer_backend_vk_draw(RendererBackend* base_ctx, u8 current_frame, u64 frame)
     };
     VK_CHECK(vkBeginCommandBuffer(cmd, &cmd_begin_info));
     VkImage current_image = vk_ctx->swapchain.images[swapchain_image_idx];
-    vk_transition_image(cmd, current_image,
+    vk_helper_transition_image(cmd, current_image,
                         VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
     f64 flash = fabs(sin(frame / 120.f));
@@ -425,7 +449,7 @@ renderer_backend_vk_draw(RendererBackend* base_ctx, u8 current_frame, u64 frame)
 	vkCmdClearColorImage(cmd, current_image, VK_IMAGE_LAYOUT_GENERAL, &clear_value, 1, &clear_range);
 
 	//make the swapchain image into presentable mode
-	vk_transition_image(cmd, current_image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+	vk_helper_transition_image(cmd, current_image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
 	//finalize the command buffer (we can no longer add commands, but it can now be executed)
 	VK_CHECK(vkEndCommandBuffer(cmd));

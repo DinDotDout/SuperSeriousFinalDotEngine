@@ -2,21 +2,21 @@
 #define VK_HELPER_H
 #include <vulkan/vk_enum_string_helper.h>
 
-typedef struct VkSwapchainDetails{
+typedef struct VkHelper_SwapchainDetails{
     VkSurfaceFormatKHR            best_surface_format;
     VkPresentModeKHR              best_present_mode;
     VkExtent2D                    surface_extent;
     VkSurfaceTransformFlagBitsKHR current_transform;
     u32                           image_count;
-}VkSwapchainDetails;
+}VkHelper_SwapchainDetails;
 
-typedef struct VkCandidateDeviceInfo{
+typedef struct VkHelper_CandidateDeviceInfo{
     VkPhysicalDevice gpu;
     u16 graphics_family;
     u16 present_family;
     i32 score;
     b8 shared_present_graphics_queues;
-}VkCandidateDeviceInfo;
+}VkHelper_CandidateDeviceInfo;
 
 #ifdef NDEBUG
 #define VK_CHECK(x) x
@@ -49,8 +49,41 @@ typedef struct VkCandidateDeviceInfo{
         __VA_ARGS__ \
     }
 
-internal inline b8
-vk_all_layers(const RBVK_Settings* vk_settings)
+struct RBVK_Settings;
+internal b8 vk_helper_all_layers(const struct RBVK_Settings *vk_settings);
+internal VkHelper_CandidateDeviceInfo vk_helper_pick_best_device(
+    const struct RBVK_Settings *vk_settings,
+    VkInstance instance,
+    VkSurfaceKHR surface,
+    DOT_Window *window);
+
+internal b8 vk_helper_physical_device_swapchain_support(
+    const struct RBVK_Settings *vk_settings,
+    VkPhysicalDevice gpu,
+    VkSurfaceKHR surface,
+    DOT_Window *window,
+    VkHelper_SwapchainDetails *details);
+
+internal b8 vk_helper_physical_device_all_required_extensions(const struct RBVK_Settings *vk_settings, VkPhysicalDevice device);
+internal b8 vk_helper_instance_all_required_extensions(const struct RBVK_Settings* vk_settings);
+
+internal void vk_helper_transition_image(
+    VkCommandBuffer cmd,
+    VkImage image,
+    VkImageLayout current_layout,
+    VkImageLayout new_layout);
+
+internal VkImageCreateInfo vk_image_create_info(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent);
+internal VkSubmitInfo2 vk_submit_info(VkCommandBufferSubmitInfo* cmd, VkSemaphoreSubmitInfo* signal_semaphore_info, VkSemaphoreSubmitInfo* wait_semaphore_info);
+internal VkImageViewCreateInfo     vk_imageview_create_info(VkFormat format, VkImage image, VkImageAspectFlags aspectFlags);
+internal VkCommandBufferSubmitInfo vk_command_buffer_submit_info(VkCommandBuffer cmd);
+internal VkSemaphoreSubmitInfo     vk_semaphore_submit_info(VkPipelineStageFlags2 stageMask, VkSemaphore semaphore);
+internal VkImageSubresourceRange   vk_image_subresource_range(VkImageAspectFlags aspect_mask);
+
+#endif // !VK_HELPER_H
+#ifdef VK_HELPER_IMPLEMENTATION
+internal b8
+vk_helper_all_layers(const struct RBVK_Settings *vk_settings)
 {
     TempArena temp = threadctx_get_temp(NULL, 0);
     u32 available_layer_count = 0;
@@ -77,8 +110,8 @@ vk_all_layers(const RBVK_Settings* vk_settings)
     return all_found;
 }
 
-internal inline b8
-vk_instance_all_required_extensions(const RBVK_Settings* vk_settings)
+internal b8
+vk_helper_instance_all_required_extensions(const struct RBVK_Settings* vk_settings)
 {
     TempArena temp = threadctx_get_temp(NULL, 0);
     u32 extension_count;
@@ -107,8 +140,10 @@ vk_instance_all_required_extensions(const RBVK_Settings* vk_settings)
     return all_found;
 }
 
-internal inline b8
-vk_physical_device_all_required_extensions(const RBVK_Settings* vk_settings, VkPhysicalDevice device)
+internal b8
+vk_helper_physical_device_all_required_extensions(
+    const struct RBVK_Settings *vk_settings,
+    VkPhysicalDevice device)
 {
     TempArena temp = threadctx_get_temp(NULL, 0);
     u32 extension_count;
@@ -137,13 +172,13 @@ vk_physical_device_all_required_extensions(const RBVK_Settings* vk_settings, VkP
     return all_found;
 }
 
-internal inline b8
-vk_physical_device_swapchain_support(
-    const RBVK_Settings *vk_settings,
+internal b8
+vk_helper_physical_device_swapchain_support(
+    const struct RBVK_Settings *vk_settings,
     VkPhysicalDevice gpu,
     VkSurfaceKHR surface,
-    DOT_Window* window,
-    VkSwapchainDetails* details)
+    DOT_Window *window,
+    VkHelper_SwapchainDetails *details)
 {
     TempArena temp = threadctx_get_temp(NULL, 0);
     typedef struct SwapchainSupportDetails{
@@ -227,9 +262,9 @@ vk_physical_device_swapchain_support(
     return has_support;
 }
 
-internal inline VkCandidateDeviceInfo
-vk_pick_best_device(
-    const RBVK_Settings *vk_settings,
+internal VkHelper_CandidateDeviceInfo
+vk_helper_pick_best_device(
+    const struct RBVK_Settings *vk_settings,
     VkInstance instance,
     VkSurfaceKHR surface,
     DOT_Window *window)
@@ -245,14 +280,14 @@ vk_pick_best_device(
     vkEnumeratePhysicalDevices(instance, &device_count, devices);
     DOT_PRINT("device count %i", device_count);
 
-    VkCandidateDeviceInfo best_device = {0};
+    VkHelper_CandidateDeviceInfo best_device = {0};
     best_device.score = -1;
 
     for (u32 i = 0; i < device_count; i++){
         VkPhysicalDevice dev = devices[i];
         // We to first ensure we have what we want before even rating the device
-        if (!vk_physical_device_all_required_extensions(vk_settings, dev) ||
-            !vk_physical_device_swapchain_support(vk_settings, dev, surface, window, NULL)){
+        if(!vk_helper_physical_device_all_required_extensions(vk_settings, dev) ||
+            !vk_helper_physical_device_swapchain_support(vk_settings, dev, surface, window, NULL)){
             continue;
         }
         VkPhysicalDeviceProperties device_properties;
@@ -327,22 +362,8 @@ vk_pick_best_device(
     return best_device;
 }
 
-internal VkImageSubresourceRange
-vk_image_subresource_range(VkImageAspectFlags aspect_mask)
-{
-    VkImageSubresourceRange subImage = {
-        .aspectMask = aspect_mask,
-        .baseMipLevel = 0,
-        .levelCount = VK_REMAINING_MIP_LEVELS,
-        .baseArrayLayer = 0,
-        .layerCount = VK_REMAINING_ARRAY_LAYERS,
-    };
-    return subImage;
-}
-
-// NOTE: Should make this a macro with default params?
 internal void
-vk_transition_image(
+vk_helper_transition_image(
     VkCommandBuffer cmd,
     VkImage image,
     VkImageLayout current_layout,
@@ -362,13 +383,31 @@ vk_transition_image(
             .oldLayout        = current_layout,
             .newLayout        = new_layout,
             .image            = image,
-            .subresourceRange = vk_image_subresource_range(aspect_mask),
+            .subresourceRange = (VkImageSubresourceRange){
+                .aspectMask = aspect_mask,
+                .baseMipLevel = 0,
+                .levelCount = VK_REMAINING_MIP_LEVELS,
+                .baseArrayLayer = 0,
+                .layerCount = VK_REMAINING_ARRAY_LAYERS,
+            }
         } ,
     };
-
     vkCmdPipelineBarrier2(cmd, &dep_info);
 }
 
+// NOTE: Should make this a macro with default params?
+internal VkImageSubresourceRange
+vk_image_subresource_range(VkImageAspectFlags aspect_mask)
+{
+    VkImageSubresourceRange subImage = {
+        .aspectMask = aspect_mask,
+        .baseMipLevel = 0,
+        .levelCount = VK_REMAINING_MIP_LEVELS,
+        .baseArrayLayer = 0,
+        .layerCount = VK_REMAINING_ARRAY_LAYERS,
+    };
+    return subImage;
+}
 
 internal VkSemaphoreSubmitInfo
 vk_semaphore_submit_info(VkPipelineStageFlags2 stageMask, VkSemaphore semaphore)
@@ -445,9 +484,9 @@ vk_image_create_info(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D e
     return info;
 }
 
-VkImageViewCreateInfo vk_imageview_create_info(VkFormat format, VkImage image, VkImageAspectFlags aspectFlags)
+internal VkImageViewCreateInfo
+vk_imageview_create_info(VkFormat format, VkImage image, VkImageAspectFlags aspectFlags)
 {
-    // build a image-view for the depth image to use for rendering
     VkImageViewCreateInfo info = {
     .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
     .pNext = NULL,
@@ -525,4 +564,4 @@ vk_internal_free(void* data, usize size, VkInternalAllocationType alloc_type, Vk
 #define VkAllocatorParams(arena) NULL
 #endif // !VK_USE_CUSTOM_ALLOCATOR
 
-#endif // !VK_HELPER_H
+#endif // !VK_HELPER_IMPLEMENTATION

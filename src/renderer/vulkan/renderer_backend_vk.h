@@ -44,6 +44,13 @@ typedef struct RBVK_Device{
     u32     present_queue_idx;
 }RBVK_Device;
 
+typedef struct RBVK_Image{
+    VkImage     image;
+    VkImageView image_view;
+    VkFormat    image_format;
+    VkExtent3D  extent;
+}RBVK_Image;
+
 typedef struct RBVK_Swapchain{
     VkSwapchainKHR swapchain;
     VkExtent2D     extent;
@@ -71,13 +78,15 @@ typedef struct RendererBackendVk{
 
     u8              frame_data_count;
     RBVK_FrameData *frame_datas;
+    RBVK_Image     *draw_image;
 
+
+    VkMemory_Pools memory_pools;
     // NOTE: vk expects a malloc like allocator, which I don't intend on make or using for now
     // so our push arenas do not work for this :(
     VkAllocationCallbacks    vk_allocator;
     VkDebugUtilsMessengerEXT debug_messenger;
 }RendererBackendVk;
-
 
 internal RendererBackendVk* renderer_backend_as_vk(RendererBackend* base);
 internal RendererBackendVk* renderer_backend_vk_create(Arena* arena);

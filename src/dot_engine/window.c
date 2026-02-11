@@ -1,5 +1,3 @@
-#include "renderer/vulkan/vk_helper.h"
-
 float mouse_data[2] = {0.0f, 0.0f};
 internal void
 dot_window_mouse_pos_callback(RGFW_window *window, i32 x, i32 y, float vecX, float vecY) {
@@ -27,16 +25,16 @@ dot_window_destroy(DOT_Window *window){
         RGFW_window_close(window->window);
 }
 
-// TODO: May need to pass in backend base and upcast based on type to do per backend things
-// Or just make specific functions and pass in proper parameters
 internal void
 dot_window_create_surface(DOT_Window* window, struct RendererBackend* backend){
     switch (backend->backend_kind){
     case RendererBackendKind_Vk:{
         RendererBackendVk* vk_ctx = renderer_backend_as_vk(backend);
-        VK_CHECK(RGFW_window_createSurface_Vulkan(window->window, vk_ctx->instance, &vk_ctx->surface));
-    break;
-    }
+        VkResult res = RGFW_window_createSurface_Vulkan(window->window, vk_ctx->instance, &vk_ctx->surface);
+        if(res != VK_SUCCESS){
+            DOT_ERROR("Could not create vulkan surface");
+        }
+    break;}
     case RendererBackendKind_Null: 
     break;
     case RendererBackendKind_Gl:
