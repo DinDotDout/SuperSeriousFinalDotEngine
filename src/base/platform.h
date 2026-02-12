@@ -43,7 +43,8 @@ void __asan_unpoison_memory_region(void const volatile *addr, size_t size);
 #define ASAN_UNPOISON(addr, size) __asan_unpoison_memory_region((addr), (size))
 #define NO_ASAN __attribute__((no_sanitize("all")))
 
-// NOTE: Replaces OS functionality by regular malloc so that asan can track allocations
+// NOTE: Replaces OS functionality by regular malloc so that asan can track allocations somewhat
+// better
 #define os_reserve(size) malloc((size))
 #define os_release(ptr, size) \
     do{ \

@@ -307,8 +307,8 @@ do { \
 #error alignof not defined for this compiler.
 #endif
 
-#define ALIGN_POW2(x, b) (((x) + (b) - 1) & (~((b) - 1)))
-#define ALIGN_DOWN_POW2(x, b) ((x) & ~((b) - 1))
+#define ALIGN_POW2(x, align) (((x) + (align) - 1) & (~((align) - 1)))
+#define ALIGN_DOWN_POW2(x, align) ((x) & ~((align) - 1))
 
 #define MEMORY_ZERO(s, z) memset((s), 0, (z))
 #define MEMORY_ZERO_STRUCT(s) MEMORY_ZERO((s), sizeof(*(s)))
