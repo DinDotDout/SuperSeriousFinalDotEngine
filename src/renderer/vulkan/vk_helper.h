@@ -67,6 +67,9 @@ internal b8 vk_helper_physical_device_swapchain_support(
 internal b8 vk_helper_physical_device_all_required_extensions(const struct RBVK_Settings *vk_settings, VkPhysicalDevice device);
 internal b8 vk_helper_instance_all_required_extensions(const struct RBVK_Settings* vk_settings);
 
+internal VkExtent3D vk_helper_extent3d_from_extent2d(VkExtent2D extent2d);
+internal VkExtent2D vk_helper_extent2d_from_extent3d(VkExtent3D extent3d);
+
 internal void vk_helper_transition_image(
     VkCommandBuffer cmd,
     VkImage image,
@@ -82,6 +85,17 @@ internal VkImageSubresourceRange   vk_image_subresource_range(VkImageAspectFlags
 
 #endif // !VK_HELPER_H
 #ifdef VK_HELPER_IMPLEMENTATION
+
+internal VkExtent3D vk_helper_extent3d_from_extent2d(VkExtent2D extent2d)
+{
+    return (VkExtent3D){extent2d.width, extent2d.height, 1};
+}
+
+internal VkExtent2D vk_helper_extent2d_from_extent3d(VkExtent3D extent3d)
+{
+    return (VkExtent2D){extent3d.width, extent3d.height};
+}
+
 internal b8
 vk_helper_all_layers(const struct RBVK_Settings *vk_settings)
 {
@@ -395,6 +409,42 @@ vk_helper_transition_image(
     vkCmdPipelineBarrier2(cmd, &dep_info);
 }
 
+// NOTE: VkCmdCopyImage for faster copying when resolution matches
+void vk_helper_copy_image_to_image(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D srcSize, VkExtent2D dstSize)
+{
+	VkBlitImageInfo2 blitInfo = {
+	    .sType = VK_STRUCTURE_TYPE_BLIT_IMAGE_INFO_2,
+		.dstImage = destination,
+		.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		.srcImage = source,
+		.srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+		.filter = VK_FILTER_LINEAR,
+		.regionCount = 1,
+		.pRegions = &(VkImageBlit2){
+	        .sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2, 
+	        .srcOffsets[1].x = srcSize.width,
+	        .srcOffsets[1].y = srcSize.height,
+	        .srcOffsets[1].z = 1,
+
+	        .dstOffsets[1].x = dstSize.width,
+	        .dstOffsets[1].y = dstSize.height,
+	        .dstOffsets[1].z = 1,
+
+	        .srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+	        .srcSubresource.baseArrayLayer = 0,
+	        .srcSubresource.layerCount = 1,
+	        .srcSubresource.mipLevel = 0,
+
+	        .dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+	        .dstSubresource.baseArrayLayer = 0,
+	        .dstSubresource.layerCount = 1,
+	        .dstSubresource.mipLevel = 0,
+        }
+	};
+
+	vkCmdBlitImage2(cmd, &blitInfo);
+}
+
 // NOTE: Should make this a macro with default params?
 internal VkImageSubresourceRange
 vk_image_subresource_range(VkImageAspectFlags aspect_mask)
@@ -488,16 +538,18 @@ internal VkImageViewCreateInfo
 vk_imageview_create_info(VkFormat format, VkImage image, VkImageAspectFlags aspectFlags)
 {
     VkImageViewCreateInfo info = {
-    .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-    .pNext = NULL,
-    .viewType = VK_IMAGE_VIEW_TYPE_2D,
-    .image = image,
-    .format = format,
-    .subresourceRange.baseMipLevel = 0,
-    .subresourceRange.levelCount = 1,
-    .subresourceRange.baseArrayLayer = 0,
-    .subresourceRange.layerCount = 1,
-    .subresourceRange.aspectMask = aspectFlags,
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .pNext = NULL,
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .image = image,
+        .format = format,
+        .subresourceRange = {
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+            .aspectMask = aspectFlags,
+        },
     };
 
     return info;

@@ -49,6 +49,7 @@ typedef struct RBVK_Image{
     VkImageView image_view;
     VkFormat    image_format;
     VkExtent3D  extent;
+    VkMemory_Alloc alloc;
 }RBVK_Image;
 
 typedef struct RBVK_Swapchain{
@@ -78,8 +79,9 @@ typedef struct RendererBackendVk{
 
     u8              frame_data_count;
     RBVK_FrameData *frame_datas;
-    RBVK_Image     *draw_image;
-
+    RBVK_Image      draw_image;
+    // NOTE: Splitting this from actual draw_image so that we can draw regions?
+    VkExtent2D      draw_extent;
 
     VkMemory_Pools memory_pools;
     // NOTE: vk expects a malloc like allocator, which I don't intend on make or using for now
@@ -88,12 +90,16 @@ typedef struct RendererBackendVk{
     VkDebugUtilsMessengerEXT debug_messenger;
 }RendererBackendVk;
 
-internal RendererBackendVk* renderer_backend_as_vk(RendererBackend* base);
-internal RendererBackendVk* renderer_backend_vk_create(Arena* arena);
+// Outfacing renderer API
+internal RendererBackendVk* renderer_backend_as_vk(RendererBackend *base);
+internal RendererBackendVk* renderer_backend_vk_create(Arena *arena);
 internal const RBVK_Settings* renderer_backend_vk_settings();
-
-internal void renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* window);
+internal void renderer_backend_vk_init(RendererBackend *base_ctx, DOT_Window *window);
 internal void renderer_backend_vk_shutdown(RendererBackend* base_ctx);
-internal void renderer_backend_vk_draw(RendererBackend* base_ctx, u8 current_frame, u64 frame);
+internal void renderer_backend_vk_draw(RendererBackend *base_ctx, u8 current_frame, u64 frame);
+
+// Internal API
+internal RBVK_Image rbvk_create_image(RendererBackendVk *ctx, VkImageCreateInfo *image_info);
+internal void rbvk_destroy_image(RendererBackendVk *ctx, RBVK_Image *image);
 
 #endif // !RENDERER_BACKEND_VK_H

@@ -96,8 +96,46 @@ renderere_backend_vk_debug_callback(
     return VK_FALSE;
 }
 
+internal RBVK_Image
+rbvk_create_image(RendererBackendVk *ctx, VkImageCreateInfo *image_info){
+    RBVK_Image image = {0};
+    image.image_format = image_info->format;
+    image.extent = image_info->extent;
 
-internal void renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* window)
+    VkDevice device = ctx->device.device;
+    VK_CHECK(vkCreateImage(device, image_info, NULL, &image.image));
+    VkMemoryRequirements reqs;
+    vkGetImageMemoryRequirements(device, image.image, &reqs);
+    image.alloc = vk_memory_pools_bump(&ctx->memory_pools, reqs, VkMemory_PoolsKind_GpuOnly);
+
+    VK_CHECK(vkBindImageMemory(device, image.image, image.alloc.memory, image.alloc.offset));
+    VkImageViewCreateInfo image_view_create_info = {
+        .sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .image    = image.image,
+        .format   = image_info->format,
+        .subresourceRange = {
+            .baseMipLevel   = 0,
+            .levelCount     = 1,
+            .baseArrayLayer = 0,
+            .layerCount     = 1,
+            .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+        }
+    };
+
+    vkCreateImageView(device, &image_view_create_info, NULL, &image.image_view);
+    return image;
+}
+
+internal void
+rbvk_destoy_image(RendererBackendVk *ctx, RBVK_Image *image){
+    VkDevice device = ctx->device.device;
+    vkDestroyImageView(device, image->image_view, NULL);
+    vkUnmapMemory(device, image->alloc.memory);
+    vkDestroyImage(device, image->image, NULL);
+}
+
+internal void renderer_backend_vk_init(RendererBackend *base_ctx, DOT_Window* window)
 {
 #ifdef USE_VOLK
         volkInitialize();
@@ -268,18 +306,16 @@ internal void renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* wi
             swapchain_create_info.queueFamilyIndexCount = ARRAY_COUNT(queues);
         }
         VK_CHECK(vkCreateSwapchainKHR(vk_ctx->device.device, &swapchain_create_info, NULL, &swapchain->swapchain));
-        VkExtent3D draw_image_extent = {
-            .width  = window_extents.width,
-            .height = window_extents.height,
-            .depth  = 1,
-        };
-
+        VkExtent3D draw_image_extent = vk_helper_extent3d_from_extent2d(window_extents);
+        vk_ctx->draw_extent = window_extents;
         VkImageCreateInfo image_info = {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-            .pNext = NULL,
-            .imageType = VK_IMAGE_TYPE_2D,
-            .format = VK_FORMAT_R16G16B16A16_SFLOAT,
-            .extent = draw_image_extent,
+            .sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+            .pNext       = NULL,
+            .imageType   = VK_IMAGE_TYPE_2D,
+            .format      = VK_FORMAT_R16G16B16A16_SFLOAT,
+            .extent      = draw_image_extent,
+            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 
             .mipLevels = 1,
             .arrayLayers = 1,
@@ -288,15 +324,14 @@ internal void renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* wi
             // sample per pixel.
             .samples = VK_SAMPLE_COUNT_1_BIT,
             // optimal tiling, which means the image is stored on the best gpu format
-            .tiling = VK_IMAGE_TILING_OPTIMAL,
+            .tiling = VK_IMAGE_TILING_OPTIMAL, // VK_IMAGE_TILING_LINEAR (for staging / copying)
             .usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                      VK_IMAGE_USAGE_TRANSFER_DST_BIT |
                      VK_IMAGE_USAGE_STORAGE_BIT |
                      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
         };
-        (void) image_info;
 
-        // VkImageCreateInfo image_info = vk_image_create_info();
+        vk_ctx->draw_image = rbvk_create_image(vk_ctx, &image_info);
  
         //  --- Create Swapchain Images ---
         {
@@ -309,7 +344,7 @@ internal void renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* wi
         {
             VkDevice device = vk_ctx->device.device;
             swapchain->image_views = PUSH_ARRAY(ctx_arena, VkImageView, swapchain->images_count);
-            VkImageViewCreateInfo image_create_info = {
+            VkImageViewCreateInfo image_view_create_info = {
                 .sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
                 .viewType = VK_IMAGE_VIEW_TYPE_2D,
                 .format   = swapchain->image_format,
@@ -329,8 +364,8 @@ internal void renderer_backend_vk_init(RendererBackend* base_ctx, DOT_Window* wi
             };
 
             for(u32 i = 0; i < swapchain->images_count; ++i){
-                image_create_info.image = swapchain->images[i];
-                VK_CHECK(vkCreateImageView(device, &image_create_info, NULL, &swapchain->image_views[i]));
+                image_view_create_info.image = swapchain->images[i];
+                VK_CHECK(vkCreateImageView(device, &image_view_create_info, NULL, &swapchain->image_views[i]));
             }
         }
     }
@@ -401,6 +436,7 @@ renderer_backend_vk_shutdown(RendererBackend* base_ctx)
     for(u32 i = 0; i < vk_ctx->swapchain.images_count; ++i){
         vkDestroyImageView(device, vk_ctx->swapchain.image_views[i], NULL);
     }
+    rbvk_destoy_image(vk_ctx, &vk_ctx->draw_image);
     vkDestroySwapchainKHR(device, vk_ctx->swapchain.swapchain, NULL);
     vk_memory_pools_destoy(device, &vk_ctx->memory_pools);
     vkDestroySurfaceKHR(vk_ctx->instance, vk_ctx->surface, NULL);
@@ -413,6 +449,17 @@ renderer_backend_vk_shutdown(RendererBackend* base_ctx)
         }
     }
     vkDestroyInstance(vk_ctx->instance, NULL);
+}
+
+internal void
+rbvk_draw_background(VkCommandBuffer cmd, VkImage image, u64 frame)
+{
+    f64 flash = fabs(sin(frame / 2000.f));
+    VkClearColorValue clear_value = {
+        .float32 = {0.0f, 0.0f, flash, 1.0f},
+    };
+	VkImageSubresourceRange clear_range = vk_image_subresource_range(VK_IMAGE_ASPECT_COLOR_BIT);
+	vkCmdClearColorImage(cmd, image, VK_IMAGE_LAYOUT_GENERAL, &clear_value, 1, &clear_range);
 }
 
 internal void
@@ -437,19 +484,19 @@ renderer_backend_vk_draw(RendererBackend* base_ctx, u8 current_frame, u64 frame)
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
     };
     VK_CHECK(vkBeginCommandBuffer(cmd, &cmd_begin_info));
-    VkImage current_image = vk_ctx->swapchain.images[swapchain_image_idx];
-    vk_helper_transition_image(cmd, current_image,
-                        VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
-    f64 flash = fabs(sin(frame / 120.f));
-    VkClearColorValue clear_value = {
-        .float32 = {0.0f, 0.0f, flash, 1.0f},
-    };
-	VkImageSubresourceRange clear_range = vk_image_subresource_range(VK_IMAGE_ASPECT_COLOR_BIT);
-	vkCmdClearColorImage(cmd, current_image, VK_IMAGE_LAYOUT_GENERAL, &clear_value, 1, &clear_range);
-
+    // vk_helper_transition_image(cmd, current_image,
+    //                     VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+    RBVK_Image *draw_image = &vk_ctx->draw_image;
+    vk_helper_transition_image(cmd, draw_image->image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+    rbvk_draw_background(cmd, draw_image->image, frame);
+    vk_helper_transition_image(cmd, draw_image->image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    VkImage swapchain_image = vk_ctx->swapchain.images[swapchain_image_idx];
+    vk_helper_transition_image(cmd, swapchain_image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    vk_helper_copy_image_to_image(cmd, draw_image->image, swapchain_image, vk_ctx->draw_extent, vk_ctx->swapchain.extent);
+    vk_helper_transition_image(cmd, swapchain_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 	//make the swapchain image into presentable mode
-	vk_helper_transition_image(cmd, current_image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+	// vk_helper_transition_image(cmd, current_image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
 	//finalize the command buffer (we can no longer add commands, but it can now be executed)
 	VK_CHECK(vkEndCommandBuffer(cmd));
