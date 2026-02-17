@@ -58,6 +58,32 @@ void __asan_unpoison_memory_region(void const volatile *addr, size_t size);
 #define NO_ASAN
 #endif
 
+
+typedef struct File{
+    u8* buff;
+    usize size;
+}File;
+
+internal File platform_read_entire_file(Arena *arena, String8 path)
+{
+    File file = {0};
+    FILE *f = fopen((const char *) path.str, "rb");
+    int size = -1;
+    if(f){
+        fseek(f, 0, SEEK_END);
+        size = ftell(f);
+    }
+    if(size > 0){
+        file.size = size;
+        fseek(f, 0, SEEK_SET);
+        u8 *buff = PUSH_ARRAY(arena, u8, file.size);
+        fread(buff, 1, file.size, f);
+    }
+    fclose(f);
+    return file;
+
+}
+
 ////////////////////////////////////////////////////////////////
 //
 // Metrics

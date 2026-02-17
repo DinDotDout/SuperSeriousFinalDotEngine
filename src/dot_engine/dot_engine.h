@@ -22,10 +22,13 @@
 #include "dot_engine/plugin.h"
 #define DOT_PROFILER_IMPL
 #include "dot_engine/profiler.h"
-#include "dot_engine/application.h"
 #include "dot_engine/game.h"
+#include "dot_engine/application.h"
 
 #include "dot_engine/window.c"
-#include "dot_engine/application.c"
 #include "dot_engine/game.c"
+#include "dot_engine/application.c"
+
+#include "game/my_game.c"
+
 #endif // !DOT_ENGINE_H

@@ -38,12 +38,12 @@ threadctx_destroy(){
 }
 
 internal TempArena
-threadctx_get_temp(Arena **avoid, u32 avoid_count){
+threadctx_get_temp(Arena *avoid[], u32 avoid_count){
     for(u8 i = 0; i < thread_ctx.temp_arena_count; ++i){
         Arena *candidate_temp = thread_ctx.temp_arenas[i];
         DOT_ASSERT(candidate_temp);
 
-        // Check if candidate_temp is in the avoid list
+        // NOTE: Checks if candidate_temp is in the avoid list
         b32 collision = false;
         for(u32 j = 0; j < avoid_count; ++j){
             if(candidate_temp == avoid[j]){

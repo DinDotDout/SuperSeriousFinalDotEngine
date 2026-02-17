@@ -14,7 +14,9 @@ renderer_backend_vk_create(Arena *arena)
     base->backend_kind = RendererBackendKind_Vk;
     base->init         = renderer_backend_vk_init;
     base->shutdown     = renderer_backend_vk_shutdown;
-    base->draw         = renderer_backend_vk_draw;
+    // base->draw         = renderer_backend_vk_draw;
+    base->begin_frame  = renderer_backend_vk_begin_frame;
+    base->end_frame    = renderer_backend_vk_end_frame;
     return backend;
 }
 
@@ -22,7 +24,7 @@ renderer_backend_vk_create(Arena *arena)
 internal const RBVK_Settings*
 renderer_backend_vk_settings()
 {
-    static const String8 instance_exts[] = {
+    static const String8 instance_extension_names[] = {
         String8Lit(VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME),
         String8Lit(VK_KHR_SURFACE_EXTENSION_NAME),
 #ifdef VK_EXT_DEBUG_UTILS_ENABLE
@@ -31,14 +33,21 @@ renderer_backend_vk_settings()
         String8Lit(DOT_VK_SURFACE),
     };
 
+    static const VkPhysicalDeviceDescriptorBufferFeaturesEXT desc_buffer_features = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT,
+        .pNext = NULL,
+        .descriptorBuffer = VK_TRUE,
+    };
+
     static const VkPhysicalDeviceVulkan13Features features13 = {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+        .pNext = cast(void*) &desc_buffer_features,
         .synchronization2 = VK_TRUE,
         .dynamicRendering = true,
     };
     static const VkPhysicalDeviceVulkan12Features features12 = {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
-        .pNext = (void*) &features13,
+        .pNext = cast(void*) &features13,
         .bufferDeviceAddress = true,
         .descriptorIndexing = true,
         .descriptorBindingPartiallyBound = true,
@@ -46,11 +55,13 @@ renderer_backend_vk_settings()
         .runtimeDescriptorArray = true,
     };
 
-    static const String8 device_exts[] = {
+    static const String8 device_extension_names[] = {
         String8Lit(VK_KHR_SWAPCHAIN_EXTENSION_NAME),
+        String8Lit(VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME),
+        // String8Lit(VK_EXT_DESCRIPTOR_HEAP_EXTENSION_NAME),
     };
 
-    static const String8 vk_layers[] = {
+    static const String8 layer_names[] = {
 #ifdef VALIDATION_LAYERS_ENABLE
         String8Lit("VK_LAYER_KHRONOS_validation"),
 #endif
@@ -58,17 +69,17 @@ renderer_backend_vk_settings()
 
     static const RBVK_Settings vk_settings = {
         .instance_settings = {
-            .instance_extension_names = instance_exts,
-            .instance_extension_count = ARRAY_COUNT(instance_exts),
+            .instance_extension_names = instance_extension_names,
+            .instance_extension_count = ARRAY_COUNT(instance_extension_names),
         },
         .device_settings = {
-            .device_extension_names = device_exts,
-            .device_extension_count = ARRAY_COUNT(device_exts),
+            .device_extension_names = device_extension_names,
+            .device_extension_count = ARRAY_COUNT(device_extension_names),
             .device_features        = &features12,
         },
         .layer_settings = {
-            .layer_names = vk_layers,
-            .layer_count = ARRAY_COUNT(vk_layers),
+            .layer_names = layer_names,
+            .layer_count = ARRAY_COUNT(layer_names),
         },
         .swapchain_settings = {
             .preferred_format       = VK_FORMAT_B8G8R8A8_SRGB,
@@ -91,7 +102,7 @@ renderere_backend_vk_debug_callback(
 {
     UNUSED(message_type); UNUSED(user_data);
     if(message_severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT){
-        DOT_PRINT("validation layer: %s\n", callback_data->pMessage);
+        DOT_PRINT("validation layer: %s", callback_data->pMessage);
     }
     return VK_FALSE;
 }
@@ -128,7 +139,7 @@ rbvk_create_image(RendererBackendVk *ctx, VkImageCreateInfo *image_info){
 }
 
 internal void
-rbvk_destoy_image(RendererBackendVk *ctx, RBVK_Image *image){
+rbvk_destroy_image(RendererBackendVk *ctx, RBVK_Image *image){
     VkDevice device = ctx->device.device;
     vkDestroyImageView(device, image->image_view, NULL);
     vkUnmapMemory(device, image->alloc.memory);
@@ -215,9 +226,10 @@ internal void renderer_backend_vk_init(RendererBackend *base_ctx, DOT_Window* wi
     {
         VkHelper_CandidateDeviceInfo candidate_device_info = vk_helper_pick_best_device(vk_settings, vk_ctx->instance, vk_ctx->surface, window);
         RBVK_Device* device = &vk_ctx->device;
-        device->gpu                      = candidate_device_info.gpu;
-        device->graphics_queue_idx       = candidate_device_info.graphics_family;
-        device->present_queue_idx        = candidate_device_info.present_family;
+        device->gpu                = candidate_device_info.gpu;
+        device->graphics_queue_idx = candidate_device_info.graphics_family;
+        device->present_queue_idx  = candidate_device_info.present_family;
+        device->is_integrated_gpu  = candidate_device_info.is_integrated_gpu;
 
         b8 shared_present_graphics_queues = candidate_device_info.graphics_family == candidate_device_info.present_family;
 
@@ -253,6 +265,9 @@ internal void renderer_backend_vk_init(RendererBackend *base_ctx, DOT_Window* wi
             .pNext = vk_settings->device_settings.device_features,
         };
 
+        VkPhysicalDeviceProperties properties;
+        vkGetPhysicalDeviceProperties(candidate_device_info.gpu, &properties);
+        DOT_PRINT("Vulkan version: %u.%u.%u", VK_VERSION_MAJOR(properties.apiVersion), VK_VERSION_MINOR(properties.apiVersion), VK_VERSION_PATCH(properties.apiVersion));
         VK_CHECK(vkCreateDevice(candidate_device_info.gpu, &device_create_info, NULL, &device->device));
 
 #ifdef USE_VOLK
@@ -268,7 +283,7 @@ internal void renderer_backend_vk_init(RendererBackend *base_ctx, DOT_Window* wi
     }
     {
         RBVK_Device *device = &vk_ctx->device;
-        vk_memory_pools_create(device->gpu, device->device, &vk_ctx->memory_pools);
+        vk_memory_pools_create(device, &vk_ctx->memory_pools);
     }
     // TODO: We will probably need to move this to its own function to allow recreation
     // --- Create Swapchain ---
@@ -415,6 +430,73 @@ internal void renderer_backend_vk_init(RendererBackend *base_ctx, DOT_Window* wi
                 VK_CHECK(vkCreateSemaphore(device, &semaphore_create_info, NULL, &frame_data->swapchain_semaphore));
             }
         }
+        // --- Create descriptors
+        {
+            VkDescriptorPoolSize pool_sizes[] = {
+                {.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, .descriptorCount = 4096},
+                {.type = VK_DESCRIPTOR_TYPE_SAMPLER, .descriptorCount = 4096},
+                {.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .descriptorCount = 512},
+                {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = 1},
+                // Keeping this for the first draw compute pass on the tutorial
+                {.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, .descriptorCount = 1},
+            };
+
+            VkDescriptorPoolCreateInfo pool_info = {
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+                .flags = 0,
+                .poolSizeCount = ARRAY_COUNT(pool_sizes),
+                .pPoolSizes = pool_sizes,
+                .maxSets = 2,
+            };
+
+            vkCreateDescriptorPool(device, &pool_info, NULL, &vk_ctx->descriptor_pool);
+            VkDescriptorSetLayoutBinding bindings[] = {
+                { .binding = 0, .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+                    .descriptorCount = 4096, .stageFlags = VK_SHADER_STAGE_ALL },
+                { .binding = 1, .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+                    .descriptorCount = 4096, .stageFlags = VK_SHADER_STAGE_ALL },
+                { .binding = 2, .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                    .descriptorCount = 512, .stageFlags = VK_SHADER_STAGE_ALL },
+                { .binding = 3, .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                    .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_ALL },
+            };
+
+            VkDescriptorSetLayoutBinding bindings_compute[] = {
+                { .binding = 0, .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                    .descriptorCount = 1, .stageFlags = VK_SHADER_STAGE_ALL },
+            };
+            // Bindless layout
+            VkDescriptorSetLayoutCreateInfo bindless_info = {
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+                .bindingCount = ARRAY_COUNT(bindings),
+                .pBindings = bindings,
+            };
+
+            VK_CHECK(vkCreateDescriptorSetLayout(device, &bindless_info, NULL, &vk_ctx->bindless_layout));
+
+            // Compute layout
+            VkDescriptorSetLayoutCreateInfo compute_info = {
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+                .bindingCount = ARRAY_COUNT(bindings_compute),
+                .pBindings = bindings_compute,
+            };
+
+            VK_CHECK(vkCreateDescriptorSetLayout(device, &compute_info, NULL, &vk_ctx->compute_layout));
+            VkDescriptorSetLayout layouts[] = {
+                vk_ctx->bindless_layout,
+                vk_ctx->compute_layout
+            };
+
+            VkDescriptorSetAllocateInfo alloc_info = {
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                .descriptorPool = vk_ctx->descriptor_pool,
+                .descriptorSetCount = ARRAY_COUNT(layouts),
+                .pSetLayouts = layouts,
+            };
+
+            VK_CHECK(vkAllocateDescriptorSets(device, &alloc_info, &vk_ctx->descriptor_sets));
+
+        }
     }
     temp_arena_restore(&temp);
 }
@@ -426,6 +508,13 @@ renderer_backend_vk_shutdown(RendererBackend* base_ctx)
     RendererBackendVk *vk_ctx = renderer_backend_as_vk(base_ctx);
     VkDevice device = vk_ctx->device.device;
     vkDeviceWaitIdle(device);
+
+    {
+        vkDestroyDescriptorSetLayout(device, vk_ctx->compute_layout, NULL);
+        vkDestroyDescriptorSetLayout(device, vk_ctx->bindless_layout, NULL);
+        vkDestroyDescriptorPool(device, vk_ctx->descriptor_pool, NULL);
+    }
+
     for(u32 i = 0; i < settings->frame_settings.frame_overlap; ++i){
         RBVK_FrameData* frame_data = &vk_ctx->frame_datas[i];
         vkDestroyCommandPool(device, frame_data->command_pool, NULL);
@@ -436,9 +525,9 @@ renderer_backend_vk_shutdown(RendererBackend* base_ctx)
     for(u32 i = 0; i < vk_ctx->swapchain.images_count; ++i){
         vkDestroyImageView(device, vk_ctx->swapchain.image_views[i], NULL);
     }
-    rbvk_destoy_image(vk_ctx, &vk_ctx->draw_image);
+    rbvk_destroy_image(vk_ctx, &vk_ctx->draw_image);
     vkDestroySwapchainKHR(device, vk_ctx->swapchain.swapchain, NULL);
-    vk_memory_pools_destoy(device, &vk_ctx->memory_pools);
+    vk_memory_pools_destroy(&vk_ctx->device, &vk_ctx->memory_pools);
     vkDestroySurfaceKHR(vk_ctx->instance, vk_ctx->surface, NULL);
     vkDestroyDevice(vk_ctx->device.device, NULL);
     if(VK_EXT_DEBUG_UTILS_ENABLE){
@@ -449,6 +538,20 @@ renderer_backend_vk_shutdown(RendererBackend* base_ctx)
         }
     }
     vkDestroyInstance(vk_ctx->instance, NULL);
+}
+
+internal void renderer_backend_vk_clear_bg(RendererBackend *base_ctx, u8 current_frame, vec3 color)
+{
+    RendererBackendVk *vk_ctx = renderer_backend_as_vk(base_ctx);
+    RBVK_FrameData *frame_data = &vk_ctx->frame_datas[current_frame];
+    VkCommandBuffer cmd = frame_data->frame_command_buffer;
+    RBVK_Image *draw_image = &vk_ctx->draw_image;
+
+    VkClearColorValue clear_value = {
+        .float32 = { color.r, color.g,color.b, 0 },
+    };
+	VkImageSubresourceRange clear_range = vk_image_subresource_range(VK_IMAGE_ASPECT_COLOR_BIT);
+	vkCmdClearColorImage(cmd, draw_image->image, VK_IMAGE_LAYOUT_GENERAL, &clear_value, 1, &clear_range);
 }
 
 internal void
@@ -463,19 +566,18 @@ rbvk_draw_background(VkCommandBuffer cmd, VkImage image, u64 frame)
 }
 
 internal void
-renderer_backend_vk_draw(RendererBackend* base_ctx, u8 current_frame, u64 frame)
+renderer_backend_vk_begin_frame(RendererBackend *base_ctx, u8 current_frame)
 {
-    UNUSED(base_ctx); UNUSED(current_frame);
     RendererBackendVk *vk_ctx = renderer_backend_as_vk(base_ctx);
     RBVK_FrameData *frame_data = &vk_ctx->frame_datas[current_frame];
+    arena_reset(frame_data->frame_arena);
     VkDevice device = vk_ctx->device.device;
     VK_CHECK(vkWaitForFences(device, 1, &frame_data->render_fence, true, TO_USEC(1)));
     VK_CHECK(vkResetFences(device, 1, &frame_data->render_fence));
 
-    u32 swapchain_image_idx;
     VK_CHECK(vkAcquireNextImageKHR(device, vk_ctx->swapchain.swapchain,
                                    TO_USEC(1), frame_data->swapchain_semaphore,
-                                   NULL, &swapchain_image_idx));
+                                   NULL, &frame_data->swapchain_image_idx));
 
     VkCommandBuffer cmd = frame_data->frame_command_buffer;
     VK_CHECK(vkResetCommandBuffer(cmd, 0));
@@ -484,46 +586,56 @@ renderer_backend_vk_draw(RendererBackend* base_ctx, u8 current_frame, u64 frame)
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
     };
     VK_CHECK(vkBeginCommandBuffer(cmd, &cmd_begin_info));
-
-    // vk_helper_transition_image(cmd, current_image,
-    //                     VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
     RBVK_Image *draw_image = &vk_ctx->draw_image;
     vk_helper_transition_image(cmd, draw_image->image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-    rbvk_draw_background(cmd, draw_image->image, frame);
-    vk_helper_transition_image(cmd, draw_image->image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-    VkImage swapchain_image = vk_ctx->swapchain.images[swapchain_image_idx];
-    vk_helper_transition_image(cmd, swapchain_image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    vk_helper_copy_image_to_image(cmd, draw_image->image, swapchain_image, vk_ctx->draw_extent, vk_ctx->swapchain.extent);
-    vk_helper_transition_image(cmd, swapchain_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-	//make the swapchain image into presentable mode
-	// vk_helper_transition_image(cmd, current_image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+}
 
-	//finalize the command buffer (we can no longer add commands, but it can now be executed)
+internal void
+renderer_backend_vk_end_frame(RendererBackend *base_ctx, u8 current_frame)
+{
+    RendererBackendVk *vk_ctx = renderer_backend_as_vk(base_ctx);
+    RBVK_FrameData *frame_data = &vk_ctx->frame_datas[current_frame];
+    VkCommandBuffer cmd = frame_data->frame_command_buffer;
+
+    RBVK_Image *draw_image = &vk_ctx->draw_image;
+    VkImage swapchain_image = vk_ctx->swapchain.images[frame_data->swapchain_image_idx];
+ 
+    // NOTE: Copy draw image into swapchain
+    {
+        vk_helper_transition_image(cmd, draw_image->image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        vk_helper_transition_image(cmd, swapchain_image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        vk_helper_copy_image_to_image(cmd, draw_image->image, swapchain_image, vk_ctx->draw_extent, vk_ctx->swapchain.extent);
+        vk_helper_transition_image(cmd, swapchain_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    }
+
 	VK_CHECK(vkEndCommandBuffer(cmd));
-
     VkCommandBufferSubmitInfo cmd_info = vk_command_buffer_submit_info(cmd);
-    VkSemaphoreSubmitInfo wait_info = vk_semaphore_submit_info(
-        VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
-        frame_data->swapchain_semaphore
-    );
-    VkSemaphoreSubmitInfo signal_info = vk_semaphore_submit_info(
-        VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, frame_data->render_semaphore);
 
-    VkSubmitInfo2 submit = vk_submit_info(&cmd_info, &signal_info, &wait_info);
+    // Presnet image
+    {
+        VkSemaphoreSubmitInfo wait_info = vk_semaphore_submit_info(
+            VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
+            frame_data->swapchain_semaphore
+        );
+        VkSemaphoreSubmitInfo signal_info = vk_semaphore_submit_info(
+            VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, frame_data->render_semaphore);
 
-    // submit command buffer to the queue and execute it.
-    //  _renderFence will now block until the graphic commands finish execution
-    VK_CHECK(vkQueueSubmit2(vk_ctx->device.graphics_queue, 1, &submit,
-                            frame_data->render_fence));
+        VkSubmitInfo2 submit = vk_submit_info(&cmd_info, &signal_info, &wait_info);
 
-    VkPresentInfoKHR presentInfo = {
-	    .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-	    .pNext = NULL,
-	    .pSwapchains = &vk_ctx->swapchain.swapchain,
-	    .swapchainCount = 1,
-	    .pWaitSemaphores = &frame_data->render_semaphore,
-	    .waitSemaphoreCount = 1,
-	    .pImageIndices = &swapchain_image_idx,
-	};
-	VK_CHECK(vkQueuePresentKHR(vk_ctx->device.graphics_queue, &presentInfo));
+        // submit command buffer to the queue and execute it.
+        //  _renderFence will now block until the graphic commands finish execution
+        VK_CHECK(vkQueueSubmit2(vk_ctx->device.graphics_queue, 1, &submit,
+                                frame_data->render_fence));
+
+        VkPresentInfoKHR presentInfo = {
+	        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+	        .pNext = NULL,
+	        .pSwapchains = &vk_ctx->swapchain.swapchain,
+	        .swapchainCount = 1,
+	        .pWaitSemaphores = &frame_data->render_semaphore,
+	        .waitSemaphoreCount = 1,
+	        .pImageIndices = &frame_data->swapchain_image_idx,
+	    };
+	    VK_CHECK(vkQueuePresentKHR(vk_ctx->device.graphics_queue, &presentInfo));
+	}
 }

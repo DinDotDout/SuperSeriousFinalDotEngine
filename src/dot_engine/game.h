@@ -21,6 +21,8 @@ DOT_GameVtable game_vtable;
 #endif
 
 void dot_game_bootstrap();
-b8 dot_game_init(DOT_Game* game);
-void dot_game_shutdown(DOT_Game* game);
+b8 dot_game_init(DOT_Game *game);
+void dot_game_shutdown(DOT_Game *game);
+
+void dot_game_draw(DOT_Game *game, DOT_Renderer *renderer);
 #endif // !DOT_GAME_H

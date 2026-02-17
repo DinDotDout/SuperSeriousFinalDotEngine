@@ -36,6 +36,8 @@ typedef struct RBVK_Settings{
 typedef struct RBVK_Device{
     VkDevice         device;
     VkPhysicalDevice gpu;
+    b8               is_integrated_gpu;
+
 
     VkQueue graphics_queue;
     u32     graphics_queue_idx;
@@ -68,6 +70,7 @@ typedef struct RBVK_FrameData{
     VkSemaphore     swapchain_semaphore, render_semaphore;
     VkFence         render_fence;
     Arena          *frame_arena;
+    u32             swapchain_image_idx;
 }RBVK_FrameData;
 
 typedef struct RendererBackendVk{
@@ -79,9 +82,18 @@ typedef struct RendererBackendVk{
 
     u8              frame_data_count;
     RBVK_FrameData *frame_datas;
+
     RBVK_Image      draw_image;
     // NOTE: Splitting this from actual draw_image so that we can draw regions?
     VkExtent2D      draw_extent;
+
+    // TODO: Clean up
+    VkDescriptorPool descriptor_pool;
+    VkDescriptorSetLayout bindless_layout;
+    VkDescriptorSetLayout compute_layout;
+    VkDescriptorSet descriptor_sets;
+    // VkDescriptorSet bindles_set;
+    // VkDescriptorSet compute_set;
 
     VkMemory_Pools memory_pools;
     // NOTE: vk expects a malloc like allocator, which I don't intend on make or using for now
@@ -91,14 +103,18 @@ typedef struct RendererBackendVk{
 }RendererBackendVk;
 
 // Outfacing renderer API
-internal RendererBackendVk* renderer_backend_as_vk(RendererBackend *base);
-internal RendererBackendVk* renderer_backend_vk_create(Arena *arena);
 internal const RBVK_Settings* renderer_backend_vk_settings();
+
+internal RendererBackendVk* renderer_backend_vk_create(Arena *arena);
 internal void renderer_backend_vk_init(RendererBackend *base_ctx, DOT_Window *window);
 internal void renderer_backend_vk_shutdown(RendererBackend* base_ctx);
-internal void renderer_backend_vk_draw(RendererBackend *base_ctx, u8 current_frame, u64 frame);
+// internal void renderer_backend_vk_draw(RendererBackend *base_ctx, u8 current_frame, u64 frame);
+
+internal void renderer_backend_vk_begin_frame(RendererBackend *base_ctx, u8 current_frame);
+internal void renderer_backend_vk_end_frame(RendererBackend *base_ctx, u8 current_frame);
 
 // Internal API
+internal RendererBackendVk* renderer_backend_as_vk(RendererBackend *base);
 internal RBVK_Image rbvk_create_image(RendererBackendVk *ctx, VkImageCreateInfo *image_info);
 internal void rbvk_destroy_image(RendererBackendVk *ctx, RBVK_Image *image);
 

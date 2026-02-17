@@ -1,7 +1,9 @@
 #include "dot_engine/application_config.h"
+#include "renderer/renderer.h"
 
 internal void
-application_init(Application* app){
+application_init(Application* app)
+{
     ApplicationConfig* app_config = application_config_get();
     app->permanent_arena = ARENA_ALLOC(.reserve_size = app_config->app_memory_size, .name = "Application Arena");
     // NOTE: Should make entry points per thread
@@ -12,14 +14,18 @@ application_init(Application* app){
 }
 
 internal void
-application_run(Application* app){
+application_run(Application* app)
+{
     while(!dot_window_should_close(&app->window)){
-        renderer_draw(&app->renderer);
+        renderer_begin_frame(&app->renderer);
+        renderer_clear_background(&app->renderer);
+        renderer_end_frame(&app->renderer);
     }
 }
 
 internal void
-application_shutdown(Application* app){
+application_shutdown(Application* app)
+{
     renderer_shutdown(&app->renderer);
     dot_window_destroy(&app->window);
     plugins_end();

@@ -25,7 +25,7 @@ internal void threadctx_destroy();
 // threadctx_get_temp(AVOID_LIST(a, a2, a3));
 // for the base cases of 0 and 1 we can just:
 // threadctx_get_temp(0,0) or threadctx_get_temp(&a,1)
-internal TempArena threadctx_get_temp(Arena **avoid, u32 avoid_count);
+internal TempArena threadctx_get_temp(Arena *avoid[], u32 avoid_count);
 
 // TODO: Implement threading
 #define MUTEX_SCOPE(mutex) DEFER_LOOP(mutex_Lock(mutex), mutex_unlock(mutex))

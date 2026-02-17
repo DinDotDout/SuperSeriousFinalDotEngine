@@ -16,6 +16,7 @@ typedef struct VkHelper_CandidateDeviceInfo{
     u16 present_family;
     i32 score;
     b8 shared_present_graphics_queues;
+    b8 is_integrated_gpu;
 }VkHelper_CandidateDeviceInfo;
 
 #ifdef NDEBUG
@@ -170,7 +171,7 @@ vk_helper_physical_device_all_required_extensions(
         b8 found = false;
         String8 device_extension_name = vk_settings->device_settings.device_extension_names[i];
         for(u64 j = 0; j < extension_count; ++j){
-            if(string8_equal(device_extension_name, string8_cstring(available_extensions[j].extensionName)) == 0){
+            if(string8_equal(device_extension_name, string8_cstring(available_extensions[j].extensionName))){
                 DOT_PRINT("Found extension \"%s\"", device_extension_name);
                 found = true;
                 break;
@@ -298,6 +299,7 @@ vk_helper_pick_best_device(
     best_device.score = -1;
 
     for (u32 i = 0; i < device_count; i++){
+        b8 is_integrated_gpu = true;
         VkPhysicalDevice dev = devices[i];
         // We to first ensure we have what we want before even rating the device
         if(!vk_helper_physical_device_all_required_extensions(vk_settings, dev) ||
@@ -347,8 +349,10 @@ vk_helper_pick_best_device(
         }
 
         int score = -1;
-        if (device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+        if (device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU){
             score += 2000;
+            is_integrated_gpu = false;
+        }
         // if(device_properties.deviceType ==
         // VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) score += 100;
         if (device_features.geometryShader)
@@ -356,6 +360,7 @@ vk_helper_pick_best_device(
         DOT_PRINT("graphics family: %d; present family: %i; score: %i",
                   graphics_idx, present_idx, score);
         if (score > best_device.score){
+            best_device.is_integrated_gpu = is_integrated_gpu;
             best_device.gpu = dev;
             best_device.graphics_family = cast(u16) graphics_idx;
             best_device.present_family = cast(u16) present_idx;

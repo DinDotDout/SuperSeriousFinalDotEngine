@@ -8,6 +8,7 @@
 
 #define VK_HELPER_IMPLEMENTATION
 #include "vk_helper.h"
+#include "vk_memory_pools.c"
 #include "renderer_backend_vk.c"
 
 #endif // !VK_BACKEND_INCLUDE_H
