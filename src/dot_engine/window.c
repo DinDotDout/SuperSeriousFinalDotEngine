@@ -34,9 +34,9 @@ dot_window_create_surface(DOT_Window* window, struct RendererBackend* backend){
         if(res != VK_SUCCESS){
             DOT_ERROR("Could not create vulkan surface");
         }
-    break;}
-    case RendererBackendKind_Null: 
+    }
     break;
+    case RendererBackendKind_Null: break;
     case RendererBackendKind_Gl:
     case RendererBackendKind_Dx12:
         DOT_ERROR("Backend not implemented");
