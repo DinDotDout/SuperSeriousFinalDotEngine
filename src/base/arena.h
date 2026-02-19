@@ -49,7 +49,7 @@ typedef struct TempArena{
 }TempArena;
 
 internal TempArena temp_arena_get(Arena *arena);
-internal void      temp_arena_restore(TempArena *temp);
+internal void      temp_arena_restore(TempArena temp);
 
 internal Arena* arena_alloc_(ArenaInitParams *params);
 internal Arena* arena_alloc_from_memory(ArenaInitParams *params);

@@ -21,6 +21,7 @@
 // #define STB_SPRINTF_DECORATE(name) dot_##name
 // #include "third_party/stb_sprintf.h"
 
+
 ////////////////////////////////////////////////////////////////
 //
 // Compiler
@@ -135,14 +136,14 @@ typedef double f64;
 // Debug
 
 #if defined(DOT_COMPILER_MSVC)
-#define DEBUG_BREAK __debugbreak()
+#   define DEBUG_BREAK __debugbreak()
 #elif defined(DOT_COMPILER_GCC)
-#include <signal.h>
-#define DEBUG_BREAK raise(SIGTRAP)
+#   include <signal.h>
+#   define DEBUG_BREAK raise(SIGTRAP)
 #elif defined(DOT_COMPILER_CLANG)
-#define DEBUG_BREAK __builtin_debugtrap()
+#   define DEBUG_BREAK __builtin_debugtrap()
 #else
-#define DEBUG_BREAK ((void)0) // Fallback: no-op
+#   define DEBUG_BREAK ((void)0) // Fallback: no-op
 #endif
 
 ////////////////////////////////////////////////////////////////
@@ -174,15 +175,15 @@ typedef int DOT_CONCAT(DOT_STATIC_ASSERT_, __COUNTER__) [(x) ? 1 : -1]
 // Debug utils
 
 #if defined(DOT_COMPILER_MSVC)
-  #include <sal.h>
-  #define PRINTF_LIKE(fmtpos, argpos) 
-  #define PRINTF_STRING _Printf_format_string_
+#   include <sal.h>
+#   define PRINTF_LIKE(fmtpos, argpos) 
+#   define PRINTF_STRING _Printf_format_string_
 #elif defined(DOT_COMPILER_GCC) || defined(DOT_COMPILER_CLANG)
-  #define PRINTF_LIKE(fmtpos, argpos) __attribute__((format(printf, fmtpos, argpos)))
-  #define PRINTF_STRING
+#   define PRINTF_LIKE(fmtpos, argpos) __attribute__((format(printf, fmtpos, argpos)))
+#   define PRINTF_STRING
 #else
-  #define PRINTF_LIKE(fmtpos, argpos)
-  #define PRINTF_STRING
+#   define PRINTF_LIKE(fmtpos, argpos)
+#   define PRINTF_STRING
 #endif
 
 typedef DOT_ENUM(u8, DOT_LogLevelKind){
@@ -285,11 +286,11 @@ do { \
 // Processor hints
 
 #if defined(__GNUC__) || defined(__clang__)
-#define DOT_LIKELY(x) __builtin_expect(!!(x), 1)
-#define DOT_UNLIKELY(x) __builtin_expect(!!(x), 0)
+#   define DOT_LIKELY(x) __builtin_expect(!!(x), 1)
+#   define DOT_UNLIKELY(x) __builtin_expect(!!(x), 0)
 #else
-#define Dot_Likely(x) (x)
-#define Dot_Unlikely(x) (x)
+#   define Dot_Likely(x) (x)
+#   define Dot_Unlikely(x) (x)
 #endif
 
 
@@ -298,13 +299,13 @@ do { \
 // Memory
 
 #if defined(DOT_COMPILER_MSVC)
-#define ALIGNOF(T) __alignof(T)
+#   define ALIGNOF(T) __alignof(T)
 #elif defined(DOT_COMPILER_CLANG)
-#define ALIGNOF(T) __alignof__(T)
+#   define ALIGNOF(T) __alignof__(T)
 #elif DOT_COMPILER_GCC
-#define ALIGNOF(T) __alignof__(T)
+#   define ALIGNOF(T) __alignof__(T)
 #else
-#error alignof not defined for this compiler.
+#   error alignof not defined for this compiler.
 #endif
 
 #define ALIGN_POW2(x, align) (((x) + (align) - 1) & (~((align) - 1)))
@@ -320,11 +321,11 @@ do { \
 
 // Keep this around for when using sorting functions
 #if defined(DOT_COMPILER_MSVC)
-#define force_inline __forceinline __declspec(safebuffers)
-#define COMPILER_RESET(ptr) __assume(ptr)
+#   define force_inline __forceinline __declspec(safebuffers)
+#   define COMPILER_RESET(ptr) __assume(ptr)
 #elif defined(DOT_COMPILER_GCC) || defined(DOT_DOMPILER_CLANG)
-#define force_inline __attribute__((always_inline))
-#define COMPILER_RESET(ptr)
+#   define force_inline __attribute__((always_inline))
+#   define COMPILER_RESET(ptr)
 #endif
 
 
@@ -378,11 +379,11 @@ do { \
 // Threading
 
 #if defined(DOT_COMPILER_MSVC)
-#define thread_local __declspec(thread)
+#   define thread_local __declspec(thread)
 #elif defined(DOT_COMPILER_GCC) || defined(DOT_COMPILER_CLANG)
-#define thread_local __thread
+#   define thread_local __thread
 #else
-#error "No thread-local storage keyword available for this compiler"
+#   error "No thread-local storage keyword available for this compiler"
 #endif
 
 ////////////////////////////////////////////////////////////////
@@ -390,26 +391,26 @@ do { \
 // This runs after static initialization and before main
 
 #if defined(DOT_COMPILER_MSVC)
-    #pragma section(".CRT$XCU",read)
-    #define CONSTRUCTOR2_(fn, p) \
+#   pragma section(".CRT$XCU",read)
+#   define CONSTRUCTOR2_(fn, p) \
         __declspec(allocate(".CRT$XCU")) void (*fn##_)(void) = fn; \
         __pragma(comment(linker,"/include:" p #fn "_")) \
         static void fn(void)
-    #ifdef _WIN64
+#   ifdef _WIN64
         #define CONSTRUCTOR(fn) CONSTRUCTOR2_(fn,"")
-    #else
+#   else
         #define CONSTRUCTOR(fn) CONSTRUCTOR2_(fn,"_")
-    #endif
+#   endif
 #else
-    #define CONSTRUCTOR(fn) \
+#   define CONSTRUCTOR(fn) \
         __attribute__((constructor)) static void fn(void)
 #endif
 
 
 #if defined(NDEBUG)
-    #define DOT_DEBUG 0
+#   define DOT_DEBUG 0
 else
-    #define DOT_DEBUG 1
+#   define DOT_DEBUG 1
 #endif
 
 #endif // !DOT_H

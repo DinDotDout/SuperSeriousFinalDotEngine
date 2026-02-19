@@ -1,3 +1,5 @@
+#include "base/arena.h"
+#include "base/thread_ctx.h"
 internal RendererBackend*
 renderer_backend_create(Arena *arena, RendererBackendConfig *backend_config)
 {
@@ -19,11 +21,25 @@ renderer_backend_create(Arena *arena, RendererBackendConfig *backend_config)
     return base;
 }
 
-
-internal void renderer_load_shader_module_from_path(Arena *arena, String8 path)
+DOT_ShaderModule
+renderer_load_shader_module_from_path(DOT_Renderer *renderer, String8 path)
 {
-    File file = platform_read_entire_file(arena, path);
+    TempArena temp = threadctx_get_temp(0,0);
+    FileBuffer file_buffer = platform_read_entire_file(temp.arena, path);
+    DOT_ShaderModule shader_module = {
+        .path = path,
+        .shader_module_handle = renderer->backend->load_shader_module(renderer->backend, file_buffer),
+    };
+    temp_arena_restore(temp);
+    return shader_module;
+}
 
+void
+renderer_clear_background(DOT_Renderer *renderer, vec3 color)
+{
+    RendererBackend *backend = renderer->backend;
+    u8 frame_idx = renderer->current_frame % renderer->frame_overlap;
+    backend->clear_bg(renderer->backend, frame_idx, color);
 }
 
 internal void
@@ -68,12 +84,4 @@ renderer_end_frame(DOT_Renderer *renderer)
     u8 frame_idx = renderer->current_frame % renderer->frame_overlap;
     backend->end_frame(backend, frame_idx);
     ++renderer->current_frame;
-}
-
-internal void
-renderer_clear_background(DOT_Renderer *renderer){
-    u8 frame_idx = renderer->current_frame % renderer->frame_overlap;
-    f64 flash = fabs(sin(renderer->current_frame  / 2000.f));
-    // Harcoded for now
-    renderer_backend_vk_clear_bg(renderer->backend, frame_idx, v3(0,0,flash));
 }

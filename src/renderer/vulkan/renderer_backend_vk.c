@@ -6,6 +6,8 @@ renderer_backend_as_vk(RendererBackend *base)
     return cast(RendererBackendVk*) base;
 }
 
+// NOTE: Should we just cache as
+// g_vk_ctx = backend and ommit passing the parameter everywhere?
 internal RendererBackendVk*
 renderer_backend_vk_create(Arena *arena)
 {
@@ -17,6 +19,9 @@ renderer_backend_vk_create(Arena *arena)
     // base->draw         = renderer_backend_vk_draw;
     base->begin_frame  = renderer_backend_vk_begin_frame;
     base->end_frame    = renderer_backend_vk_end_frame;
+    base->clear_bg     = renderer_backend_vk_clear_bg;
+    base->load_shader_module = renderer_backend_vk_load_shader_from_file_buffer;
+
     return backend;
 }
 
@@ -87,7 +92,8 @@ renderer_backend_vk_settings()
             .preferred_present_mode = VK_PRESENT_MODE_MAILBOX_KHR,
         },
         .frame_settings = {
-            .frame_overlap = 2,
+            .frame_overlap = vk_settings.swapchain_settings.preferred_present_mode ==
+                VK_PRESENT_MODE_MAILBOX_KHR ? 3 : 2,
         }
     };
     return &vk_settings;
@@ -105,6 +111,33 @@ renderere_backend_vk_debug_callback(
         DOT_PRINT("validation layer: %s", callback_data->pMessage);
     }
     return VK_FALSE;
+}
+
+internal DOT_ShaderModuleHandle
+renderer_backend_vk_load_shader_from_file_buffer(RendererBackend *base_ctx, FileBuffer file_buffer)
+{
+    RendererBackendVk *vk_ctx = renderer_backend_as_vk(base_ctx);
+    RBVK_FileBuffer vk_file_buffer = {
+        .buff = cast(u32*)file_buffer.buff,
+        .size = file_buffer.size / sizeof(u32),
+    };
+
+    // WARN: Does this need spirv?
+    DOT_ERROR("check if this needs spirv or what");
+
+    VkShaderModuleCreateInfo create_info = {
+        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .pNext = NULL,
+        .codeSize = vk_file_buffer.size,
+        .pCode = vk_file_buffer.buff,
+    };
+
+    VkShaderModule shader_module = VK_NULL_HANDLE;
+    VK_CHECK(vkCreateShaderModule(vk_ctx->device.device, &create_info, NULL, &shader_module));
+    DOT_ShaderModuleHandle handle = {
+        .handle = (u64) shader_module,
+    };
+    return handle;
 }
 
 internal RBVK_Image
@@ -498,7 +531,7 @@ internal void renderer_backend_vk_init(RendererBackend *base_ctx, DOT_Window* wi
 
         }
     }
-    temp_arena_restore(&temp);
+    temp_arena_restore(temp);
 }
 
 internal void
@@ -540,7 +573,8 @@ renderer_backend_vk_shutdown(RendererBackend* base_ctx)
     vkDestroyInstance(vk_ctx->instance, NULL);
 }
 
-internal void renderer_backend_vk_clear_bg(RendererBackend *base_ctx, u8 current_frame, vec3 color)
+internal void
+renderer_backend_vk_clear_bg(RendererBackend *base_ctx, u8 current_frame, vec3 color)
 {
     RendererBackendVk *vk_ctx = renderer_backend_as_vk(base_ctx);
     RBVK_FrameData *frame_data = &vk_ctx->frame_datas[current_frame];

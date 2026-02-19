@@ -15,8 +15,6 @@ vk_memory_pools_bump(VkMemory_Pools *pools, VkMemoryRequirements reqs, VkMemory_
                 memory_alloc.offset = aligned_memory;
                 memory_alloc.memory = pools->gpu_only_mem;
                 pools->gpu_only_used += aligned_memory + reqs.size;
-                DOT_PRINT("USEEEEEED %M", pools->gpu_only_used);
-                DOT_PRINT("have %M", pools->gpu_only_size);
                 if(pools->gpu_only_used > pools->gpu_only_size){
                     DOT_ERROR("Out of GPU only memory!");
                 }

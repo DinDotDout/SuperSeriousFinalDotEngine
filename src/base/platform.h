@@ -1,15 +1,15 @@
 #if defined(_WIN32)
-    #define DOT_OS_WINDOWS
+#   define DOT_OS_WINDOWS
 #elif defined(__unix__) || defined(__APPLE__) || defined(__linux__)
-    #define DOT_OS_POSIX
+#   define DOT_OS_POSIX
 #else
-    #error "Unsupported platform"
+#   error "Unsupported platform"
 #endif
 
 #if defined(DOT_OS_POSIX)
-    #include "os/os_linux.h"
+#   include "os/os_linux.h"
 #elif defined(DOT_OS_WINDOWS)
-    #include "os/os_windows.h"
+#   include "os/os_windows.h"
 #endif
 
 CONST_INT_BLOCK{
@@ -22,51 +22,70 @@ CONST_INT_BLOCK{
 // Compiler
 //
 #if DOT_COMPILER_MSVC
-    #if defined(__SANITIZE_ADDRESS__)
-        #define DOT_ASAN_ENABLED
-        #define NO_ASAN __declspec(no_sanitize_address)
-    #else
-        #define NO_ASAN
-    #endif
+#   if defined(__SANITIZE_ADDRESS__)
+#       define DOT_ASAN_ENABLED
+#       define NO_ASAN __declspec(no_sanitize_address)
+#   else
+#       define NO_ASAN
+#   endif
 #elif DOT_COMPILER_GCC
-    #if defined(__has_feature)
-        #if __has_feature(address_sanitizer) || defined(__SANITIZE_ADDRESS__)
-            #define DOT_ASAN_ENABLED
-        #endif
-    #endif
+#   if defined(__has_feature)
+#       if __has_feature(address_sanitizer) || defined(__SANITIZE_ADDRESS__)
+#           define DOT_ASAN_ENABLED
+#       endif
+#   endif
 #endif
 
 #if defined(DOT_ASAN_ENABLED)
-void __asan_poison_memory_region(void const volatile *addr, size_t size);
-void __asan_unpoison_memory_region(void const volatile *addr, size_t size);
-#define ASAN_POISON(addr, size)   __asan_poison_memory_region((addr), (size))
-#define ASAN_UNPOISON(addr, size) __asan_unpoison_memory_region((addr), (size))
-#define NO_ASAN __attribute__((no_sanitize("all")))
+    void __asan_poison_memory_region(void const volatile *addr, size_t size);
+    void __asan_unpoison_memory_region(void const volatile *addr, size_t size);
+#   define ASAN_POISON(addr, size)   __asan_poison_memory_region((addr), (size))
+#   define ASAN_UNPOISON(addr, size) __asan_unpoison_memory_region((addr), (size))
+#   define NO_ASAN __attribute__((no_sanitize("all")))
 
 // NOTE: Replaces OS functionality by regular malloc so that asan can track allocations somewhat
 // better
-#define os_reserve(size) malloc((size))
-#define os_release(ptr, size) \
-    do{ \
-        (void)(size); \
-        free((ptr)); \
-    }while (0)
-#define os_commit(ptr, size) ((void)0)
+#   define os_reserve(size) malloc((size))
+#   define os_release(ptr, size) \
+        do{ \
+            (void)(size); \
+            free((ptr)); \
+        }while (0)
+#   define os_commit(ptr, size) ((void)0)
 #else
-#define ASAN_POISON(addr, size)   ((void)0)
-#define ASAN_UNPOISON(addr, size) ((void)0)
-#define NO_ASAN
+#   define ASAN_POISON(addr, size)   ((void)0)
+#   define ASAN_UNPOISON(addr, size) ((void)0)
+#   define NO_ASAN
 #endif
 
+// typedef DOT_ENUM(u8, FileModeKind){
+//     Platform_FileModeKind_R,
+//     Platform_FileModeKind_W,
+//     Platform_FileModeKind_RW,
+//     Platform_FileModeKind_A,
+// };
+//
+// internal String8
+// platform_get_file_mode_from_kind(FileModeKind kind)
+// {
+//     switch (kind){
+//     case Platform_FileModeKind_R: return String8Lit("r");
+//     case Platform_FileModeKind_W: return String8Lit("w");
+//     case Platform_FileModeKind_RW: return String8Lit("w");
+//     case Platform_FileModeKind_A: return String8Lit("a");
+//     }
+// }
 
-typedef struct File{
-    u8* buff;
+typedef struct FileBuffer{
+    u8 *buff;
     usize size;
-}File;
+}FileBuffer;
 
-internal File platform_read_entire_file(Arena *arena, String8 path)
+internal FileBuffer
+platform_read_entire_file(Arena *arena, String8 path)
 {
-    File file = {0};
+    // String8 kind = platform_get_file_mode_from_kind(Platform_FileModeKind_R);
+    FileBuffer file = {0};
     FILE *f = fopen((const char *) path.str, "rb");
     int size = -1;
     if(f){
@@ -81,7 +100,6 @@ internal File platform_read_entire_file(Arena *arena, String8 path)
     }
     fclose(f);
     return file;
-
 }
 
 ////////////////////////////////////////////////////////////////

@@ -121,7 +121,7 @@ vk_helper_all_layers(const struct RBVK_Settings *vk_settings)
             DOT_WARNING("Requested layer %s not found", layer_name);
         }
     }
-    temp_arena_restore(&temp);
+    temp_arena_restore(temp);
     return all_found;
 }
 
@@ -151,7 +151,7 @@ vk_helper_instance_all_required_extensions(const struct RBVK_Settings* vk_settin
             DOT_WARNING("Requested instance extension \"%s\" not found", instance_extension_name);
         }
     }
-    temp_arena_restore(&temp);
+    temp_arena_restore(temp);
     return all_found;
 }
 
@@ -183,7 +183,7 @@ vk_helper_physical_device_all_required_extensions(
             break;
         }
     }
-    temp_arena_restore(&temp);
+    temp_arena_restore(temp);
     return all_found;
 }
 
@@ -273,7 +273,7 @@ vk_helper_physical_device_swapchain_support(
         }
         details->current_transform   = surface_capabilities.currentTransform;
     }
-    temp_arena_restore(&temp);
+    temp_arena_restore(temp);
     return has_support;
 }
 
@@ -377,7 +377,7 @@ vk_helper_pick_best_device(
     DOT_PRINT("best_device  graphics family: %d; present family: %i; score: %i",
               best_device.graphics_family, best_device.present_family,
               best_device.score);
-    temp_arena_restore(&temp);
+    temp_arena_restore(temp);
     return best_device;
 }
 

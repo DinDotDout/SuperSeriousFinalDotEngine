@@ -102,16 +102,24 @@ typedef struct RendererBackendVk{
     VkDebugUtilsMessengerEXT debug_messenger;
 }RendererBackendVk;
 
+typedef struct RBVK_FileBuffer{
+    u32 *buff;
+    usize size;
+}RBVK_FileBuffer;
+
 // Outfacing renderer API
 internal const RBVK_Settings* renderer_backend_vk_settings();
 
 internal RendererBackendVk* renderer_backend_vk_create(Arena *arena);
 internal void renderer_backend_vk_init(RendererBackend *base_ctx, DOT_Window *window);
 internal void renderer_backend_vk_shutdown(RendererBackend* base_ctx);
+internal void renderer_backend_vk_clear_bg(RendererBackend *base_ctx, u8 current_frame, vec3 color);
 // internal void renderer_backend_vk_draw(RendererBackend *base_ctx, u8 current_frame, u64 frame);
 
 internal void renderer_backend_vk_begin_frame(RendererBackend *base_ctx, u8 current_frame);
 internal void renderer_backend_vk_end_frame(RendererBackend *base_ctx, u8 current_frame);
+
+internal DOT_ShaderModuleHandle renderer_backend_vk_load_shader_from_file_buffer(RendererBackend *base_ctx, FileBuffer file_buffer);
 
 // Internal API
 internal RendererBackendVk* renderer_backend_as_vk(RendererBackend *base);

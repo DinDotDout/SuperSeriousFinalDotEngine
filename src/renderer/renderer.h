@@ -21,20 +21,27 @@ typedef struct RendererConfig{
     RendererBackendConfig backend_config;
 }RendererConfig;
 
+
 typedef struct RendererBackend RendererBackend;
 typedef void (*RendererBackend_InitFn)(RendererBackend *ctx, DOT_Window *window);
 typedef void (*RendererBackend_ShutdownFn)(RendererBackend *ctx);
 typedef void (*RendererBackend_BeginFrameFn)(RendererBackend *ctx, u8 current_frame);
 typedef void (*RendererBackend_EndFrameFn)(RendererBackend *ctx, u8 current_frame);
-// typedef void (*RendererBackend_Draw)(RendererBackend *ctx, u8 current_frame, u64 frame);
+typedef void (*RendererBackend_ClearBgFn)(RendererBackend *ctx, u8 current_frame, vec3 color);
+
+typedef struct DOT_ShaderModuleHandle DOT_ShaderModuleHandle;
+typedef DOT_ShaderModuleHandle (*RendererBackend_LoadShaderModuleFn)(RendererBackend *ctx, FileBuffer fb);
 
 struct RendererBackend{
     RendererBackendKind backend_kind;
     Arena *permanent_arena;
     RendererBackend_InitFn       init;
     RendererBackend_ShutdownFn   shutdown;
+
     RendererBackend_BeginFrameFn begin_frame;
     RendererBackend_EndFrameFn   end_frame;
+    RendererBackend_ClearBgFn    clear_bg;
+    RendererBackend_LoadShaderModuleFn load_shader_module;
     // RendererBackend_Draw         draw;
 };
 
@@ -52,17 +59,30 @@ typedef struct DOT_Renderer{
     FrameData *frame_data;
 }DOT_Renderer;
 
+struct DOT_ShaderModuleHandle{
+    u64 handle[1];
+};
 
 typedef struct DOT_ShaderModule{
+    DOT_ShaderModuleHandle shader_module_handle;
     String8 path;
-    u8*     bytes;
 }DOT_ShaderModule;
 
-internal void renderer_load_shader_module_from_path(Arena *arena, String8 path);
+#if defined(DOT_OS_WINDOWS)
+#  if defined(DOT_RENDERER_BUILD)
+#    define DOT_RENDERER_API __declspec(dllexport)
+#  else
+#    define DOT_RENDERER_API __declspec(dllimport)
+#  endif
+#else
+#  define DOT_RENDERER_API
+#endif
+
+DOT_RENDERER_API void renderer_clear_background(DOT_Renderer *renderer, vec3 color);
+DOT_RENDERER_API DOT_ShaderModule renderer_load_shader_module_from_path(DOT_Renderer *renderer, String8 path);
 
 internal void renderer_begin_frame(DOT_Renderer *renderer);
 internal void renderer_end_frame(DOT_Renderer *renderer);
-internal void renderer_clear_background(DOT_Renderer *renderer);
 
 internal RendererBackend* renderer_backend_create(Arena *arena, RendererBackendConfig *config);
 internal void renderer_init(Arena *arena, DOT_Renderer *renderer, DOT_Window *window, RendererConfig *config);

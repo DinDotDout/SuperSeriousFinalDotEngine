@@ -7,8 +7,8 @@ temp_arena_get(Arena *arena){
 }
 
 internal void
-temp_arena_restore(TempArena *temp){
-    temp->arena->used = temp->prev_offset;
+temp_arena_restore(TempArena temp){
+    temp.arena->used = temp.prev_offset;
 }
 
 force_inline internal Arena*

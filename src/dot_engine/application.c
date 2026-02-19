@@ -1,5 +1,5 @@
+#include "base/arena.h"
 #include "dot_engine/application_config.h"
-#include "renderer/renderer.h"
 
 internal void
 application_init(Application* app)
@@ -11,14 +11,28 @@ application_init(Application* app)
     plugins_init();
     dot_window_init(&app->window);
     renderer_init(app->permanent_arena, &app->renderer, &app->window, &app_config->renderer_config);
+
+    app->game = PUSH_STRUCT(app->permanent_arena, DOT_Game);
+    dot_game_init(app->permanent_arena, app->game, &app->renderer);
 }
+
+// void reload_game_dll() {
+//     unload_library(game_lib);
+//     game_lib = load_library("game.dll");
+//
+//     g_game_api.run      = get_symbol(game_lib, "dot_game_run");
+//     g_game_api.init     = get_symbol(game_lib, "dot_game_init");
+//     g_game_api.shutdown = get_symbol(game_lib, "dot_game_shutdown");
+// }
 
 internal void
 application_run(Application* app)
 {
     while(!dot_window_should_close(&app->window)){
         renderer_begin_frame(&app->renderer);
-        renderer_clear_background(&app->renderer);
+        dot_game_run(app->game);
+        // &app->game
+        // renderer_clear_background(&app->renderer);
         renderer_end_frame(&app->renderer);
     }
 }
@@ -26,6 +40,7 @@ application_run(Application* app)
 internal void
 application_shutdown(Application* app)
 {
+    dot_game_shutdown(app->game);
     renderer_shutdown(&app->renderer);
     dot_window_destroy(&app->window);
     plugins_end();
