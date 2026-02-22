@@ -1,7 +1,8 @@
 #ifndef DOT_GAME_H
 #define DOT_GAME_H
 
-
+#define DOT_GAME_PATH "src/game/"
+#define DOT_GAME_SHADER_PATH DOT_GAME_PATH"shaders/"
 // typedef struct DOT_GameAPI {
 //     void (*run)(DOT_Game *game);
 //     void (*init)(DOT_Game *game);
@@ -10,14 +11,19 @@
 
 // global DOT_GameAPI g_game_api;
 
+typedef struct DOT_GameConfig{
+    usize permanent_memory_size;
+    usize transient_memory_size;
+}DOT_GameConfig;
 
 typedef struct DOT_Game{
     DOT_Renderer *renderer;
-    u8* permanent_memory;
-    usize permanent_memory_size;
-    u8* transient_memory;
-    usize transient_memory_size;
+
+    Arena *permanent_arena;
+    Arena *transient_arena;
 }DOT_Game;
+
+DOT_ShaderModule *test_shader_module;
 
 #ifdef DOT_HOT_RELOAD
 typedef struct DOT_GameVtable DOT_GameVtable;
@@ -36,25 +42,16 @@ struct DOT_GameVtable{
     void(*Game_Shutdown)(void);
 };
 
-void dot_game_run(DOT_Game *game) {
-    g_game_api.run(game);
-}
-
-void dot_game_init(DOT_Game *game) {
-    g_game_api.init(game);
-}
-
-void dot_game_shutdown(DOT_Game *game) {
-    g_game_api.shutdown(game);
-}
 
 DOT_GameVtable game_vtable;
 #else
 #include "renderer/renderer.h"
 #endif
 
-void dot_game_bootstrap();
-b8 dot_game_init(Arena *arena, DOT_Game *game, DOT_Renderer *renderer);
+b8 dot_game_init(DOT_Game *game, DOT_Renderer *renderer,
+    u8 permanent_memory[], usize permanent_memory_size,
+    u8 transient_memory[], usize transient_memory_size);
+
 void dot_game_shutdown(DOT_Game *game);
 void dot_game_run(DOT_Game *game);
 

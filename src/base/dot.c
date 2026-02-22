@@ -14,7 +14,7 @@ dot_print_debug_(const DOT_PrintDebugParams* params, const char *fmt, ...){
 
     va_list args;
     va_start(args, fmt);
-    dot_vsnprintf(buf, sizeof(buf), fmt, args); // TODO: Swap for stb_vsntprintf
+    dot_vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
 
     const char *fmt_str = params->print_debug_kind == DOT_LogLevelKind_Debug ? "%s%s:%d -> %s\n" : "%s: %s:%d -> %s\n";

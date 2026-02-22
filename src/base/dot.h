@@ -16,12 +16,6 @@
 // va_start, va_end
 #include <stdarg.h>
 
-// #define STB_SPRINTF_STATIC
-// #define STB_SPRINTF_NOUNALIGNED
-// #define STB_SPRINTF_DECORATE(name) dot_##name
-// #include "third_party/stb_sprintf.h"
-
-
 ////////////////////////////////////////////////////////////////
 //
 // Compiler

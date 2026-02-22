@@ -114,16 +114,17 @@ internal RendererBackendVk* renderer_backend_vk_create(Arena *arena);
 internal void renderer_backend_vk_init(RendererBackend *base_ctx, DOT_Window *window);
 internal void renderer_backend_vk_shutdown(RendererBackend* base_ctx);
 internal void renderer_backend_vk_clear_bg(RendererBackend *base_ctx, u8 current_frame, vec3 color);
-// internal void renderer_backend_vk_draw(RendererBackend *base_ctx, u8 current_frame, u64 frame);
-
 internal void renderer_backend_vk_begin_frame(RendererBackend *base_ctx, u8 current_frame);
 internal void renderer_backend_vk_end_frame(RendererBackend *base_ctx, u8 current_frame);
 
-internal DOT_ShaderModuleHandle renderer_backend_vk_load_shader_from_file_buffer(RendererBackend *base_ctx, FileBuffer file_buffer);
+internal DOT_ShaderModuleHandle renderer_backend_vk_load_shader_from_file_buffer(RendererBackend *base_ctx, DOT_FileBuffer file_buffer);
+internal void renderer_backend_vk_unload_shader_module(RendererBackend *base_ctx, DOT_ShaderModuleHandle shader_module);
 
 // Internal API
 internal RendererBackendVk* renderer_backend_as_vk(RendererBackend *base);
-internal RBVK_Image rbvk_create_image(RendererBackendVk *ctx, VkImageCreateInfo *image_info);
-internal void rbvk_destroy_image(RendererBackendVk *ctx, RBVK_Image *image);
+internal RBVK_Image         rbvk_create_image(RendererBackendVk *ctx, VkImageCreateInfo *image_info);
+internal void               rbvk_destroy_image(RendererBackendVk *ctx, RBVK_Image *image);
+internal DOT_ShaderModuleHandle rbvk_dot_shader_module_from_vk_shader_module(VkShaderModule vk_sm);
+internal VkShaderModule         rbvk_vk_shader_module_from_dot_shader_module(DOT_ShaderModuleHandle dot_smh);
 
 #endif // !RENDERER_BACKEND_VK_H

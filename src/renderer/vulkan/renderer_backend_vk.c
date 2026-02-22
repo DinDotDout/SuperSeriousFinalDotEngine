@@ -16,12 +16,11 @@ renderer_backend_vk_create(Arena *arena)
     base->backend_kind = RendererBackendKind_Vk;
     base->init         = renderer_backend_vk_init;
     base->shutdown     = renderer_backend_vk_shutdown;
-    // base->draw         = renderer_backend_vk_draw;
     base->begin_frame  = renderer_backend_vk_begin_frame;
     base->end_frame    = renderer_backend_vk_end_frame;
     base->clear_bg     = renderer_backend_vk_clear_bg;
     base->load_shader_module = renderer_backend_vk_load_shader_from_file_buffer;
-
+    base->unload_shader_module = renderer_backend_vk_unload_shader_module;
     return backend;
 }
 
@@ -108,22 +107,35 @@ renderere_backend_vk_debug_callback(
 {
     UNUSED(message_type); UNUSED(user_data);
     if(message_severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT){
-        DOT_PRINT("validation layer: %s", callback_data->pMessage);
+        DOT_WARNING("validation layer: %s", callback_data->pMessage);
     }
     return VK_FALSE;
 }
 
 internal DOT_ShaderModuleHandle
-renderer_backend_vk_load_shader_from_file_buffer(RendererBackend *base_ctx, FileBuffer file_buffer)
+rbvk_dot_shader_module_from_vk_shader_module(VkShaderModule vk_sm)
+{
+    DOT_ShaderModuleHandle dot_smh = {
+        .handle = cast(u64) vk_sm,
+    };
+    return dot_smh;
+}
+
+internal VkShaderModule
+rbvk_vk_shader_module_from_dot_shader_module(DOT_ShaderModuleHandle dot_smh)
+{
+    VkShaderModule vk_sm = cast(VkShaderModule)dot_smh.handle[0];
+    return vk_sm;
+}
+
+internal DOT_ShaderModuleHandle
+renderer_backend_vk_load_shader_from_file_buffer(RendererBackend *base_ctx, DOT_FileBuffer file_buffer)
 {
     RendererBackendVk *vk_ctx = renderer_backend_as_vk(base_ctx);
     RBVK_FileBuffer vk_file_buffer = {
         .buff = cast(u32*)file_buffer.buff,
-        .size = file_buffer.size / sizeof(u32),
+        .size = file_buffer.size,
     };
-
-    // WARN: Does this need spirv?
-    DOT_ERROR("check if this needs spirv or what");
 
     VkShaderModuleCreateInfo create_info = {
         .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -132,12 +144,18 @@ renderer_backend_vk_load_shader_from_file_buffer(RendererBackend *base_ctx, File
         .pCode = vk_file_buffer.buff,
     };
 
-    VkShaderModule shader_module = VK_NULL_HANDLE;
-    VK_CHECK(vkCreateShaderModule(vk_ctx->device.device, &create_info, NULL, &shader_module));
-    DOT_ShaderModuleHandle handle = {
-        .handle = (u64) shader_module,
-    };
-    return handle;
+    VkShaderModule vk_shader_module = VK_NULL_HANDLE;
+    VK_CHECK(vkCreateShaderModule(vk_ctx->device.device, &create_info, NULL, &vk_shader_module));
+    DOT_ShaderModuleHandle dot_shader_module_handle = rbvk_dot_shader_module_from_vk_shader_module(vk_shader_module);
+    return dot_shader_module_handle;
+}
+
+internal void
+renderer_backend_vk_unload_shader_module(RendererBackend *base_ctx, DOT_ShaderModuleHandle shader_module_handle)
+{
+    RendererBackendVk *vk_ctx = renderer_backend_as_vk(base_ctx);
+    VkShaderModule vk_sm = rbvk_vk_shader_module_from_dot_shader_module(shader_module_handle);
+    vkDestroyShaderModule(vk_ctx->device.device, vk_sm, NULL);
 }
 
 internal RBVK_Image
@@ -175,7 +193,7 @@ internal void
 rbvk_destroy_image(RendererBackendVk *ctx, RBVK_Image *image){
     VkDevice device = ctx->device.device;
     vkDestroyImageView(device, image->image_view, NULL);
-    vkUnmapMemory(device, image->alloc.memory);
+    // vkUnmapMemory(device, image->alloc.memory);
     vkDestroyImage(device, image->image, NULL);
 }
 
@@ -540,8 +558,8 @@ renderer_backend_vk_shutdown(RendererBackend* base_ctx)
     const RBVK_Settings *settings = renderer_backend_vk_settings();
     RendererBackendVk *vk_ctx = renderer_backend_as_vk(base_ctx);
     VkDevice device = vk_ctx->device.device;
-    vkDeviceWaitIdle(device);
 
+    vkDeviceWaitIdle(device);
     {
         vkDestroyDescriptorSetLayout(device, vk_ctx->compute_layout, NULL);
         vkDestroyDescriptorSetLayout(device, vk_ctx->bindless_layout, NULL);
