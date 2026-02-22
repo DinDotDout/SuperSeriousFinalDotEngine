@@ -8,6 +8,7 @@ print_log_level_kind(DOT_LogLevelKind debug_kind){
 
 void
 dot_print_debug_(const DOT_PrintDebugParams* params, const char *fmt, ...){
+    if(params->print_debug_kind < DOT_LOG_LEVEL) return;
     char buf[DOT_MAX_LOG_LEVEL_LENGTH];
     FILE* out = params->print_debug_kind == DOT_LogLevelKind_Debug ? stdout : stderr;
 

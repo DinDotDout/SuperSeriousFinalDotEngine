@@ -26,24 +26,34 @@
 //
 // Compiler
 
+#   define DOT_COMPILER_MSVC 0
 #if defined(_MSC_VER)
-#define DOT_COMPILER_MSVC 1
-#elif defined(__GNUC__)
-#define DOT_COMPILER_GCC 1
+#   define DOT_COMPILER_CLANG 0
+#   define DOT_COMPILER_GCC 0
+#   define DOT_COMPILER_MSVC 1
 #elif defined(__clang__)
-#define DOT_COMPILER_CLANG 1
+#   define DOT_COMPILER_GCC 0
+#   define DOT_COMPILER_MSVC 0
+#   define DOT_COMPILER_CLANG 1
+#elif defined(__GNUC__)
+#   define DOT_COMPILER_MSVC 0
+#   define DOT_COMPILER_CLANG 0
+#   define DOT_COMPILER_GCC 1
 #else
-#error Unknown compiler
+#   error Unknown compiler
 #endif
 
 ////////////////////////////////////////////////////////////////
 //
 // OS
-
 #if defined(_WIN32)
-#define DOT_OS_WINDOWS
+#define DOT_OS_POSIX 0
+#define DOT_OS_WINDOWS 1
+#elif defined(__unix__) || defined(__APPLE__) || defined(__linux__)
+#define DOT_OS_POSIX 1
+#define DOT_OS_WINDOWS 0
 #else
-#define DOT_OS_POSIX
+#   error "Unsupported platform"
 #endif
 
 ////////////////////////////////////////////////////////////////
@@ -53,6 +63,32 @@
 #define internal static
 #define local_persist static
 #define global static
+
+#if DOT_COMPILER_MSVC || (DOT_COMPILER_CLANG && DOT_OS_WINDOWS)
+#   pragma section(".rdata$", read)
+#   define read_only __declspec(allocate(".rdata$"))
+#elif DOT_COMPILER_CLANG && DOT_OS_POSIX
+#   define read_only __attribute__((section(".rodata")))
+#else
+#   define read_only
+#endif
+//
+// Keep this around for when using sorting functions
+#if DOT_COMPILER_MSVC
+#   define force_inline __forceinline __declspec(safebuffers)
+#   define COMPILER_RESET(ptr) __assume(ptr)
+#elif DOT_COMPILER_GCC || DOT_COMPILER_CLANG
+#   define force_inline __attribute__((always_inline))
+#   define COMPILER_RESET(ptr)
+#endif
+
+#if DOT_COMPILER_MSVC
+#   define thread_local __declspec(thread)
+#elif DOT_COMPILER_GCC || DOT_COMPILER_CLANG
+#   define thread_local __thread
+#else
+#   error "No thread-local storage keyword available for this compiler"
+#endif
 
 ////////////////////////////////////////////////////////////////
 //
@@ -128,19 +164,21 @@ typedef double f64;
 
 #define ARRAY_COUNT(arr) sizeof(arr) / sizeof(arr[0])
 
-// This is for when allocating from an arena and we have an actual array
+// Some sugar to make some things a bit more evident
+// or to indicate
 #define array(T) T*
+#define hashset(T) T*
 
 ////////////////////////////////////////////////////////////////
 //
 // Debug
 
-#if defined(DOT_COMPILER_MSVC)
+#if DOT_COMPILER_MSVC
 #   define DEBUG_BREAK __debugbreak()
-#elif defined(DOT_COMPILER_GCC)
+#elif DOT_COMPILER_GCC
 #   include <signal.h>
 #   define DEBUG_BREAK raise(SIGTRAP)
-#elif defined(DOT_COMPILER_CLANG)
+#elif DOT_COMPILER_CLANG
 #   define DEBUG_BREAK __builtin_debugtrap()
 #else
 #   define DEBUG_BREAK ((void)0) // Fallback: no-op
@@ -174,11 +212,11 @@ typedef int DOT_CONCAT(DOT_STATIC_ASSERT_, __COUNTER__) [(x) ? 1 : -1]
 //
 // Debug utils
 
-#if defined(DOT_COMPILER_MSVC)
+#if DOT_COMPILER_MSVC
 #   include <sal.h>
 #   define PRINTF_LIKE(fmtpos, argpos) 
 #   define PRINTF_STRING _Printf_format_string_
-#elif defined(DOT_COMPILER_GCC) || defined(DOT_COMPILER_CLANG)
+#elif DOT_COMPILER_GCC || DOT_COMPILER_CLANG
 #   define PRINTF_LIKE(fmtpos, argpos) __attribute__((format(printf, fmtpos, argpos)))
 #   define PRINTF_STRING
 #else
@@ -186,19 +224,21 @@ typedef int DOT_CONCAT(DOT_STATIC_ASSERT_, __COUNTER__) [(x) ? 1 : -1]
 #   define PRINTF_STRING
 #endif
 
+// NOTE: Make this a runtime arg
+#define DOT_LOG_LEVEL DOT_LogLevelKind_Warning
 typedef DOT_ENUM(u8, DOT_LogLevelKind){
     DOT_LogLevelKind_Debug,
-    DOT_LogLevelKind_Error,
     DOT_LogLevelKind_Warning,
+    DOT_LogLevelKind_Error,
     DOT_LogLevelKind_Assert,
     DOT_LogLevelKind_Count,
 };
 
 global const char *print_debug_str[] = {
-    [DOT_LogLevelKind_Debug]     = "",
-    [DOT_LogLevelKind_Warning]   = "Warning",
-    [DOT_LogLevelKind_Assert]    = "Assertion failed",
-    [DOT_LogLevelKind_Error]     = "Error",
+    [DOT_LogLevelKind_Debug]   = "",
+    [DOT_LogLevelKind_Warning] = "Warning",
+    [DOT_LogLevelKind_Assert]  = "Assertion failed",
+    [DOT_LogLevelKind_Error]   = "Error",
 };
 
 DOT_STATIC_ASSERT(DOT_LogLevelKind_Count == ARRAY_COUNT(print_debug_str));
@@ -298,9 +338,9 @@ do { \
 //
 // Memory
 
-#if defined(DOT_COMPILER_MSVC)
+#if DOT_COMPILER_MSVC
 #   define ALIGNOF(T) __alignof(T)
-#elif defined(DOT_COMPILER_CLANG)
+#elif DOT_COMPILER_CLANG
 #   define ALIGNOF(T) __alignof__(T)
 #elif DOT_COMPILER_GCC
 #   define ALIGNOF(T) __alignof__(T)
@@ -317,17 +357,8 @@ do { \
 #define MEMORY_ZERO_TYPED(m, c) MEMORY_ZERO((m), sizeof(*(m)) * (c))
 
 #define MEMORY_COMPARE(a, b, size) memcmp((a), (b), (size))
-#define MEMORY_EQUAL(a, b, size) (memcmp((a), (b), (size)) == 0)
-
-// Keep this around for when using sorting functions
-#if defined(DOT_COMPILER_MSVC)
-#   define force_inline __forceinline __declspec(safebuffers)
-#   define COMPILER_RESET(ptr) __assume(ptr)
-#elif defined(DOT_COMPILER_GCC) || defined(DOT_DOMPILER_CLANG)
-#   define force_inline __attribute__((always_inline))
-#   define COMPILER_RESET(ptr)
-#endif
-
+#define MEMORY_EQUAL(a, b, size) (MEMORY_COMPARE((a), (b), (size)) == 0)
+#define MEMORY_EQUAL_STRUCT(a, b) (MEMORY_COMPARE((a), (b), sizeof(*(a))) == 0)
 
 ////////////////////////////////////////////////////////////////
 //
@@ -376,21 +407,9 @@ do { \
 
 ////////////////////////////////////////////////////////////////
 //
-// Threading
-
-#if defined(DOT_COMPILER_MSVC)
-#   define thread_local __declspec(thread)
-#elif defined(DOT_COMPILER_GCC) || defined(DOT_COMPILER_CLANG)
-#   define thread_local __thread
-#else
-#   error "No thread-local storage keyword available for this compiler"
-#endif
-
-////////////////////////////////////////////////////////////////
-//
 // This runs after static initialization and before main
 
-#if defined(DOT_COMPILER_MSVC)
+#if DOT_COMPILER_MSVC
 #   pragma section(".CRT$XCU",read)
 #   define CONSTRUCTOR2_(fn, p) \
         __declspec(allocate(".CRT$XCU")) void (*fn##_)(void) = fn; \
@@ -409,7 +428,7 @@ do { \
 
 #if defined(NDEBUG)
 #   define DOT_DEBUG 0
-else
+#else
 #   define DOT_DEBUG 1
 #endif
 

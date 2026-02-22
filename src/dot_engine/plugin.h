@@ -25,7 +25,7 @@ struct Plugin{
 };
 
 // TODO: Needs testing on windows
-#if defined(DOT_COMPILER_MSVC)
+#if DOT_COMPILER_MSVC || (DOT_COMPILER_CLANG && DOT_OS_WINDOWS)
     #pragma section("plugins$a", read)
     #pragma section("plugins$m", read)
     #pragma section("plugins$z", read)
@@ -65,24 +65,16 @@ struct Plugin{
 void plugins_init(void) {
     Plugin* begin = (Plugin*) &__start_plugins[0];
     const Plugin* end = &__stop_plugins[0];
-    DOT_PRINT("PLUGINS INIT!!");
-    DOT_PRINT("Plugin count: %td", end - begin);
-
-    DOT_PRINT("%p", begin);
-    DOT_PRINT("%p", end);
+    DOT_PRINT("Initializing %td Plugins", end - begin);
     for (const Plugin* p = begin; p != end; ++p){
         DOT_PRINT_FL(p->file, p->line, "PLUGIN: %s->Init()", p->name);
         p->init();
     }
 }
 
-internal inline void plugins_end(){
+internal inline void plugins_shutdown(){
     const Plugin* begin = &__start_plugins[0];
     const Plugin* end = &__stop_plugins[0];
-    DOT_PRINT("PLUGINS END!!");
-    DOT_PRINT("Plugin count: %td", end - begin);
-    DOT_PRINT("%p", begin);
-    DOT_PRINT("%p", end);
     for (const Plugin* p = begin; p != end; ++p){
         DOT_PRINT_FL(p->file, p->line, "PLUGIN: %s->End()", p->name);
         p->end();
