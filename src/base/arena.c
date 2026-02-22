@@ -41,6 +41,7 @@ arena_alloc_from_memory(ArenaInitParams *params){
     arena->large_pages        = params->large_pages;
     arena->name               = params->name;
     arena->parent             = params->parent;
+    arena->kind               = ArenaKind_FromBuffer;
     arena_reset(arena);
     return arena;
 }
@@ -50,8 +51,9 @@ arena_alloc_from_arena(ArenaInitParams *params){
     DOT_ASSERT_FL(params->parent != NULL, params->reserve_file, params->reserve_line, "Invalid memory provided");
     DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Allocating arena from parent");
     params->buffer = PUSH_SIZE_NO_ZERO(params->parent, params->reserve_size);
-    Arena* new_arena = arena_alloc_from_memory(params);
-    return new_arena;
+    Arena* arena = arena_alloc_from_memory(params);
+    arena->kind  = ArenaKind_FromParent;
+    return arena;
 }
 
 internal Arena*
@@ -83,6 +85,7 @@ arena_alloc_from_os(ArenaInitParams *params){
     arena->large_pages        = params->large_pages;
     arena->name               = params->name;
     arena->parent             = params->parent;
+    arena->kind               = ArenaKind_FromOS;
     arena_reset(arena);
     return arena;
 }
@@ -96,7 +99,7 @@ arena_reset(Arena *arena){
 
 internal void
 arena_free(Arena *arena){
-    DOT_ASSERT(arena->parent == NULL, "Trying to free sub-arena '%s' with parent '%s'!\nThis arena does not own the memory!", arena->name, arena->parent->name);
+    DOT_ASSERT(arena->kind == ArenaKind_FromOS, "Trying to free sub-arena '%s' with parent '%s'!\nThis arena does not own the memory!", arena->name, arena->parent->name);
     u64 reserved = arena->reserved;
     void* base = arena->base;
     DOT_PRINT("Arena \"%s\": freed %M", arena->name, arena->reserved);
@@ -108,6 +111,7 @@ arena_free(Arena *arena){
 
 internal void*
 arena_push(Arena *arena, usize alloc_size, usize alignment, b8 zero, char *file, u32 line){
+    DOT_ASSERT(arena->kind != ArenaKind_Null);
     DOT_ASSERT_FL(alloc_size > 0, file, line);
     uptr arena_base = cast(uptr)arena->base;
     uptr current_address =  arena_base + arena->used;

@@ -6,10 +6,17 @@
 // physically back it instead of allowing regular OS lazy page mapping. We can
 // specify initial commit size as well as how often subsequent ones will force
 // prefaulting again. Optionally, on LINUX we may use huge pages through THP
-//
 
 #define ARENA_MAX_ALIGNMENT 16
 #define ARENA_MIN_CAPACITY KB(16)
+
+typedef DOT_ENUM(u8, ArenaKind){
+    ArenaKind_Null,
+    ArenaKind_FromOS,
+    ArenaKind_FromParent,
+    ArenaKind_FromBuffer,
+    ArenaKind_Count,
+};
 
 typedef struct Arena Arena;
 struct Arena{
@@ -21,8 +28,10 @@ struct Arena{
     b8 large_pages;
     u64 commit_expand_size;
 
-    // Debug
     Arena *parent;
+    ArenaKind kind;
+
+    // Debug
     char *name;
 };
 
@@ -77,7 +86,7 @@ internal void   arena_print_debug(Arena *arena);
   arena_push(arena, size, ARENA_MAX_ALIGNMENT, false, __FILE__, __LINE__)
 
 #define PUSH_SIZE(arena, size) \
-  arena_push(arena, size, ARENA_MAX_ALIGNMENT, true,__FILE__, __LINE__)
+    (u8*) arena_push(arena, size, ARENA_MAX_ALIGNMENT, true,__FILE__, __LINE__)
 
 #define PUSH_ARRAY_ALIGNED(arena, type, count, alignment) \
     (type *)arena_push(arena, sizeof(type) * (count), alignment, true, __FILE__, __LINE__)
