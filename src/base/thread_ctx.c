@@ -1,7 +1,7 @@
 internal void
 threadctx_init(const ThreadCtxOptions* thread_ctx_opts, u8 thread_id){
     DOT_ASSERT(thread_ctx_opts);
-    if(thread_ctx_opts->per_thread_temp_arena_count > 1){
+    if(thread_ctx_opts->per_thread_temp_arena_count < 2){
       DOT_WARNING("We probably need at least two temp_arenas to double buffer "
         "through callstack");
     }
@@ -29,7 +29,7 @@ threadctx_init(const ThreadCtxOptions* thread_ctx_opts, u8 thread_id){
 }
 
 internal void
-threadctx_destroy(){
+threadctx_shutdown(){
     Arena* main_arena = thread_ctx.temp_arenas[0]->parent;
     for(u8 i = 0; i < thread_ctx.temp_arena_count; ++i){
         arena_print_debug(thread_ctx.temp_arenas[i]);
