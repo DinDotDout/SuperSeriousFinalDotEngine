@@ -5,4 +5,4 @@ SECTIONS
     KEEP(*(SORT_BY_INIT_PRIORITY(.plugins.*)))
     PROVIDE_HIDDEN(__stop_plugins = .);
   }
-} INSERT AFTER .rodata;
+} INSERT AFTER .data;
