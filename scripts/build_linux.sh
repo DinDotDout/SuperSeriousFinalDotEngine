@@ -24,7 +24,6 @@ CFLAGS_COMMON="-g -std=c99 \
     -Wall -Wextra -Wno-override-init -Wdiv-by-zero \
     -Wno-unused-function \
     -fno-color-diagnostics \
-    -DRGFW_UNIX
 "
 
 CFLAGS_SAN="-fsanitize=address,undefined \
@@ -61,7 +60,9 @@ if [[ "$BACKEND" == "wayland" ]]; then
 elif [[ "$BACKEND" == "x11" ]]; then
     log "[*] Using X11 backend"
 
-    CFLAGS="$CFLAGS -DRGFW_X11"
+    CFLAGS="$CFLAGS -DRGFW_X11 \
+        -DRGFW_UNIX \
+    "
     SYS_LIBS="$SYS_LIBS_COMMON \
         -lX11 -lXcursor -lXrandr -lXfixes \
     "

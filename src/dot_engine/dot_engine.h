@@ -3,9 +3,10 @@
 
 #define _GNU_SOURCE
 
-#ifdef USE_VOLK
+#ifdef DOT_USE_VOLK
     #define VK_NO_PROTOTYPES
     #define VK_USE_PLATFORM_WAYLAND_KHR
+    #define VK_USE_PLATFORM_XLIB_KHR
     #define VOLK_IMPLEMENTATION
     #include "third_party/volk/volk.h"
 #endif

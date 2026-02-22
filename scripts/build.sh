@@ -1,1 +1,1 @@
-./scripts/build_unix.sh --quiet
+./scripts/build_linux.sh --quiet
