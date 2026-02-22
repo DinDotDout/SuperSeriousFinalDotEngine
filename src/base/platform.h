@@ -1,11 +1,4 @@
-#if defined(_WIN32)
-#   define DOT_OS_WINDOWS
-#elif defined(__unix__) || defined(__APPLE__) || defined(__linux__)
-#   define DOT_OS_POSIX
-#else
-#   error "Unsupported platform"
-#endif
-
+#include <sys/stat.h>
 #if defined(DOT_OS_POSIX)
 #   include "os/os_linux.h"
 #elif defined(DOT_OS_WINDOWS)
@@ -76,30 +69,43 @@ CONST_INT_BLOCK{
 //     }
 // }
 
-typedef struct FileBuffer{
+typedef struct DOT_FileBuffer{
     u8 *buff;
     usize size;
-}FileBuffer;
+}DOT_FileBuffer;
 
-internal FileBuffer
+internal DOT_FileBuffer
 platform_read_entire_file(Arena *arena, String8 path)
 {
-    // String8 kind = platform_get_file_mode_from_kind(Platform_FileModeKind_R);
-    FileBuffer file = {0};
+    DOT_FileBuffer file_buffer = {0};
     FILE *f = fopen((const char *) path.str, "rb");
-    int size = -1;
     if(f){
         fseek(f, 0, SEEK_END);
-        size = ftell(f);
+        file_buffer.size = ftell(f);
+        if(file_buffer.size > 0){
+            fseek(f, 0, SEEK_SET);
+            file_buffer.buff = PUSH_ARRAY(arena, u8, file_buffer.size);
+            fread(file_buffer.buff, 1, file_buffer.size, f);
+        }
+        fclose(f);
+    }else{
+        perror("shader_compile");
     }
-    if(size > 0){
-        file.size = size;
-        fseek(f, 0, SEEK_SET);
-        u8 *buff = PUSH_ARRAY(arena, u8, file.size);
-        fread(buff, 1, file.size, f);
-    }
-    fclose(f);
-    return file;
+    return file_buffer;
+}
+
+b8 platform_file_is_newer(char* a, char* b) {
+#ifdef _WIN32
+    struct _stat sa, sb;
+    if (_stat(a, &sa) != 0) return false;
+    if (_stat(b, &sb) != 0) return true;
+#else
+    struct stat sa, sb;
+    if (stat(a, &sa) != 0) return false;
+    if (stat(b, &sb) != 0) return true;
+#endif
+
+    return sa.st_mtime > sb.st_mtime;
 }
 
 ////////////////////////////////////////////////////////////////
