@@ -64,8 +64,8 @@ internal Arena* arena_alloc_(ArenaInitParams *params);
 internal Arena* arena_alloc_from_memory(ArenaInitParams *params);
 internal Arena* arena_alloc_from_arena(ArenaInitParams *params);
 internal Arena* arena_alloc_from_os(ArenaInitParams *params);
-internal void   arena_reset(Arena *arena);
-internal void   arena_free(Arena *arena);
+internal void   arena_reset(Arena *arena, char *file, u32 line);
+internal void   arena_free(Arena *arena, char *file, u32 line);
 internal void*  arena_push(Arena *arena, usize size, usize alignment, b8 zero, char *file, u32 line);
 internal void   arena_print_debug(Arena *arena);
 
@@ -102,5 +102,8 @@ internal void   arena_print_debug(Arena *arena);
 
 #define MAKE_ARRAY(arena, type, count) \
     ((type##_array){.data = PUSH_ARRAY(arena, type, (count)), .size = (count)})
+
+#define ARENA_RESET(arena) arena_reset(arena, __FILE__, __LINE__)
+#define ARENA_FREE(arena) arena_free(arena, __FILE__, __LINE__)
 
 #endif // !ARENA_H

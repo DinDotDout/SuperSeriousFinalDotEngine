@@ -1,7 +1,7 @@
 internal inline const char*
 print_log_level_kind(DOT_LogLevelKind debug_kind){
     DOT_ASSERT(debug_kind < DOT_LogLevelKind_Count);
-    const char *ret = print_debug_str[debug_kind];
+    const char *ret = dot_log_level_kind_str[debug_kind];
     DOT_ASSERT(ret);
     return ret;
 }

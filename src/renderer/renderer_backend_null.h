@@ -7,33 +7,32 @@ typedef struct RendererBackendNull{
 }RendererBackendNull;
 
 internal void
-renderer_backend_null_init(RendererBackend* base_ctx, DOT_Window* window)
+renderer_backend_null_init(DOT_Window* window)
 {
-	UNUSED(window); UNUSED(base_ctx);
+	UNUSED(window);
 }
 
 internal void
-renderer_backend_null_shutdown(RendererBackend* base_ctx)
+renderer_backend_null_shutdown()
 {
-	UNUSED(base_ctx);
 }
 
 internal void
-renderer_backend_null_begin_frame(RendererBackend* base_ctx, u8 current_frame)
+renderer_backend_null_begin_frame(u8 current_frame)
 {
-	 UNUSED(base_ctx); UNUSED(current_frame);
+	 UNUSED(current_frame);
 }
 
 internal void
-renderer_backend_null_end_frame(RendererBackend* base_ctx, u8 current_frame)
+renderer_backend_null_end_frame(u8 current_frame)
 {
-	 UNUSED(base_ctx); UNUSED(current_frame);
+	 UNUSED(current_frame);
 }
 
 internal void
-renderer_backend_null_clear_bg(RendererBackend* base_ctx, u8 current_frame, vec3 color)
+renderer_backend_null_clear_bg(u8 current_frame, vec3 color)
 {
-	 UNUSED(base_ctx); UNUSED(current_frame); UNUSED(color);
+	 UNUSED(current_frame); UNUSED(color);
 }
 
 // internal void
@@ -42,7 +41,8 @@ renderer_backend_null_clear_bg(RendererBackend* base_ctx, u8 current_frame, vec3
 // }
 
 internal RendererBackendNull*
-renderer_backend_null_create(Arena* arena){
+renderer_backend_null_create(Arena *arena, RendererBackendConfig *backend_config){
+    UNUSED(backend_config);
 	RendererBackendNull *backend = PUSH_STRUCT(arena, RendererBackendNull);
     RendererBackend *base = &backend->base;
     base->backend_kind = RendererBackendKind_Null;
@@ -51,7 +51,6 @@ renderer_backend_null_create(Arena* arena){
     base->begin_frame  = renderer_backend_null_begin_frame;
     base->end_frame    = renderer_backend_null_end_frame;
     base->clear_bg     = renderer_backend_null_clear_bg;
-    // base->draw         = renderer_backend_null_draw;
     return backend;
 }
 

@@ -31,7 +31,8 @@ CFLAGS_SAN="-fsanitize=address,undefined \
     -Werror=vla \
 "
 
-CFLAGS="$CFLAGS_COMMON $CFLAGS_SAN"
+CFLAGS="$CFLAGS_COMMON $CFLAGS_SAN -DDOT_USE_VOLK"
+# CFLAGS="$CFLAGS_COMMON $CFLAGS_SAN"
 
 PROTO_SRCS=""
 SYS_LIBS_COMMON="-lm -lvulkan -ldl -lpthread"

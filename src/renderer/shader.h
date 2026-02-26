@@ -3,6 +3,11 @@
 
 #define DOT_COMPILED_SHADER_PATH "src/game/compiled_shaders/"
 
+CONST_INT_BLOCK ShaderCacheConfigValues{
+    SHADER_CACHE_SHADER_COUNT = 64,
+};
+DOT_STATIC_ASSERT(IS_POW2(SHADER_CACHE_SHADER_COUNT));
+
 // typedef struct DOT_Asset{
 //     String8 name;
 //     String8 path;
@@ -35,6 +40,7 @@ typedef u64 HashIdx;
 typedef struct ShaderCache{
     hashset(ShaderCacheNode*) shader_modules;
     u32 shader_modules_count;
+    u32 load_shader_modules;
 }ShaderCache;
 
 // NOTE: Since slang does not have a c interface, we will just call the binary for now
@@ -54,5 +60,8 @@ internal DOT_ShaderModule *shader_cache_get_or_create(
     ShaderCache *shader_cache,
     String8 shader_path,
     String8 compiled_path);
+
+internal DOT_ShaderModule* shader_module_create(Arena* arena, String8 path, String8 compiled_path);
+internal b8                shader_module_initialized(DOT_ShaderModule *shader_module);
 
 #endif // !DOT_SHADER_H

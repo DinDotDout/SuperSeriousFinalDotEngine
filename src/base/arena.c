@@ -42,7 +42,7 @@ arena_alloc_from_memory(ArenaInitParams *params){
     arena->name               = params->name;
     arena->parent             = params->parent;
     arena->kind               = ArenaKind_FromBuffer;
-    arena_reset(arena);
+    ARENA_RESET(arena);
     return arena;
 }
 
@@ -86,20 +86,21 @@ arena_alloc_from_os(ArenaInitParams *params){
     arena->name               = params->name;
     arena->parent             = params->parent;
     arena->kind               = ArenaKind_FromOS;
-    arena_reset(arena);
+    ARENA_RESET(arena);
     return arena;
 }
 
 internal void
-arena_reset(Arena *arena){
+arena_reset(Arena *arena, char *file, u32 line){
+    DOT_ASSERT_FL(arena, file, line);
     u64 arena_size = sizeof(Arena);
-    ASAN_POISON(arena->base+arena_size, arena->reserved-arena_size);
+    ASAN_POISON(arena->base + arena_size, arena->reserved - arena_size);
     arena->used = arena_size;
 }
 
 internal void
-arena_free(Arena *arena){
-    DOT_ASSERT(arena->kind == ArenaKind_FromOS, "Trying to free sub-arena '%s' with parent '%s'!\nThis arena does not own the memory!", arena->name, arena->parent->name);
+arena_free(Arena *arena, char *file, u32 line){
+    DOT_ASSERT_FL(arena->kind == ArenaKind_FromOS, file, line, "Trying to free sub-arena '%s' with parent '%s'!\nThis arena does not own the memory!", arena->name, arena->parent->name);
     u64 reserved = arena->reserved;
     void* base = arena->base;
     DOT_PRINT("Arena \"%s\": freed %M", arena->name, arena->reserved);

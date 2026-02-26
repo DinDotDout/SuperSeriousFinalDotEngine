@@ -40,7 +40,7 @@ dot_engine_shutdown(DOT_Engine* engine)
     dot_window_shutdown(&engine->window);
     plugins_shutdown();
     threadctx_shutdown();
-    arena_free(engine->permanent_arena);
+    ARENA_FREE(engine->permanent_arena);
 }
 
 int main() {

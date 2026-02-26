@@ -51,7 +51,7 @@ shader_cache_hash(String8 shader_path)
 internal HashIdx
 shader_cache_hash_idx(ShaderCache *shader_cache, String8 shader_path)
 {
-    HashIdx shader_hash = shader_cache_hash(shader_path) % shader_cache->shader_modules_count;
+    HashIdx shader_hash = MOD_POW2(shader_cache_hash(shader_path), shader_cache->shader_modules_count);
     return shader_hash;
 }
 
@@ -68,6 +68,7 @@ shader_cache_push(Arena *arena, ShaderCache *shader_cache, DOT_ShaderModule *sha
         node->next = new_node;
     }
     shader_modules[shader_hash_idx] = new_node;
+    shader_cache->load_shader_modules += 1;
 }
 
 internal DOT_ShaderModule*

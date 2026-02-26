@@ -228,14 +228,14 @@ typedef DOT_ENUM(u8, DOT_LogLevelKind){
     DOT_LogLevelKind_Count,
 };
 
-global const char *print_debug_str[] = {
+global const char *dot_log_level_kind_str[] = {
     [DOT_LogLevelKind_Debug]   = "",
     [DOT_LogLevelKind_Warning] = "Warning",
     [DOT_LogLevelKind_Assert]  = "Assertion failed",
     [DOT_LogLevelKind_Error]   = "Error",
 };
 
-DOT_STATIC_ASSERT(DOT_LogLevelKind_Count == ARRAY_COUNT(print_debug_str));
+DOT_STATIC_ASSERT(DOT_LogLevelKind_Count == ARRAY_COUNT(dot_log_level_kind_str));
 
 typedef struct DOT_PrintDebugParams{
     DOT_LogLevelKind print_debug_kind;
@@ -243,7 +243,8 @@ typedef struct DOT_PrintDebugParams{
     u32 line;
 }DOT_PrintDebugParams;
 
-#define DOT_MAX_LOG_LEVEL_LENGTH 256
+// Maybe the loging system should just be tied to a frame arena / thread arena
+#define DOT_MAX_LOG_LEVEL_LENGTH 2048
 internal void dot_print_debug_(const DOT_PrintDebugParams* params, PRINTF_STRING const char *fmt, ...);
 
 #define DOT_PRINT_DEBUG_PARAMS_DEFAULT(...) \
@@ -344,6 +345,8 @@ do { \
 
 #define ALIGN_POW2(x, align) (((x) + (align) - 1) & (~((align) - 1)))
 #define ALIGN_DOWN_POW2(x, align) ((x) & ~((align) - 1))
+#define IS_POW2(x) (((x) & ((x) - 1)) == 0)
+#define MOD_POW2(x, n) (((x) & ((n) - 1)))
 
 #define MEMORY_ZERO(s, z) memset((s), 0, (z))
 #define MEMORY_ZERO_STRUCT(s) MEMORY_ZERO((s), sizeof(*(s)))

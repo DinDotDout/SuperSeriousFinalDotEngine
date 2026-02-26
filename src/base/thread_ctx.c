@@ -34,7 +34,7 @@ threadctx_shutdown(){
     for(u8 i = 0; i < thread_ctx.temp_arena_count; ++i){
         arena_print_debug(thread_ctx.temp_arenas[i]);
     }
-    arena_free(main_arena);
+    ARENA_FREE(main_arena);
 }
 
 internal TempArena

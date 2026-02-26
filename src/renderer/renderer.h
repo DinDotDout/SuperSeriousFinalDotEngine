@@ -4,56 +4,64 @@
 typedef DOT_ENUM(u8, RendererBackendKind){
     RendererBackendKind_Null,
     RendererBackendKind_Vk,
-    RendererBackendKind_Gl,
     RendererBackendKind_Dx12,
     RendererBackendKind_Count,
 };
 
-// TODO: Translation tables per render backend
 typedef DOT_ENUM(u8, RendererPresentModeKind){
     RendererPresentModeKind_Immediate,
     RendererPresentModeKind_Mailbox,
     RendererPresentModeKind_FIFO,
     RendererPresentModeKind_FIFO_Relaxed,
+    RendererPresentModeKind_FIFO_Count,
 };
+global const char *renderer_present_mode_kind_str[] = {
+    [RendererPresentModeKind_Immediate]   = "RendererPresentModeKind_Immediate",
+    [RendererPresentModeKind_Mailbox] = "RendererPresentModeKind_Mailbox",
+    [RendererPresentModeKind_FIFO]  = "RendererPresentModeKind_FIFO",
+    [RendererPresentModeKind_FIFO_Relaxed] = "RendererPresentModeKind_FIFO_Relaxed",
+};
+
+DOT_STATIC_ASSERT(RendererPresentModeKind_FIFO_Count == ARRAY_COUNT(renderer_present_mode_kind_str));
 
 typedef struct RendererBackendConfig{
     RendererBackendKind backend_kind;
     u64 backend_memory_size;
+
+    RendererPresentModeKind present_mode;
+    u8 frame_overlap;
 }RendererBackendConfig;
 
 typedef struct RendererConfig{
     u64 renderer_memory_size;
     u64 frame_arena_size;
-    u8  frame_overlap;
-    RendererPresentModeKind present_mode;
 
     RendererBackendConfig backend_config;
     ShaderCacheConfig     shader_cache_config;
 }RendererConfig;
 
 typedef struct RendererBackend RendererBackend;
-typedef void (*RendererBackend_InitFn)(RendererBackend *ctx, DOT_Window *window);
-typedef void (*RendererBackend_ShutdownFn)(RendererBackend *ctx);
-typedef void (*RendererBackend_BeginFrameFn)(RendererBackend *ctx, u8 current_frame);
-typedef void (*RendererBackend_EndFrameFn)(RendererBackend *ctx, u8 current_frame);
-typedef void (*RendererBackend_ClearBgFn)(RendererBackend *ctx, u8 current_frame, vec3 color);
+typedef void (*RendererBackend_InitFn)(DOT_Window *window);
+typedef void (*RendererBackend_ShutdownFn)();
+typedef void (*RendererBackend_BeginFrameFn)(u8 current_frame);
+typedef void (*RendererBackend_EndFrameFn)(u8 current_frame);
+typedef void (*RendererBackend_ClearBgFn)(u8 current_frame, vec3 color);
 
-typedef DOT_ShaderModuleHandle (*RendererBackend_LoadShaderModuleFn)(RendererBackend *ctx, DOT_FileBuffer fb);
-typedef void (*RendererBackend_UnLoadShaderModuleFn)(RendererBackend *ctx, DOT_ShaderModuleHandle);
+typedef DOT_ShaderModuleHandle (*RendererBackend_LoadShaderModuleFn)(DOT_FileBuffer fb);
+typedef void (*RendererBackend_UnLoadShaderModuleFn)(DOT_ShaderModuleHandle);
 
 struct RendererBackend{
     RendererBackendKind backend_kind;
     Arena *permanent_arena;
+
+    u8 frame_overlap;
     RendererBackend_InitFn       init;
     RendererBackend_ShutdownFn   shutdown;
-
     RendererBackend_BeginFrameFn begin_frame;
     RendererBackend_EndFrameFn   end_frame;
     RendererBackend_ClearBgFn    clear_bg;
     RendererBackend_LoadShaderModuleFn load_shader_module;
     RendererBackend_UnLoadShaderModuleFn unload_shader_module;
-    // RendererBackend_Draw         draw;
 };
 
 typedef struct FrameData{
@@ -62,14 +70,14 @@ typedef struct FrameData{
 }FrameData;
 
 typedef struct DOT_Renderer{
-    RendererBackend *backend;
-    Arena           *permanent_arena;
+    Arena *permanent_arena;
 
-    u8         frame_overlap;
+    // u8         frame_overlap;
     u64        current_frame;
     FrameData *frame_data;
 
     ShaderCache shader_cache;
+    RendererBackend *backend;
 }DOT_Renderer;
 
 #if DOT_OS_WINDOWS
@@ -81,7 +89,6 @@ typedef struct DOT_Renderer{
 #else
 #  define DOT_RENDERER_API
 #endif
-
 
 
 DOT_RENDERER_API void renderer_clear_background(DOT_Renderer *renderer, vec3 color);

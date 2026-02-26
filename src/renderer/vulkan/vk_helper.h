@@ -65,11 +65,11 @@ internal b8 vk_helper_physical_device_swapchain_support(
     DOT_Window *window,
     VkHelper_SwapchainDetails *details);
 
-internal b8 vk_helper_physical_device_all_required_extensions(const struct RBVK_Settings *vk_settings, VkPhysicalDevice device);
-internal b8 vk_helper_instance_all_required_extensions(const struct RBVK_Settings* vk_settings);
-
-internal VkExtent3D vk_helper_extent3d_from_extent2d(VkExtent2D extent2d);
-internal VkExtent2D vk_helper_extent2d_from_extent3d(VkExtent3D extent3d);
+internal b8               vk_helper_physical_device_all_required_extensions(const struct RBVK_Settings *vk_settings, VkPhysicalDevice device);
+internal b8               vk_helper_instance_all_required_extensions(const struct RBVK_Settings* vk_settings);
+internal VkPresentModeKHR vk_helper_present_mode_kind_to_vk_present_mode_khr(RendererPresentModeKind present_mode);
+internal VkExtent3D       vk_helper_extent3d_from_extent2d(VkExtent2D extent2d);
+internal VkExtent2D       vk_helper_extent2d_from_extent3d(VkExtent3D extent3d);
 
 internal void vk_helper_transition_image(
     VkCommandBuffer cmd,
@@ -153,6 +153,21 @@ vk_helper_instance_all_required_extensions(const struct RBVK_Settings* vk_settin
     }
     temp_arena_restore(temp);
     return all_found;
+}
+
+internal VkPresentModeKHR
+vk_helper_present_mode_kind_to_vk_present_mode_khr(RendererPresentModeKind present_mode)
+{
+    switch (present_mode){
+    case RendererPresentModeKind_Immediate:    return VK_PRESENT_MODE_IMMEDIATE_KHR;
+    case RendererPresentModeKind_Mailbox:      return VK_PRESENT_MODE_MAILBOX_KHR;
+    case RendererPresentModeKind_FIFO:         return VK_PRESENT_MODE_FIFO_KHR;
+    case RendererPresentModeKind_FIFO_Relaxed: return VK_PRESENT_MODE_FIFO_RELAXED_KHR;
+    default:
+      DOT_WARNING("Unsuported requested present mode %s, defaulting to "
+                  "VK_PRESENT_MODE_IMMEDIATE_KHR", renderer_present_mode_kind_str[present_mode]);
+      return VK_PRESENT_MODE_IMMEDIATE_KHR;
+    }
 }
 
 internal b8
@@ -256,15 +271,15 @@ vk_helper_physical_device_swapchain_support(
             }
         }
 
-        VkPresentModeKHR desired_present_mode = VK_PRESENT_MODE_FIFO_KHR; // Keep this one if none found for now
+        VkPresentModeKHR best_present_mode = VK_PRESENT_MODE_FIFO_KHR; // Keep this one if none found for now
         array(VkPresentModeKHR) present_modes = swapchain_support_details.present_modes;
         for(u32 i = 0; i < swapchain_support_details.present_modes_count; ++i){
             if (present_modes[i] == preferred_present_mode){
-                desired_present_mode = present_modes[i];
+                best_present_mode = present_modes[i];
                 break;
             }
         }
-        details->best_present_mode   = desired_present_mode;
+        details->best_present_mode   = best_present_mode;
         details->best_surface_format = desired_format.surfaceFormat;
         details->surface_extent      = surface_extent;
         details->image_count         = surface_capabilities.minImageCount+1;

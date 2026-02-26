@@ -24,9 +24,9 @@ typedef struct RBVK_Settings{
         const usize    layer_count;
     }layer_settings;
     struct SwapchainVkSettings{
-        VkFormat         preferred_format;
-        VkColorSpaceKHR  preferred_colorspace;
-        VkPresentModeKHR preferred_present_mode;
+        const VkFormat         preferred_format;
+        const VkColorSpaceKHR  preferred_colorspace;
+        VkPresentModeKHR preferred_present_mode; // Set from renderer settings
     }swapchain_settings;
     struct FrameSettings{
         u8 frame_overlap;
@@ -59,15 +59,17 @@ typedef struct RBVK_Swapchain{
     VkExtent2D     extent;
     VkFormat       image_format;
 
-    VkImage       *images;
-    VkImageView   *image_views;
-    u32            images_count; // Shared between images and images views
+    array(VkImage)     images;
+    array(VkImageView) image_views;
+    array(VkSemaphore) swapchain_semaphores;
+    u32 images_count; // Shared between images, images views and semaphroe
 }RBVK_Swapchain;
 
 typedef struct RBVK_FrameData{
     VkCommandPool   command_pool;
     VkCommandBuffer frame_command_buffer;
-    VkSemaphore     swapchain_semaphore, render_semaphore;
+    VkSemaphore     acquire_semaphore;
+    // render_semaphore, 
     VkFence         render_fence;
     Arena          *frame_arena;
     u32             swapchain_image_idx;
@@ -80,8 +82,8 @@ typedef struct RendererBackendVk{
     VkInstance      instance;
     VkSurfaceKHR    surface;
 
-    u8              frame_data_count;
-    RBVK_FrameData *frame_datas;
+    u8                    frame_data_count;
+    array(RBVK_FrameData) frame_datas;
 
     RBVK_Image      draw_image;
     // NOTE: Splitting this from actual draw_image so that we can draw regions?
@@ -92,6 +94,12 @@ typedef struct RendererBackendVk{
     VkDescriptorSetLayout bindless_layout;
     VkDescriptorSetLayout compute_layout;
     VkDescriptorSet descriptor_sets;
+
+    VkPipeline gradient_pipeline;
+    VkPipelineLayout gradient_pipeline_layout;
+
+
+
     // VkDescriptorSet bindles_set;
     // VkDescriptorSet compute_set;
 
@@ -107,18 +115,18 @@ typedef struct RBVK_FileBuffer{
     usize size;
 }RBVK_FileBuffer;
 
-// Outfacing renderer API
-internal const RBVK_Settings* renderer_backend_vk_settings();
+internal RendererBackendVk* renderer_backend_vk_create(Arena *arena, RendererBackendConfig *backend_config);
+internal void renderer_backend_vk_init(DOT_Window *window);
+internal void renderer_backend_vk_shutdown();
+internal void renderer_backend_vk_clear_bg(u8 current_frame, vec3 color);
+internal void renderer_backend_vk_begin_frame(u8 current_frame);
+internal void renderer_backend_vk_end_frame(u8 current_frame);
 
-internal RendererBackendVk* renderer_backend_vk_create(Arena *arena);
-internal void renderer_backend_vk_init(RendererBackend *base_ctx, DOT_Window *window);
-internal void renderer_backend_vk_shutdown(RendererBackend* base_ctx);
-internal void renderer_backend_vk_clear_bg(RendererBackend *base_ctx, u8 current_frame, vec3 color);
-internal void renderer_backend_vk_begin_frame(RendererBackend *base_ctx, u8 current_frame);
-internal void renderer_backend_vk_end_frame(RendererBackend *base_ctx, u8 current_frame);
+internal RBVK_Settings* renderer_backend_vk_settings();
+internal void renderer_backend_vk_merge_settings(RendererBackendConfig *backend_config);
 
-internal DOT_ShaderModuleHandle renderer_backend_vk_load_shader_from_file_buffer(RendererBackend *base_ctx, DOT_FileBuffer file_buffer);
-internal void renderer_backend_vk_unload_shader_module(RendererBackend *base_ctx, DOT_ShaderModuleHandle shader_module);
+internal DOT_ShaderModuleHandle renderer_backend_vk_load_shader_from_file_buffer(DOT_FileBuffer file_buffer);
+internal void renderer_backend_vk_unload_shader_module(DOT_ShaderModuleHandle shader_module);
 
 // Internal API
 internal RendererBackendVk* renderer_backend_as_vk(RendererBackend *base);
