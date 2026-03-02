@@ -89,8 +89,6 @@
 // This is a way to get some consistency out of enum types in c
 
 #define DOT_ENUM(T, name) T name; enum
-
-
 #define CONST_INT_BLOCK enum
 
 ////////////////////////////////////////////////////////////////
@@ -146,11 +144,8 @@ typedef double f64;
 //
 // Array + size
 
-#define VA_ARG_COUNT_T(T, ...) \
-    (sizeof((T[]){ __VA_ARGS__ }) / sizeof(T))
-
-#define ARRAY_PARAM(T, ...) \
-    (T[]){__VA_ARGS__}, (u32) VA_ARG_COUNT_T(T, __VA_ARGS__)
+#define VA_ARG_COUNT_T(T, ...) (sizeof((T[])__VA_ARGS__) / sizeof(T))
+#define ARRAY_PARAM(T, ...) (T[])__VA_ARGS__, (u32) VA_ARG_COUNT_T(T, __VA_ARGS__)
 
 ////////////////////////////////////////////////////////////////
 //

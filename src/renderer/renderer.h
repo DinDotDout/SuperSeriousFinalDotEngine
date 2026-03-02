@@ -1,6 +1,17 @@
 #ifndef RENDERER_H
 #define RENDERER_H
 
+#define DOT_RENDER_BACKEND_VK 1
+// #define DOT_RENDER_BACKEND_HOTSWAP 1
+
+#if defined(DOT_RENDER_BACKEND_HOTSWAP)
+#define RENDER_BACKEND_CALL(fn, ...) renderer->backend->fn(__VA_ARGS__)
+#elif defined(DOT_RENDER_BACKEND_VK)
+#define RENDER_BACKEND_CALL(fn, ...) renderer_backend_vk_##fn(__VA_ARGS__)
+#elif defined(DOT_RENDER_BACKEND_DX12)
+#define RENDER_BACKEND_CALL(fn, ...) renderer_backend_dx12_##fn(__VA_ARGS__)
+#endif
+
 typedef DOT_ENUM(u8, RendererBackendKind){
     RendererBackendKind_Null,
     RendererBackendKind_Vk,
@@ -21,7 +32,6 @@ global const char *renderer_present_mode_kind_str[] = {
     [RendererPresentModeKind_FIFO]  = "RendererPresentModeKind_FIFO",
     [RendererPresentModeKind_FIFO_Relaxed] = "RendererPresentModeKind_FIFO_Relaxed",
 };
-
 DOT_STATIC_ASSERT(RendererPresentModeKind_FIFO_Count == ARRAY_COUNT(renderer_present_mode_kind_str));
 
 typedef struct RendererBackendConfig{
@@ -47,20 +57,20 @@ typedef void (*RendererBackend_BeginFrameFn)(u8 current_frame);
 typedef void (*RendererBackend_EndFrameFn)(u8 current_frame);
 typedef void (*RendererBackend_ClearBgFn)(u8 current_frame, vec3 color);
 
-typedef DOT_ShaderModuleHandle (*RendererBackend_LoadShaderModuleFn)(DOT_FileBuffer fb);
+typedef DOT_ShaderModuleHandle (*RendererBackend_LoadShaderFromFileBufferFn)(DOT_FileBuffer fb);
 typedef void (*RendererBackend_UnLoadShaderModuleFn)(DOT_ShaderModuleHandle);
 
 struct RendererBackend{
     RendererBackendKind backend_kind;
     Arena *permanent_arena;
-
     u8 frame_overlap;
+
     RendererBackend_InitFn       init;
     RendererBackend_ShutdownFn   shutdown;
     RendererBackend_BeginFrameFn begin_frame;
     RendererBackend_EndFrameFn   end_frame;
     RendererBackend_ClearBgFn    clear_bg;
-    RendererBackend_LoadShaderModuleFn load_shader_module;
+    RendererBackend_LoadShaderFromFileBufferFn load_shader_from_file_buffer;
     RendererBackend_UnLoadShaderModuleFn unload_shader_module;
 };
 

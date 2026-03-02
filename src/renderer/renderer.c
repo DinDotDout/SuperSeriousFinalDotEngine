@@ -30,24 +30,23 @@ renderer_init(Arena *arena, DOT_Renderer *renderer, DOT_Window *window, Renderer
     //         .parent       = renderer->permanent_arena,
     //         .reserve_size = renderer_config->frame_arena_size);
     // }
-    backend->init(window);
-}
+    RENDER_BACKEND_CALL(init, window);
 
+}
+// init gui state
 internal void
 renderer_shutdown(DOT_Renderer *renderer)
 {
-    RendererBackend *backend = renderer->backend;
     ShaderCache *shader_cache = &renderer->shader_cache;
-
     for(u32 i = 0; i < shader_cache->shader_modules_count; ++i){
         ShaderCacheNode *node = shader_cache->shader_modules[i];
         for EACH_NODE(it, ShaderCacheNode, node){
             DOT_ShaderModuleHandle h = it->shader_module->shader_module_handle;
-            renderer->backend->unload_shader_module(h);
+            RENDER_BACKEND_CALL(unload_shader_module, h);
         }
     }
     shader_cache_end(shader_cache);
-    backend->shutdown();
+    RENDER_BACKEND_CALL(shutdown);
 }
 
 void
@@ -55,7 +54,7 @@ renderer_clear_background(DOT_Renderer *renderer, vec3 color)
 {
     RendererBackend *backend = renderer->backend;
     u8 frame_idx = renderer->current_frame % backend->frame_overlap;
-    backend->clear_bg(frame_idx, color);
+    RENDER_BACKEND_CALL(clear_bg, frame_idx, color);
 }
 
 internal void
@@ -63,7 +62,7 @@ renderer_begin_frame(DOT_Renderer *renderer)
 {
     RendererBackend *backend = renderer->backend;
     u8 frame_idx = renderer->current_frame % backend->frame_overlap;
-    backend->begin_frame(frame_idx);
+    RENDER_BACKEND_CALL(begin_frame, frame_idx);
 }
 
 internal void
@@ -71,14 +70,14 @@ renderer_end_frame(DOT_Renderer *renderer)
 {
     RendererBackend *backend = renderer->backend;
     u8 frame_idx = renderer->current_frame % backend->frame_overlap;
-    backend->end_frame(frame_idx);
+    RENDER_BACKEND_CALL(end_frame, frame_idx);
     ++renderer->current_frame;
 }
 
 DOT_ShaderModule*
 renderer_load_shader_module_from_path(Arena *arena, DOT_Renderer *renderer, String8 path)
 {
-    TempArena temp = threadctx_get_temp(&arena,0);
+    TempArena temp = threadctx_get_temp(&arena, 0);
     String8 compiled_path = shader_cache_get_compiled_path(arena, path);
     b8 source_updated = platform_file_is_newer(cast(char*)path.str, cast(char*)compiled_path.str);
     b8 compilation_success = false;
@@ -95,7 +94,7 @@ renderer_load_shader_module_from_path(Arena *arena, DOT_Renderer *renderer, Stri
     if(should_update_shader){
         DOT_FileBuffer compiled_shader_content = platform_read_entire_file(temp.arena, compiled_path);
         if(compiled_shader_content.size > 0){
-            shader_module->shader_module_handle = renderer->backend->load_shader_module(compiled_shader_content);
+            shader_module->shader_module_handle = RENDER_BACKEND_CALL(load_shader_from_file_buffer, compiled_shader_content);
         }else{
             DOT_WARNING("Failed to read shader %S compilation %S", path, compiled_path);
         }

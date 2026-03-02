@@ -9,12 +9,21 @@
 #define VK_EXT_DEBUG_UTILS_ENABLE 1
 #endif
 
+typedef struct LayerVkSettings RBVK_LayerSettings;
+typedef struct RBVK_InstanceSettings RBVK_InstanceSettings;
+typedef struct RBVK_SwapchainSettings RBVK_SwapchainSettings;
+typedef struct RBVK_DeviceSettings RBVK_DeviceSettings;
 typedef struct RBVK_Settings{
-    struct InstanceVkSettings{
+    struct RBVK_InstanceSettings{
         const String8 *instance_extension_names;
         const usize  instance_extension_count;
+        String8 application_name;
+        u32 application_version;
+        String8 engine_name;
+        u32 engine_version;
+        u32 api_version;
     }instance_settings;
-    struct DeviceVkSettings{
+    struct RBVK_DeviceSettings{
         const String8 *device_extension_names;
         const usize    device_extension_count;
         const void*    device_features;
@@ -23,7 +32,7 @@ typedef struct RBVK_Settings{
         const String8 *layer_names;
         const usize    layer_count;
     }layer_settings;
-    struct SwapchainVkSettings{
+    struct RBVK_SwapchainSettings{
         const VkFormat         preferred_format;
         const VkColorSpaceKHR  preferred_colorspace;
         VkPresentModeKHR preferred_present_mode; // Set from renderer settings
@@ -54,27 +63,37 @@ typedef struct RBVK_Image{
     VkMemory_Alloc alloc;
 }RBVK_Image;
 
+typedef struct RBVK_SwapchainImageData{
+    VkImage image;
+    VkImageView image_view;
+    VkSemaphore image_semaphore;
+}RBVK_SwapchainImageData;
+
+typedef struct RBVK_SwapchainImageDatas RBVK_SwapchainImageDatas;
 typedef struct RBVK_Swapchain{
     VkSwapchainKHR swapchain;
     VkExtent2D     extent;
     VkFormat       image_format;
 
-    array(VkImage)     images;
-    array(VkImageView) image_views;
-    array(VkSemaphore) swapchain_semaphores;
-    u32 images_count; // Shared between images, images views and semaphroe
+    struct RBVK_SwapchainImageDatas{
+        RBVK_SwapchainImageData *data;
+        u32 count;
+    }image_datas;
+
+    // array(RBVK_SwapchainImageData) image_datas;
+    // u32 image_datas_count; // Shared between images, images views and semaphroe
 }RBVK_Swapchain;
 
 typedef struct RBVK_FrameData{
     VkCommandPool   command_pool;
     VkCommandBuffer frame_command_buffer;
     VkSemaphore     acquire_semaphore;
-    // render_semaphore, 
     VkFence         render_fence;
     Arena          *frame_arena;
     u32             swapchain_image_idx;
 }RBVK_FrameData;
 
+typedef struct RBVK_FrameDatas RBVK_FrameDatas;
 typedef struct RendererBackendVk{
     RendererBackend base;
     RBVK_Device     device;
@@ -82,6 +101,10 @@ typedef struct RendererBackendVk{
     VkInstance      instance;
     VkSurfaceKHR    surface;
 
+    struct RBVK_FrameDatas{
+        RBVK_FrameData *data;
+        u8 count;
+    }frame_datas2;
     u8                    frame_data_count;
     array(RBVK_FrameData) frame_datas;
 
@@ -95,10 +118,9 @@ typedef struct RendererBackendVk{
     VkDescriptorSetLayout compute_layout;
     VkDescriptorSet descriptor_sets;
 
+    // NOTE: Should probably cache this and destroy all on exit
     VkPipeline gradient_pipeline;
     VkPipelineLayout gradient_pipeline_layout;
-
-
 
     // VkDescriptorSet bindles_set;
     // VkDescriptorSet compute_set;

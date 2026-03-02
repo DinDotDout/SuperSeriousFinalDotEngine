@@ -1,6 +1,5 @@
 #ifndef DOT_STRING_H
 #define DOT_STRING_H
-
 ////////////////////////////////////////////////////////////////
 //
 // String
@@ -26,21 +25,19 @@ typedef struct String8List{
 
 #define String8Lit(s)  (String8){(u8*)(s), sizeof(s) - 1}
 #define StrFmt "%.*s"
-#define StrArg(sv) (int)(sv).len, (sv).buff
+#define StrArg(sv) (int)(sv).size, (sv).str
+
 #define MEM_COPY_STRING8(dst, s) MEM_COPY(dst, (s).str, (s).size)
 
 internal String8 string8_cstring(const char *c);
 internal String8 string8_format_va(Arena *arena, char *fmt, va_list args);
 internal String8 string8_format(Arena *arena, char *fmt, ...);
 
-internal char* cstr_format_va(Arena *arena, char *fmt, va_list args);
-internal char* cstr_format(Arena *arena, char *fmt, ...);
-
-
-// internal String8 string8_replace(Arena *a,String8 a);
-
 internal b8 string8_equal(String8 a, String8 b);
 internal b8 string8_array_has(String8 *arr, usize size, String8 b);
+
+internal char* cstr_format_va(Arena *arena, char *fmt, va_list args);
+internal char* cstr_format(Arena *arena, char *fmt, ...);
 
 internal u64 u64_hash_from_string8(String8 string, u64 seed);
 

@@ -22,7 +22,7 @@ internal void threadctx_destroy();
 // alloc_arena should be the arena we want to return allocations from if any to avoid
 // selection one of the thread_ctx arenas 
 // AVOID_LIST has been added to just be able to do something like:
-// threadctx_get_temp(AVOID_LIST(a, a2, a3));
+// threadctx_get_temp(AVOID_LIST({a, a2, a3}));
 // for the base cases of 0 and 1 we can just:
 // threadctx_get_temp(0,0) or threadctx_get_temp(&a,1)
 internal TempArena threadctx_get_temp(Arena *avoid[], u32 avoid_count);

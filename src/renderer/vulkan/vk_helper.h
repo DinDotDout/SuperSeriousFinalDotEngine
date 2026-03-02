@@ -116,7 +116,7 @@ vk_helper_all_layers(const struct RBVK_Settings *vk_settings)
                 break;
             }
         }
-        if(!found){ // Might aswell list all missing layers
+        if(!found){
             all_found = false;
             DOT_WARNING("Requested layer %s not found", layer_name);
         }
@@ -195,7 +195,6 @@ vk_helper_physical_device_all_required_extensions(
         if(!found){  // Might aswell list all missing physical dev extensions
             all_found = false;
             DOT_WARNING("Requested extension %s not found", device_extension_name);
-            break;
         }
     }
     temp_arena_restore(temp);

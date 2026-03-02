@@ -26,6 +26,7 @@ internal void
 dot_engine_run(DOT_Engine* engine)
 {
     while(!dot_window_should_close(&engine->window)){
+        dot_window_poll_events(&engine->window);
         renderer_begin_frame(&engine->renderer);
         dot_game_run(engine->game);
         renderer_end_frame(&engine->renderer);

@@ -26,7 +26,7 @@ renderer_backend_vk_create(Arena *arena, RendererBackendConfig *backend_config)
     base->begin_frame  = renderer_backend_vk_begin_frame;
     base->end_frame    = renderer_backend_vk_end_frame;
     base->clear_bg     = renderer_backend_vk_clear_bg;
-    base->load_shader_module = renderer_backend_vk_load_shader_from_file_buffer;
+    base->load_shader_from_file_buffer = renderer_backend_vk_load_shader_from_file_buffer;
     base->unload_shader_module = renderer_backend_vk_unload_shader_module;
     base->frame_overlap = backend_config->frame_overlap;
 
@@ -85,6 +85,11 @@ renderer_backend_vk_settings()
         .instance_settings = {
             .instance_extension_names = instance_extension_names,
             .instance_extension_count = ARRAY_COUNT(instance_extension_names),
+            .application_name    = String8Lit("dot_engine"),
+            .application_version = VK_MAKE_VERSION(1, 0, 0),
+            .engine_name         = String8Lit("dot_engine"),
+            .engine_version      = VK_MAKE_VERSION(1, 0, 0),
+            .api_version         = VK_API_VERSION_1_4,
         },
         .device_settings = {
             .device_extension_names = device_extension_names,
@@ -98,12 +103,7 @@ renderer_backend_vk_settings()
         .swapchain_settings = {
             .preferred_format       = VK_FORMAT_B8G8R8A8_SRGB,
             .preferred_colorspace   = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
-            // .preferred_present_mode = VK_PRESENT_MODE_MAILBOX_KHR,
         },
-        .frame_settings = {
-            // .frame_overlap = vk_settings.swapchain_settings.preferred_present_mode ==
-            //     VK_PRESENT_MODE_MAILBOX_KHR ? 3 : 2,
-        }
     };
     return &vk_settings;
 }
@@ -134,7 +134,7 @@ internal DOT_ShaderModuleHandle
 rbvk_dot_shader_module_from_vk_shader_module(VkShaderModule vk_sm)
 {
     DOT_ShaderModuleHandle dot_smh = {
-        .handle = cast(u64) vk_sm,
+        .handle[0] = cast(u64) vk_sm,
     };
     return dot_smh;
 }
@@ -217,7 +217,7 @@ internal void
 renderer_backend_vk_init(DOT_Window* window)
 {
 #ifdef DOT_USE_VOLK
-        volkInitialize();
+    volkInitialize();
 #endif
     Arena *ctx_arena = g_vk_ctx->base.permanent_arena;
     // g_vk_ctx->vk_allocator = VkAllocatorParams(ctx_arena);
@@ -247,11 +247,11 @@ renderer_backend_vk_init(DOT_Window* window)
             .enabledExtensionCount = vk_settings->instance_settings.instance_extension_count,
             .pApplicationInfo = &(VkApplicationInfo){
                 .sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-                .pApplicationName   = "dot_engine",
-                .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
-                .pEngineName        = "dot_engine",
-                .engineVersion      = VK_MAKE_VERSION(1, 0, 0),
-                .apiVersion         = VK_API_VERSION_1_4,
+                .pApplicationName   = cast(char*)vk_settings->instance_settings.application_name.str,
+                .applicationVersion = vk_settings->instance_settings.application_version,
+                .pEngineName        = cast(char*)vk_settings->instance_settings.engine_name.str,
+                .engineVersion      = vk_settings->instance_settings.engine_version,
+                .apiVersion         = vk_settings->instance_settings.api_version,
             },
         };
 
@@ -362,7 +362,7 @@ renderer_backend_vk_init(DOT_Window* window)
         vk_helper_physical_device_swapchain_support(vk_settings, g_vk_ctx->device.gpu, g_vk_ctx->surface, window, &details);
         swapchain->extent = details.surface_extent;
         swapchain->image_format = details.best_surface_format.format;
-        swapchain->images_count = details.image_count;
+        swapchain->image_datas.count = details.image_count;
 
         VkExtent2D window_extents = {window->window->w, window->window->h};
         VkSwapchainCreateInfoKHR swapchain_create_info = {
@@ -417,15 +417,13 @@ renderer_backend_vk_init(DOT_Window* window)
 
         g_vk_ctx->draw_image = rbvk_create_image(g_vk_ctx, &image_info);
         {
-            //  --- Create Swapchain Images ---
+            //  --- Create Image Datas ---
             VkDevice device = g_vk_ctx->device.device;
-            vkGetSwapchainImagesKHR(device, swapchain->swapchain, &swapchain->images_count, NULL);
-            swapchain->images = PUSH_ARRAY(ctx_arena, VkImage, swapchain->images_count);
-            vkGetSwapchainImagesKHR(device, swapchain->swapchain, &swapchain->images_count, swapchain->images);
+            vkGetSwapchainImagesKHR(device, swapchain->swapchain, &swapchain->image_datas.count, NULL);
+            array(VkImage) swapchain_images = PUSH_ARRAY(temp.arena, VkImage, swapchain->image_datas.count);
+            vkGetSwapchainImagesKHR(device, swapchain->swapchain, &swapchain->image_datas.count, swapchain_images);
+            swapchain->image_datas.data = PUSH_ARRAY(ctx_arena, RBVK_SwapchainImageData, swapchain->image_datas.count);
 
-            //  --- Create Image Views ---
-            swapchain->image_views = PUSH_ARRAY(ctx_arena, VkImageView, swapchain->images_count);
-            swapchain->swapchain_semaphores = PUSH_ARRAY(ctx_arena, VkSemaphore, swapchain->images_count);
             VkImageViewCreateInfo image_view_create_info = {
                 .sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
                 .viewType = VK_IMAGE_VIEW_TYPE_2D,
@@ -450,11 +448,15 @@ renderer_backend_vk_init(DOT_Window* window)
                 .flags = 0,
                 .pNext = NULL,
             };
-            for(u32 i = 0; i < swapchain->images_count; ++i){
-                image_view_create_info.image = swapchain->images[i];
-                VK_CHECK(vkCreateImageView(device, &image_view_create_info, NULL, &swapchain->image_views[i]));
-                VK_CHECK(vkCreateSemaphore(device, &semaphore_create_info, NULL, &swapchain->swapchain_semaphores[i]));
-            }
+                for(u32 i = 0; i < swapchain->image_datas.count; ++i){
+                    RBVK_SwapchainImageData *framedata = &swapchain->image_datas.data[i];
+                    // RBVK_SwapchainImageData *framedata = &SLICE_GET(swapchain->image_datas, i);
+                    framedata->image = swapchain_images[i];
+                    image_view_create_info.image = framedata->image;
+
+                    VK_CHECK(vkCreateImageView(device, &image_view_create_info, NULL, &framedata->image_view));
+                    VK_CHECK(vkCreateSemaphore(device, &semaphore_create_info, NULL, &framedata->image_semaphore));
+                }
         }
     }
     // --- Create Frame Structures ---
@@ -544,7 +546,6 @@ renderer_backend_vk_init(DOT_Window* window)
                 .bindingCount = ARRAY_COUNT(bindings),
                 .pBindings = bindings,
             };
-
             VK_CHECK(vkCreateDescriptorSetLayout(device, &bindless_info, NULL, &g_vk_ctx->bindless_layout));
 
             // Compute layout
@@ -553,11 +554,11 @@ renderer_backend_vk_init(DOT_Window* window)
                 .bindingCount = ARRAY_COUNT(bindings_compute),
                 .pBindings = bindings_compute,
             };
-
             VK_CHECK(vkCreateDescriptorSetLayout(device, &compute_info, NULL, &g_vk_ctx->compute_layout));
+
             VkDescriptorSetLayout layouts[] = {
-                g_vk_ctx->bindless_layout,
-                g_vk_ctx->compute_layout
+                g_vk_ctx->compute_layout,
+                // g_vk_ctx->bindless_layout,
             };
 
             VkDescriptorSetAllocateInfo alloc_info = {
@@ -571,7 +572,39 @@ renderer_backend_vk_init(DOT_Window* window)
 
         }
     }
-    {
+    // {
+    //     VkDevice device = g_vk_ctx->device.device;
+    //     VkPipelineLayoutCreateInfo pipeline_compute_layout = {
+    //      .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+    //      .pNext = NULL,
+    //      .pSetLayouts = &g_vk_ctx->compute_layout,
+    //      .setLayoutCount = 1,
+    //     };
+    //
+    //  VK_CHECK(vkCreatePipelineLayout(device, &pipeline_compute_layout, NULL, &g_vk_ctx->gradient_pipeline_layout));
+    //     VkShaderModule compute_draw_shader = rbvk_vk_shader_module_from_dot_shader_module(test_shader_module->shader_module_handle);
+    //  VkPipelineShaderStageCreateInfo stageinfo = {
+    //      .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+    //      .pNext = NULL,
+    //      .stage = VK_SHADER_STAGE_COMPUTE_BIT,
+    //      .module = compute_draw_shader,
+    //      .pName = "main",
+    //  };
+    //
+    //  VkComputePipelineCreateInfo compute_pipeline_create_info = {
+    //      .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+    //      .pNext = NULL,
+    //      .layout = g_vk_ctx->gradient_pipeline_layout,
+    //      .stage = stageinfo,
+    //  };
+    //
+    //  VK_CHECK(vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &compute_pipeline_create_info, NULL, &g_vk_ctx->gradient_pipeline));
+    // }
+    temp_arena_restore(temp);
+}
+
+void renderer_create_postprocess_module(DOT_ShaderModuleHandle shader_module_h)
+{
         VkDevice device = g_vk_ctx->device.device;
         VkPipelineLayoutCreateInfo pipeline_compute_layout = {
 	        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -580,9 +613,40 @@ renderer_backend_vk_init(DOT_Window* window)
 	        .setLayoutCount = 1,
         };
 
-	    VK_CHECK(vkCreatePipelineLayout(device, &computeLayout, NULL, &_gradientPipelineLayout));
-    }
-    temp_arena_restore(temp);
+	    VK_CHECK(vkCreatePipelineLayout(device, &pipeline_compute_layout, NULL, &g_vk_ctx->gradient_pipeline_layout));
+        VkShaderModule compute_draw_shader = rbvk_vk_shader_module_from_dot_shader_module(shader_module_h);
+	    VkPipelineShaderStageCreateInfo stageinfo = {
+	        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+	        .pNext = NULL,
+	        .stage = VK_SHADER_STAGE_COMPUTE_BIT,
+	        .module = compute_draw_shader,
+	        .pName = "main",
+	    };
+
+	    VkComputePipelineCreateInfo compute_pipeline_create_info = {
+	        .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+	        .pNext = NULL,
+	        .layout = g_vk_ctx->gradient_pipeline_layout,
+	        .stage = stageinfo,
+	    };
+
+	    VK_CHECK(vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &compute_pipeline_create_info, NULL, &g_vk_ctx->gradient_pipeline));
+        VkDescriptorImageInfo imgInfo = {
+	        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+	        .imageView = g_vk_ctx->draw_image.image_view,
+	    };
+
+	    VkWriteDescriptorSet drawImageWrite = {
+	        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+	        .pNext = NULL,
+	        .dstBinding = 0,
+	        .dstSet = g_vk_ctx->descriptor_sets,
+	        .descriptorCount = 1,
+	        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+	        .pImageInfo = &imgInfo,
+	    };
+	    vkUpdateDescriptorSets(g_vk_ctx->device.device, 1, &drawImageWrite, 0, NULL);
+
 }
 
 internal void
@@ -604,10 +668,14 @@ renderer_backend_vk_shutdown()
         vkDestroyFence(device, frame_data->render_fence, NULL);
         vkDestroySemaphore(device, frame_data->acquire_semaphore, NULL);
     }
-    for(u32 i = 0; i < g_vk_ctx->swapchain.images_count; ++i){
-        vkDestroyImageView(device, g_vk_ctx->swapchain.image_views[i], NULL);
-        vkDestroySemaphore(device, g_vk_ctx->swapchain.swapchain_semaphores[i], NULL);
+    for(u32 i = 0; i < g_vk_ctx->swapchain.image_datas.count; ++i){
+        vkDestroyImageView(device, g_vk_ctx->swapchain.image_datas.data[i].image_view, NULL);
+        vkDestroySemaphore(device, g_vk_ctx->swapchain.image_datas.data[i].image_semaphore, NULL);
     }
+
+    vkDestroyPipelineLayout(device, g_vk_ctx->gradient_pipeline_layout, NULL);
+    vkDestroyPipeline(device, g_vk_ctx->gradient_pipeline, NULL);
+
     rbvk_destroy_image(g_vk_ctx, &g_vk_ctx->draw_image);
     vkDestroySwapchainKHR(device, g_vk_ctx->swapchain.swapchain, NULL);
     vk_memory_pools_destroy(&g_vk_ctx->device, &g_vk_ctx->memory_pools);
@@ -628,15 +696,26 @@ renderer_backend_vk_shutdown()
 internal void
 renderer_backend_vk_clear_bg(u8 current_frame, vec3 color)
 {
-	   RBVK_FrameData *frame_data = &g_vk_ctx->frame_datas[current_frame];
-	   VkCommandBuffer cmd = frame_data->frame_command_buffer;
-	   RBVK_Image *draw_image = &g_vk_ctx->draw_image;
+	RBVK_FrameData *frame_data = &g_vk_ctx->frame_datas[current_frame];
+	VkCommandBuffer cmd = frame_data->frame_command_buffer;
+	(void)color;
+	RBVK_Image *draw_image = &g_vk_ctx->draw_image;
+	(void) draw_image;
 
-	   VkClearColorValue clear_value = {
-	       .float32 = { color.r, color.g,color.b, 0 },
-	   };
+	VkClearColorValue clear_value = {
+	    .float32 = { color.r, color.g,color.b, 0 },
+	};
+	(void) clear_value;
 	VkImageSubresourceRange clear_range = vk_image_subresource_range(VK_IMAGE_ASPECT_COLOR_BIT);
-	vkCmdClearColorImage(cmd, draw_image->image, VK_IMAGE_LAYOUT_GENERAL, &clear_value, 1, &clear_range);
+	(void) clear_range;
+	// vkCmdClearColorImage(cmd, draw_image->image, VK_IMAGE_LAYOUT_GENERAL, &clear_value, 1, &clear_range);
+
+
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, g_vk_ctx->gradient_pipeline);
+	// bind the descriptor set containing the draw image for the compute pipeline
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, g_vk_ctx->gradient_pipeline_layout, 0, 1, &g_vk_ctx->descriptor_sets, 0, NULL);
+	// execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
+	vkCmdDispatch(cmd, ceil(g_vk_ctx->draw_extent.width / 16.0), ceil(g_vk_ctx->draw_extent.height / 16.0), 1);
 }
 
 internal void
@@ -660,7 +739,7 @@ renderer_backend_vk_begin_frame(u8 current_frame)
     };
     VK_CHECK(vkBeginCommandBuffer(cmd, &cmd_begin_info));
     RBVK_Image *draw_image = &g_vk_ctx->draw_image;
-    VkImage swapchain_image = g_vk_ctx->swapchain.images[frame_data->swapchain_image_idx];
+    VkImage swapchain_image = g_vk_ctx->swapchain.image_datas.data[frame_data->swapchain_image_idx].image;
     vk_helper_transition_image(cmd, swapchain_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
     vk_helper_transition_image(cmd, draw_image->image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 }
@@ -672,9 +751,9 @@ renderer_backend_vk_end_frame(u8 current_frame)
     VkCommandBuffer cmd = frame_data->frame_command_buffer;
 
     RBVK_Image *draw_image = &g_vk_ctx->draw_image;
-    RBVK_Swapchain *swapchain = &g_vk_ctx->swapchain;
-    VkImage swapchain_image = swapchain->images[frame_data->swapchain_image_idx];
-    VkSemaphore swapchain_semaphore = swapchain->swapchain_semaphores[frame_data->swapchain_image_idx];
+    RBVK_SwapchainImageData *image_data = &g_vk_ctx->swapchain.image_datas.data[frame_data->swapchain_image_idx];
+    VkImage swapchain_image = image_data->image;
+    VkSemaphore swapchain_semaphore = image_data->image_semaphore;
  
     // Copy draw image into swapchain
     {

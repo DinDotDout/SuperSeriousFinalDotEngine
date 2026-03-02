@@ -48,7 +48,7 @@ dot_window_create_surface(DOT_Window* window, struct RendererBackend* backend)
 internal b8
 dot_window_get_framebuffer_size(DOT_Window *window, i32 *w, i32 *h)
 {
-    DOT_WARNING("There does not seem to be way to query framebuffer size in RGFW. Returning window size");
+    DOT_WARNING("There does not seem to be a way to query framebuffer size in RGFW. Returning window size");
     return RGFW_window_getSize(window->window, w, h);
 }
 
@@ -58,12 +58,15 @@ dot_window_get_size(DOT_Window *window, i32 *w, i32* h)
     return RGFW_window_getSize(window->window, w, h);
 }
 
+internal void
+dot_window_poll_events(DOT_Window *window)
+{
+    RGFW_event event;
+    while (RGFW_window_checkEvent(window->window, &event)){ }
+}
+
 internal b8
 dot_window_should_close(DOT_Window *window)
 {
-    RGFW_event event;
-    while (RGFW_window_checkEvent(window->window, &event)) {
-    }
-
     return RGFW_window_shouldClose(window->window);
 }

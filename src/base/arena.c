@@ -11,7 +11,7 @@ temp_arena_restore(TempArena temp){
     temp.arena->used = temp.prev_offset;
 }
 
-force_inline internal Arena*
+internal inline Arena*
 arena_alloc_(ArenaInitParams *params){
     Arena* arena;
     if(params->buffer){

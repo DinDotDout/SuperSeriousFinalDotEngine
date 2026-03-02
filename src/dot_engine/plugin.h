@@ -39,6 +39,7 @@ struct Plugin{
     #define PLUGIN_SECTION(priority) \
         __attribute__((used, section(".plugins." #priority))) \
         __attribute__((no_sanitize("address")))
+
     extern const Plugin __start_plugins[];
     extern const Plugin __stop_plugins[];
 #endif

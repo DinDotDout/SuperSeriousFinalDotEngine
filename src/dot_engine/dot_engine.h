@@ -1,6 +1,10 @@
 #ifndef DOT_ENGINE_H
 #define DOT_ENGINE_H
 
+//////////////////////////////////////////////////////
+/// THIRD PARTY
+///
+
 #define _GNU_SOURCE
 
 #ifdef DOT_USE_VOLK
@@ -16,6 +20,17 @@
 #define RGFWDEF static inline
 #include "third_party/RGFW/RGFW.h"
 
+#define NK_INCLUDE_FONT_BAKING  // STB_TRUETYPE_IMPLEMENTATION, STB_RECT_PACK_IMPLEMENTATION
+#define NK_PRIVATE
+#define NK_INCLUDE_FIXED_TYPES
+#define NK_INCLUDE_DEFAULT_FONT
+#define NK_IMPLEMENTATION
+#include "third_party/Nuklear/nuklear.h"
+
+//////////////////////////////////////////////////////
+/// DOT
+///
+
 #define DOT_INT_SKIP // Already included ints by rgfw
 #include "base/base_include.h"
 #include "dot_engine/window.h"
@@ -30,7 +45,6 @@
 #include "dot_engine/dot_engine_config.h"
 
 #include "game/my_game.c"
-
 
 typedef struct DOT_Engine{
     DOT_Renderer renderer;

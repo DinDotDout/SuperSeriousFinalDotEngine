@@ -86,22 +86,34 @@ internal void   arena_print_debug(Arena *arena);
   arena_push(arena, size, ARENA_MAX_ALIGNMENT, false, __FILE__, __LINE__)
 
 #define PUSH_SIZE(arena, size) \
-    (u8*) arena_push(arena, size, ARENA_MAX_ALIGNMENT, true,__FILE__, __LINE__)
+    (u8*)arena_push(arena, size, ARENA_MAX_ALIGNMENT, true,__FILE__, __LINE__)
 
 #define PUSH_ARRAY_ALIGNED(arena, type, count, alignment) \
-    (type *)arena_push(arena, sizeof(type) * (count), alignment, true, __FILE__, __LINE__)
+    (type*)arena_push(arena, sizeof(type) * (count), alignment, true, __FILE__, __LINE__)
 
 #define PUSH_ARRAY(arena, type, count) \
     PUSH_ARRAY_ALIGNED(arena, type, count, MAX(ARENA_MAX_ALIGNMENT, ALIGNOF(type)))
 
 #define PUSH_ARRAY_NO_ZERO(arena, type, count) \
-  (type *)arena_push(arena, sizeof(type) * (count), \
+  (type*)arena_push(arena, sizeof(type) * (count), \
                      MAX(ARENA_MAX_ALIGNMENT, ALIGNOF(type)), false, __FILE__, __LINE__)
 
-#define PUSH_STRUCT(arena, type) PUSH_ARRAY(arena, type, 1)
+#define PUSH_STRUCT(arena, T) PUSH_ARRAY(arena, T, 1)
 
-#define MAKE_ARRAY(arena, type, count) \
-    ((type##_array){.data = PUSH_ARRAY(arena, type, (count)), .size = (count)})
+#define PUSH_SLICE(arena, T, c) \
+    {.data = PUSH_ARRAY(arena, T, c), .count = (c)}
+
+#define PUSH_SLICE_LIT(arena, slice_type, T, c) \
+    (slice_type){.data = PUSH_ARRAY(arena, T, c), .count= (c)}
+
+#define SLICE(T, ...) \
+    { .data = (T[])__VA_ARGS__, .count = VA_ARG_COUNT_T(T, __VA_ARGS__) }
+
+#define SLICE_LIT(SLICE_T, T, ...) \
+    (SLICE_T){ .data = (T[])__VA_ARGS__, .count = VA_ARG_COUNT_T(T, __VA_ARGS__) }
+
+#define SLICE_GET(s, i)s.data[i]
+
 
 #define ARENA_RESET(arena) arena_reset(arena, __FILE__, __LINE__)
 #define ARENA_FREE(arena) arena_free(arena, __FILE__, __LINE__)
