@@ -24,6 +24,7 @@
 #define NK_PRIVATE
 #define NK_INCLUDE_FIXED_TYPES
 #define NK_INCLUDE_DEFAULT_FONT
+#define NK_INCLUDE_DEFAULT_ALLOCATOR // TODO: We want to eventually use our own allocator
 #define NK_IMPLEMENTATION
 #include "third_party/Nuklear/nuklear.h"
 

@@ -8,4 +8,5 @@
 
 #include "shader.c"
 #include "renderer.c"
+#include "nk_dot_window.h"
 #endif // !RENDERER_INCLUDE_H

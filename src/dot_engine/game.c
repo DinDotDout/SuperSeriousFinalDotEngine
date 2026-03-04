@@ -1,6 +1,3 @@
-#include "base/arena.h"
-#include "base/string.h"
-#include "renderer/renderer.h"
 global DOT_Game *g_game = NULL;
 
 #ifdef DOT_HOT_RELOAD

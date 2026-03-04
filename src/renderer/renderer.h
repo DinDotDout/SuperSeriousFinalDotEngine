@@ -2,7 +2,7 @@
 #define RENDERER_H
 
 #define DOT_RENDER_BACKEND_VK 1
-// #define DOT_RENDER_BACKEND_HOTSWAP 1
+#define DOT_RENDER_BACKEND_HOTSWAP 1
 
 #if defined(DOT_RENDER_BACKEND_HOTSWAP)
 #define RENDER_BACKEND_CALL(fn, ...) renderer->backend->fn(__VA_ARGS__)
