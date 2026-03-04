@@ -29,6 +29,7 @@ typedef struct String8List{
 
 #define MEM_COPY_STRING8(dst, s) MEM_COPY(dst, (s).str, (s).size)
 
+internal String8 string8_copy(Arena *arena, String8 string);
 internal String8 string8_cstring(const char *c);
 internal String8 string8_format_va(Arena *arena, char *fmt, va_list args);
 internal String8 string8_format(Arena *arena, char *fmt, ...);

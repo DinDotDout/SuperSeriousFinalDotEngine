@@ -1,3 +1,14 @@
+internal String8
+string8_copy(Arena *arena, String8 string)
+{
+  String8 str;
+  str.size = string.size;
+  str.str = PUSH_ARRAY_NO_ZERO(arena, u8, str.size + 1);
+  MEM_COPY(str.str, string.str, string.size);
+  str.str[str.size] = 0;
+  return str;
+}
+
 internal b8
 string8_equal(String8 a, String8 b)
 {
