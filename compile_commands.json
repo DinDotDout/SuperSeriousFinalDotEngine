@@ -1,0 +1,28 @@
+[
+    {
+        "file": "src/dot_engine/dot_engine.c",
+        "directory": "/home/joan/Documents/projects/graphics/final_super_dot_engine",
+        "arguments": [
+            "clang",
+            "-std=c99",
+            "-g",
+            "-Wall",
+            "-Wextra",
+            "-Wshadow",
+            "-Wno-override-init",
+            "-Wdiv-by-zero",
+            "-Wno-unused-function",
+            "-Werror=vla",
+            "-DRGFW_X11",
+            "-DRGFW_UNIX",
+            "-DNK_PRIVATE",
+            "-DNK_IMPLEMENTATION",
+            "-DNK_INCLUDE_FIXED_TYPES",
+            "-DNK_INCLUDE_FONT_BAKING",
+            "-fno-common",
+            "-I", "src/",
+            "-include", "dot_engine/dot_engine.h",
+            "src/dot_engine/dot_engine.c",
+        ]
+    },
+]
