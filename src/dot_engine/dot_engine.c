@@ -1,18 +1,17 @@
 #include "dot_engine.h"
-
+// #include "renderer/nk_dot_window.h"
 internal void
 dot_engine_init(DOT_Engine* engine)
 {
     DOT_EngineConfig *engine_config = dot_engine_config_get();
     engine->permanent_arena = ARENA_ALLOC(.reserve_size = engine_config->engine_memory_size, .name = "DOT_Engine Arena");
-    // NOTE: Should make entry points per thread
-    threadctx_init(&engine_config->thread_options, 0);
+    threadctx_init(&engine_config->thread_options, 0); // NOTE: Should make entry points per thread
     plugins_init();
     dot_window_init(&engine->window);
     renderer_init(engine->permanent_arena, &engine->renderer, &engine->window, &engine_config->renderer_config);
+    nk_dot_init(&engine->renderer, &engine->window);
 
     engine->game = PUSH_STRUCT(engine->permanent_arena, DOT_Game);
-
     u8 *permanent_memory = PUSH_SIZE(engine->permanent_arena, engine_config->game_config.permanent_memory_size);
     u8 *transient_memory = PUSH_SIZE(engine->permanent_arena, engine_config->game_config.transient_memory_size);
     dot_game_init(
@@ -27,8 +26,10 @@ dot_engine_run(DOT_Engine* engine)
 {
     while(!dot_window_should_close(&engine->window)){
         dot_window_poll_events(&engine->window);
+        nk_dot_new_frame(&engine->window);
         renderer_begin_frame(&engine->renderer);
         dot_game_run(engine->game);
+        nk_dot_render(&engine->renderer);
         renderer_end_frame(&engine->renderer);
     }
 }
@@ -37,6 +38,7 @@ internal void
 dot_engine_shutdown(DOT_Engine* engine)
 {
     dot_game_shutdown(engine->game);
+    nk_dot_shutdown(&engine->renderer);
     renderer_shutdown(&engine->renderer);
     dot_window_shutdown(&engine->window);
     plugins_shutdown();

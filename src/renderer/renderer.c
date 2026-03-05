@@ -74,6 +74,31 @@ renderer_end_frame(DOT_Renderer *renderer)
     ++renderer->current_frame;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Overlay (backend-agnostic)                                        */
+/* ------------------------------------------------------------------ */
+
+internal void
+renderer_overlay_init(DOT_Renderer *renderer, const void *font_pixels, int font_w, int font_h)
+{
+    UNUSED(renderer);
+    RENDER_BACKEND_CALL(overlay_init, font_pixels, font_w, font_h);
+}
+
+internal void
+renderer_overlay_render(DOT_Renderer *renderer, u8 frame_idx, OverlayDrawList *draw_list)
+{
+    UNUSED(renderer);
+    RENDER_BACKEND_CALL(overlay_render, frame_idx, draw_list);
+}
+
+internal void
+renderer_overlay_shutdown(DOT_Renderer *renderer)
+{
+    UNUSED(renderer);
+    RENDER_BACKEND_CALL(overlay_shutdown);
+}
+
 DOT_ShaderModule*
 renderer_load_shader_module_from_path(Arena *arena, DOT_Renderer *renderer, String8 path)
 {

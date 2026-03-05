@@ -99,6 +99,8 @@ nk_dot_clipboard_copy(nk_handle usr, const char *text, int len)
  *   renderer - the DOT_Renderer (must already be initialised)
  *   window   - the DOT_Window (wrapping RGFW)
  */
+void nk_dot_init2(){
+}
 NK_API struct nk_context*
 nk_dot_init(DOT_Renderer *renderer, DOT_Window *window)
 {
@@ -346,3 +348,4 @@ nk_dot_shutdown(DOT_Renderer *renderer)
 }
 
 #endif /* NK_DOT_WINDOW_H */
+

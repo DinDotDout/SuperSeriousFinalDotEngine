@@ -150,6 +150,11 @@ internal void renderer_backend_vk_merge_settings(RendererBackendConfig *backend_
 internal DOT_ShaderModuleHandle renderer_backend_vk_load_shader_from_file_buffer(DOT_FileBuffer file_buffer);
 internal void renderer_backend_vk_unload_shader_module(DOT_ShaderModuleHandle shader_module);
 
+// Overlay backend
+internal void renderer_backend_vk_overlay_init(const void *font_pixels, int font_w, int font_h);
+internal void renderer_backend_vk_overlay_render(u8 frame_idx, OverlayDrawList *draw_list);
+internal void renderer_backend_vk_overlay_shutdown(void);
+
 // Internal API
 internal RendererBackendVk* renderer_backend_as_vk(RendererBackend *base);
 internal RBVK_Image         rbvk_create_image(RendererBackendVk *ctx, VkImageCreateInfo *image_info);

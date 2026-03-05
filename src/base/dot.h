@@ -137,8 +137,9 @@ typedef double f64;
 //
 // TIME
 
-#define TO_USEC(t) ((t)*(u64)1000000000)
-#define TO_MSEC(t) ((t)*(u64)1000000)
+#define TO_NSEC(t) ((t)*(u64)1000000000)
+#define TO_USEC(t) ((t)*(u64)1000000)
+#define TO_MSEC(t) ((t)*(u64)1000)
 
 ////////////////////////////////////////////////////////////////
 //

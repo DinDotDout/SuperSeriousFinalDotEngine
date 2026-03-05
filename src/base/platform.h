@@ -94,7 +94,8 @@ platform_read_entire_file(Arena *arena, String8 path)
     return file_buffer;
 }
 
-b8 platform_file_is_newer(char* a, char* b) {
+b8 platform_file_is_newer(char* a, char* b)
+{
 #ifdef _WIN32
     struct _stat sa, sb;
     if (_stat(a, &sa) != 0) return false;
@@ -108,17 +109,34 @@ b8 platform_file_is_newer(char* a, char* b) {
     return sa.st_mtime > sb.st_mtime;
 }
 
+u64 platform_get_time_ns(void)
+{
+    const u64 scale_factor = TO_NSEC(1);
+#ifdef _WIN32
+    LARGE_INTEGER freq, counter;
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&counter);
+    return (u64)((counter.QuadPart * scale_factor) / freq.QuadPart);
+#else
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (u64)ts.tv_sec * scale_factor + (u64)ts.tv_nsec;
+#endif
+}
+
 ////////////////////////////////////////////////////////////////
 //
 // Metrics
 //
 internal u64
-platform_cpu_read_timer(void){
+platform_cpu_read_timer(void)
+{
     return __rdtsc(); // NOTE: Only works on x86, update to support ARM
 }
 
 internal u64
-platform_cpu_estimate_freq(){
+platform_cpu_estimate_freq()
+{
     u64 msec_to_wait = 100;
     u64 os_freq = platform_os_get_timer_freq();
 
