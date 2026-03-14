@@ -17,10 +17,12 @@ internal void threadctx_init(const ThreadCtxOptions* thread_ctx_opts, u8 thread_
 internal void threadctx_destroy();
 
 #define AVOID_LIST(...) ARRAY_PARAM(Arena*, __VA_ARGS__)
+///
 //////////////////////////////////////////////////////////
-// This is supposed to be freed with temp_arena_restore before scope / function exit
-// alloc_arena should be the arena we want to return allocations from if any to avoid
-// selection one of the thread_ctx arenas 
+// This is supposed to be restored with temp_arena_restore before function exit.
+// avoid is a list of arenas we want to compare the thread arenas to in case
+// our function recieves a temp as parameter.
+//
 // AVOID_LIST has been added to just be able to do something like:
 // threadctx_get_temp(AVOID_LIST({a, a2, a3}));
 // for the base cases of 0 and 1 we can just:

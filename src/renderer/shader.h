@@ -38,7 +38,7 @@ struct ShaderCacheNode{
 
 typedef u64 HashIdx;
 typedef struct ShaderCache{
-    hashset(ShaderCacheNode*) shader_modules;
+    hashmap(ShaderCacheNode*) shader_modules;
     u32 shader_modules_count;
     u32 load_shader_modules;
 }ShaderCache;
@@ -46,14 +46,14 @@ typedef struct ShaderCache{
 // NOTE: Since slang does not have a c interface, we will just call the binary for now
 // I don't want to have to deal with glslang either and have multiple shader compilation
 // backends
-internal b8      shader_compile_from_path(String8 input_path, String8 output_path);
+internal b32      shader_compile_from_path(String8 input_path, String8 output_path);
 
 internal void    shader_cache_init(Arena *arena, ShaderCache *shader_cache, ShaderCacheConfig *shader_cache_config);
 internal String8 shader_cache_get_compiled_path(Arena *arena, String8 path);
 internal void    shader_cache_end(ShaderCache *shader_cache);
 internal u64     shader_cache_hash(String8 shader_path);
 internal HashIdx shader_cache_hash_idx(ShaderCache *shader_cache, String8 shader_path);
-internal b8      shader_cache_is_null_shader(DOT_ShaderModule *shader_module);
+internal b32      shader_cache_is_null_shader(DOT_ShaderModule *shader_module);
 internal void    shader_cache_push(Arena *arena, ShaderCache *shader_cache, DOT_ShaderModule *shader_module);
 internal DOT_ShaderModule *shader_cache_get_or_create(
     Arena *arena,
@@ -62,6 +62,6 @@ internal DOT_ShaderModule *shader_cache_get_or_create(
     String8 compiled_path);
 
 internal DOT_ShaderModule* shader_module_create(Arena* arena, String8 path, String8 compiled_path);
-internal b8                shader_module_initialized(DOT_ShaderModule *shader_module);
+internal b32                shader_module_initialized(DOT_ShaderModule *shader_module);
 
 #endif // !DOT_SHADER_H

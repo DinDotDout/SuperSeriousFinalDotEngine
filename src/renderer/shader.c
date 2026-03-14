@@ -4,7 +4,7 @@ shader_cache_get_compiled_path(Arena *arena, String8 path){
     return string8_format(arena, DOT_COMPILED_SHADER_PATH"%u.spv", shader_hash);
 }
 
-internal b8
+internal b32
 shader_compile_from_path(String8 input_path, String8 output_path)
 {
     TempArena temp = threadctx_get_temp(0,0);
@@ -61,7 +61,7 @@ shader_cache_push(Arena *arena, ShaderCache *shader_cache, DOT_ShaderModule *sha
     ShaderCacheNode *new_node = PUSH_STRUCT(arena, ShaderCacheNode);
     new_node->shader_module = shader_module;
 
-    hashset(ShaderCacheNode*) shader_modules = shader_cache->shader_modules;
+    hashmap(ShaderCacheNode*) shader_modules = shader_cache->shader_modules;
     HashIdx shader_hash_idx = shader_cache_hash_idx(shader_cache, shader_module->path);
     ShaderCacheNode *node = shader_modules[shader_hash_idx];
     if(node){
@@ -80,7 +80,7 @@ shader_module_create(Arena* arena, String8 path, String8 compiled_path)
     return shader_module;
 }
 
-internal b8
+internal b32
 shader_module_initialized(DOT_ShaderModule *shader_module)
 {
     return shader_module->shader_module_handle.handle[0] != 0;

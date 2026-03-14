@@ -34,7 +34,7 @@
 
 #define NK_DOT_MAX_VERTEX_BUFFER  (512 * 1024)
 #define NK_DOT_MAX_ELEMENT_BUFFER (128 * 1024)
-#define NK_DOT_MAX_DRAW_CMDS     4096
+#define NK_DOT_MAX_DRAW_CMDS      4096
 #define NK_DOT_TEXT_MAX           1024
 
 /* ------------------------------------------------------------------ */
@@ -107,10 +107,9 @@ nk_dot_init(DOT_Renderer *renderer, DOT_Window *window)
     s->win      = window;
     s->renderer = renderer;
 
-    i32 w, h;
-    dot_window_get_size(window, &w, &h);
-    s->width  = (u32)w;
-    s->height = (u32)h;
+    DOT_Extent2D e = dot_window_get_size(window);
+    s->width  = (u32)e.x;
+    s->height = (u32)e.y;
 
     /* NK context */
     nk_init_default(&s->ctx, NULL);
@@ -124,16 +123,17 @@ nk_dot_init(DOT_Renderer *renderer, DOT_Window *window)
     int atlas_w, atlas_h;
     nk_font_atlas_init_default(&s->font_atlas);
     nk_font_atlas_begin(&s->font_atlas);
-    nk_font_atlas_add_default(&s->font_atlas, 14.0f, NULL);
+    struct nk_font *font = nk_font_atlas_add_default(&s->font_atlas, 14.0f, NULL);
     atlas_data = nk_font_atlas_bake(&s->font_atlas, &atlas_w, &atlas_h, NK_FONT_ATLAS_RGBA32);
-
     /* Delegate GPU resource creation + font upload to the renderer */
     renderer_overlay_init(renderer, atlas_data, atlas_w, atlas_h);
 
     /* Finish the atlas – use a dummy texture handle (backend owns the real one) */
     nk_font_atlas_end(&s->font_atlas, nk_handle_id(1), &s->tex_null);
-    if (s->font_atlas.default_font)
-        nk_style_set_font(&s->ctx, &s->font_atlas.default_font->handle);
+    // nk_style_set_font(&s->ctx, &s->font_atlas.default_font->handle);
+    // if (s->font_atlas.default_font)
+    nk_style_set_font(&s->ctx, &font->handle);
+        // nk_style_set_font(&s->ctx, &s->font_atlas.default_font->handle);
 
     return &s->ctx;
 }
@@ -158,10 +158,9 @@ nk_dot_new_frame(DOT_Window *window)
     struct nk_context *ctx = &s->ctx;
     RGFW_window *rgfw = window->window;
 
-    i32 w, h;
-    dot_window_get_size(window, &w, &h);
-    s->width  = (u32)w;
-    s->height = (u32)h;
+    DOT_Extent2D e = dot_window_get_size(window);
+    s->width  = (u32)e.x;
+    s->height = (u32)e.y;
 
     nk_input_begin(ctx);
 
@@ -185,7 +184,7 @@ nk_dot_new_frame(DOT_Window *window)
 
     /* Ctrl combos */
     {
-        b8 ctrl = RGFW_isKeyDown(RGFW_controlL) || RGFW_isKeyDown(RGFW_controlR);
+        b32 ctrl = RGFW_isKeyDown(RGFW_controlL) || RGFW_isKeyDown(RGFW_controlR);
         nk_input_key(ctx, NK_KEY_COPY,            ctrl && RGFW_isKeyDown(RGFW_c));
         nk_input_key(ctx, NK_KEY_PASTE,           ctrl && RGFW_isKeyDown(RGFW_v));
         nk_input_key(ctx, NK_KEY_CUT,             ctrl && RGFW_isKeyDown(RGFW_x));
@@ -205,7 +204,7 @@ nk_dot_new_frame(DOT_Window *window)
         nk_input_motion(ctx, mx, my);
 
         if (RGFW_isMousePressed(RGFW_mouseLeft)) {
-            f64 now = (f64)platform_get_time_ns() / 1000000.0;
+            f64 now = cast(f64)platform_get_time_ns() / (cast(f64)TO_USEC(1));
             f64 dt = now - s->last_button_click;
             if (dt > 20.0 && dt < 400.0) {
                 s->is_double_click_down = nk_true;

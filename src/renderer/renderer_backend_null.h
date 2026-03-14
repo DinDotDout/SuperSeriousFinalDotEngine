@@ -1,7 +1,6 @@
 #ifndef RENDERER_BACKEND_NULL_H
 #define RENDERER_BACKEND_NULL_H
 
-#include "base/dot.h"
 typedef struct RendererBackendNull{
     RendererBackend base;
 }RendererBackendNull;
@@ -20,19 +19,19 @@ renderer_backend_null_shutdown()
 internal void
 renderer_backend_null_begin_frame(u8 current_frame)
 {
-	 UNUSED(current_frame);
+	UNUSED(current_frame);
 }
 
 internal void
 renderer_backend_null_end_frame(u8 current_frame)
 {
-	 UNUSED(current_frame);
+	UNUSED(current_frame);
 }
 
 internal void
 renderer_backend_null_clear_bg(u8 current_frame, vec3 color)
 {
-	 UNUSED(current_frame); UNUSED(color);
+	UNUSED(current_frame); UNUSED(color);
 }
 
 // internal void

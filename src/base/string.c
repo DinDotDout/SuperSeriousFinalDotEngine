@@ -9,20 +9,20 @@ string8_copy(Arena *arena, String8 string)
   return str;
 }
 
-internal b8
+internal b32
 string8_equal(String8 a, String8 b)
 {
     if(a.size == b.size){
-        b8 result = MEMORY_EQUAL(a.str, b.str, a.size);
+        b32 result = MEMORY_EQUAL(a.str, b.str, a.size);
         return result;
     }
     return false;
 }
 
-internal b8
+internal b32
 string8_array_has(String8* arr, usize size, String8 b)
 {
-    b8 found = false;
+    b32 found = false;
     for(u64 i = 0; i < size; ++i){
         found = string8_equal(arr[i], b);
         if(found){

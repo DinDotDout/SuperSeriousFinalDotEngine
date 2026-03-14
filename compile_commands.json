@@ -13,8 +13,6 @@
             "-Wdiv-by-zero",
             "-Wno-unused-function",
             "-Werror=vla",
-            "-DRGFW_X11",
-            "-DRGFW_UNIX",
             "-DNK_PRIVATE",
             "-DNK_IMPLEMENTATION",
             "-DNK_INCLUDE_FIXED_TYPES",

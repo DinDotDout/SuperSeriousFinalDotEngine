@@ -54,7 +54,7 @@ os_reserve_large(usize size)
     return result;
 }
 
-internal inline b8
+internal inline b32
 os_commit(void *ptr, u64 size)
 {
     if(DOT_UNLIKELY(mprotect(ptr, size, PROT_READ|PROT_WRITE) != 0)){
@@ -66,7 +66,7 @@ os_commit(void *ptr, u64 size)
 }
 
 // To maximize THP taking effect we must pass in aligned to 2M pages
-internal inline b8
+internal inline b32
 os_commit_large(void *ptr, u64 size)
 {
     if(DOT_UNLIKELY(mprotect(ptr, size, PROT_READ|PROT_WRITE) != 0)){

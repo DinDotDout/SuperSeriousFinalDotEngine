@@ -25,7 +25,7 @@ struct Arena{
 
     u64 reserved; // Total usable memory
     u64 committed;
-    b8 large_pages;
+    b32 large_pages;
     u64 commit_expand_size;
 
     Arena *parent;
@@ -52,6 +52,13 @@ typedef struct ArenaInitParams{
     int   reserve_line;
 }ArenaInitParams;
 
+//////////////////////////////////////////////////////////
+/// TempArena
+/// TempArenas are not meant to be kept around or stored in structs as they
+/// encode a point in an actual arena and modify it. Thus, having multiple Temps
+/// on the same Arena will not work unless we pop them on reverse creation order
+/// like on the threadctx_get_temp / temp_arena_restore pattern
+
 typedef struct TempArena{
     u64    prev_offset;
     Arena *arena;
@@ -66,7 +73,7 @@ internal Arena* arena_alloc_from_arena(ArenaInitParams *params);
 internal Arena* arena_alloc_from_os(ArenaInitParams *params);
 internal void   arena_reset(Arena *arena, char *file, u32 line);
 internal void   arena_free(Arena *arena, char *file, u32 line);
-internal void*  arena_push(Arena *arena, usize size, usize alignment, b8 zero, char *file, u32 line);
+internal void*  arena_push(Arena *arena, usize size, usize alignment, b32 zero, char *file, u32 line);
 internal void   arena_print_debug(Arena *arena);
 
 #define ARENA_DEFAULT_PARAMS(...) \

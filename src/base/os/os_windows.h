@@ -77,20 +77,20 @@ os_reserve_large(usize size)
     return NULL;
 }
 
-internal inline b8
+internal inline b32
 os_commit(void *ptr, u64 size)
 {
     DOT_TODO("OS windows");
-    // b8 result = VirtualAlloc(); // commit
+    // b32 result = VirtualAlloc(); // commit
     return true;
 }
 
 // See os_reserve_large
-internal inline b8
+internal inline b32
 os_commit_large(void *ptr, u64 size)
 {
     DOT_TODO("OS windows");
-    // b8 result = VirtualAlloc(); // commit
+    // b32 result = VirtualAlloc(); // commit
     return result;
 }
 

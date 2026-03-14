@@ -5,11 +5,14 @@
 // #define DOT_RENDER_BACKEND_HOTSWAP 1
 
 #if defined(DOT_RENDER_BACKEND_HOTSWAP)
-#define RENDER_BACKEND_CALL(fn, ...) renderer->backend->fn(__VA_ARGS__)
+// #define RENDER_BACKEND_CALL(fn, ...) renderer->backend->fn(__VA_ARGS__)
+#define RENDER_BACKEND_CALL(fn) renderer->backend->fn
 #elif defined(DOT_RENDER_BACKEND_VK)
-#define RENDER_BACKEND_CALL(fn, ...) renderer_backend_vk_##fn(__VA_ARGS__)
+// #define RENDER_BACKEND_CALL(fn, ...) renderer_backend_vk_##fn(__VA_ARGS__)
+#define RENDER_BACKEND_CALL(fn) renderer_backend_vk_##fn
 #elif defined(DOT_RENDER_BACKEND_DX12)
-#define RENDER_BACKEND_CALL(fn, ...) renderer_backend_dx12_##fn(__VA_ARGS__)
+// #define RENDER_BACKEND_CALL(fn, ...) renderer_backend_dx12_##fn(__VA_ARGS__)
+#define RENDER_BACKEND_CALL(fn) renderer_backend_dx12_##fn
 #endif
 
 typedef DOT_ENUM(u8, RendererBackendKind){

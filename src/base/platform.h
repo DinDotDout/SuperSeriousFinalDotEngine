@@ -61,7 +61,7 @@ CONST_INT_BLOCK{
 // internal String8
 // platform_get_file_mode_from_kind(FileModeKind kind)
 // {
-//     switch (kind){
+//     switch(kind){
 //     case Platform_FileModeKind_R: return String8Lit("r");
 //     case Platform_FileModeKind_W: return String8Lit("w");
 //     case Platform_FileModeKind_RW: return String8Lit("w");
@@ -94,7 +94,7 @@ platform_read_entire_file(Arena *arena, String8 path)
     return file_buffer;
 }
 
-b8 platform_file_is_newer(char* a, char* b)
+b32 platform_file_is_newer(char* a, char* b)
 {
 #ifdef _WIN32
     struct _stat sa, sb;

@@ -45,7 +45,7 @@ typedef struct RBVK_Settings{
 typedef struct RBVK_Device{
     VkDevice         device;
     VkPhysicalDevice gpu;
-    b8               is_integrated_gpu;
+    b32              is_integrated_gpu;
 
 
     VkQueue graphics_queue;
@@ -85,12 +85,12 @@ typedef struct RBVK_Swapchain{
 }RBVK_Swapchain;
 
 typedef struct RBVK_FrameData{
+    Arena          *frame_arena;
     VkCommandPool   command_pool;
     VkCommandBuffer frame_command_buffer;
     VkSemaphore     acquire_semaphore;
     VkFence         render_fence;
-    Arena          *frame_arena;
-    u32             swapchain_image_idx;
+    u32             swapchain_image_idx; // Selected swpachain img for a given frame
 }RBVK_FrameData;
 
 typedef struct RBVK_FrameDatas RBVK_FrameDatas;
@@ -116,7 +116,8 @@ typedef struct RendererBackendVk{
     VkDescriptorPool descriptor_pool;
     VkDescriptorSetLayout bindless_layout;
     VkDescriptorSetLayout compute_layout;
-    VkDescriptorSet descriptor_sets;
+    VkDescriptorSet descriptor_sets[2];
+    u32             descriptor_set_count;
 
     // NOTE: Should probably cache this and destroy all on exit
     VkPipeline gradient_pipeline;
@@ -136,6 +137,10 @@ typedef struct RBVK_FileBuffer{
     u32 *buff;
     usize size;
 }RBVK_FileBuffer;
+
+typedef struct RBVK_Pipeline{
+    VkPipeline pipeline;
+}RBVK_Pipeline;
 
 internal RendererBackendVk* renderer_backend_vk_create(Arena *arena, RendererBackendConfig *backend_config);
 internal void renderer_backend_vk_init(DOT_Window *window);

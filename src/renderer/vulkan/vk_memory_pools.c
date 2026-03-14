@@ -8,7 +8,7 @@ internal VkMemory_Alloc
 vk_memory_pools_bump(VkMemory_Pools *pools, VkMemoryRequirements reqs, VkMemory_PoolsKind memory_kind)
 {
     VkMemory_Alloc memory_alloc = {0};
-    switch (memory_kind) {
+    switch(memory_kind){
         case VkMemory_PoolsKind_GpuOnly:
             if (reqs.memoryTypeBits & (1u << pools->gpu_only_type)){
                 u64 aligned_memory = ALIGN_POW2(pools->gpu_only_used, reqs.alignment);

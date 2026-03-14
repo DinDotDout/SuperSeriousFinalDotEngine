@@ -18,6 +18,7 @@
 #define RGFW_VULKAN
 #define RGFW_IMPLEMENTATION
 #define RGFWDEF static inline
+
 #include "third_party/RGFW/RGFW.h"
 
 #define NK_INCLUDE_FONT_BAKING  // STB_TRUETYPE_IMPLEMENTATION, STB_RECT_PACK_IMPLEMENTATION
@@ -56,8 +57,8 @@ typedef struct DOT_Engine{
     Arena *permanent_arena;
 }DOT_Engine;
 
-internal void dot_engine_init(DOT_Engine *app);
-internal void dot_engine_run(DOT_Engine *app);
-internal void dot_engine_shutdown(DOT_Engine *app);
+internal void dot_engine_init(DOT_Engine *engine);
+internal void dot_engine_run(DOT_Engine *engine);
+internal void dot_engine_shutdown(DOT_Engine *engine);
 
 #endif // !DOT_ENGINE_H

@@ -114,7 +114,9 @@ typedef uint64_t u64;
 typedef uintptr_t uptr;
 
 typedef u32 b32;
-typedef u8 b8;
+typedef u16 b16;
+typedef u8  b8;
+
 typedef float f32;
 typedef double f64;
 
@@ -157,7 +159,7 @@ typedef double f64;
 // Some sugar to make some things a bit more evident
 // or to indicate
 #define array(T) T*
-#define hashset(T) T*
+#define hashmap(T) T*
 
 ////////////////////////////////////////////////////////////////
 //
@@ -308,9 +310,19 @@ do { \
 #define MB(x) ((KB(x)) * (u64)1024)
 #define GB(x) ((MB(x)) * (u64)1024)
 
+////////////////////////////////////////////////////////////////
+//
+// MATH
+
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MAX3(a, b, c) (MAX(MAX(a,b), c))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define MIN3(a, b, c) (MIN(MIN(a,b), c))
+
 #define CLAMP(x, bot, top) (((x) < (bot)) ? (bot) : ((x) > (top)) ? (top) : (x))
+#define CLAMP01(x) (CLAMP((x),0,1))
+
+#define ABS(x) ((x) < 0 ? -(x) : (x))
 
 ////////////////////////////////////////////////////////////////
 //
@@ -355,9 +367,15 @@ do { \
 
 ////////////////////////////////////////////////////////////////
 //
-// whatever
+// Unused
 
-#define UNUSED(something) (void)something
+#if DOT_COMPILER_MSVC
+#   define UNUSED(x) (__pragma(warning(suppress:4100))(x))
+#elif DOT_COMPILER_GCC
+#   define UNUSED(x) __attribute__((__unused__))(x)
+#else
+#   define UNUSED(x) ((void)(x))
+#endif
 
 ////////////////////////////////////////////////////////////////
 //

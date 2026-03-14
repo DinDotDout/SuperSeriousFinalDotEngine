@@ -16,7 +16,7 @@ void dot_game_run(DOT_Game *game) {
 }
 
 #else
-b8 dot_game_init(DOT_Game *game, DOT_Renderer *renderer,
+b32 dot_game_init(DOT_Game *game, DOT_Renderer *renderer,
     u8 permanent_memory[], usize permanent_memory_size,
     u8 transient_memory[], usize transient_memory_size)
 {

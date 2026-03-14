@@ -37,6 +37,7 @@ threadctx_shutdown(){
     ARENA_FREE(main_arena);
 }
 
+
 internal TempArena
 threadctx_get_temp(Arena *avoid[], u32 avoid_count){
     for(u8 i = 0; i < thread_ctx.temp_arena_count; ++i){

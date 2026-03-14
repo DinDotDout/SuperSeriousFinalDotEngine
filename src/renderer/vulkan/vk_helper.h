@@ -15,8 +15,8 @@ typedef struct VkHelper_CandidateDeviceInfo{
     u16 graphics_family;
     u16 present_family;
     i32 score;
-    b8 shared_present_graphics_queues;
-    b8 is_integrated_gpu;
+    b32 shared_present_graphics_queues;
+    b32 is_integrated_gpu;
 }VkHelper_CandidateDeviceInfo;
 
 #ifdef NDEBUG
@@ -51,22 +51,21 @@ typedef struct VkHelper_CandidateDeviceInfo{
     }
 
 struct RBVK_Settings;
-internal b8 vk_helper_all_layers(const struct RBVK_Settings *vk_settings);
+internal b32 vk_helper_all_layers(const struct RBVK_Settings *vk_settings);
 internal VkHelper_CandidateDeviceInfo vk_helper_pick_best_device(
     const struct RBVK_Settings *vk_settings,
     VkInstance instance,
-    VkSurfaceKHR surface,
-    DOT_Window *window);
+    VkSurfaceKHR surface);
 
-internal b8 vk_helper_physical_device_swapchain_support(
+internal b32 vk_helper_physical_device_swapchain_support(
     const struct RBVK_Settings *vk_settings,
     VkPhysicalDevice gpu,
     VkSurfaceKHR surface,
     DOT_Window *window,
     VkHelper_SwapchainDetails *details);
 
-internal b8               vk_helper_physical_device_all_required_extensions(const struct RBVK_Settings *vk_settings, VkPhysicalDevice device);
-internal b8               vk_helper_instance_all_required_extensions(const struct RBVK_Settings* vk_settings);
+internal b32              vk_helper_physical_device_all_required_extensions(const struct RBVK_Settings *vk_settings, VkPhysicalDevice device);
+internal b32              vk_helper_instance_all_required_extensions(const struct RBVK_Settings* vk_settings);
 internal VkPresentModeKHR vk_helper_present_mode_kind_to_vk_present_mode_khr(RendererPresentModeKind present_mode);
 internal VkExtent3D       vk_helper_extent3d_from_extent2d(VkExtent2D extent2d);
 internal VkExtent2D       vk_helper_extent2d_from_extent3d(VkExtent3D extent3d);
@@ -87,17 +86,19 @@ internal VkImageSubresourceRange   vk_image_subresource_range(VkImageAspectFlags
 #endif // !VK_HELPER_H
 #ifdef VK_HELPER_IMPLEMENTATION
 
-internal VkExtent3D vk_helper_extent3d_from_extent2d(VkExtent2D extent2d)
+internal VkExtent3D
+vk_helper_extent3d_from_extent2d(VkExtent2D extent2d)
 {
     return (VkExtent3D){extent2d.width, extent2d.height, 1};
 }
 
-internal VkExtent2D vk_helper_extent2d_from_extent3d(VkExtent3D extent3d)
+internal VkExtent2D
+vk_helper_extent2d_from_extent3d(VkExtent3D extent3d)
 {
     return (VkExtent2D){extent3d.width, extent3d.height};
 }
 
-internal b8
+internal b32
 vk_helper_all_layers(const struct RBVK_Settings *vk_settings)
 {
     TempArena temp = threadctx_get_temp(NULL, 0);
@@ -105,9 +106,9 @@ vk_helper_all_layers(const struct RBVK_Settings *vk_settings)
     vkEnumerateInstanceLayerProperties(&available_layer_count, NULL);
     array(VkLayerProperties) available_layers = PUSH_ARRAY(temp.arena, VkLayerProperties, available_layer_count);
     vkEnumerateInstanceLayerProperties(&available_layer_count, available_layers);
-    b8 all_found = true;
+    b32 all_found = true;
     for(u64 i = 0; i < vk_settings->layer_settings.layer_count; ++i){
-        b8 found = false;
+        b32 found = false;
         const String8 layer_name = vk_settings->layer_settings.layer_names[i];
         for(u64 j = 0; j < available_layer_count; ++j){
             if(string8_equal(layer_name, string8_cstring(available_layers[j].layerName))){
@@ -125,7 +126,7 @@ vk_helper_all_layers(const struct RBVK_Settings *vk_settings)
     return all_found;
 }
 
-internal b8
+internal b32
 vk_helper_instance_all_required_extensions(const struct RBVK_Settings* vk_settings)
 {
     TempArena temp = threadctx_get_temp(NULL, 0);
@@ -134,9 +135,9 @@ vk_helper_instance_all_required_extensions(const struct RBVK_Settings* vk_settin
     array(VkExtensionProperties) available_extensions = PUSH_ARRAY(temp.arena, VkExtensionProperties, extension_count);
     vkEnumerateInstanceExtensionProperties(NULL, &extension_count, available_extensions);
 
-    b8 all_found = true;
+    b32 all_found = true;
     for(u64 i = 0; i < vk_settings->instance_settings.instance_extension_count; ++i){
-        b8 found = false;
+        b32 found = false;
         const String8 instance_extension_name = vk_settings->instance_settings.instance_extension_names[i];
         for(u64 j = 0; j < extension_count; ++j){
             char* name = available_extensions[j].extensionName;
@@ -158,7 +159,7 @@ vk_helper_instance_all_required_extensions(const struct RBVK_Settings* vk_settin
 internal VkPresentModeKHR
 vk_helper_present_mode_kind_to_vk_present_mode_khr(RendererPresentModeKind present_mode)
 {
-    switch (present_mode){
+    switch(present_mode){
     case RendererPresentModeKind_Immediate:    return VK_PRESENT_MODE_IMMEDIATE_KHR;
     case RendererPresentModeKind_Mailbox:      return VK_PRESENT_MODE_MAILBOX_KHR;
     case RendererPresentModeKind_FIFO:         return VK_PRESENT_MODE_FIFO_KHR;
@@ -170,7 +171,7 @@ vk_helper_present_mode_kind_to_vk_present_mode_khr(RendererPresentModeKind prese
     }
 }
 
-internal b8
+internal b32
 vk_helper_physical_device_all_required_extensions(
     const struct RBVK_Settings *vk_settings,
     VkPhysicalDevice device)
@@ -181,9 +182,9 @@ vk_helper_physical_device_all_required_extensions(
     array(VkExtensionProperties) available_extensions = PUSH_ARRAY(temp.arena, VkExtensionProperties, extension_count);
     vkEnumerateDeviceExtensionProperties(device, NULL, &extension_count, available_extensions);
 
-    b8 all_found = true;
+    b32 all_found = true;
     for(u64 i = 0; i < vk_settings->device_settings.device_extension_count; ++i){
-        b8 found = false;
+        b32 found = false;
         String8 device_extension_name = vk_settings->device_settings.device_extension_names[i];
         for(u64 j = 0; j < extension_count; ++j){
             if(string8_equal(device_extension_name, string8_cstring(available_extensions[j].extensionName))){
@@ -201,7 +202,7 @@ vk_helper_physical_device_all_required_extensions(
     return all_found;
 }
 
-internal b8
+internal b32
 vk_helper_physical_device_swapchain_support(
     const struct RBVK_Settings *vk_settings,
     VkPhysicalDevice gpu,
@@ -209,7 +210,7 @@ vk_helper_physical_device_swapchain_support(
     DOT_Window *window,
     VkHelper_SwapchainDetails *details)
 {
-    TempArena temp = threadctx_get_temp(NULL, 0);
+    TempArena temp = threadctx_get_temp(0,0);
     typedef struct SwapchainSupportDetails{
         VkSurfaceCapabilities2KHR surface_capabilities;
 
@@ -241,18 +242,14 @@ vk_helper_physical_device_swapchain_support(
     vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &swapchain_support_details.present_modes_count, NULL);
     swapchain_support_details.present_modes = PUSH_ARRAY(temp.arena, VkPresentModeKHR, swapchain_support_details.present_modes_count);
     vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &swapchain_support_details.present_modes_count, swapchain_support_details.present_modes);
-    b8 has_support = swapchain_support_details.format_count > 0 && swapchain_support_details.present_modes_count > 0;
+    b32 has_support = swapchain_support_details.format_count > 0 && swapchain_support_details.present_modes_count > 0;
     if(has_support && details != NULL){
-        VkSurfaceCapabilitiesKHR surface_capabilities = swapchain_support_details.surface_capabilities.surfaceCapabilities; // ...
+        VkSurfaceCapabilitiesKHR surface_capabilities = swapchain_support_details.surface_capabilities.surfaceCapabilities;
         VkExtent2D surface_extent = surface_capabilities.currentExtent;
         if(surface_extent.width == U32_MAX){ // Should we just do this outside this func?
-            i32 w, h;
-            dot_window_get_framebuffer_size(window, &w, &h);
-            surface_extent.width  = w;
-            surface_extent.height = h;
-
-            surface_extent.width = CLAMP(surface_extent.width, surface_capabilities.minImageExtent.width, surface_capabilities.maxImageExtent.width);
-            surface_extent.height = CLAMP(surface_extent.height, surface_capabilities.minImageExtent.height, surface_capabilities.maxImageExtent.height);
+            DOT_Extent2D e = dot_window_get_framebuffer_size(window);
+            surface_extent.width = CLAMP(cast(u32)e.x, surface_capabilities.minImageExtent.width, surface_capabilities.maxImageExtent.width);
+            surface_extent.height = CLAMP(cast(u32)e.y, surface_capabilities.minImageExtent.height, surface_capabilities.maxImageExtent.height);
         }
 
         VkFormat         preferred_format       = vk_settings->swapchain_settings.preferred_format;
@@ -295,8 +292,7 @@ internal VkHelper_CandidateDeviceInfo
 vk_helper_pick_best_device(
     const struct RBVK_Settings *vk_settings,
     VkInstance instance,
-    VkSurfaceKHR surface,
-    DOT_Window *window)
+    VkSurfaceKHR surface)
 {
     TempArena temp = threadctx_get_temp(NULL, 0);
     u32 device_count = 0;
@@ -312,14 +308,15 @@ vk_helper_pick_best_device(
     VkHelper_CandidateDeviceInfo best_device = {0};
     best_device.score = -1;
 
-    for (u32 i = 0; i < device_count; i++){
-        b8 is_integrated_gpu = true;
+    for(u32 i = 0; i < device_count; i++){
+        b32 is_integrated_gpu = true;
         VkPhysicalDevice dev = devices[i];
         // We to first ensure we have what we want before even rating the device
-        if(!vk_helper_physical_device_all_required_extensions(vk_settings, dev) ||
-            !vk_helper_physical_device_swapchain_support(vk_settings, dev, surface, window, NULL)){
+        if (!vk_helper_physical_device_all_required_extensions(vk_settings, dev)
+            || !vk_helper_physical_device_swapchain_support(vk_settings, dev, surface, NULL, NULL)){
             continue;
         }
+
         VkPhysicalDeviceProperties device_properties;
         VkPhysicalDeviceFeatures device_features;
         vkGetPhysicalDeviceProperties(dev, &device_properties);
@@ -334,8 +331,8 @@ vk_helper_pick_best_device(
 
         int graphics_idx = -1;
         int present_idx = -1;
-        b8 shared_present_graphics_queues = false;
-        for (u32 q = 0; q < queue_count; q++){
+        b32 shared_present_graphics_queues = false;
+        for(u32 q = 0; q < queue_count; q++){
             b32 present_support = false;
             vkGetPhysicalDeviceSurfaceSupportKHR(dev, q, surface, &present_support);
             if ((queue_properties[q].queueFlags & VK_QUEUE_GRAPHICS_BIT) &&
@@ -346,7 +343,7 @@ vk_helper_pick_best_device(
                 break;
             }
         }
-        if (!shared_present_graphics_queues){
+        if(!shared_present_graphics_queues){
             for (u32 q = 0; q < queue_count; q++){
                 if (queue_properties[q].queueFlags & VK_QUEUE_GRAPHICS_BIT){
                     graphics_idx = q;
@@ -358,22 +355,22 @@ vk_helper_pick_best_device(
                 }
             }
         }
-        if (graphics_idx < 0 || present_idx < 0){
+        if(graphics_idx < 0 || present_idx < 0){
             continue;
         }
 
         int score = -1;
-        if (device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU){
+        if(device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU){
             score += 2000;
             is_integrated_gpu = false;
         }
         // if(device_properties.deviceType ==
         // VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) score += 100;
-        if (device_features.geometryShader)
+        if(device_features.geometryShader)
             score += 10;
         DOT_PRINT("graphics family: %d; present family: %i; score: %i",
                   graphics_idx, present_idx, score);
-        if (score > best_device.score){
+        if(score > best_device.score){
             best_device.is_integrated_gpu = is_integrated_gpu;
             best_device.gpu = dev;
             best_device.graphics_family = cast(u16) graphics_idx;
@@ -384,7 +381,7 @@ vk_helper_pick_best_device(
         }
     }
 
-    if (best_device.score < 0){
+    if(best_device.score < 0){
         DOT_ERROR("No suitable GPU found");
     }
 

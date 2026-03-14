@@ -111,7 +111,7 @@ arena_free(Arena *arena, char *file, u32 line){
 }
 
 internal void*
-arena_push(Arena *arena, usize alloc_size, usize alignment, b8 zero, char *file, u32 line){
+arena_push(Arena *arena, usize alloc_size, usize alignment, b32 zero, char *file, u32 line){
     DOT_ASSERT(arena->kind != ArenaKind_Null);
     DOT_ASSERT_FL(alloc_size > 0, file, line);
     uptr arena_base = cast(uptr)arena->base;
@@ -122,14 +122,16 @@ arena_push(Arena *arena, usize alloc_size, usize alignment, b8 zero, char *file,
     usize required_padded = aligned_address - current_address + alloc_size;
     arena->used += required_padded;
 
+    // NOTE: Fresh OS pages are zeroed, so we only need to zero the portion we already owned
+    // We could maybe make a non reset permanent owning arena type and have it never zero
+    // u64 need_zero = required_padded;
+ 
     // NOTE: Up to here we have calculated how much memory do we need exactly. We will now check
     // if we need to further commit pages to back up our needs
-    u64 need_zero = required_padded;
-    // NOTE: Fresh OS pages are zeroed, so we only need to zero the portion we already owned
-    b8 need_more_pages = arena->used > arena->committed;
+    b32 need_more_pages = arena->used > arena->committed;
     if(need_more_pages){
         i64 needed_memory = arena->used - arena->committed;
-        need_zero -= needed_memory;
+        // need_zero -= needed_memory;
 
         u64 page_size = arena->large_pages ? PLATFORM_LARGE_PAGE_SIZE
                                         : PLATFORM_REGULAR_PAGE_SIZE;
@@ -151,8 +153,10 @@ arena_push(Arena *arena, usize alloc_size, usize alignment, b8 zero, char *file,
         arena->committed += commit_size;
     }
     ASAN_UNPOISON(mem_offset, required_padded);
-    if(zero && need_zero > 0){
-        MEMORY_ZERO(mem_offset, need_zero);
+    // if(zero && need_zero > 0){
+        // MEMORY_ZERO(mem_offset, need_zero);
+    if(zero){
+        MEMORY_ZERO(mem_offset, required_padded);
     }
     return mem_offset;
 }

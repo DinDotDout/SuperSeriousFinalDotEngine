@@ -38,7 +38,7 @@ void reload_game_dll(String8 dll_path) {
 }
 
 struct DOT_GameVtable{
-    b8(*Game_Init)(DOT_Game* game, DOT_GameVtable *vtable);
+    b32(*Game_Init)(DOT_Game* game, DOT_GameVtable *vtable);
     void(*Game_Shutdown)(void);
 };
 
@@ -48,7 +48,7 @@ DOT_GameVtable game_vtable;
 #include "renderer/renderer.h"
 #endif
 
-b8 dot_game_init(DOT_Game *game, DOT_Renderer *renderer,
+b32 dot_game_init(DOT_Game *game, DOT_Renderer *renderer,
     u8 permanent_memory[], usize permanent_memory_size,
     u8 transient_memory[], usize transient_memory_size);
 
