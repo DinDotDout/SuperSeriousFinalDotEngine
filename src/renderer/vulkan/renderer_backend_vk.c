@@ -19,109 +19,19 @@ renderer_backend_vk_create(Arena *arena, RendererBackendConfig *backend_config)
     RendererBackend *base = &backend->base;
     base->backend_kind    = RendererBackendKind_Vk;
     base->permanent_arena = backend_arena;
-    base->init         = renderer_backend_vk_init;
-    base->shutdown     = renderer_backend_vk_shutdown;
-    base->begin_frame  = renderer_backend_vk_begin_frame;
-    base->end_frame    = renderer_backend_vk_end_frame;
-    base->clear_bg     = renderer_backend_vk_clear_bg;
-    base->load_shader_from_file_buffer = renderer_backend_vk_load_shader_from_file_buffer;
-    base->unload_shader_module = renderer_backend_vk_unload_shader_module;
-    base->overlay_init     = renderer_backend_vk_overlay_init;
-    base->overlay_render   = renderer_backend_vk_overlay_render;
-    base->overlay_shutdown = renderer_backend_vk_overlay_shutdown;
-    base->frame_overlap = backend_config->frame_overlap;
+#define FN(ret, name, args) base->name = renderer_backend_vk_##name;
+    RENDERER_BACKEND_FN_LIST
+#undef FN
+
     g_vk_ctx = backend;
     return backend;
-}
-
-internal RBVK_Settings*
-renderer_backend_vk_settings()
-{
-    static const String8 instance_extension_names[] = {
-        String8Lit(VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME),
-        String8Lit(VK_KHR_SURFACE_EXTENSION_NAME),
-#ifdef VK_EXT_DEBUG_UTILS_ENABLE
-        String8Lit(VK_EXT_DEBUG_UTILS_EXTENSION_NAME),
-#endif
-        String8Lit(DOT_VK_SURFACE),
-    };
-
-    static const VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT graphics_pipeline_lib_features = {
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_FEATURES_EXT,
-        .pNext = NULL,
-        .graphicsPipelineLibrary = VK_TRUE,
-    };
-
-    static const VkPhysicalDeviceDescriptorBufferFeaturesEXT desc_buffer_features = {
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT,
-        .pNext = cast(void*)&graphics_pipeline_lib_features,
-        .descriptorBuffer = VK_TRUE,
-    };
-    static const VkPhysicalDeviceVulkan13Features features13 = {
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
-        .pNext = cast(void*)&desc_buffer_features,
-        .synchronization2 = VK_TRUE,
-        .dynamicRendering = true,
-    };
-
-    static const VkPhysicalDeviceVulkan12Features features12 = {
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
-        .pNext = cast(void*)&features13,
-        .bufferDeviceAddress = true,
-        .descriptorIndexing = true,
-        .descriptorBindingPartiallyBound = true,
-        .descriptorBindingVariableDescriptorCount = true,
-        .runtimeDescriptorArray = true,
-    };
-
-    // String8Lit(VK_EXT_DESCRIPTOR_HEAP_EXTENSION_NAME),
-    static const String8 device_extension_names[] = {
-        String8Lit(VK_KHR_SWAPCHAIN_EXTENSION_NAME),
-        String8Lit(VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME),
-        String8Lit(VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME),
-        String8Lit(VK_EXT_GRAPHICS_PIPELINE_LIBRARY_EXTENSION_NAME),
-        String8Lit(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME),
-    };
-
-    static const String8 layer_names[] = {
-#ifdef VALIDATION_LAYERS_ENABLE
-        String8Lit("VK_LAYER_KHRONOS_validation"),
-#endif
-    };
-
-    static RBVK_Settings vk_settings = {
-        .instance_settings = {
-            .instance_extension_names = instance_extension_names,
-            .instance_extension_count = ARRAY_COUNT(instance_extension_names),
-            .application_name    = String8Lit("dot_engine"),
-            .application_version = VK_MAKE_VERSION(1, 0, 0),
-            .engine_name         = String8Lit("dot_engine"),
-            .engine_version      = VK_MAKE_VERSION(1, 0, 0),
-            .api_version         = VK_API_VERSION_1_4,
-        },
-        .device_settings = {
-            .device_extension_names = device_extension_names,
-            .device_extension_count = ARRAY_COUNT(device_extension_names),
-            .device_features        = &features12,
-        },
-        .layer_settings = {
-            .layer_names = layer_names,
-            .layer_count = ARRAY_COUNT(layer_names),
-        },
-        .swapchain_settings = {
-            .preferred_format       = VK_FORMAT_B8G8R8A8_SRGB,
-            .preferred_colorspace   = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
-        },
-    };
-    return &vk_settings;
 }
 
 internal void
 renderer_backend_vk_merge_settings(RendererBackendConfig *backend_config)
 {
-    RBVK_Settings *vk_setting = renderer_backend_vk_settings();
-    vk_setting->frame_settings.frame_overlap = backend_config->frame_overlap;
-    vk_setting->swapchain_settings.preferred_present_mode = vk_helper_present_mode_kind_to_vk_present_mode_khr(backend_config->present_mode);
+    VK_SETTINGS.frame_settings.frame_overlap = backend_config->frame_overlap;
+    VK_SETTINGS.swapchain_settings.preferred_present_mode = vk_helper_present_mode_kind_to_vk_present_mode_khr(backend_config->present_mode);
 }
 
 internal inline VKAPI_ATTR u32 VKAPI_CALL
@@ -274,12 +184,11 @@ renderer_backend_vk_init(DOT_Window* window)
     Arena *ctx_arena = g_vk_ctx->base.permanent_arena;
     // g_vk_ctx->vk_allocator = VkAllocatorParams(ctx_arena);
     TempArena temp = threadctx_get_temp(0,0);
-    const RBVK_Settings* vk_settings = renderer_backend_vk_settings();
-    if(!vk_helper_all_layers(vk_settings)){
+    if(!vk_helper_all_layers(&VK_SETTINGS)){
         DOT_ERROR("Could not find all requested layers");
     }
 
-    if(!vk_helper_instance_all_required_extensions(vk_settings)){
+    if(!vk_helper_instance_all_required_extensions(&VK_SETTINGS)){
         DOT_ERROR("Could not find all requested instance extensions");
     }
 
@@ -289,21 +198,21 @@ renderer_backend_vk_init(DOT_Window* window)
             .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
             .ppEnabledLayerNames     = string8_array_to_str_array(
                 temp.arena,
-                vk_settings->layer_settings.layer_count,
-                vk_settings->layer_settings.layer_names),
-            .enabledLayerCount       = vk_settings->layer_settings.layer_count,
+                VK_SETTINGS.validation_layers.count,
+                VK_SETTINGS.validation_layers.data),
+            .enabledLayerCount       = VK_SETTINGS.validation_layers.count,
             .ppEnabledExtensionNames = string8_array_to_str_array(
                 temp.arena,
-                vk_settings->instance_settings.instance_extension_count,
-                vk_settings->instance_settings.instance_extension_names),
-            .enabledExtensionCount = vk_settings->instance_settings.instance_extension_count,
+                VK_SETTINGS.instance_settings.instance_extensions.count,
+                VK_SETTINGS.instance_settings.instance_extensions.data),
+            .enabledExtensionCount = VK_SETTINGS.instance_settings.instance_extensions.count,
             .pApplicationInfo = &(VkApplicationInfo){
                 .sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-                .pApplicationName   = cast(char*)vk_settings->instance_settings.application_name.str,
-                .applicationVersion = vk_settings->instance_settings.application_version,
-                .pEngineName        = cast(char*)vk_settings->instance_settings.engine_name.str,
-                .engineVersion      = vk_settings->instance_settings.engine_version,
-                .apiVersion         = vk_settings->instance_settings.api_version,
+                .pApplicationName   = cast(char*)VK_SETTINGS.instance_settings.application_name.str,
+                .applicationVersion = VK_SETTINGS.instance_settings.application_version,
+                .pEngineName        = cast(char*)VK_SETTINGS.instance_settings.engine_name.str,
+                .engineVersion      = VK_SETTINGS.instance_settings.engine_version,
+                .apiVersion         = VK_SETTINGS.instance_settings.api_version,
             },
         };
 
@@ -345,7 +254,7 @@ renderer_backend_vk_init(DOT_Window* window)
  
     // --- Create Device --- 
     {
-        VkHelper_CandidateDeviceInfo candidate_device_info = vk_helper_pick_best_device(vk_settings, g_vk_ctx->instance, g_vk_ctx->surface);
+        VkHelper_CandidateDeviceInfo candidate_device_info = vk_helper_pick_best_device(&VK_SETTINGS, g_vk_ctx->instance, g_vk_ctx->surface);
         if(candidate_device_info.score == -1){
             DOT_ERROR("Could not find a suitable device");
         }
@@ -384,10 +293,10 @@ renderer_backend_vk_init(DOT_Window* window)
             .pEnabledFeatures        = &(VkPhysicalDeviceFeatures){},
             .ppEnabledExtensionNames = string8_array_to_str_array(
                 temp.arena,
-                vk_settings->device_settings.device_extension_count,
-                vk_settings->device_settings.device_extension_names),
-            .enabledExtensionCount   = vk_settings->device_settings.device_extension_count,
-            .pNext = vk_settings->device_settings.device_features,
+                VK_SETTINGS.device_settings.device_extension_count,
+                VK_SETTINGS.device_settings.device_extension_names),
+            .enabledExtensionCount   = VK_SETTINGS.device_settings.device_extension_count,
+            .pNext = VK_SETTINGS.device_settings.device_features,
         };
 
         VkPhysicalDeviceProperties properties;
@@ -415,7 +324,7 @@ renderer_backend_vk_init(DOT_Window* window)
     {
         RBVK_Swapchain* swapchain = &g_vk_ctx->swapchain;
         VkHelper_SwapchainDetails details = {0};
-        vk_helper_physical_device_swapchain_support(vk_settings, g_vk_ctx->device.gpu, g_vk_ctx->surface, window, &details);
+        vk_helper_physical_device_swapchain_support(&VK_SETTINGS, g_vk_ctx->device.gpu, g_vk_ctx->surface, window, &details);
         swapchain->extent = details.surface_extent;
         swapchain->image_format = details.best_surface_format.format;
         swapchain->image_datas.count = details.image_count;
@@ -517,7 +426,7 @@ renderer_backend_vk_init(DOT_Window* window)
     }
     // --- Create Frame Structures ---
     {
-        u8 frame_overlap = vk_settings->frame_settings.frame_overlap;
+        u8 frame_overlap = VK_SETTINGS.frame_settings.frame_overlap;
         VkDevice device = g_vk_ctx->device.device;
         // WARN: Any allocation that can be recreated may be need to be pushed onto its own arena alloc ctx to avoid leaking
         g_vk_ctx->frame_data_count = frame_overlap;
@@ -712,7 +621,6 @@ renderer_create_postprocess_module(DOT_ShaderModuleHandle shader_module_h)
 internal void
 renderer_backend_vk_shutdown()
 {
-    const RBVK_Settings *settings = renderer_backend_vk_settings();
     VkDevice device = g_vk_ctx->device.device;
 
     vkDeviceWaitIdle(device);
@@ -722,7 +630,7 @@ renderer_backend_vk_shutdown()
         vkDestroyDescriptorPool(device, g_vk_ctx->descriptor_pool, NULL);
     }
 
-    for(u32 i = 0; i < settings->frame_settings.frame_overlap; ++i){
+    for(u32 i = 0; i < VK_SETTINGS.frame_settings.frame_overlap; ++i){
         RBVK_FrameData* frame_data = &g_vk_ctx->frame_datas[i];
         vkDestroyCommandPool(device, frame_data->command_pool, NULL);
         vkDestroyFence(device, frame_data->render_fence, NULL);

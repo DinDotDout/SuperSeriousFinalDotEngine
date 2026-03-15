@@ -1,16 +1,32 @@
 #ifndef RENDERER_BACKEND_NULL_H
 #define RENDERER_BACKEND_NULL_H
 
+#define FN(ret, name, args) internal ret renderer_backend_null_##name args;
+RENDERER_BACKEND_FN_LIST
+#undef FN
+
 typedef struct RendererBackendNull{
     RendererBackend base;
 }RendererBackendNull;
+
+internal DOT_ShaderModuleHandle
+renderer_backend_null_load_shader_from_file_buffer(DOT_FileBuffer fb)
+{
+    UNUSED(fb);
+    return (DOT_ShaderModuleHandle){0};
+}
+
+internal void
+renderer_backend_null_load(DOT_Window* window)
+{
+	UNUSED(window);
+}
 
 internal void
 renderer_backend_null_init(DOT_Window* window)
 {
 	UNUSED(window);
 }
-
 internal void
 renderer_backend_null_shutdown()
 {
@@ -44,12 +60,10 @@ renderer_backend_null_create(Arena *arena, RendererBackendConfig *backend_config
     UNUSED(backend_config);
 	RendererBackendNull *backend = PUSH_STRUCT(arena, RendererBackendNull);
     RendererBackend *base = &backend->base;
-    base->backend_kind = RendererBackendKind_Null;
-    base->init         = renderer_backend_null_init;
-    base->shutdown     = renderer_backend_null_shutdown;
-    base->begin_frame  = renderer_backend_null_begin_frame;
-    base->end_frame    = renderer_backend_null_end_frame;
-    base->clear_bg     = renderer_backend_null_clear_bg;
+
+#define FN(ret, name, args) base->name = renderer_backend_null_##name;
+    RENDERER_BACKEND_FN_LIST
+#undef FN
     return backend;
 }
 

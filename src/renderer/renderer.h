@@ -16,7 +16,8 @@
 #endif
 
 typedef DOT_ENUM(u8, RendererBackendKind){
-    RendererBackendKind_Null,
+    RendererBackendKind_None, // Stub backend?
+    RendererBackendKind_Null, // Offscreen render
     RendererBackendKind_Vk,
     RendererBackendKind_Dx12,
     RendererBackendKind_Count,
@@ -79,41 +80,28 @@ typedef struct OverlayDrawList {
     u32             height;
 } OverlayDrawList;
 
-/* ------------------------------------------------------------------ */
-/*  Backend function pointer types                                    */
-/* ------------------------------------------------------------------ */
+// renderer_backend_funcs.x.h
+#define RENDERER_BACKEND_FN_LIST \
+    FN(void, init, (DOT_Window *window)) \
+    FN(void, shutdown, (void)) \
+    FN(void, begin_frame, (u8 current_frame)) \
+    FN(void, end_frame, (u8 current_frame)) \
+    FN(void, clear_bg, (u8 current_frame, vec3 color)) \
+    FN(DOT_ShaderModuleHandle, load_shader_from_file_buffer, (DOT_FileBuffer fb)) \
+    FN(void, unload_shader_module, (DOT_ShaderModuleHandle)) \
+    FN(void, overlay_init, (const void *font_pixels, int font_w, int font_h)) \
+    FN(void, overlay_shutdown, (void)) \
+    FN(void, overlay_render, (u8 frame_idx, OverlayDrawList *draw_list))
 
-typedef struct RendererBackend RendererBackend;
-typedef void (*RendererBackend_InitFn)(DOT_Window *window);
-typedef void (*RendererBackend_ShutdownFn)();
-typedef void (*RendererBackend_BeginFrameFn)(u8 current_frame);
-typedef void (*RendererBackend_EndFrameFn)(u8 current_frame);
-typedef void (*RendererBackend_ClearBgFn)(u8 current_frame, vec3 color);
-
-typedef DOT_ShaderModuleHandle (*RendererBackend_LoadShaderFromFileBufferFn)(DOT_FileBuffer fb);
-typedef void (*RendererBackend_UnLoadShaderModuleFn)(DOT_ShaderModuleHandle);
-
-typedef void (*RendererBackend_OverlayInitFn)(const void *font_pixels, int font_w, int font_h);
-typedef void (*RendererBackend_OverlayRenderFn)(u8 frame_idx, OverlayDrawList *draw_list);
-typedef void (*RendererBackend_OverlayShutdownFn)(void);
-
-struct RendererBackend{
+typedef struct RendererBackend{
     RendererBackendKind backend_kind;
     Arena *permanent_arena;
     u8 frame_overlap;
 
-    RendererBackend_InitFn       init;
-    RendererBackend_ShutdownFn   shutdown;
-    RendererBackend_BeginFrameFn begin_frame;
-    RendererBackend_EndFrameFn   end_frame;
-    RendererBackend_ClearBgFn    clear_bg;
-    RendererBackend_LoadShaderFromFileBufferFn load_shader_from_file_buffer;
-    RendererBackend_UnLoadShaderModuleFn unload_shader_module;
-
-    RendererBackend_OverlayInitFn       overlay_init;
-    RendererBackend_OverlayRenderFn     overlay_render;
-    RendererBackend_OverlayShutdownFn   overlay_shutdown;
-};
+#define FN(ret, name, args) ret (*name) args;
+    RENDERER_BACKEND_FN_LIST
+#undef FN
+}RendererBackend;
 
 typedef struct FrameData{
     Arena *temp_arena;

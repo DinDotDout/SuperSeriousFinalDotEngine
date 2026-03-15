@@ -113,14 +113,6 @@ internal void   arena_print_debug(Arena *arena);
 #define PUSH_SLICE_LIT(arena, slice_type, T, c) \
     (slice_type){.data = PUSH_ARRAY(arena, T, c), .count= (c)}
 
-#define SLICE(T, ...) \
-    { .data = (T[])__VA_ARGS__, .count = VA_ARG_COUNT_T(T, __VA_ARGS__) }
-
-#define SLICE_LIT(SLICE_T, T, ...) \
-    (SLICE_T){ .data = (T[])__VA_ARGS__, .count = VA_ARG_COUNT_T(T, __VA_ARGS__) }
-
-#define SLICE_GET(s, i)s.data[i]
-
 
 #define ARENA_RESET(arena) arena_reset(arena, __FILE__, __LINE__)
 #define ARENA_FREE(arena) arena_free(arena, __FILE__, __LINE__)

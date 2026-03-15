@@ -150,6 +150,14 @@ typedef double f64;
 #define VA_ARG_COUNT_T(T, ...) (sizeof((T[])__VA_ARGS__) / sizeof(T))
 #define ARRAY_PARAM(T, ...) (T[])__VA_ARGS__, (u32) VA_ARG_COUNT_T(T, __VA_ARGS__)
 
+#define SLICE(T, ...) \
+    { .data = (T[])__VA_ARGS__, .count = VA_ARG_COUNT_T(T, __VA_ARGS__) }
+
+#define SLICE_LIT(SLICE_T, T, ...) \
+    (SLICE_T){ .data = (T[])__VA_ARGS__, .count = VA_ARG_COUNT_T(T, __VA_ARGS__) }
+
+#define SLICE_GET(s, i)s.data[i]
+
 ////////////////////////////////////////////////////////////////
 //
 // Array

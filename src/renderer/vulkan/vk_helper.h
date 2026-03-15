@@ -50,6 +50,10 @@ typedef struct VkHelper_CandidateDeviceInfo{
         __VA_ARGS__ \
     }
 
+///////////////////////////////////////////
+/// Vk Support helpers
+///
+
 struct RBVK_Settings;
 internal b32 vk_helper_all_layers(const struct RBVK_Settings *vk_settings);
 internal VkHelper_CandidateDeviceInfo vk_helper_pick_best_device(
@@ -65,19 +69,28 @@ internal b32 vk_helper_physical_device_swapchain_support(
     VkHelper_SwapchainDetails *details);
 
 internal b32              vk_helper_physical_device_all_required_extensions(const struct RBVK_Settings *vk_settings, VkPhysicalDevice device);
-internal b32              vk_helper_instance_all_required_extensions(const struct RBVK_Settings* vk_settings);
+internal b32              vk_helper_instance_all_required_extensions(const struct RBVK_Settings *vk_settings);
 internal VkPresentModeKHR vk_helper_present_mode_kind_to_vk_present_mode_khr(RendererPresentModeKind present_mode);
-internal VkExtent3D       vk_helper_extent3d_from_extent2d(VkExtent2D extent2d);
-internal VkExtent2D       vk_helper_extent2d_from_extent3d(VkExtent3D extent3d);
 
+///////////////////////////////////////////
+/// Vk misc helpers
+///
+
+internal VkExtent3D vk_helper_extent3d_from_extent2d(VkExtent2D extent2d);
+internal VkExtent2D vk_helper_extent2d_from_extent3d(VkExtent3D extent3d);
 internal void vk_helper_transition_image(
     VkCommandBuffer cmd,
     VkImage image,
     VkImageLayout current_layout,
     VkImageLayout new_layout);
 
-internal VkImageCreateInfo vk_image_create_info(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent);
-internal VkSubmitInfo2 vk_submit_info(VkCommandBufferSubmitInfo* cmd, VkSemaphoreSubmitInfo* signal_semaphore_info, VkSemaphoreSubmitInfo* wait_semaphore_info);
+///////////////////////////////////////////
+/// Vk CreateInfo helpers
+///
+
+// NOTE: Maybe we could use a bunch of default arg init macros for this
+internal VkImageCreateInfo         vk_image_create_info(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent);
+internal VkSubmitInfo2             vk_submit_info(VkCommandBufferSubmitInfo* cmd, VkSemaphoreSubmitInfo* signal_semaphore_info, VkSemaphoreSubmitInfo* wait_semaphore_info);
 internal VkImageViewCreateInfo     vk_imageview_create_info(VkFormat format, VkImage image, VkImageAspectFlags aspectFlags);
 internal VkCommandBufferSubmitInfo vk_command_buffer_submit_info(VkCommandBuffer cmd);
 internal VkSemaphoreSubmitInfo     vk_semaphore_submit_info(VkPipelineStageFlags2 stageMask, VkSemaphore semaphore);
@@ -86,17 +99,9 @@ internal VkImageSubresourceRange   vk_image_subresource_range(VkImageAspectFlags
 #endif // !VK_HELPER_H
 #ifdef VK_HELPER_IMPLEMENTATION
 
-internal VkExtent3D
-vk_helper_extent3d_from_extent2d(VkExtent2D extent2d)
-{
-    return (VkExtent3D){extent2d.width, extent2d.height, 1};
-}
-
-internal VkExtent2D
-vk_helper_extent2d_from_extent3d(VkExtent3D extent3d)
-{
-    return (VkExtent2D){extent3d.width, extent3d.height};
-}
+///////////////////////////////////////////
+/// Vk Support helpers
+///
 
 internal b32
 vk_helper_all_layers(const struct RBVK_Settings *vk_settings)
@@ -107,9 +112,9 @@ vk_helper_all_layers(const struct RBVK_Settings *vk_settings)
     array(VkLayerProperties) available_layers = PUSH_ARRAY(temp.arena, VkLayerProperties, available_layer_count);
     vkEnumerateInstanceLayerProperties(&available_layer_count, available_layers);
     b32 all_found = true;
-    for(u64 i = 0; i < vk_settings->layer_settings.layer_count; ++i){
+    for(u64 i = 0; i < vk_settings->validation_layers.count; ++i){
         b32 found = false;
-        const String8 layer_name = vk_settings->layer_settings.layer_names[i];
+        const String8 layer_name = vk_settings->validation_layers.data[i];
         for(u64 j = 0; j < available_layer_count; ++j){
             if(string8_equal(layer_name, string8_cstring(available_layers[j].layerName))){
                 DOT_PRINT("Found Layer %s", layer_name);
@@ -136,9 +141,9 @@ vk_helper_instance_all_required_extensions(const struct RBVK_Settings* vk_settin
     vkEnumerateInstanceExtensionProperties(NULL, &extension_count, available_extensions);
 
     b32 all_found = true;
-    for(u64 i = 0; i < vk_settings->instance_settings.instance_extension_count; ++i){
+    for(u64 i = 0; i < vk_settings->instance_settings.instance_extensions.count; ++i){
         b32 found = false;
-        const String8 instance_extension_name = vk_settings->instance_settings.instance_extension_names[i];
+        const String8 instance_extension_name = vk_settings->instance_settings.instance_extensions.data[i];
         for(u64 j = 0; j < extension_count; ++j){
             char* name = available_extensions[j].extensionName;
             if(string8_equal(instance_extension_name, string8_cstring(name))){
@@ -392,6 +397,22 @@ vk_helper_pick_best_device(
     return best_device;
 }
 
+///////////////////////////////////////////
+/// Vk misc helpers
+///
+
+internal VkExtent3D
+vk_helper_extent3d_from_extent2d(VkExtent2D extent2d)
+{
+    return (VkExtent3D){extent2d.width, extent2d.height, 1};
+}
+
+internal VkExtent2D
+vk_helper_extent2d_from_extent3d(VkExtent3D extent3d)
+{
+    return (VkExtent2D){extent3d.width, extent3d.height};
+}
+
 internal void
 vk_helper_transition_image(
     VkCommandBuffer cmd,
@@ -461,7 +482,6 @@ void vk_helper_copy_image_to_image(VkCommandBuffer cmd, VkImage source, VkImage 
 	vkCmdBlitImage2(cmd, &blitInfo);
 }
 
-// NOTE: Should make this a macro with default params?
 internal VkImageSubresourceRange
 vk_image_subresource_range(VkImageAspectFlags aspect_mask)
 {
@@ -474,6 +494,10 @@ vk_image_subresource_range(VkImageAspectFlags aspect_mask)
     };
     return subImage;
 }
+
+///////////////////////////////////////////
+/// Vk CreateInfo helpers
+///
 
 internal VkSemaphoreSubmitInfo
 vk_semaphore_submit_info(VkPipelineStageFlags2 stageMask, VkSemaphore semaphore)

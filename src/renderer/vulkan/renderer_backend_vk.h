@@ -9,38 +9,107 @@
 #define VK_EXT_DEBUG_UTILS_ENABLE 1
 #endif
 
-typedef struct LayerVkSettings RBVK_LayerSettings;
-typedef struct RBVK_InstanceSettings RBVK_InstanceSettings;
-typedef struct RBVK_SwapchainSettings RBVK_SwapchainSettings;
-typedef struct RBVK_DeviceSettings RBVK_DeviceSettings;
-typedef struct RBVK_Settings{
+typedef struct RBVK_Settings RBVK_Settings;
+struct RBVK_Settings{
     struct RBVK_InstanceSettings{
-        const String8 *instance_extension_names;
-        const usize  instance_extension_count;
+        struct RBVK_InstanceExtensions{
+            String8 *data;
+            usize    count;
+        }instance_extensions;
+
         String8 application_name;
         u32 application_version;
         String8 engine_name;
         u32 engine_version;
         u32 api_version;
     }instance_settings;
+
     struct RBVK_DeviceSettings{
+        struct RBVK_DeviceExtensions{
+            String8 *data;
+            usize    count;
+        }device_extensions;
         const String8 *device_extension_names;
         const usize    device_extension_count;
-        const void*    device_features;
+        const void    *device_features;
     }device_settings;
-    struct LayerVkSettings{
-        const String8 *layer_names;
-        const usize    layer_count;
-    }layer_settings;
+
+    struct RBVK_ValidationLayers{
+        String8 *data;
+        usize    count;
+    }validation_layers;
+
     struct RBVK_SwapchainSettings{
         const VkFormat         preferred_format;
         const VkColorSpaceKHR  preferred_colorspace;
         VkPresentModeKHR preferred_present_mode; // Set from renderer settings
     }swapchain_settings;
+
     struct FrameSettings{
         u8 frame_overlap;
     }frame_settings;
-}RBVK_Settings;
+
+} global VK_SETTINGS = {
+    .instance_settings = {
+        .application_name    = String8Lit("dot_engine"),
+        .application_version = VK_MAKE_VERSION(1, 0, 0),
+
+        .engine_name         = String8Lit("dot_engine"),
+        .engine_version      = VK_MAKE_VERSION(1, 0, 0),
+
+        .api_version         = VK_API_VERSION_1_4,
+
+        .instance_extensions = SLICE(String8, {
+            String8Lit(VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME),
+            String8Lit(VK_KHR_SURFACE_EXTENSION_NAME),
+#ifdef VK_EXT_DEBUG_UTILS_ENABLE
+            String8Lit(VK_EXT_DEBUG_UTILS_EXTENSION_NAME),
+#endif
+            String8Lit(DOT_VK_SURFACE),
+        }),
+    },
+    .validation_layers = SLICE(String8, {
+#ifdef VALIDATION_LAYERS_ENABLE
+        String8Lit("VK_LAYER_KHRONOS_validation"),
+#endif
+    }),
+    .device_settings = {
+        .device_extensions = SLICE(String8, {
+            String8Lit(VK_KHR_SWAPCHAIN_EXTENSION_NAME),
+            String8Lit(VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME),
+            String8Lit(VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME),
+            String8Lit(VK_EXT_GRAPHICS_PIPELINE_LIBRARY_EXTENSION_NAME),
+            String8Lit(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME),
+        }),
+        .device_features = 
+            &(VkPhysicalDeviceVulkan12Features){
+                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+                .bufferDeviceAddress = true,
+                .descriptorIndexing = true,
+                .descriptorBindingPartiallyBound = true,
+                .descriptorBindingVariableDescriptorCount = true,
+                .runtimeDescriptorArray = true,
+        .pNext =
+            &(VkPhysicalDeviceVulkan13Features){
+                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+                .synchronization2 = VK_TRUE,
+                .dynamicRendering = true,
+        .pNext =
+            &(VkPhysicalDeviceDescriptorBufferFeaturesEXT){
+                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT,
+                .descriptorBuffer = VK_TRUE,
+        .pNext =
+            &(VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT){
+                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_FEATURES_EXT,
+                .graphicsPipelineLibrary = VK_TRUE,
+        .pNext = NULL,
+            }}}},
+    },
+    .swapchain_settings = {
+        .preferred_format       = VK_FORMAT_B8G8R8A8_SRGB,
+        .preferred_colorspace   = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+    },
+};
 
 typedef struct RBVK_Device{
     VkDevice         device;
@@ -142,23 +211,12 @@ typedef struct RBVK_Pipeline{
     VkPipeline pipeline;
 }RBVK_Pipeline;
 
+#define FN(ret, name, args) internal ret renderer_backend_vk_##name args;
+RENDERER_BACKEND_FN_LIST
+#undef FN
+
 internal RendererBackendVk* renderer_backend_vk_create(Arena *arena, RendererBackendConfig *backend_config);
-internal void renderer_backend_vk_init(DOT_Window *window);
-internal void renderer_backend_vk_shutdown();
-internal void renderer_backend_vk_clear_bg(u8 current_frame, vec3 color);
-internal void renderer_backend_vk_begin_frame(u8 current_frame);
-internal void renderer_backend_vk_end_frame(u8 current_frame);
-
-internal RBVK_Settings* renderer_backend_vk_settings();
 internal void renderer_backend_vk_merge_settings(RendererBackendConfig *backend_config);
-
-internal DOT_ShaderModuleHandle renderer_backend_vk_load_shader_from_file_buffer(DOT_FileBuffer file_buffer);
-internal void renderer_backend_vk_unload_shader_module(DOT_ShaderModuleHandle shader_module);
-
-// Overlay backend
-internal void renderer_backend_vk_overlay_init(const void *font_pixels, int font_w, int font_h);
-internal void renderer_backend_vk_overlay_render(u8 frame_idx, OverlayDrawList *draw_list);
-internal void renderer_backend_vk_overlay_shutdown(void);
 
 // Internal API
 internal RendererBackendVk* renderer_backend_as_vk(RendererBackend *base);
