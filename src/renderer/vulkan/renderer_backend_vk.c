@@ -11,19 +11,19 @@ renderer_backend_as_vk(RendererBackend *base)
 internal RendererBackendVk*
 renderer_backend_vk_create(Arena *arena, RendererBackendConfig *backend_config)
 {
-    renderer_backend_vk_merge_settings(backend_config);
     Arena *backend_arena = ARENA_ALLOC(
         .parent = arena,
         .reserve_size = backend_config->backend_memory_size,);
     RendererBackendVk *backend = PUSH_STRUCT(backend_arena, RendererBackendVk);
     RendererBackend *base = &backend->base;
+    g_vk_ctx = backend;
     base->backend_kind    = RendererBackendKind_Vk;
     base->permanent_arena = backend_arena;
 #define FN(ret, name, args) base->name = renderer_backend_vk_##name;
     RENDERER_BACKEND_FN_LIST
 #undef FN
 
-    g_vk_ctx = backend;
+    renderer_backend_vk_merge_settings(backend_config);
     return backend;
 }
 
@@ -32,6 +32,7 @@ renderer_backend_vk_merge_settings(RendererBackendConfig *backend_config)
 {
     VK_SETTINGS.frame_settings.frame_overlap = backend_config->frame_overlap;
     VK_SETTINGS.swapchain_settings.preferred_present_mode = vk_helper_present_mode_kind_to_vk_present_mode_khr(backend_config->present_mode);
+    g_vk_ctx->base.frame_overlap = backend_config->frame_overlap;
 }
 
 internal inline VKAPI_ATTR u32 VKAPI_CALL
@@ -94,7 +95,8 @@ renderer_backend_vk_unload_shader_module(DOT_ShaderModuleHandle shader_module_ha
 }
 
 internal RBVK_Image
-rbvk_create_image(RendererBackendVk *ctx, VkImageCreateInfo *image_info){
+rbvk_create_image(RendererBackendVk *ctx, VkImageCreateInfo *image_info)
+{
     RBVK_Image image = {0};
     image.image_format = image_info->format;
     image.extent = image_info->extent;
@@ -293,9 +295,9 @@ renderer_backend_vk_init(DOT_Window* window)
             .pEnabledFeatures        = &(VkPhysicalDeviceFeatures){},
             .ppEnabledExtensionNames = string8_array_to_str_array(
                 temp.arena,
-                VK_SETTINGS.device_settings.device_extension_count,
-                VK_SETTINGS.device_settings.device_extension_names),
-            .enabledExtensionCount   = VK_SETTINGS.device_settings.device_extension_count,
+                VK_SETTINGS.device_settings.device_extensions.count,
+                VK_SETTINGS.device_settings.device_extensions.data),
+            .enabledExtensionCount   = VK_SETTINGS.device_settings.device_extensions.count,
             .pNext = VK_SETTINGS.device_settings.device_features,
         };
 

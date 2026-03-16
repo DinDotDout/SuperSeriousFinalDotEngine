@@ -58,13 +58,13 @@ typedef struct RendererConfig{
 /*  Overlay integration types (backend-agnostic)                      */
 /* ------------------------------------------------------------------ */
 
-typedef struct OverlayVertex {
+typedef struct OverlayVertex{
     f32 position[2];
     f32 uv[2];
     u8  col[4];
 } OverlayVertex;
 
-typedef struct OverlayDrawCmd {
+typedef struct OverlayDrawCmd{
     u32 elem_count;
     f32 clip_x, clip_y, clip_w, clip_h;
 } OverlayDrawCmd;

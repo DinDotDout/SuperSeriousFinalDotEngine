@@ -29,8 +29,6 @@ struct RBVK_Settings{
             String8 *data;
             usize    count;
         }device_extensions;
-        const String8 *device_extension_names;
-        const usize    device_extension_count;
         const void    *device_features;
     }device_settings;
 

@@ -9,6 +9,7 @@ typedef struct RendererBackendNull{
     RendererBackend base;
 }RendererBackendNull;
 
+
 internal DOT_ShaderModuleHandle
 renderer_backend_null_load_shader_from_file_buffer(DOT_FileBuffer fb)
 {
@@ -27,6 +28,7 @@ renderer_backend_null_init(DOT_Window* window)
 {
 	UNUSED(window);
 }
+
 internal void
 renderer_backend_null_shutdown()
 {
@@ -48,6 +50,26 @@ internal void
 renderer_backend_null_clear_bg(u8 current_frame, vec3 color)
 {
 	UNUSED(current_frame); UNUSED(color);
+}
+
+internal void renderer_backend_null_overlay_init(const void *font_pixels, int font_w, int font_h)
+{
+    UNUSED(font_pixels); UNUSED(font_w); UNUSED(font_h);
+}
+
+internal void renderer_backend_null_overlay_shutdown(void)
+{
+}
+
+internal void renderer_backend_null_overlay_render(u8 frame_idx, OverlayDrawList *draw_list)
+{
+	UNUSED(frame_idx); UNUSED(draw_list);
+}
+
+internal void
+renderer_backend_null_unload_shader_module(DOT_ShaderModuleHandle sm)
+{
+    UNUSED(sm);
 }
 
 // internal void

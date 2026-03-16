@@ -188,9 +188,9 @@ vk_helper_physical_device_all_required_extensions(
     vkEnumerateDeviceExtensionProperties(device, NULL, &extension_count, available_extensions);
 
     b32 all_found = true;
-    for(u64 i = 0; i < vk_settings->device_settings.device_extension_count; ++i){
+    for(u64 i = 0; i < vk_settings->device_settings.device_extensions.count; ++i){
         b32 found = false;
-        String8 device_extension_name = vk_settings->device_settings.device_extension_names[i];
+        String8 device_extension_name = vk_settings->device_settings.device_extensions.data[i];
         for(u64 j = 0; j < extension_count; ++j){
             if(string8_equal(device_extension_name, string8_cstring(available_extensions[j].extensionName))){
                 DOT_PRINT("Found extension \"%s\"", device_extension_name);
