@@ -3,22 +3,21 @@
 internal void
 dot_engine_init(DOT_Engine *engine)
 {
-    DOT_EngineConfig *engine_config = dot_engine_config_get();
-    engine->permanent_arena = ARENA_ALLOC(.reserve_size = engine_config->engine_memory_size, .name = "DOT_Engine Arena");
-    threadctx_init(&engine_config->thread_options, 0); // NOTE: Should make entry points per thread
+    engine->permanent_arena = ARENA_ALLOC(.reserve_size = DOT_ENGINE_CONFIG.engine_memory_size, .name = "DOT_Engine Arena");
+    threadctx_init(DOT_ENGINE_CONFIG.thread_options, 0); // NOTE: Should make entry points per thread
     plugins_init();
     dot_window_init(&engine->window);
-    renderer_init(engine->permanent_arena, &engine->renderer, &engine->window, &engine_config->renderer_config);
+    renderer_init(engine->permanent_arena, &engine->renderer, &engine->window, DOT_ENGINE_CONFIG.renderer_config);
     // nk_dot_init(&engine->renderer, &engine->window);
 
     engine->game = PUSH_STRUCT(engine->permanent_arena, DOT_Game);
-    u8 *permanent_memory = PUSH_SIZE(engine->permanent_arena, engine_config->game_config.permanent_memory_size);
-    u8 *transient_memory = PUSH_SIZE(engine->permanent_arena, engine_config->game_config.transient_memory_size);
+    u8 *permanent_memory = PUSH_SIZE(engine->permanent_arena, DOT_ENGINE_CONFIG.game_config->permanent_memory_size);
+    u8 *transient_memory = PUSH_SIZE(engine->permanent_arena, DOT_ENGINE_CONFIG.game_config->transient_memory_size);
     dot_game_init(
         engine->game,
         &engine->renderer,
-        permanent_memory, engine_config->game_config.permanent_memory_size,
-        transient_memory, engine_config->game_config.transient_memory_size);
+        permanent_memory, DOT_ENGINE_CONFIG.game_config->permanent_memory_size,
+        transient_memory, DOT_ENGINE_CONFIG.game_config->transient_memory_size);
 }
 
 internal void

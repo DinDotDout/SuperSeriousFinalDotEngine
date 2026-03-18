@@ -10,13 +10,13 @@
 #define ARENA_MAX_ALIGNMENT 16
 #define ARENA_MIN_CAPACITY KB(16)
 
-typedef DOT_ENUM(u8, ArenaKind){
+typedef enum ArenaKind{
     ArenaKind_Null,
     ArenaKind_FromOS,
     ArenaKind_FromParent,
     ArenaKind_FromBuffer,
     ArenaKind_Count,
-};
+}ArenaKind;
 
 typedef struct Arena Arena;
 struct Arena{

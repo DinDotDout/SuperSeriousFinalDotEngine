@@ -33,9 +33,27 @@
 //////////////////////////////////////////////////////
 /// DOT
 ///
+#if DOT_OS_WINDOWS
+#  if DOT_ENGINE_BUILD
+#    define DOT_ENGINE_API __declspec(dllexport)
+#  else
+#    define DOT_ENGINE_API __declspec(dllimport)
+#  endif
+#else
+#  define DOT_ENGINE_API
+#endif
 
 #define DOT_INT_SKIP // Already included ints by rgfw
 #include "base/base_include.h"
+
+DIAGNOSTIC_PUSH
+#if defined(__clang__) || defined(__GNUC__)
+    DIAGNOSTIC_ERROR("-Wimplicit-fallthrough")
+    DIAGNOSTIC_ERROR("-Wswitch-enum")
+    DIAGNOSTIC_ERROR("-Wvla")
+#elif defined(_MSC_VER)
+#endif
+
 #include "dot_engine/window.h"
 #include "renderer/renderer_include.h"
 #include "dot_engine/plugin.h"
@@ -60,5 +78,5 @@ typedef struct DOT_Engine{
 internal void dot_engine_init(DOT_Engine *engine);
 internal void dot_engine_run(DOT_Engine *engine);
 internal void dot_engine_shutdown(DOT_Engine *engine);
-
+DIAGNOSTIC_POP
 #endif // !DOT_ENGINE_H

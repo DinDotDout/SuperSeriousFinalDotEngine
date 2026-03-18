@@ -1,42 +1,50 @@
 #ifndef RENDERER_H
 #define RENDERER_H
 
-#define DOT_RENDER_BACKEND_VK 1
-// #define DOT_RENDER_BACKEND_HOTSWAP 1
-
-#if defined(DOT_RENDER_BACKEND_HOTSWAP)
-// #define RENDER_BACKEND_CALL(fn, ...) renderer->backend->fn(__VA_ARGS__)
-#define RENDER_BACKEND_CALL(fn) renderer->backend->fn
-#elif defined(DOT_RENDER_BACKEND_VK)
-// #define RENDER_BACKEND_CALL(fn, ...) renderer_backend_vk_##fn(__VA_ARGS__)
-#define RENDER_BACKEND_CALL(fn) renderer_backend_vk_##fn
-#elif defined(DOT_RENDER_BACKEND_DX12)
-// #define RENDER_BACKEND_CALL(fn, ...) renderer_backend_dx12_##fn(__VA_ARGS__)
-#define RENDER_BACKEND_CALL(fn) renderer_backend_dx12_##fn
-#endif
-
-typedef DOT_ENUM(u8, RendererBackendKind){
-    RendererBackendKind_None, // Stub backend?
+typedef enum RendererBackendKind{
+    // RendererBackendKind_None, // Stub backend?
     RendererBackendKind_Null, // Offscreen render
     RendererBackendKind_Vk,
     RendererBackendKind_Dx12,
+#if DOT_OS_WINDOWS
+    RendererBackendKind_Auto = RendererBackendKind_Dx12,
+#elif DOT_OS_POSIX
+    RendererBackendKind_Auto = RendererBackendKind_Vk,
+#else
+    RendererBackendKind_Auto = RendererBackendKind_None,
+#endif
     RendererBackendKind_Count,
+}RendererBackendKind;
+
+#define RENDERER_PRESENT_MODE_KINDS(FN) \
+    FN(RendererPresentModeKind, Immediate) \
+    FN(RendererPresentModeKind, Mailbox) \
+    FN(RendererPresentModeKind, FIFO) \
+    FN(RendererPresentModeKind, FIFO_Relaxed) \
+
+typedef enum RendererPresentModeKind{
+    RENDERER_PRESENT_MODE_KINDS(DOT_ENUM_ARG)
+}RendererPresentModeKind;
+
+global const char *renderer_present_mode_kind_str[] = {
+    RENDERER_PRESENT_MODE_KINDS(DOT_ENUM_STR)
 };
 
-typedef DOT_ENUM(u8, RendererPresentModeKind){
-    RendererPresentModeKind_Immediate,
-    RendererPresentModeKind_Mailbox,
-    RendererPresentModeKind_FIFO,
-    RendererPresentModeKind_FIFO_Relaxed,
-    RendererPresentModeKind_FIFO_Count,
-};
-global const char *renderer_present_mode_kind_str[] = {
-    [RendererPresentModeKind_Immediate]   = "RendererPresentModeKind_Immediate",
-    [RendererPresentModeKind_Mailbox] = "RendererPresentModeKind_Mailbox",
-    [RendererPresentModeKind_FIFO]  = "RendererPresentModeKind_FIFO",
-    [RendererPresentModeKind_FIFO_Relaxed] = "RendererPresentModeKind_FIFO_Relaxed",
-};
-DOT_STATIC_ASSERT(RendererPresentModeKind_FIFO_Count == ARRAY_COUNT(renderer_present_mode_kind_str));
+// typedef enum RendererPresentModeKind{
+//     RendererPresentModeKind_Immediate,
+//     RendererPresentModeKind_Mailbox,
+//     RendererPresentModeKind_FIFO,
+//     RendererPresentModeKind_FIFO_Relaxed,
+//     RendererPresentModeKind_FIFO_Count,
+// }RendererPresentModeKind;
+//
+// global const char *renderer_present_mode_kind_str[] = {
+//     [RendererPresentModeKind_Immediate]   = "RendererPresentModeKind_Immediate",
+//     [RendererPresentModeKind_Mailbox] = "RendererPresentModeKind_Mailbox",
+//     [RendererPresentModeKind_FIFO]  = "RendererPresentModeKind_FIFO",
+//     [RendererPresentModeKind_FIFO_Relaxed] = "RendererPresentModeKind_FIFO_Relaxed",
+// };
+// DOT_STATIC_ASSERT(RendererPresentModeKind_FIFO_Count == ARRAY_COUNT(renderer_present_mode_kind_str));
 
 typedef struct RendererBackendConfig{
     RendererBackendKind backend_kind;
@@ -50,8 +58,8 @@ typedef struct RendererConfig{
     u64 renderer_memory_size;
     u64 frame_arena_size;
 
-    RendererBackendConfig backend_config;
-    ShaderCacheConfig     shader_cache_config;
+    RendererBackendConfig *backend_config;
+    ShaderCacheConfig     *shader_cache_config;
 }RendererConfig;
 
 /* ------------------------------------------------------------------ */
@@ -119,19 +127,16 @@ typedef struct DOT_Renderer{
     RendererBackend *backend;
 }DOT_Renderer;
 
-#if DOT_OS_WINDOWS
-#  if DOT_RENDERER_BUILD
-#    define DOT_RENDERER_API __declspec(dllexport)
-#  else
-#    define DOT_RENDERER_API __declspec(dllimport)
-#  endif
+#if defined(DOT_RENDER_BACKEND_ONLY_VK)
+#   define RENDER_BACKEND_CALL(fn) renderer_backend_vk_##fn
+#elif defined(DOT_RENDER_BACKEND_ONLY_DX12)
+#   define RENDER_BACKEND_CALL(fn) renderer_backend_dx12_##fn
 #else
-#  define DOT_RENDERER_API
+#   define RENDER_BACKEND_CALL(fn) renderer->backend->fn
 #endif
 
-
-DOT_RENDERER_API void renderer_clear_background(DOT_Renderer *renderer, vec3 color);
-DOT_RENDERER_API DOT_ShaderModule* renderer_load_shader_module_from_path(Arena *arena, DOT_Renderer *renderer, String8 path);
+DOT_ENGINE_API void renderer_clear_background(DOT_Renderer *renderer, vec3 color);
+DOT_ENGINE_API DOT_ShaderModule* renderer_load_shader_module_from_path(Arena *arena, DOT_Renderer *renderer, String8 path);
 
 internal void renderer_begin_frame(DOT_Renderer *renderer);
 internal void renderer_end_frame(DOT_Renderer *renderer);

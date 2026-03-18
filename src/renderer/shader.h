@@ -46,7 +46,7 @@ typedef struct ShaderCache{
 // NOTE: Since slang does not have a c interface, we will just call the binary for now
 // I don't want to have to deal with glslang either and have multiple shader compilation
 // backends
-internal b32      shader_compile_from_path(String8 input_path, String8 output_path);
+internal b32     shader_compile_from_path(String8 input_path, String8 output_path);
 
 internal void    shader_cache_init(Arena *arena, ShaderCache *shader_cache, ShaderCacheConfig *shader_cache_config);
 internal String8 shader_cache_get_compiled_path(Arena *arena, String8 path);

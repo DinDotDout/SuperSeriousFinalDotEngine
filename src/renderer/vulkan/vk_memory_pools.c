@@ -43,8 +43,8 @@ vk_memory_pools_bump(VkMemory_Pools *pools, VkMemoryRequirements reqs, VkMemory_
             }
         break;
         case VkMemory_PoolsKind_None:
-            DOT_WARNING("Invalid memory type, returning 0");
         default:
+            DOT_WARNING("Invalid memory type %u, returning 0", memory_kind);
         break;
     }
     return memory_alloc;

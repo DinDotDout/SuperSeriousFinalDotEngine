@@ -38,6 +38,40 @@
 #endif
 
 ////////////////////////////////////////////////////////////////
+///
+/// Compiler diagnostics
+///
+#if DOT_COMPILER_CLANG
+#   define DIAGNOSTIC_PUSH      _Pragma("clang diagnostic push")
+#   define DIAGNOSTIC_POP       _Pragma("clang diagnostic pop")
+#   define DIAGNOSTIC_IGNORE(w) _Pragma(DOT_STR(clang diagnostic ignored error w))
+#   define DIAGNOSTIC_ERROR(w)  _Pragma(DOT_STR(clang diagnostic error  w))
+// DOT_STR
+#elif DOT_COMPILER_GCC
+#   define DIAGNOSTIC_PUSH      _Pragma("GCC diagnostic push")
+#   define DIAGNOSTIC_POP       _Pragma("GCC diagnostic pop")
+#   define DIAGNOSTIC_IGNORE(w) _Pragma(DOT_STR(GCC diagnostic ignored error w))
+#   define DIAGNOSTIC_ERROR(w)  _Pragma(DOT_STR(GCC diagnostic error w))
+#elif DOT_COMPILER_MSVC
+#   define DIAGNOSTIC_PUSH      __pragma(warning(push))
+#   define DIAGNOSTIC_POP       __pragma(warning(pop))
+#   define DIAGNOSTIC_IGNORE(w) __pragma(warning(disable: w))
+#   define DIAGNOSTIC_ERROR(w)  __pragma(warning(error: w))
+#else
+#   define DIAGNOSTIC_PUSH
+#   define DIAGNOSTIC_POP
+#   define DIAGNOSTIC_IGNORE(w)
+#   define DIAGNOSTIC_ERROR(w)
+#endif
+
+#if DOT_COMPILER_CLANG || (DOT_COMPILER_GCC && __GNUC__ >= 7)
+    #define FALLTHROUGH __attribute__((fallthrough))
+#else
+    #define FALLTHROUGH /* fallthrough */
+#endif
+
+
+////////////////////////////////////////////////////////////////
 //
 // OS
 #if defined(_WIN32)
@@ -86,9 +120,18 @@
 
 ////////////////////////////////////////////////////////////////
 //
+// Enum
+//
 // This is a way to get some consistency out of enum types in c
+// We should probably only care about this if we need to serialize
+// the data, otherwise we lose te ability to get warning out of
+// unhandled switch statement cases
 
 #define DOT_ENUM(T, name) T name; enum
+
+#define DOT_ENUM_ARG(prefix, v) prefix##_##v,
+#define DOT_ENUM_STR(prefix, v) #v,
+
 #define CONST_INT_BLOCK enum
 
 ////////////////////////////////////////////////////////////////
@@ -226,13 +269,13 @@ typedef int DOT_CONCAT(DOT_STATIC_ASSERT_, __COUNTER__) [(x) ? 1 : -1]
 
 // NOTE: Make this a runtime arg
 #define DOT_LOG_LEVEL DOT_LogLevelKind_Warning
-typedef DOT_ENUM(u8, DOT_LogLevelKind){
+typedef enum DOT_LogLevelKind{
     DOT_LogLevelKind_Debug,
     DOT_LogLevelKind_Warning,
     DOT_LogLevelKind_Error,
     DOT_LogLevelKind_Assert,
     DOT_LogLevelKind_Count,
-};
+}DOT_LogLevelKind;
 
 global const char *dot_log_level_kind_str[] = {
     [DOT_LogLevelKind_Debug]   = "",

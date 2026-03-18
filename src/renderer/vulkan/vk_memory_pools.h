@@ -1,12 +1,12 @@
 #ifndef VK_MEMORY_POOLS_H
 #define VK_MEMORY_POOLS_H
 
-typedef DOT_ENUM(u8, VkMemory_PoolsKind){
+typedef enum VkMemory_PoolsKind{
     VkMemory_PoolsKind_None,
     VkMemory_PoolsKind_GpuOnly,
     VkMemory_PoolsKind_Staging,
     VkMemory_PoolsKind_Readback,
-};
+}VkMemory_PoolsKind;
 
 typedef struct VkMemory_Pools{
     u32 gpu_only_type;

@@ -169,6 +169,7 @@ vk_helper_present_mode_kind_to_vk_present_mode_khr(RendererPresentModeKind prese
     case RendererPresentModeKind_Mailbox:      return VK_PRESENT_MODE_MAILBOX_KHR;
     case RendererPresentModeKind_FIFO:         return VK_PRESENT_MODE_FIFO_KHR;
     case RendererPresentModeKind_FIFO_Relaxed: return VK_PRESENT_MODE_FIFO_RELAXED_KHR;
+    // case RendererPresentModeKind_FIFO_Count:
     default:
       DOT_WARNING("Unsuported requested present mode %s, defaulting to "
                   "VK_PRESENT_MODE_IMMEDIATE_KHR", renderer_present_mode_kind_str[present_mode]);

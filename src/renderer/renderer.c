@@ -5,10 +5,9 @@ renderer_backend_create(Arena *arena, RendererBackendConfig *backend_config)
     switch(backend_config->backend_kind){
     case RendererBackendKind_Null: base = cast(RendererBackend*) renderer_backend_null_create(arena, backend_config); break;
     case RendererBackendKind_Vk:   base = cast(RendererBackend*) renderer_backend_vk_create(arena, backend_config); break;
-    // case RendererBackendKind_Gl: //base = cast(RendererBackend*) renderer_backend_gl_create(arena); break;
     case RendererBackendKind_Dx12: //base = cast(RendererBackend*) renderer_backend_dx_create(arena); break;
     default:
-        DOT_ERROR("Unsupported renderer backend");
+        DOT_ERROR("Unsupported render backend");
     }
     return base;
 }
@@ -21,8 +20,8 @@ renderer_init(Arena *arena, DOT_Renderer *renderer, DOT_Window *window, Renderer
         .reserve_size = renderer_config->renderer_memory_size,
         .name         = "Application_Renderer");
 
-    shader_cache_init(renderer->permanent_arena, &renderer->shader_cache, &renderer_config->shader_cache_config);
-    renderer->backend = renderer_backend_create(renderer->permanent_arena, &renderer_config->backend_config);
+    shader_cache_init(renderer->permanent_arena, &renderer->shader_cache, renderer_config->shader_cache_config);
+    renderer->backend = renderer_backend_create(renderer->permanent_arena, renderer_config->backend_config);
     // renderer->frame_data    = PUSH_ARRAY(renderer->permanent_arena, FrameData, renderer->frame_overlap);
     // for(u8 i = 0; i < backend->frame_data_count; ++i){
     //     renderer->frame_data[i].temp_arena = ARENA_ALLOC(
