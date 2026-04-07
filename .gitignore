@@ -4,5 +4,6 @@
 tags
 tags.sh
 build
+src/gen_wayland/
 vulkan_tags
 generated_protocols
