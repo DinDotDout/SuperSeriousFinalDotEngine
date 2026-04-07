@@ -1,3 +1,4 @@
+// (joan) NOTE: split this per platform instead of keeping thing together
 #include <sys/stat.h>
 #if defined(DOT_OS_POSIX)
 #   include "os/os_linux.h"
@@ -69,32 +70,36 @@ CONST_INT_BLOCK{
 //     }
 // }
 
-typedef struct DOT_FileBuffer{
-    u8 *buff;
-    usize size;
-}DOT_FileBuffer;
+internal bool platform_file_exists(String8 file_path)
+{
+#if _WIN32
+    return GetFileAttributesA(file_path) != INVALID_FILE_ATTRIBUTES;
+#else
+    return access(file_path.cstr, F_OK) == 0;
+#endif
+}
 
-internal DOT_FileBuffer
+internal String8
 platform_read_entire_file(Arena *arena, String8 path)
 {
-    DOT_FileBuffer file_buffer = {0};
-    FILE *f = fopen((const char *) path.str, "rb");
+    String8 file_buffer = {0};
+    FILE *f = fopen(path.cstr, "rb");
     if(f){
         fseek(f, 0, SEEK_END);
         file_buffer.size = ftell(f);
         if(file_buffer.size > 0){
             fseek(f, 0, SEEK_SET);
-            file_buffer.buff = PUSH_ARRAY(arena, u8, file_buffer.size);
-            fread(file_buffer.buff, 1, file_buffer.size, f);
+            file_buffer.str = PUSH_ARRAY(arena, u8, file_buffer.size);
+            fread(file_buffer.str, 1, file_buffer.size, f);
         }
         fclose(f);
     }else{
-        perror("shader_compile");
+        DOT_WARNING("Could not open file %S %s", path, strerror(errno)); // Retrieve error code
     }
     return file_buffer;
 }
 
-b32 platform_file_is_newer(char* a, char* b)
+b32 platform_file_is_newer(String8 a, String8 b)
 {
 #ifdef _WIN32
     struct _stat sa, sb;
@@ -102,8 +107,8 @@ b32 platform_file_is_newer(char* a, char* b)
     if (_stat(b, &sb) != 0) return true;
 #else
     struct stat sa, sb;
-    if (stat(a, &sa) != 0) return false;
-    if (stat(b, &sb) != 0) return true;
+    if (stat(a.cstr, &sa) != 0) return false;
+    if (stat(b.cstr, &sb) != 0) return true;
 #endif
 
     return sa.st_mtime > sb.st_mtime;

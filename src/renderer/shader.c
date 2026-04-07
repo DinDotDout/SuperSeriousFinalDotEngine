@@ -15,7 +15,7 @@ shader_compile_from_path(String8 input_path, String8 output_path)
         "slangc %s -target spirv -stage compute -o %s 2>&1 -entry main",
         input_path.str, output_path.str);
 
-    FILE* pipe = popen(cast(char*)cmd.str, "r");
+    FILE *pipe = popen(cmd.cstr, "r");
     int ret = -1;
     if(pipe){
         ret = pclose(pipe);
@@ -62,7 +62,7 @@ shader_cache_push(Arena *arena, ShaderCache *shader_cache, DOT_ShaderModule *sha
     new_node->shader_module = shader_module;
 
     hashmap(ShaderCacheNode*) shader_modules = shader_cache->shader_modules;
-    HashIdx shader_hash_idx = shader_cache_hash_idx(shader_cache, shader_module->path);
+    HashIdx shader_hash_idx = shader_cache_hash_idx(shader_cache, shader_module->asset.path);
     ShaderCacheNode *node = shader_modules[shader_hash_idx];
     if(node){
         node->next = new_node;
@@ -76,7 +76,7 @@ shader_module_create(Arena* arena, String8 path, String8 compiled_path)
 {
     DOT_ShaderModule *shader_module = PUSH_STRUCT(arena, DOT_ShaderModule);
     shader_module->compiled_path = compiled_path;
-    shader_module->path = path;
+    shader_module->asset.path = path;
     return shader_module;
 }
 
@@ -93,7 +93,7 @@ shader_cache_get_or_create(Arena *arena, ShaderCache *shader_cache, String8 shad
     ShaderCacheNode *node = shader_cache->shader_modules[shader_hash_idx];
     DOT_ShaderModule *shader_module = NULL;
     for EACH_NODE(it, ShaderCacheNode, node){
-        if(string8_equal(shader_path, node->shader_module->path)){
+        if(string8_equal(shader_path, node->shader_module->asset.path)){
             shader_module = node->shader_module;
             break;
         }

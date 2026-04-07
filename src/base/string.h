@@ -6,7 +6,10 @@
 // Immutable and null terminated for char* compatibility
 
 typedef struct String8{
-    u8 *str;
+    union{
+        u8 *str;
+        char *cstr;
+    };
     u64 size;
 }String8;
 
@@ -23,14 +26,14 @@ typedef struct String8List{
     u32 *count;
 }StringBuilder;
 
-#define String8Lit(s)  (String8){(u8*)(s), sizeof(s) - 1}
+#define String8Lit(s)  (String8){.str = (u8*)(s), .size = sizeof(s) - 1}
 #define StrFmt "%.*s"
 #define StrArg(sv) (int)(sv).size, (sv).str
 
 #define MEM_COPY_STRING8(dst, s) MEM_COPY(dst, (s).str, (s).size)
 
 internal String8 string8_copy(Arena *arena, String8 string);
-internal String8 string8_cstring(const char *c);
+internal String8 string8_cstring(char *c);
 internal String8 string8_format_va(Arena *arena, char *fmt, va_list args);
 internal String8 string8_format(Arena *arena, char *fmt, ...);
 

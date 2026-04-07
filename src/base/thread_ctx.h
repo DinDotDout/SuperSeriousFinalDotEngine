@@ -1,6 +1,5 @@
 #ifndef THREAD_CTX
 #define THREAD_CTX
-#include <threads.h>
 
 typedef struct ThreadCtxOptions{
     usize per_thread_temp_arena_size;

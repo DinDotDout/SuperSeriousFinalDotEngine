@@ -1,9 +1,11 @@
 #include <linux/perf_event.h>
 #include <errno.h>
 #include <x86intrin.h>
+#include <time.h>
+#include <execinfo.h>
 #include <sys/time.h>
 #include <sys/mman.h>
-#include <execinfo.h>
+#include <sys/stat.h>
 
 internal u64
 platform_os_get_timer_freq()
@@ -24,7 +26,7 @@ platform_os_read_timer()
 internal void
 os_print_stacktrace()
 {
-    thread_local static void* buffer[4096];
+    thread_local local_persist void* buffer[4096];
     int nptrs = backtrace(buffer, ARRAY_COUNT(buffer));
     backtrace_symbols_fd(buffer, nptrs, fileno(stderr));
 }

@@ -14,17 +14,14 @@ renderer_backend_vk_create(Arena *arena, RendererBackendConfig *backend_config)
     Arena *backend_arena = ARENA_ALLOC(
         .parent = arena,
         .reserve_size = backend_config->backend_memory_size,);
-    RendererBackendVk *backend = PUSH_STRUCT(backend_arena, RendererBackendVk);
-    RendererBackend *base = &backend->base;
-    g_vk_ctx = backend;
-    base->backend_kind    = RendererBackendKind_Vk;
-    base->permanent_arena = backend_arena;
-#define FN(ret, name, args) base->name = renderer_backend_vk_##name;
+    g_vk_ctx = PUSH_STRUCT(backend_arena, RendererBackendVk);
+    g_vk_ctx->base.backend_kind = RendererBackendKind_Vk;
+    g_vk_ctx->base.permanent_arena = backend_arena;
+#define FN(ret, name, ...) g_vk_ctx->base.name = renderer_backend_vk_##name;
     RENDERER_BACKEND_FN_LIST
 #undef FN
-
     renderer_backend_vk_merge_settings(backend_config);
-    return backend;
+    return g_vk_ctx;
 }
 
 internal void
@@ -36,7 +33,7 @@ renderer_backend_vk_merge_settings(RendererBackendConfig *backend_config)
 }
 
 internal inline VKAPI_ATTR u32 VKAPI_CALL
-renderere_backend_vk_debug_callback(
+renderer_backend_vk_debug_callback(
     VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
     VkDebugUtilsMessageTypeFlagsEXT message_type,
     const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
@@ -67,18 +64,13 @@ rbvk_vk_shader_module_from_dot_shader_module(DOT_ShaderModuleHandle dot_smh)
 }
 
 internal DOT_ShaderModuleHandle
-renderer_backend_vk_load_shader_from_file_buffer(DOT_FileBuffer file_buffer)
+renderer_backend_vk_load_shader_from_file_buffer(String8 file_buffer)
 {
-    RBVK_FileBuffer vk_file_buffer = {
-        .buff = cast(u32*)file_buffer.buff,
-        .size = file_buffer.size,
-    };
-
     VkShaderModuleCreateInfo create_info = {
         .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
         .pNext = NULL,
-        .codeSize = vk_file_buffer.size,
-        .pCode = vk_file_buffer.buff,
+        .codeSize = file_buffer.size,
+        .pCode = cast(u32*)file_buffer.str, // VK expects data like this
     };
 
     VkShaderModule vk_shader_module = VK_NULL_HANDLE;
@@ -92,6 +84,17 @@ renderer_backend_vk_unload_shader_module(DOT_ShaderModuleHandle shader_module_ha
 {
     VkShaderModule vk_sm = rbvk_vk_shader_module_from_dot_shader_module(shader_module_handle);
     vkDestroyShaderModule(g_vk_ctx->device.device, vk_sm, NULL);
+}
+
+internal DOT_TextureHandle
+renderer_backend_vk_create_texture(DOT_TextureCreateInfo *create_info)
+{
+    // (JD) NOTE:Should we create a texture on backend init mapped to this handle?
+    if(create_info->data == NULL){
+        return (DOT_TextureHandle){0};
+    }
+
+    return (DOT_TextureHandle){0};
 }
 
 internal RBVK_Image
@@ -123,6 +126,7 @@ rbvk_create_image(RendererBackendVk *ctx, VkImageCreateInfo *image_info)
     };
 
     vkCreateImageView(device, &image_view_create_info, NULL, &image.image_view);
+    // image.image->vk_image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
     return image;
 }
 
@@ -145,7 +149,6 @@ rbvk_create_buffer(
 
     VkDevice device = ctx->device.device;
 
-    // Create the buffer
     VkBufferCreateInfo info = {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .size  = size,
@@ -155,7 +158,6 @@ rbvk_create_buffer(
 
     VK_CHECK(vkCreateBuffer(device, &info, NULL, &buf.buffer));
 
-    // Allocate memory
     VkMemoryRequirements reqs;
     vkGetBufferMemoryRequirements(device, buf.buffer, &reqs);
 
@@ -210,9 +212,9 @@ renderer_backend_vk_init(DOT_Window* window)
             .enabledExtensionCount = VK_SETTINGS.instance_settings.instance_extensions.count,
             .pApplicationInfo = &(VkApplicationInfo){
                 .sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-                .pApplicationName   = cast(char*)VK_SETTINGS.instance_settings.application_name.str,
+                .pApplicationName   = VK_SETTINGS.instance_settings.application_name.cstr,
                 .applicationVersion = VK_SETTINGS.instance_settings.application_version,
-                .pEngineName        = cast(char*)VK_SETTINGS.instance_settings.engine_name.str,
+                .pEngineName        = VK_SETTINGS.instance_settings.engine_name.cstr,
                 .engineVersion      = VK_SETTINGS.instance_settings.engine_version,
                 .apiVersion         = VK_SETTINGS.instance_settings.api_version,
             },
@@ -230,7 +232,7 @@ renderer_backend_vk_init(DOT_Window* window)
                     VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
                     VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
                     VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
-                .pfnUserCallback = renderere_backend_vk_debug_callback,
+                .pfnUserCallback = renderer_backend_vk_debug_callback,
           };
           instance_create_info.pNext = &debug_utils_info;
         }

@@ -1,7 +1,7 @@
 #define NOB_IMPLEMENTATION
 #define NOB_NO_ECHO
 #include "../src/third_party/nob.h/nob.h"
-Nob_Log_Level nob_minimal_log_level = NOB_NO_LOGS;
+Nob_Log_Level nob_minimal_log_level = NOB_ERROR;
 
 #define VA_ARG_COUNT_T(T, ...) (sizeof((T[])__VA_ARGS__) / sizeof(T))
 #define SLICE(T, ...) \
@@ -224,27 +224,15 @@ static CompilerKind detect_compiler(void) {
     exit(1);
 }
 
-// typedef struct ExternalLibs ExternalLibs;
-// typedef struct ExternalLibs{
-//     struct Lib{
-//         const char *URL;
-//         const char *rev;
-//     } *items;
-//     int count;
-// }ExternalLibs;
 typedef enum ExternalKind{
-    ExternalKind_Git,
-    ExternalKind_RegularAsset,
+    ExternalKind_GitZip,
+    ExternalKind_File,
 }ExternalKind;
 
 typedef struct ExternalAsset{
     ExternalKind kind;
     union {
         struct{
-            enum GitAssetKind{
-                GitAssetKind_AsGit,
-                GitAssetKind_AsZip,
-            }kind;
             const char *URL;
             const char *rev;
         }git_asset;
@@ -254,163 +242,71 @@ typedef struct ExternalAsset{
     };
 }ExternalAsset;
 
-typedef struct ExternalAssets{
+struct ExternalAssets{
     ExternalAsset *items;
     int count;
     const char* output_path;
-}ExternalAssets;
-
-static const ExternalAssets assets = {
-    .output_path = "assets/",
+} static const assets = {
+    .output_path = "assets",
     SLICE(ExternalAsset, {
-        {.kind = ExternalKind_Git, .git_asset = {GitAssetKind_AsZip, "https://github.com/KhronosGroup/glTF-Sample-Models", "8e9a5a6ad1a2790e2333e3eb48a1ee39f9e0e31b"}},
+        {.kind = ExternalKind_GitZip, .git_asset = {"https://github.com/KhronosGroup/glTF-Sample-Models", "8e9a5a6ad1a2790e2333e3eb48a1ee39f9e0e31b"}},
+        // {.kind = ExternalKind_GitZip, .git_asset = {"https://github.com/KhronosGroup/glTF-Sample-Models", "8e9a5a6ad1a2790e2333e3eb48a1ee39f9e0e31b"}},
     }
 )};
 
 void download_assets(void)
 {
-    // Ensure the root output folder exists
     mkdir_if_not_exists(assets.output_path);
     for (int i = 0; i < assets.count; ++i) {
         ExternalAsset *asset = &assets.items[i];
 
-        //
-        // Regular asset (simple file download)
-        //
-        if (asset->kind == ExternalKind_RegularAsset) {
+        char final_path[512];
+        char download_path[512];
+        char source_url[512];
+        if (asset->kind == ExternalKind_File) {
             const char *url = asset->asset.URL;
+            const char *filename = strrchr(url, '/') ? strrchr(url, '/') + 1 : "asset.bin";
+            snprintf(final_path, sizeof(final_path), "%s/%s", assets.output_path, filename);
+            snprintf(download_path, sizeof(download_path), "%s/%s", assets.output_path, filename);
+            snprintf(source_url, sizeof(source_url), "%s", url);
+        }
+        else if (asset->kind == ExternalKind_GitZip) {
+            const char *repo_url = asset->git_asset.URL;
+            const char *repo = strrchr(repo_url, '/') ? strrchr(repo_url, '/') + 1 : "repo";
 
-            const char *last_slash = strrchr(url, '/');
-            const char *filename = last_slash ? last_slash + 1 : "asset.bin";
-
-            char out_path[512];
-            snprintf(out_path, sizeof(out_path),
-                     "%s/%s", assets.output_path, filename);
-
-            if(nob_file_exists(out_path)){
-                printf("Already have regular asset: %s\n", out_path);
-                continue;
-            }
-
-            Nob_Cmd cmd = {0};
-            nob_cmd_append(&cmd, "curl");
-            nob_cmd_append(&cmd, "-L");
-            nob_cmd_append(&cmd, "-o");
-            nob_cmd_append(&cmd, out_path);
-            nob_cmd_append(&cmd, url);
-            nob_cmd_run(&cmd);
-
+            snprintf(final_path, sizeof(final_path), "%s/%s", assets.output_path, repo);
+            snprintf(download_path, sizeof(download_path), "%s/%s.zip", assets.output_path, repo);
+            snprintf(source_url, sizeof(source_url), "%s/archive/%s.zip", repo_url, asset->git_asset.rev);
+        }
+        else {
+            nob_log(NOB_WARNING, "Unsupported asset type\n");
             continue;
         }
 
-        //
-        // Git asset
-        //
-        const char *url = asset->git_asset.URL;
-        const char *rev = asset->git_asset.rev;
-
-        const char *last_slash = strrchr(url, '/');
-        const char *repo_name = last_slash ? last_slash + 1 : "repo";
-
-        //
-        // ZIP MODE
-        //
-        if (asset->git_asset.kind == GitAssetKind_AsZip) {
-
-            char extract_dir[512];
-            snprintf(extract_dir, sizeof(extract_dir), "%s/%s-%s",
-                     assets.output_path, repo_name, rev);
-
-            if(nob_file_exists(extract_dir)) {
-                printf("Already have git-zip asset: %s\n", extract_dir);
-                continue;
-            }
-
-            mkdir_if_not_exists(extract_dir);
-
-            char archive_url[512];
-            snprintf(archive_url, sizeof(archive_url),
-                     "%s/archive/%s.zip", url, rev);
-
-            char zip_path[512];
-            snprintf(zip_path, sizeof(zip_path),
-                     "%s/%s-%s.zip",
-                     assets.output_path, repo_name, rev);
-
-            // curl -L -o zip_path archive_url
-            {
-                Nob_Cmd cmd = {0};
-                nob_cmd_append(&cmd, "curl");
-                nob_cmd_append(&cmd, "-L");
-                nob_cmd_append(&cmd, "-o");
-                nob_cmd_append(&cmd, zip_path);
-                nob_cmd_append(&cmd, archive_url);
-                nob_cmd_run(&cmd);
-            }
-
-            // unzip zip_path -d extract_dir
-            {
-                Nob_Cmd cmd = {0};
-                nob_cmd_append(&cmd, "unzip");
-                nob_cmd_append(&cmd, zip_path);
-                nob_cmd_append(&cmd, "-d");
-                nob_cmd_append(&cmd, extract_dir);
-                nob_cmd_run(&cmd);
-            }
-
+        if (nob_file_exists(final_path)) {
+            nob_log(NOB_WARNING, "Already have: %s (delete it to redownload)\n", final_path);
             continue;
         }
 
-        //
-        // GIT MODE
-        //
-        if (asset->git_asset.kind == GitAssetKind_AsGit) {
+        Nob_Cmd cmd = {0};
+        nob_cmd_append(&cmd, "curl");
+        nob_cmd_append(&cmd, "-L");
+        nob_cmd_append(&cmd, "-o");
+        nob_cmd_append(&cmd, download_path);
+        nob_cmd_append(&cmd, source_url);
+        nob_cmd_run(&cmd);
+        if (asset->kind == ExternalKind_GitZip) {
+            Nob_Cmd unzip_cmd = {0};
+            nob_cmd_append(&unzip_cmd, "unzip");
+            nob_cmd_append(&unzip_cmd, download_path);
+            nob_cmd_append(&unzip_cmd, "-d");
+            nob_cmd_append(&unzip_cmd, assets.output_path);
+            nob_cmd_run(&unzip_cmd);
 
-            char clone_dir[512];
-            snprintf(clone_dir, sizeof(clone_dir),
-                     "%s/%s", assets.output_path, repo_name);
-
-            if(nob_file_exists(clone_dir) == 1){
-                printf("Already have git asset: %s\n", clone_dir);
-                continue;
-            }
-
-            // git clone --recurse-submodules url clone_dir
-            {
-                Nob_Cmd cmd = {0};
-                nob_cmd_append(&cmd, "git");
-                nob_cmd_append(&cmd, "clone");
-                nob_cmd_append(&cmd, "--recurse-submodules");
-                nob_cmd_append(&cmd, url);
-                nob_cmd_append(&cmd, clone_dir);
-                nob_cmd_run(&cmd);
-            }
-
-            // git -C clone_dir checkout rev
-            {
-                Nob_Cmd cmd = {0};
-                nob_cmd_append(&cmd, "git");
-                nob_cmd_append(&cmd, "-C");
-                nob_cmd_append(&cmd, clone_dir);
-                nob_cmd_append(&cmd, "checkout");
-                nob_cmd_append(&cmd, rev);
-                nob_cmd_run(&cmd);
-            }
-
-            // git -C clone_dir submodule update --init --recursive
-            {
-                Nob_Cmd cmd = {0};
-                nob_cmd_append(&cmd, "git");
-                nob_cmd_append(&cmd, "-C");
-                nob_cmd_append(&cmd, clone_dir);
-                nob_cmd_append(&cmd, "submodule");
-                nob_cmd_append(&cmd, "update");
-                nob_cmd_append(&cmd, "--init");
-                nob_cmd_append(&cmd, "--recursive");
-                nob_cmd_run(&cmd);
-            }
-
-            continue;
+            const char *repo = strrchr(asset->git_asset.URL, '/') + 1;
+            char extracted[512];
+            snprintf(extracted, sizeof(extracted), "%s/%s-%s", assets.output_path, repo, asset->git_asset.rev);
+            rename(extracted, final_path);
         }
     }
 }
@@ -441,7 +337,7 @@ int main(int argc, char **argv)
         }
     }
 
-    // download_assets();
+    download_assets();
     Nob_Cmd cmd = {0};
     nob_cmd_append(&cmd, compiler_kind_str[flags.compiler]);
     CompilerConfig *ccfg = &compiler_cfg[flags.compiler];

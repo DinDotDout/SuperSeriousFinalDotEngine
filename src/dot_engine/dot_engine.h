@@ -46,8 +46,32 @@
 #define DOT_INT_SKIP // Already included ints by rgfw
 #include "base/base_include.h"
 
+void* malloc_debug(size_t sz, char *file, u32 line)
+{
+    DOT_PRINT("malloc", file, line);
+    return malloc(sz);
+}
+
+void* realloc_debug(void* ptr, size_t new_sz, char *file, u32 line)
+{
+    DOT_PRINT("realloc", file, line);
+    return realloc(ptr, new_sz);
+}
+
+void free_debug(void *ptr, char *file, u32 line)
+{
+    DOT_PRINT("free", file, line);
+    free(ptr);
+}
+
+#define STBI_MALLOC(sz)        malloc_debug(sz, __FILE__, __LINE__)
+#define STBI_REALLOC(p,newsz)  realloc_debug(p, newsz, __FILE__, __LINE__)
+#define STBI_FREE(p)           free_debug(p, __FILE__, __LINE__)
+#define STB_IMAGE_IMPLEMENTATION
+#include "third_party/stb/stb_image.h"
+
 DIAGNOSTIC_PUSH
-#if defined(__clang__) || defined(__GNUC__)
+#if DOT_COMPILER_CLANG || defined(__GNUC__)
     DIAGNOSTIC_ERROR("-Wimplicit-fallthrough")
     DIAGNOSTIC_ERROR("-Wswitch-enum")
     DIAGNOSTIC_ERROR("-Wvla")
@@ -55,6 +79,7 @@ DIAGNOSTIC_PUSH
 #endif
 
 #include "dot_engine/window.h"
+#include "dot_engine/asset.h"
 #include "renderer/renderer_include.h"
 #include "dot_engine/plugin.h"
 #include "dot_engine/game.h"

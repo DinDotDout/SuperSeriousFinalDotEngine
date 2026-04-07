@@ -27,7 +27,6 @@ arena_alloc_(ArenaInitParams *params){
     }
     return arena;
 }
-
 internal Arena*
 arena_alloc_from_memory(ArenaInitParams *params){
     DOT_ASSERT_FL(params->buffer != NULL, params->reserve_file, params->reserve_line, "Invalid memory provided");

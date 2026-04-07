@@ -71,6 +71,7 @@ internal b32 vk_helper_physical_device_swapchain_support(
 internal b32              vk_helper_physical_device_all_required_extensions(const struct RBVK_Settings *vk_settings, VkPhysicalDevice device);
 internal b32              vk_helper_instance_all_required_extensions(const struct RBVK_Settings *vk_settings);
 internal VkPresentModeKHR vk_helper_present_mode_kind_to_vk_present_mode_khr(RendererPresentModeKind present_mode);
+internal VkFormat         vk_helper_texture_format_to_vk_texture_format(DOT_TextureFormatKind present_mode);
 
 ///////////////////////////////////////////
 /// Vk misc helpers
@@ -174,6 +175,44 @@ vk_helper_present_mode_kind_to_vk_present_mode_khr(RendererPresentModeKind prese
       DOT_WARNING("Unsuported requested present mode %s, defaulting to "
                   "VK_PRESENT_MODE_IMMEDIATE_KHR", renderer_present_mode_kind_str[present_mode]);
       return VK_PRESENT_MODE_IMMEDIATE_KHR;
+    }
+}
+
+internal VkFormat
+vk_helper_texture_format_to_vk_texture_format(DOT_TextureFormatKind texture_format)
+{
+    switch(texture_format){
+    case DOT_TextureFormat_Invalid: return VK_FORMAT_UNDEFINED;
+    // 8‑bit formats
+    case DOT_TextureFormat_R8_UNORM: return VK_FORMAT_R8_UNORM;
+    case DOT_TextureFormat_R8_UINT: return VK_FORMAT_R8_UINT;
+    case DOT_TextureFormat_RG8_UNORM: return VK_FORMAT_R8G8_UNORM;
+    case DOT_TextureFormat_RGBA8_UNORM: return VK_FORMAT_R8G8B8A8_UNORM;
+    case DOT_TextureFormat_RGBA8_SRGB: return VK_FORMAT_R8G8B8A8_SRGB;
+    case DOT_TextureFormat_BGRA8_UNORM: return VK_FORMAT_B8G8R8A8_UNORM;
+    case DOT_TextureFormat_BGRA8_SRGB: return VK_FORMAT_B8G8R8A8_SRGB;
+    // HDR / Float formats
+    case DOT_TextureFormat_R16F: return VK_FORMAT_R16_SFLOAT;
+    case DOT_TextureFormat_RG16F: return VK_FORMAT_R16G16_SFLOAT;
+    case DOT_TextureFormat_RGBA16F: return VK_FORMAT_R16G16B16A16_SFLOAT;
+    case DOT_TextureFormat_R32F: return VK_FORMAT_R32_SFLOAT;
+    case DOT_TextureFormat_RG32F: return VK_FORMAT_R32G32_SFLOAT;
+    case DOT_TextureFormat_RGBA32F: return VK_FORMAT_R32G32B32A32_SFLOAT;
+    // Depth / Stencil formats
+    case DOT_TextureFormat_D16: return VK_FORMAT_D16_UNORM;
+    case DOT_TextureFormat_D24S8: return VK_FORMAT_D24_UNORM_S8_UINT;
+    case DOT_TextureFormat_D32F: return VK_FORMAT_D32_SFLOAT;
+    case DOT_TextureFormat_D32FS8: return VK_FORMAT_D32_SFLOAT_S8_UINT;
+    // Block‑compressed formats
+    case DOT_TextureFormat_BC1: return VK_FORMAT_BC1_RGBA_UNORM_BLOCK;
+    case DOT_TextureFormat_BC1_SRGB: return VK_FORMAT_BC1_RGBA_SRGB_BLOCK;
+    case DOT_TextureFormat_BC3: return VK_FORMAT_BC3_UNORM_BLOCK;
+    case DOT_TextureFormat_BC3_SRGB: return VK_FORMAT_BC3_SRGB_BLOCK;
+    case DOT_TextureFormat_BC7: return VK_FORMAT_BC7_UNORM_BLOCK;
+    case DOT_TextureFormat_BC7_SRGB: return VK_FORMAT_BC7_SRGB_BLOCK;
+    // ETC2 formats
+    case DOT_TextureFormat_ETC2_RGB8: return VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK;
+    case DOT_TextureFormat_ETC2_RGBA8: return VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK;
     }
 }
 

@@ -33,9 +33,9 @@ string8_array_has(String8* arr, usize size, String8 b)
 }
 
 internal String8
-string8_cstring(const char *c)
+string8_cstring(char *c)
 {
-    String8 result = {cast(u8*)c, strlen(c)};
+    String8 result = {.cstr = c, .size = strlen(c)};
     return result;
 }
 
@@ -44,7 +44,7 @@ string8_array_to_str_array(Arena *arena, usize size, const String8 src[])
 {
     const char **dst = PUSH_ARRAY(arena, const char*, size);
     for(u64 i = 0; i < size; ++i){
-        dst[i] = cast(char*) src[i].str;
+        dst[i] = src[i].cstr;
     }
     return dst;
 }

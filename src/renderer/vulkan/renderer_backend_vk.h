@@ -47,6 +47,11 @@ struct RBVK_Settings{
         u8 frame_overlap;
     }frame_settings;
 
+// TODO:This things will be useful for debugging!
+// Make stub and add to all those pfns in case we do not find one it just won't do anything
+// pfnSetDebugUtilsObjectNameEXT = ( PFN_vkSetDebugUtilsObjectNameEXT )vkGetDeviceProcAddr( vulkan_device, "vkSetDebugUtilsObjectNameEXT" );
+// pfnCmdBeginDebugUtilsLabelEXT = ( PFN_vkCmdBeginDebugUtilsLabelEXT )vkGetDeviceProcAddr( vulkan_device, "vkCmdBeginDebugUtilsLabelEXT" );
+// pfnCmdEndDebugUtilsLabelEXT = ( PFN_vkCmdEndDebugUtilsLabelEXT )vkGetDeviceProcAddr( vulkan_device, "vkCmdEndDebugUtilsLabelEXT" );
 } global VK_SETTINGS = {
     .instance_settings = {
         .application_name    = String8Lit("dot_engine"),
@@ -122,11 +127,28 @@ typedef struct RBVK_Device{
     u32     present_queue_idx;
 }RBVK_Device;
 
+// struct TextureDescription{
+//     void *native_handle
+//     cstring name
+//
+//     u16 width
+//     u16 height
+//     u16 depth
+//     u8 mipmaps
+//     u8 render_target
+//     u8 compute_access
+//
+//     // VkFormat format = VK_FORMAT_UNDEFINED;
+//     // TextureType::Enum type = TextureType::Texture2D;
+//
+// };
+
 typedef struct RBVK_Image{
     VkImage     image;
     VkImageView image_view;
     VkFormat    image_format;
     VkExtent3D  extent;
+    // Store layout here for transitioning from one the other and only provide target layout?
     VkMemory_Alloc alloc;
 }RBVK_Image;
 
@@ -200,16 +222,11 @@ typedef struct RendererBackendVk{
     VkDebugUtilsMessengerEXT debug_messenger;
 }RendererBackendVk;
 
-typedef struct RBVK_FileBuffer{
-    u32 *buff;
-    usize size;
-}RBVK_FileBuffer;
-
 typedef struct RBVK_Pipeline{
     VkPipeline pipeline;
 }RBVK_Pipeline;
 
-#define FN(ret, name, args) internal ret renderer_backend_vk_##name args;
+#define FN(ret, name, ...) internal ret renderer_backend_vk_##name (__VA_ARGS__);
 RENDERER_BACKEND_FN_LIST
 #undef FN
 

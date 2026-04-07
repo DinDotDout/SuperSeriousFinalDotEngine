@@ -16,11 +16,12 @@
 // va_start, va_end
 #include <stdarg.h>
 
+#include <threads.h>
+
 ////////////////////////////////////////////////////////////////
 //
 // Compiler
 
-#   define DOT_COMPILER_MSVC 0
 #if defined(_MSC_VER)
 #   define DOT_COMPILER_CLANG 0
 #   define DOT_COMPILER_GCC 0
@@ -44,8 +45,8 @@
 #if DOT_COMPILER_CLANG
 #   define DIAGNOSTIC_PUSH      _Pragma("clang diagnostic push")
 #   define DIAGNOSTIC_POP       _Pragma("clang diagnostic pop")
-#   define DIAGNOSTIC_IGNORE(w) _Pragma(DOT_STR(clang diagnostic ignored error w))
-#   define DIAGNOSTIC_ERROR(w)  _Pragma(DOT_STR(clang diagnostic error  w))
+#   define DIAGNOSTIC_IGNORE(w) _Pragma(DOT_STR(clang diagnostic ignored w))
+#   define DIAGNOSTIC_ERROR(w)  _Pragma(DOT_STR(clang diagnostic error w))
 // DOT_STR
 #elif DOT_COMPILER_GCC
 #   define DIAGNOSTIC_PUSH      _Pragma("GCC diagnostic push")
@@ -65,9 +66,9 @@
 #endif
 
 #if DOT_COMPILER_CLANG || (DOT_COMPILER_GCC && __GNUC__ >= 7)
-    #define FALLTHROUGH __attribute__((fallthrough))
+    #define DOT_FALLTHROUGH __attribute__((fallthrough))
 #else
-    #define FALLTHROUGH /* fallthrough */
+    #define DOT_FALLTHROUGH /* fallthrough */
 #endif
 
 
@@ -96,7 +97,8 @@
 #   pragma section(".rdata$", read)
 #   define read_only __declspec(allocate(".rdata$"))
 #elif DOT_COMPILER_CLANG && DOT_OS_POSIX
-#   define read_only __attribute__((section(".rodata")))
+// #   define read_only __attribute__((section(".rodata")))
+#   define read_only const
 #else
 #   define read_only
 #endif
@@ -110,6 +112,7 @@
 #   define COMPILER_RESET(ptr)
 #endif
 
+#ifndef thread_local
 #if DOT_COMPILER_MSVC
 #   define thread_local __declspec(thread)
 #elif DOT_COMPILER_GCC || DOT_COMPILER_CLANG
@@ -117,10 +120,11 @@
 #else
 #   error "No thread-local storage keyword available for this compiler"
 #endif
+#endif
 
 ////////////////////////////////////////////////////////////////
 //
-// Enum
+// Enum x Bitfield
 //
 // This is a way to get some consistency out of enum types in c
 // We should probably only care about this if we need to serialize
@@ -128,11 +132,14 @@
 // unhandled switch statement cases
 
 #define DOT_ENUM(T, name) T name; enum
+#define DOT_BIT(x) (1 << (x))
 
-#define DOT_ENUM_ARG(prefix, v) prefix##_##v,
-#define DOT_ENUM_STR(prefix, v) #v,
+#define DOT_X_ENUM_ARG(prefix, v) prefix##_##v,
+#define DOT_X_ENUM_STR(prefix, v) #v,
 
 #define CONST_INT_BLOCK enum
+
+
 
 ////////////////////////////////////////////////////////////////
 //
@@ -422,10 +429,16 @@ do { \
 
 #if DOT_COMPILER_MSVC
 #   define UNUSED(x) (__pragma(warning(suppress:4100))(x))
-#elif DOT_COMPILER_GCC
-#   define UNUSED(x) __attribute__((__unused__))(x)
 #else
 #   define UNUSED(x) ((void)(x))
+#endif
+
+#if DOT_COMPILER_MSVC
+#   define UNUSED_PARAM(x) (__pragma(warning(suppress:4100))(x))
+#elif DOT_COMPILER_GCC || DOT_COMPILER_CLANG
+#   define UNUSED_PARAM(x) x __attribute__((__unused__))
+#else
+#   define UNUSED_PARAM(x) x
 #endif
 
 ////////////////////////////////////////////////////////////////
@@ -435,13 +448,12 @@ do { \
 #define EACH_INDEX(it, count) (u64 it = 0; it < (count); ++it)
 #define EACH_ELEMENT(it, array) (u64 it = 0; it < ARRAY_COUNT(array); ++it)
 #define EACH_ENUM_VAL(type, it) \
-(type it = (type)0; it < type##_COUNT; it = (type)(it + 1))
+(type it = (type)0; it < type##_Count; it = (type)(it + 1))
 #define EACH_NON_ZERO_ENUM_VAL(type, it) \
-(type it = (type)1; it < type##_COUNT; it = (type)(it + 1))
+(type it = (type)1; it < type##_Count; it = (type)(it + 1))
 
 #define EACH_IN_RANGE(it, range) (u64 it = (range).min; it < (range).max; it += 1)
 #define EACH_NODE(it, T, first) (T *it = first; it != 0; it = it->next)
-
 
 ////////////////////////////////////////////////////////////////
 //

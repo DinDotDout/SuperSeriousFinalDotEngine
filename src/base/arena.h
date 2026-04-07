@@ -44,7 +44,7 @@ typedef struct ArenaInitParams{
     u64 commit_size; // Forced initial populate
 
     u64  commit_expand_size; // Commitsize after initial commit
-    bool large_pages;
+    b32 large_pages;
 
     // Debug
     char *name;
@@ -88,33 +88,36 @@ internal void   arena_print_debug(Arena *arena);
         __VA_ARGS__}
 
 #define ARENA_ALLOC(...) arena_alloc_(ARENA_DEFAULT_PARAMS(__VA_ARGS__))
-
-#define PUSH_SIZE_NO_ZERO(arena, size) \
-  arena_push(arena, size, ARENA_MAX_ALIGNMENT, false, __FILE__, __LINE__)
-
-#define PUSH_SIZE(arena, size) \
-    (u8*)arena_push(arena, size, ARENA_MAX_ALIGNMENT, true,__FILE__, __LINE__)
-
-#define PUSH_ARRAY_ALIGNED(arena, type, count, alignment) \
-    (type*)arena_push(arena, sizeof(type) * (count), alignment, true, __FILE__, __LINE__)
-
-#define PUSH_ARRAY(arena, type, count) \
-    PUSH_ARRAY_ALIGNED(arena, type, count, MAX(ARENA_MAX_ALIGNMENT, ALIGNOF(type)))
-
-#define PUSH_ARRAY_NO_ZERO(arena, type, count) \
-  (type*)arena_push(arena, sizeof(type) * (count), \
-                     MAX(ARENA_MAX_ALIGNMENT, ALIGNOF(type)), false, __FILE__, __LINE__)
-
-#define PUSH_STRUCT(arena, T) PUSH_ARRAY(arena, T, 1)
-
-#define PUSH_SLICE(arena, T, c) \
-    {.data = PUSH_ARRAY(arena, T, c), .count = (c)}
-
-#define PUSH_SLICE_LIT(arena, slice_type, T, c) \
-    (slice_type){.data = PUSH_ARRAY(arena, T, c), .count= (c)}
-
-
 #define ARENA_RESET(arena) arena_reset(arena, __FILE__, __LINE__)
 #define ARENA_FREE(arena) arena_free(arena, __FILE__, __LINE__)
+
+
+#define ARENA_PUSH(arena, size, alignment, zero) \
+    arena_push((arena), (size), (alignment), (zero), __FILE__, __LINE__)
+
+#define PUSH_SIZE_NO_ZERO(arena, size) \
+    ARENA_PUSH(arena, (size), ARENA_MAX_ALIGNMENT, false)
+
+#define PUSH_SIZE(arena, size) \
+    ARENA_PUSH(arena, size, ARENA_MAX_ALIGNMENT, true)
+
+#define PUSH_ARRAY_ALIGNED(arena, T, count, alignment) \
+    (T*)ARENA_PUSH(arena, sizeof(T) * (count), (alignment), true)
+
+#define PUSH_ARRAY(arena, T, count) \
+    (T*)ARENA_PUSH(arena, sizeof(T) * (count), \
+                MAX(ARENA_MAX_ALIGNMENT, ALIGNOF(T)), true)
+
+#define PUSH_ARRAY_NO_ZERO(arena, T, count) \
+   (T*)ARENA_PUSH(arena, sizeof(T) * (count), \
+                MAX(ARENA_MAX_ALIGNMENT, ALIGNOF(T)), false)
+
+#define PUSH_STRUCT(arena, T) (T*)PUSH_ARRAY(arena, T, 1)
+
+// (jd) NOTE: Experiments. Clang seems to optimize the copy pretty well
+#define PUSH_COPY(arena, T, src) MEM_COPY_STRUCT(PUSH_ARRAY_NO_ZERO(arena, T, 1), (src))
+#define PUSH_COPY_LIT(arena, T, src) MEM_COPY_STRUCT(PUSH_ARRAY_NO_ZERO(arena, T, 1), &(T)src)
+#define PUSH_SLICE(arena, T, c) {.data = PUSH_ARRAY(arena, T, c), .count = (c)}
+#define PUSH_SLICE_LIT(arena, slice_type, T, c) (slice_type){.data = PUSH_ARRAY(arena, T, c), .count= (c)}
 
 #endif // !ARENA_H

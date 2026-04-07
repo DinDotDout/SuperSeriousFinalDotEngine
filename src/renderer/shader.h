@@ -8,25 +8,19 @@ CONST_INT_BLOCK ShaderCacheConfigValues{
 };
 DOT_STATIC_ASSERT(IS_POW2(SHADER_CACHE_SHADER_COUNT));
 
-// typedef struct DOT_Asset{
-//     String8 name;
-//     String8 path;
-//     u64     last_modified;
-// }DOT_Asset;
-
 typedef struct ShaderCacheConfig{
     u32 shader_modules_count;
 }ShaderCacheConfig;
 
 typedef struct DOT_ShaderModuleHandle{
-    u64 handle[1];
+    DOT_AssetHandle handle;
 }DOT_ShaderModuleHandle;
+
 read_only DOT_ShaderModuleHandle shader_module_handle_null = {0};
 
 typedef struct DOT_ShaderModule{
-    // DOT_Asset asset;
+    DOT_Asset asset;
     DOT_ShaderModuleHandle shader_module_handle;
-    String8 path;
     String8 compiled_path;
 }DOT_ShaderModule;
 
