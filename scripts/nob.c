@@ -3,8 +3,20 @@
 #include "../src/third_party/nob.h/nob.h"
 Nob_Log_Level nob_minimal_log_level = NOB_NO_LOGS;
 
-#define BUILD_FOLDER "build/"
+#define VA_ARG_COUNT_T(T, ...) (sizeof((T[])__VA_ARGS__) / sizeof(T))
+#define SLICE(T, ...) \
+    .items = (T[])__VA_ARGS__, .count = VA_ARG_COUNT_T(T, __VA_ARGS__)
+
+#define ARG_LIST(...)                                               \
+    (ArgList) {                                                     \
+        .items = (const char *[]){__VA_ARGS__},                     \
+        .count = (sizeof((char *[]){__VA_ARGS__}) / sizeof(char *)) \
+    }
+
+#define OUTPUT_FOLDER "build/"
 #define SRC_FOLDER   "src/dot_engine/"
+
+#define SCRIPTS_FOLDER "scripts/"
 
 #if defined(_WIN32)
 #   define AUTO_PLATFORM PlatformKind_Windows
@@ -111,12 +123,6 @@ typedef struct {
     ArgList inputs;
 } PlatformConfig;
 
-#define ARG_LIST(...)                                               \
-    (ArgList) {                                                     \
-        .items = (const char *[]){__VA_ARGS__},                     \
-        .count = (sizeof((char *[]){__VA_ARGS__}) / sizeof(char *)) \
-    }
-
 static PlatformConfig platform_cfg[] = {
     [PlatformKind_LinuxX11] = {
         .defines = {},
@@ -154,16 +160,22 @@ static CompilerConfig compiler_cfg[] = {
         .base = ARG_LIST("-std=c99",
             "-Wall", "-Wextra", "-Wno-override-init",
             "-Wdiv-by-zero", "-Wno-unused-function",
-            "-Werror=vla",),
+            // "-Wno-unused-parameter",
+            "-Werror=vla",
+        ),
         .opt = {
             [OptimizationLevelKind_Debug] =
-                ARG_LIST("-O0", "-g",
+                ARG_LIST(
+                    "-O0", 
+                    "-g",
                 "-fsanitize=address,undefined",
-                "-fsanitize-recover=address,undefined",),
+                "-fsanitize-recover=address,undefined",
+                ),
             [OptimizationLevelKind_Release] =
                 ARG_LIST("-O2", "-g",
-                "-fsanitize=address,undefined",
-                "-fsanitize-recover=address,undefined",),
+                // "-fsanitize=address,undefined",
+                // "-fsanitize-recover=address,undefined",
+            ),
             [OptimizationLevelKind_Final] =
                 ARG_LIST("-O3", "-DNDEBUG",),
         },
@@ -212,10 +224,201 @@ static CompilerKind detect_compiler(void) {
     exit(1);
 }
 
+// typedef struct ExternalLibs ExternalLibs;
+// typedef struct ExternalLibs{
+//     struct Lib{
+//         const char *URL;
+//         const char *rev;
+//     } *items;
+//     int count;
+// }ExternalLibs;
+typedef enum ExternalKind{
+    ExternalKind_Git,
+    ExternalKind_RegularAsset,
+}ExternalKind;
+
+typedef struct ExternalAsset{
+    ExternalKind kind;
+    union {
+        struct{
+            enum GitAssetKind{
+                GitAssetKind_AsGit,
+                GitAssetKind_AsZip,
+            }kind;
+            const char *URL;
+            const char *rev;
+        }git_asset;
+        struct{
+            const char *URL;
+        }asset;
+    };
+}ExternalAsset;
+
+typedef struct ExternalAssets{
+    ExternalAsset *items;
+    int count;
+    const char* output_path;
+}ExternalAssets;
+
+static const ExternalAssets assets = {
+    .output_path = "assets/",
+    SLICE(ExternalAsset, {
+        {.kind = ExternalKind_Git, .git_asset = {GitAssetKind_AsZip, "https://github.com/KhronosGroup/glTF-Sample-Models", "8e9a5a6ad1a2790e2333e3eb48a1ee39f9e0e31b"}},
+    }
+)};
+
+void download_assets(void)
+{
+    // Ensure the root output folder exists
+    mkdir_if_not_exists(assets.output_path);
+    for (int i = 0; i < assets.count; ++i) {
+        ExternalAsset *asset = &assets.items[i];
+
+        //
+        // Regular asset (simple file download)
+        //
+        if (asset->kind == ExternalKind_RegularAsset) {
+            const char *url = asset->asset.URL;
+
+            const char *last_slash = strrchr(url, '/');
+            const char *filename = last_slash ? last_slash + 1 : "asset.bin";
+
+            char out_path[512];
+            snprintf(out_path, sizeof(out_path),
+                     "%s/%s", assets.output_path, filename);
+
+            if(nob_file_exists(out_path)){
+                printf("Already have regular asset: %s\n", out_path);
+                continue;
+            }
+
+            Nob_Cmd cmd = {0};
+            nob_cmd_append(&cmd, "curl");
+            nob_cmd_append(&cmd, "-L");
+            nob_cmd_append(&cmd, "-o");
+            nob_cmd_append(&cmd, out_path);
+            nob_cmd_append(&cmd, url);
+            nob_cmd_run(&cmd);
+
+            continue;
+        }
+
+        //
+        // Git asset
+        //
+        const char *url = asset->git_asset.URL;
+        const char *rev = asset->git_asset.rev;
+
+        const char *last_slash = strrchr(url, '/');
+        const char *repo_name = last_slash ? last_slash + 1 : "repo";
+
+        //
+        // ZIP MODE
+        //
+        if (asset->git_asset.kind == GitAssetKind_AsZip) {
+
+            char extract_dir[512];
+            snprintf(extract_dir, sizeof(extract_dir), "%s/%s-%s",
+                     assets.output_path, repo_name, rev);
+
+            if(nob_file_exists(extract_dir)) {
+                printf("Already have git-zip asset: %s\n", extract_dir);
+                continue;
+            }
+
+            mkdir_if_not_exists(extract_dir);
+
+            char archive_url[512];
+            snprintf(archive_url, sizeof(archive_url),
+                     "%s/archive/%s.zip", url, rev);
+
+            char zip_path[512];
+            snprintf(zip_path, sizeof(zip_path),
+                     "%s/%s-%s.zip",
+                     assets.output_path, repo_name, rev);
+
+            // curl -L -o zip_path archive_url
+            {
+                Nob_Cmd cmd = {0};
+                nob_cmd_append(&cmd, "curl");
+                nob_cmd_append(&cmd, "-L");
+                nob_cmd_append(&cmd, "-o");
+                nob_cmd_append(&cmd, zip_path);
+                nob_cmd_append(&cmd, archive_url);
+                nob_cmd_run(&cmd);
+            }
+
+            // unzip zip_path -d extract_dir
+            {
+                Nob_Cmd cmd = {0};
+                nob_cmd_append(&cmd, "unzip");
+                nob_cmd_append(&cmd, zip_path);
+                nob_cmd_append(&cmd, "-d");
+                nob_cmd_append(&cmd, extract_dir);
+                nob_cmd_run(&cmd);
+            }
+
+            continue;
+        }
+
+        //
+        // GIT MODE
+        //
+        if (asset->git_asset.kind == GitAssetKind_AsGit) {
+
+            char clone_dir[512];
+            snprintf(clone_dir, sizeof(clone_dir),
+                     "%s/%s", assets.output_path, repo_name);
+
+            if(nob_file_exists(clone_dir) == 1){
+                printf("Already have git asset: %s\n", clone_dir);
+                continue;
+            }
+
+            // git clone --recurse-submodules url clone_dir
+            {
+                Nob_Cmd cmd = {0};
+                nob_cmd_append(&cmd, "git");
+                nob_cmd_append(&cmd, "clone");
+                nob_cmd_append(&cmd, "--recurse-submodules");
+                nob_cmd_append(&cmd, url);
+                nob_cmd_append(&cmd, clone_dir);
+                nob_cmd_run(&cmd);
+            }
+
+            // git -C clone_dir checkout rev
+            {
+                Nob_Cmd cmd = {0};
+                nob_cmd_append(&cmd, "git");
+                nob_cmd_append(&cmd, "-C");
+                nob_cmd_append(&cmd, clone_dir);
+                nob_cmd_append(&cmd, "checkout");
+                nob_cmd_append(&cmd, rev);
+                nob_cmd_run(&cmd);
+            }
+
+            // git -C clone_dir submodule update --init --recursive
+            {
+                Nob_Cmd cmd = {0};
+                nob_cmd_append(&cmd, "git");
+                nob_cmd_append(&cmd, "-C");
+                nob_cmd_append(&cmd, clone_dir);
+                nob_cmd_append(&cmd, "submodule");
+                nob_cmd_append(&cmd, "update");
+                nob_cmd_append(&cmd, "--init");
+                nob_cmd_append(&cmd, "--recursive");
+                nob_cmd_run(&cmd);
+            }
+
+            continue;
+        }
+    }
+}
+
 int main(int argc, char **argv)
 {
     NOB_GO_REBUILD_URSELF(argc, argv);
-    mkdir_if_not_exists(BUILD_FOLDER);
+    mkdir_if_not_exists(OUTPUT_FOLDER);
     // See detect_compiler
     // flags.compiler = detect_compiler();
     for (int i = 1; i < argc; i++) {
@@ -238,9 +441,9 @@ int main(int argc, char **argv)
         }
     }
 
+    // download_assets();
     Nob_Cmd cmd = {0};
     nob_cmd_append(&cmd, compiler_kind_str[flags.compiler]);
-
     CompilerConfig *ccfg = &compiler_cfg[flags.compiler];
     nob_cmd_extend(&cmd, &ccfg->base);
     nob_cmd_extend(&cmd, &ccfg->opt[flags.opt]);
@@ -271,14 +474,20 @@ int main(int argc, char **argv)
         // libs already added via platform_cfg for Windows
     }else{
         nob_cmd_append(&cmd, "-lm", "-lvulkan",  "-lpthread");
-        nob_cmd_append(&cmd, "-I", "src/", "-Wl,-Tscripts/plugins_section.ld");
+        nob_cmd_append(&cmd, "-I", "src/");
+        // nob_cmd_append(&cmd, "-Wl,-T"SCRIPTS_FOLDER"phdrs.ld");
+        // nob_cmd_append(&cmd, "-Wl,-T"SCRIPTS_FOLDER"rodata.ld");
+        nob_cmd_append(&cmd, "-Wl,-T"SCRIPTS_FOLDER"plugins_section.ld");
+
+
+        // nob_cmd_append(&cmd, " -Wl,-z,rosegment ");
     }
 
     nob_cc_inputs(&cmd, SRC_FOLDER "dot_engine.c");
-    nob_cc_output(&cmd, BUILD_FOLDER "dot_engine");
+    nob_cc_output(&cmd, OUTPUT_FOLDER "dot_engine");
 
     nob_log(INFO, "[*] Compiling...");
-    if (!nob_cmd_run_sync(cmd)) return 1;
+    if (!nob_cmd_run(&cmd)) return 1;
 
     return 0;
 }
