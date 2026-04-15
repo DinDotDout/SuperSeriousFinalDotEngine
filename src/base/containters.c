@@ -10,7 +10,7 @@ internal u8*
 pool_obtain(Pool *p, PoolHandle h, u32 elem_size)
 {
     u32 idx = h.handle[0];
-    DOT_ASSERT(idx < p->elem_count, "Pool exceeded its capacity");
+    DOT_ASSERT(idx < p->elem_count, "Invalid pool handle");
     u32 elem_idx = p->idx_buffer[p->elem_current];
     u8 *res = raw_buffer_get(p->raw_buffer, elem_idx, elem_size);
     return res;
@@ -20,9 +20,8 @@ internal PoolHandle
 pool_get_handle(Pool *p)
 {
     DOT_ASSERT(p->elem_current+1 < p->elem_count, "Pool exceeded its capacity");
-    u32 next_idx = p->elem_current+1;
-    PoolHandle ret = { .handle[0] = next_idx};
     ++p->elem_current;
+    PoolHandle ret = { .handle[0] = p->elem_current};
     return ret;
 }
 
@@ -33,9 +32,8 @@ pool_free_handle(Pool *p, PoolHandle h)
     if(idx == 0){
         return;
     }
-
-    u32 *idx_buffer = p->idx_buffer; 
-    DOT_SWAP(u32, idx_buffer[p->elem_current+1], idx_buffer[idx]);
+    DOT_SWAP(u32, p->idx_buffer[p->elem_current], p->idx_buffer[idx]);
+    --p->elem_current;
 }
 
 internal void
