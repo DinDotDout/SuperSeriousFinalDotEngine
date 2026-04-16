@@ -6,10 +6,10 @@ raw_buffer_get(u8 raw_buffer[], i32 idx, u32 elem_size)
 }
 
 // Reserve 0 for default and zero every time we hand it?
-internal u8*
+internal void*
 pool_obtain(Pool *p, PoolHandle h, u32 elem_size)
 {
-    u32 idx = h.handle[0];
+    u32 idx = h;
     if(idx == 0){
         u8 *ptr = raw_buffer_get(p->raw_buffer, 0, elem_size);
         MEMORY_ZERO(ptr,  elem_size);
@@ -24,16 +24,15 @@ pool_obtain(Pool *p, PoolHandle h, u32 elem_size)
 internal PoolHandle
 pool_get_handle(Pool *p)
 {
-    DOT_ASSERT(p->elem_current+1 < p->elem_count, "Pool exceeded its capacity");
-    ++p->elem_current;
-    PoolHandle ret = { .handle[0] = p->elem_current};
-    return ret;
+    DOT_ASSERT(p->elem_current < p->elem_count, "Pool exceeded its capacity");
+    PoolHandle h = p->elem_current++;
+    return h;
 }
 
 internal void
 pool_free_handle(Pool *p, PoolHandle h, u32 elem_size)
 {
-    u32 idx = h.handle[0];
+    u32 idx = h;
     if(idx == 0){
         return;
     }
