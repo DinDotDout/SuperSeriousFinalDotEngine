@@ -1,57 +1,56 @@
 internal u8*
-raw_buffer_get(u8 raw_buffer[], i32 idx, u32 elem_size)
+raw_buffer_get(u8 raw_buffer[], i32 elem_idx, u32 elem_size)
 {
-    u8 *res = &raw_buffer[idx*elem_size];
+    u8 *res = &raw_buffer[elem_idx*elem_size];
     return res;
 }
 
 // Reserve 0 for default and zero every time we hand it?
 internal void*
-pool_obtain(Pool *p, PoolHandle h, u32 elem_size)
+pool_handle_access(Pool *p, PoolHandle h, u32 elem_size)
 {
-    u32 idx = h;
-    if(idx == 0){
-        u8 *ptr = raw_buffer_get(p->raw_buffer, 0, elem_size);
-        MEMORY_ZERO(ptr,  elem_size);
-        return ptr;
+    DOT_ASSERT(h < p->capacity, "Invalid pool handle");
+    void *elem = raw_buffer_get(p->raw_buffer, h, elem_size);
+    if(h == 0){
+        MEMORY_ZERO(elem, elem_size);
     }
-    DOT_ASSERT(idx < p->elem_count, "Invalid pool handle");
-    u32 elem_idx = p->idx_buffer[p->elem_current];
-    u8 *res = raw_buffer_get(p->raw_buffer, elem_idx, elem_size);
-    return res;
+    return elem;
 }
 
 internal PoolHandle
-pool_get_handle(Pool *p)
+pool_handle_get(Pool *p, u32 elem_size)
 {
-    DOT_ASSERT(p->elem_current < p->elem_count, "Pool exceeded its capacity");
-    PoolHandle h = p->elem_current++;
+    if(!(p->count < p->capacity)){
+       DOT_WARNING("Pool capacity, exceeded, returning zero handle"); 
+       return 0;
+    }
+    PoolHandle h = p->idx_buffer[p->count];
+    p->count += 1;
+    void *elem = raw_buffer_get(p->raw_buffer, h, elem_size);
+    MEMORY_ZERO(elem, elem_size);
     return h;
 }
 
 internal void
-pool_free_handle(Pool *p, PoolHandle h, u32 elem_size)
+pool_handle_free(Pool *p, PoolHandle h)
 {
-    u32 idx = h;
-    if(idx == 0){
+    if(h == 0 || p->count == 1){
         return;
-    }
-
-    u8 *ptr = raw_buffer_get(p->raw_buffer, p->idx_buffer[idx], elem_size);
-    MEMORY_ZERO(ptr,  elem_size);
-
-    DOT_SWAP(u32, p->idx_buffer[p->elem_current], p->idx_buffer[idx]);
-    --p->elem_current;
+    } 
+    // DOT_SWAP(u32, p->idx_buffer[p->count+1], p->idx_buffer[h]);
+    p->count -= 1;
+    p->idx_buffer[p->count] = h;
 }
 
 internal void
-pool_init(Arena *arena, Pool *p, u32 elem_count, u32 elem_size, u32 alignment)
+pool_init(Arena *arena, Pool *p, u32 capacity, u32 elem_size, u32 alignment)
 {
-    p->elem_count = elem_count;
-    p->raw_buffer = PUSH_ARRAY_ALIGNED(arena, u8, elem_count*elem_size, alignment);
-    p->idx_buffer = PUSH_ARRAY_NO_ZERO(arena, u32, elem_count);
-    p->elem_current = 0;
-    for EACH_INDEX(i, elem_count){
+    MEMORY_ZERO_STRUCT(p);
+    p->capacity = capacity;
+    p->raw_buffer = PUSH_ARRAY_NO_ZERO_ALIGNED(arena, u8, capacity*elem_size, alignment);
+    p->idx_buffer = PUSH_ARRAY_NO_ZERO(arena, u32, capacity);
+    p->count = 1;
+    for EACH_INDEX(i, capacity){
        p->idx_buffer[i] = i;
     }
 }
