@@ -7,7 +7,7 @@
 // specify initial commit size as well as how often subsequent ones will force
 // prefaulting again. Optionally, on LINUX we may use huge pages through THP
 
-#define ARENA_MAX_ALIGNMENT 16
+#define ARENA_MAX_ALIGNMENT 8
 #define ARENA_MIN_CAPACITY KB(16)
 
 typedef enum ArenaKind{
@@ -18,18 +18,20 @@ typedef enum ArenaKind{
     ArenaKind_Count,
 }ArenaKind;
 
+// NOTE: try to keep fitting in a chache line
 typedef struct Arena Arena;
 struct Arena{
+    Arena *parent; // Can be null, possible memory owner
+
     u64 used;
     u8 *base;
 
     u64 reserved; // Total usable memory
     u64 committed;
-    b32 large_pages;
     u64 commit_expand_size;
 
-    Arena *parent;
     ArenaKind kind;
+    b32 large_pages;
 
     // Debug
     char *name;
@@ -73,7 +75,7 @@ internal Arena* arena_alloc_from_arena(ArenaInitParams *params);
 internal Arena* arena_alloc_from_os(ArenaInitParams *params);
 internal void   arena_reset(Arena *arena, char *file, u32 line);
 internal void   arena_free(Arena *arena, char *file, u32 line);
-internal void*  arena_push(Arena *arena, usize size, usize alignment, b32 zero, char *file, u32 line);
+internal u8* arena_push(Arena *arena, usize size, usize alignment, b32 zero, char *file, u32 line);
 internal void   arena_print_debug(Arena *arena);
 
 #define ARENA_DEFAULT_PARAMS(...) \
@@ -85,12 +87,12 @@ internal void   arena_print_debug(Arena *arena);
         .reserve_file       = __FILE__, \
         .reserve_line       = __LINE__, \
         .name               = "Default", \
-        __VA_ARGS__}
+        __VA_ARGS__ \
+    }
 
 #define ARENA_ALLOC(...) arena_alloc_(ARENA_DEFAULT_PARAMS(__VA_ARGS__))
 #define ARENA_RESET(arena) arena_reset(arena, __FILE__, __LINE__)
 #define ARENA_FREE(arena) arena_free(arena, __FILE__, __LINE__)
-
 
 #define ARENA_PUSH(arena, size, alignment, zero) \
     arena_push((arena), (size), (alignment), (zero), __FILE__, __LINE__)
@@ -105,12 +107,10 @@ internal void   arena_print_debug(Arena *arena);
     (T*)ARENA_PUSH(arena, sizeof(T) * (count), (alignment), true)
 
 #define PUSH_ARRAY(arena, T, count) \
-    (T*)ARENA_PUSH(arena, sizeof(T) * (count), \
-                MAX(ARENA_MAX_ALIGNMENT, ALIGNOF(T)), true)
+    (T*)ARENA_PUSH(arena, sizeof(T) * (count), MAX(ARENA_MAX_ALIGNMENT, ALIGNOF(T)), true)
 
 #define PUSH_ARRAY_NO_ZERO(arena, T, count) \
-   (T*)ARENA_PUSH(arena, sizeof(T) * (count), \
-                MAX(ARENA_MAX_ALIGNMENT, ALIGNOF(T)), false)
+   (T*)ARENA_PUSH(arena, sizeof(T) * (count), MAX(ARENA_MAX_ALIGNMENT, ALIGNOF(T)), false)
 
 #define PUSH_STRUCT(arena, T) (T*)PUSH_ARRAY(arena, T, 1)
 

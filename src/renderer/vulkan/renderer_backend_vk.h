@@ -119,7 +119,6 @@ typedef struct RBVK_Device{
     VkPhysicalDevice gpu;
     b32              is_integrated_gpu;
 
-
     VkQueue graphics_queue;
     u32     graphics_queue_idx;
 
@@ -143,14 +142,46 @@ typedef struct RBVK_Device{
 //
 // };
 
-typedef struct RBVK_Image{
-    VkImage     image;
-    VkImageView image_view;
-    VkFormat    image_format;
-    VkExtent3D  extent;
+typedef struct RBVK_Buffer{
+    VkBuffer        buffer;
+    VkDeviceMemory  memory;
+    VkDeviceSize    offset;
+    VkDeviceSize    size;
+    String8 name;
+}RBVK_Buffer;
+
+typedef struct RBVK_Sampler{
+    VkSampler            vk_sampler;
+
+    VkFilter             vk_min_filter; // = VK_FILTER_NEAREST
+    VkFilter             vk_mag_filter; // = VK_FILTER_NEAREST
+    VkSamplerMipmapMode  vk_mip_filter; // = VK_SAMPLER_MIPMAP_MODE_NEAREST
+
+    VkSamplerAddressMode vk_address_mode_u; // = VK_SAMPLER_ADDRESS_MODE_REPEAT
+    VkSamplerAddressMode vk_address_mode_v; // = VK_SAMPLER_ADDRESS_MODE_REPEAT
+    VkSamplerAddressMode vk_address_mode_w; // = VK_SAMPLER_ADDRESS_MODE_REPEAT
+
+    String8 name;
+}RBVK_Sampler;
+
+typedef struct RBVK_Texture{
+    VkImage     vk_image;
+    VkImageView vk_image_view;
+    VkExtent3D  vk_extent3d;
+
+    VkFormat    vk_format; // DOT_TEXTURE_FORMAT to vk
+    // DOT_TextureDimensionKind // needed?
+    VkImageLayout vk_image_layout;
+
     // Store layout here for transitioning from one the other and only provide target layout?
     VkMemory_Alloc alloc;
-}RBVK_Image;
+    u8 mip_levels;
+    u8 flags; // Needed?
+
+    RBVK_Sampler *sampler;
+
+    String8 name;
+}RBVK_Texture;
 
 typedef struct RBVK_SwapchainImageData{
     VkImage image;
@@ -197,7 +228,7 @@ typedef struct RendererBackendVk{
     u8                    frame_data_count;
     array(RBVK_FrameData) frame_datas;
 
-    RBVK_Image      draw_image;
+    RBVK_Texture      draw_image;
     // NOTE: Splitting this from actual draw_image so that we can draw regions?
     VkExtent2D      draw_extent;
 
@@ -216,6 +247,8 @@ typedef struct RendererBackendVk{
     // VkDescriptorSet compute_set;
 
     VkMemory_Pools memory_pools;
+    POOL(RBVK_Texture) texture_pool;
+
     // NOTE: vk expects a malloc like allocator, which I don't intend on make or using for now
     // so our push arenas do not work for this :(
     VkAllocationCallbacks    vk_allocator;
@@ -235,8 +268,10 @@ internal void renderer_backend_vk_merge_settings(RendererBackendConfig *backend_
 
 // Internal API
 internal RendererBackendVk* renderer_backend_as_vk(RendererBackend *base);
-internal RBVK_Image         rbvk_create_image(RendererBackendVk *ctx, VkImageCreateInfo *image_info);
-internal void               rbvk_destroy_image(RendererBackendVk *ctx, RBVK_Image *image);
+
+internal RBVK_Texture rbvk_texture_create(VkImageCreateInfo *image_info);
+internal void         rbvk_destroy_image(RBVK_Texture *image);
+
 internal DOT_ShaderModuleHandle rbvk_dot_shader_module_from_vk_shader_module(VkShaderModule vk_sm);
 internal VkShaderModule         rbvk_vk_shader_module_from_dot_shader_module(DOT_ShaderModuleHandle dot_smh);
 

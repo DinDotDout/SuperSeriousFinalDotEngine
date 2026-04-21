@@ -6,7 +6,7 @@
 #   include "os/os_windows.h"
 #endif
 
-CONST_INT_BLOCK{
+DOT_CONST_INT_BLOCK{
     PLATFORM_REGULAR_PAGE_SIZE = KB(4),
     PLATFORM_LARGE_PAGE_SIZE = MB(2),
 };

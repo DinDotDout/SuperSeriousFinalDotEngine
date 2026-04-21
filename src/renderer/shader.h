@@ -3,7 +3,7 @@
 
 #define DOT_COMPILED_SHADER_PATH "src/game/compiled_shaders/"
 
-CONST_INT_BLOCK ShaderCacheConfigValues{
+DOT_CONST_INT_BLOCK ShaderCacheConfigValues{
     SHADER_CACHE_SHADER_COUNT = 64,
 };
 DOT_STATIC_ASSERT(IS_POW2(SHADER_CACHE_SHADER_COUNT));

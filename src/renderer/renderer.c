@@ -28,7 +28,7 @@ renderer_init(Arena *arena, DOT_Renderer *renderer, DOT_Window *window, Renderer
     //         .reserve_size = renderer_config->frame_arena_size);
     // }
     RENDER_BACKEND_CALL(init(window));
-    DOT_TextureHandle null_texture = renderer_create_texture(
+    null_texture = renderer_create_texture(
         renderer,
         &(DOT_TextureCreateInfo) {
                 .texture_desc = {
@@ -43,7 +43,7 @@ renderer_init(Arena *arena, DOT_Renderer *renderer, DOT_Window *window, Renderer
     );
     (void)null_texture;
 }
-// init gui state
+
 internal void
 renderer_shutdown(DOT_Renderer *renderer)
 {
@@ -289,24 +289,22 @@ renderer_create_texture(DOT_Renderer *renderer, DOT_TextureCreateInfo *create_in
                 create_info->data = stbi_load_from_memory(file_data.str, file_data.size, cast(int*)&texture_desc->width, cast(int*)&texture_desc->height, &comp, STBI_default);
                 size_bytes = 1;
             }
-            // (JD) NOTE: We assume we read srgb always for now
+            // (jd) NOTE: We assume we read srgb always for now
             create_info->texture_desc.format_kind = renderer_pick_texture_format(comp, size_bytes, true);
         }else{
             DOT_WARNING("No texture data nor asset path passed set");
         }
     }
-    bool has_mips = texture_desc->mip_levels > 0;
-    if(create_info->create_mips || has_mips){
-        if(texture_desc->mip_levels == 0){
-            texture_desc->mip_levels = 1;
-            u32 mip_w = texture_desc->width;
-            u32 mip_h = texture_desc->height;
-            for(;mip_w > 1 && mip_h > 1; ++texture_desc->mip_levels){
-                mip_w /= 2;
-                mip_h /= 2;
-            }
+    if(texture_desc->mip_levels == 0){
+        texture_desc->mip_levels = 1;
+        u32 mip_w = texture_desc->width;
+        u32 mip_h = texture_desc->height;
+        for(;mip_w > 1 && mip_h > 1; ++texture_desc->mip_levels){
+            mip_w /= 2;
+            mip_h /= 2;
         }
     }
+
     DOT_TextureHandle handle = RENDER_BACKEND_CALL(create_texture(create_info));
     temp_arena_restore(temp);
     return handle;

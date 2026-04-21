@@ -15,7 +15,7 @@ internal inline Arena*
 arena_alloc_(ArenaInitParams *params){
     Arena* arena;
     if(params->buffer){
-        // NOTE: Keeping this use case just in case, if we ever end up using it
+        // NOTE: Keeping this use case just in case. If we ever end up using it
         // we will have to add some check to not try to free the handed buffer as
         // the arena will not really own it
         // DOT_ERROR("Not sure we will ever use this directly?");
@@ -32,10 +32,21 @@ arena_alloc_from_memory(ArenaInitParams *params){
     DOT_ASSERT_FL(params->buffer != NULL, params->reserve_file, params->reserve_line, "Invalid memory provided");
     DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Allocating arena from buffer");
     // NOTE: Since we don't own the memory it must be backed and we assume it is committed (reserve == commit)
-    Arena* arena              = cast(Arena*) params->buffer;
-    arena->base               = params->buffer;
-    arena->reserved           = params->reserve_size;
-    arena->committed          = params->reserve_size;
+
+    DOT_ASSERT_FL(params->buffer != NULL, params->reserve_file, params->reserve_line, "Invalid memory provided");
+    uptr base = cast(uptr)params->buffer;
+    uptr align = ALIGN_POW2(base, ALIGNOF(Arena));
+    iptr diff = align - base;
+    printf("%td\n", ALIGNOF(Arena));
+    printf("%td\n", align);
+    printf("%td\n", base);
+
+    printf("%td\n", diff);
+
+    Arena* arena              = cast(Arena*)align;
+    arena->base               = cast(u8*)align;
+    arena->reserved           = params->reserve_size-diff;
+    arena->committed          = params->reserve_size-diff;
     arena->commit_expand_size = params->commit_expand_size;
     arena->large_pages        = params->large_pages;
     arena->name               = params->name;
@@ -99,24 +110,31 @@ arena_reset(Arena *arena, char *file, u32 line){
 
 internal void
 arena_free(Arena *arena, char *file, u32 line){
-    DOT_ASSERT_FL(arena->kind == ArenaKind_FromOS, file, line, "Trying to free sub-arena '%s' with parent '%s'!\nThis arena does not own the memory!", arena->name, arena->parent->name);
     u64 reserved = arena->reserved;
     void* base = arena->base;
-    DOT_PRINT("Arena \"%s\": freed %M", arena->name, arena->reserved);
     arena->used = 0;
     arena->reserved = 0;
     arena->commit_expand_size = 0;
+    if(arena->kind != ArenaKind_FromOS){
+        if(arena->parent){
+            DOT_WARNING_FL(file, line, "Trying to free sub-arena '%s' with parent '%s'!\nThis arena does not own the memory!", arena->name, arena->parent->name);
+        }else{
+            DOT_WARNING_FL(file, line, "Trying to free sub-arena '%s!\nThis arena does not own the memory!", arena->name, arena->parent->name);
+        }
+        return;
+    }
+    DOT_PRINT("Arena \"%s\": freed %M", arena->name, arena->reserved);
     os_release(cast(void*)base, reserved);
 }
 
-internal void*
+internal u8*
 arena_push(Arena *arena, usize alloc_size, usize alignment, b32 zero, char *file, u32 line){
     DOT_ASSERT(arena->kind != ArenaKind_Null);
     DOT_ASSERT_FL(alloc_size > 0, file, line);
     uptr arena_base = cast(uptr)arena->base;
     uptr current_address =  arena_base + arena->used;
     uptr aligned_address = ALIGN_POW2(current_address, alignment);
-    void *mem_offset = cast(void*) aligned_address;
+    u8 *mem_offset = (u8*) aligned_address;
     DOT_ASSERT_FL((aligned_address % alignment) == 0, file, line, "Unaligned address");
     usize required_padded = aligned_address - current_address + alloc_size;
     arena->used += required_padded;

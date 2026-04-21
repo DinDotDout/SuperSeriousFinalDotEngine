@@ -1,5 +1,6 @@
 #ifndef VK_HELPER_H
 #define VK_HELPER_H
+#include "renderer/renderer.h"
 #include <vulkan/vk_enum_string_helper.h>
 
 typedef struct VkHelper_SwapchainDetails{
@@ -175,6 +176,19 @@ vk_helper_present_mode_kind_to_vk_present_mode_khr(RendererPresentModeKind prese
       DOT_WARNING("Unsuported requested present mode %s, defaulting to "
                   "VK_PRESENT_MODE_IMMEDIATE_KHR", renderer_present_mode_kind_str[present_mode]);
       return VK_PRESENT_MODE_IMMEDIATE_KHR;
+    }
+}
+
+internal VkImageType
+vk_helper_texture_dimension_to_vk_image_type(DOT_TextureDimensionKind texture_dimension)
+{
+    switch(texture_dimension){
+    case DOT_TextureDimension_1D: return VK_IMAGE_TYPE_1D;
+    case DOT_TextureDimension_2D: return VK_IMAGE_TYPE_2D;
+    case DOT_TextureDimension_3D: return VK_IMAGE_TYPE_3D;
+    case DOT_TextureDimension_Array1D: return VK_IMAGE_TYPE_1D;
+    case DOT_TextureDimension_Array2D: return VK_IMAGE_TYPE_2D;
+    case DOT_TextureDimension_Array3D: return VK_IMAGE_TYPE_3D;
     }
 }
 

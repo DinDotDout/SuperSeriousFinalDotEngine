@@ -4,6 +4,7 @@
 tags
 tags.sh
 build
-src/gen_wayland/
+src/gen-wayland/
+assets/glTF-Sample-Models.*
 vulkan_tags
 generated_protocols

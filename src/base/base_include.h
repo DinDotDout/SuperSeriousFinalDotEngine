@@ -13,6 +13,7 @@
 #include "base/platform.h"
 #include "base/math.h"
 #include "base/thread_ctx.h"
+#include "base/containters.h"
 
 #include "base/dot.c"
 #define STB_SPRINTF_IMPLEMENTATION
@@ -20,5 +21,6 @@
 #include "base/arena.c"
 #include "base/string.c"
 #include "base/thread_ctx.c"
+#include "base/containters.c"
 
 #endif // !BASE_INC_H

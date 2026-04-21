@@ -1,7 +1,6 @@
 #ifndef RENDERER_H
 #define RENDERER_H
 
-#include "dot_engine/dot_engine.h"
 typedef enum RendererBackendKind{
     RendererBackendKind_Null, // Headless
     RendererBackendKind_Vk,
@@ -55,6 +54,14 @@ typedef struct RendererConfig{
     X(DOT_TextureDimension, Array2D) \
     X(DOT_TextureDimension, Array3D) \
 
+typedef enum DOT_TextureDimensionKind{
+    DOT_TEXTURE_KIND(DOT_X_ENUM_ARG)
+}DOT_TextureDimensionKind;
+
+global const char *dot_texture_kind_str[] = {
+    DOT_TEXTURE_KIND(DOT_X_ENUM_STR)
+};
+
 #define DOT_TEXTURE_FORMAT(X) \
     X(DOT_TextureFormat, Invalid) \
     /* 8 BIT*/\
@@ -92,6 +99,10 @@ typedef enum DOT_TextureFormatKind{
     // DOT_TextureFormat_Auto = DOT_TextureFormat_RGBA8_UNORM,
 }DOT_TextureFormatKind;
 
+global const char *dot_texture_format_kind_str[] = {
+    DOT_TEXTURE_FORMAT(DOT_X_ENUM_STR)
+};
+
 typedef DOT_ENUM(u8, DOT_TextureFormatFlags){
     DOT_TextureFormat_Compressed    = DOT_BIT(0),
     DOT_TextureFormat_SRGB          = DOT_BIT(1),
@@ -108,23 +119,13 @@ typedef struct DOT_TextureFormatInfo{
     DOT_TextureFormatFlags flags;
 }DOT_TextureFormatInfo;
 
-
-
-global const char *dot_texture_format_kind_str[] = {
-    DOT_TEXTURE_FORMAT(DOT_X_ENUM_STR)
-};
-
-typedef enum DOT_TextureDimensionKind{
-    DOT_TEXTURE_KIND(DOT_X_ENUM_ARG)
-}DOT_TextureDimensionKind;
-
-global const char *dot_texture_kind_str[] = {
-    DOT_TEXTURE_KIND(DOT_X_ENUM_STR)
-};
-
 typedef struct DOT_TextureHandle{
-    DOT_AssetHandle h;
+    DOT_AssetHandle handle;
 }DOT_TextureHandle;
+
+typedef u32 TexturePoolIdx;
+global TexturePoolIdx texture_pool_idx = 0;
+global DOT_TextureHandle null_texture = {0};
 
 typedef struct DOT_TextureDesc{
     DOT_TextureDimensionKind dimension_kind; // DOT_TextureKind_2D
@@ -132,7 +133,7 @@ typedef struct DOT_TextureDesc{
     u16 width; // = 1;
     u16 height; // = 1;
     u16 depth; // = 1;
-    u8 mip_levels; // = 1;
+    u8 mip_levels; // = 1; // 0 will auto generate
 }DOT_TextureDesc;
 
 typedef struct DOT_TextureAsset{
@@ -143,8 +144,9 @@ typedef struct DOT_TextureAsset{
 
 typedef struct DOT_TextureCreateInfo{
     DOT_AssetCreateInfo asset_info;
-    void *data;
-    b32 create_mips; // Enabling this will auto fill mip_levels if no mip_levels
+    void *data; // must fill in desc manually
+                //
+    // b32 create_mips; // Enabling this will auto fill mip_levels if no mip_levels
 
     DOT_TextureDesc texture_desc; // This is now filled in by the texture loaded
     // u8 flags; // = 0; // TextureFlags bitmasks

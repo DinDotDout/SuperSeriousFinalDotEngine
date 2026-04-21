@@ -137,7 +137,7 @@
 #define DOT_X_ENUM_ARG(prefix, v) prefix##_##v,
 #define DOT_X_ENUM_STR(prefix, v) #v,
 
-#define CONST_INT_BLOCK enum
+#define DOT_CONST_INT_BLOCK enum
 
 
 
@@ -162,6 +162,7 @@ typedef uint32_t u32;
 typedef uint64_t u64;
 #endif
 typedef uintptr_t uptr;
+typedef ptrdiff_t iptr;
 
 typedef u32 b32;
 typedef u16 b16;
@@ -407,6 +408,10 @@ do { \
 #   define ALIGNOF(T) __alignof__(T)
 #else
 #   error alignof not defined for this compiler.
+#endif
+
+#ifndef DOT_SWAP
+#define DOT_SWAP(Type, a, b) do { Type tmp = (a); (a) = (b); (b) = tmp; } while (0)
 #endif
 
 #define ALIGN_POW2(x, align) (((x) + (align) - 1) & (~((align) - 1)))

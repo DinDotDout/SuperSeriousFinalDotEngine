@@ -4,7 +4,7 @@
         "directory": "/home/joan/Documents/projects/graphics/final_super_dot_engine",
         "arguments": [
             "clang",
-            "-std=c99",
+            "-std=c11",
             "-g",
             "-Wall",
             "-Wextra",
