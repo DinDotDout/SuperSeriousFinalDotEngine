@@ -31,14 +31,14 @@ renderer_init(Arena *arena, DOT_Renderer *renderer, DOT_Window *window, Renderer
     null_texture = renderer_create_texture(
         renderer,
         &(DOT_TextureCreateInfo) {
-                .texture_desc = {
-                .width = 1,
-                .height = 1,
-                .depth = 1,
-                .mip_levels = 1,
-                .format_kind = DOT_TextureFormat_RGBA8_UNORM,
-            },
-            .data = (u8[]){0},
+            .texture_desc = {
+            .width = 1,
+            .height = 1,
+            .depth = 1,
+            .mip_levels = 1,
+            .format_kind = DOT_TextureFormat_RGBA8_UNORM,
+        },
+        .data = (u8[]){0},
         }
     );
     (void)null_texture;
@@ -52,7 +52,7 @@ renderer_shutdown(DOT_Renderer *renderer)
         ShaderCacheNode *node = shader_cache->shader_modules[i];
         for EACH_NODE(it, ShaderCacheNode, node){
             DOT_ShaderModuleHandle h = it->shader_module->shader_module_handle;
-            RENDER_BACKEND_CALL(unload_shader_module(h));
+            RENDER_BACKEND_CALL(shader_unload(h));
         }
     }
     shader_cache_end(shader_cache);
@@ -81,7 +81,7 @@ renderer_get_texture_format_info(DOT_TextureFormatKind fmt)
         info.block_height = 1;
     break;
     case DOT_TextureFormat_RGBA8_SRGB:
-        info.flags |= DOT_TextureFormat_SRGB;
+        info.format_flags |= DOT_TextureFormatFlags_SRGB;
         DOT_FALLTHROUGH;
     case DOT_TextureFormat_RGBA8_UNORM:
         info.channels     = 4;
@@ -90,7 +90,7 @@ renderer_get_texture_format_info(DOT_TextureFormatKind fmt)
         info.block_height = 1;
     break;
     case DOT_TextureFormat_BGRA8_SRGB:
-        info.flags |= DOT_TextureFormat_SRGB;
+        info.format_flags |= DOT_TextureFormatFlags_SRGB;
         DOT_FALLTHROUGH;
     case DOT_TextureFormat_BGRA8_UNORM:
         info.channels     = 4;
@@ -143,59 +143,59 @@ renderer_get_texture_format_info(DOT_TextureFormatKind fmt)
         info.block_size   = 2;
         info.block_width  = 1;
         info.block_height = 1;
-        info.flags       |= DOT_TextureFormat_Depth;
+        info.format_flags |= DOT_TextureFormatFlags_Depth;
     break;
     case DOT_TextureFormat_D24S8:
         info.channels     = 2;
         info.block_size   = 4;
         info.block_width  = 1;
         info.block_height = 1;
-        info.flags       |= DOT_TextureFormat_Depth | DOT_TextureFormat_Stencil;
+        info.format_flags |= DOT_TextureFormatFlags_Depth | DOT_TextureFormatFlags_Stencil;
     break;
     case DOT_TextureFormat_D32F:
         info.channels     = 1;
         info.block_size   = 4;
         info.block_width  = 1;
         info.block_height = 1;
-        info.flags       |= DOT_TextureFormat_Depth;
+        info.format_flags |= DOT_TextureFormatFlags_Depth;
     break;
     case DOT_TextureFormat_D32FS8:
         info.channels     = 2;
         info.block_size   = 5; /* 32F + 8 stencil */
         info.block_width  = 1;
         info.block_height = 1;
-        info.flags       |= DOT_TextureFormat_Depth | DOT_TextureFormat_Stencil;
+        info.format_flags |= DOT_TextureFormatFlags_Depth | DOT_TextureFormatFlags_Stencil;
     break;
     // BC block‑compressed formats
     case DOT_TextureFormat_BC1_SRGB:
-        info.flags |= DOT_TextureFormat_SRGB;
+        info.format_flags |= DOT_TextureFormatFlags_SRGB;
         DOT_FALLTHROUGH;
     case DOT_TextureFormat_BC1:
         info.channels     = 4;
         info.block_size   = 8;
         info.block_width  = 4;
         info.block_height = 4;
-        info.flags       |= DOT_TextureFormat_Compressed;
+        info.format_flags |= DOT_TextureFormatFlags_Compressed;
     break;
     case DOT_TextureFormat_BC3_SRGB:
-        info.flags |= DOT_TextureFormat_SRGB;
+        info.format_flags |= DOT_TextureFormatFlags_SRGB;
         DOT_FALLTHROUGH;
     case DOT_TextureFormat_BC3:
         info.channels     = 4;
         info.block_size   = 16;
         info.block_width  = 4;
         info.block_height = 4;
-        info.flags       |= DOT_TextureFormat_Compressed;
+        info.format_flags |= DOT_TextureFormatFlags_Compressed;
     break;
     case DOT_TextureFormat_BC7_SRGB:
-        info.flags |= DOT_TextureFormat_SRGB;
+        info.format_flags |= DOT_TextureFormatFlags_SRGB;
         DOT_FALLTHROUGH;
     case DOT_TextureFormat_BC7:
         info.channels     = 4;
         info.block_size   = 16;
         info.block_width  = 4;
         info.block_height = 4;
-        info.flags       |= DOT_TextureFormat_Compressed;
+        info.format_flags |= DOT_TextureFormatFlags_Compressed;
     break;
 
     // ETC2 formats
@@ -204,14 +204,14 @@ renderer_get_texture_format_info(DOT_TextureFormatKind fmt)
         info.block_size   = 8;
         info.block_width  = 4;
         info.block_height = 4;
-        info.flags       |= DOT_TextureFormat_Compressed;
+        info.format_flags |= DOT_TextureFormatFlags_Compressed;
     break;
     case DOT_TextureFormat_ETC2_RGBA8:
         info.channels     = 4;
         info.block_size   = 16;
         info.block_width  = 4;
         info.block_height = 4;
-        info.flags       |= DOT_TextureFormat_Compressed;
+        info.format_flags |= DOT_TextureFormatFlags_Compressed;
     break;
     }
     return info;
@@ -305,7 +305,7 @@ renderer_create_texture(DOT_Renderer *renderer, DOT_TextureCreateInfo *create_in
         }
     }
 
-    DOT_TextureHandle handle = RENDER_BACKEND_CALL(create_texture(create_info));
+    DOT_TextureHandle handle = RENDER_BACKEND_CALL(texture_create(create_info));
     temp_arena_restore(temp);
     return handle;
 }
@@ -380,7 +380,7 @@ renderer_load_shader_module_from_path(DOT_Renderer *renderer, String8 path)
     if(should_update_shader){
         String8 compiled_shader_content = platform_read_entire_file(temp.arena, compiled_path);
         if(compiled_shader_content.size > 0){
-            shader_module->shader_module_handle = RENDER_BACKEND_CALL(load_shader_from_file_buffer(compiled_shader_content));
+            shader_module->shader_module_handle = RENDER_BACKEND_CALL(shader_load_from_data(compiled_shader_content));
         }else{
             DOT_WARNING("Failed to read shader %S compilation %S", path, compiled_path);
         }

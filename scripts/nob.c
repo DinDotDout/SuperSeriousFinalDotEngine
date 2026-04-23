@@ -157,7 +157,7 @@ typedef struct {
 
 static CompilerConfig compiler_cfg[] = {
     [CompilerKind_Clang] = {
-        .base = ARG_LIST("-std=c99",
+        .base = ARG_LIST("-std=c11",
             "-Wall", "-Wextra", "-Wno-override-init",
             "-Wdiv-by-zero", "-Wno-unused-function",
             // "-Wno-unused-parameter",

@@ -8,6 +8,7 @@ typedef enum VkMemory_PoolsKind{
     VkMemory_PoolsKind_Readback,
 }VkMemory_PoolsKind;
 
+typedef struct RBVK_Device RBVK_Device;
 typedef struct VkMemory_Pools{
     u32 gpu_only_type;
     VkDeviceMemory gpu_only_mem;
@@ -32,10 +33,9 @@ typedef struct VkMemory_Alloc{
     u64 offset;
 }VkMemory_Alloc;
 
-struct RBVK_Device;
 internal VkMemory_Alloc vk_memory_pools_bump(VkMemory_Pools *pools, VkMemoryRequirements reqs, VkMemory_PoolsKind memory_kind);
-internal VkResult vk_memory_pools_create(struct RBVK_Device *device, VkMemory_Pools *pools);
-internal void vk_memory_pools_destoy(struct RBVK_Device *device, VkMemory_Pools *pools);
+internal VkMemory_Pools vk_memory_pools_create(RBVK_Device *device);
+internal void vk_memory_pools_destoy(RBVK_Device *device, VkMemory_Pools *pools);
 
 internal u32 vk_memory_pools_find_memory_type(
     const VkPhysicalDeviceMemoryProperties *memory_properties,

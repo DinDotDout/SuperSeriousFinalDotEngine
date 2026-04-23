@@ -18,7 +18,6 @@ typedef enum ArenaKind{
     ArenaKind_Count,
 }ArenaKind;
 
-// NOTE: try to keep fitting in a chache line
 typedef struct Arena Arena;
 struct Arena{
     Arena *parent; // Can be null, possible memory owner
@@ -30,12 +29,14 @@ struct Arena{
     u64 committed;
     u64 commit_expand_size;
 
-    ArenaKind kind;
     b32 large_pages;
+    ArenaKind kind;
 
     // Debug
     char *name;
 };
+
+DOT_STATIC_ASSERT(sizeof(Arena) <= PLATFORM_CACHE_LINE_SIZE, "Keep cache line sized");
 
 typedef struct ArenaInitParams{
     // These 2 will be used to alloc from if not empty, otherwise we will make a new os alloc
@@ -105,6 +106,9 @@ internal void   arena_print_debug(Arena *arena);
 
 #define PUSH_ARRAY_ALIGNED(arena, T, count, alignment) \
     (T*)ARENA_PUSH(arena, sizeof(T) * (count), (alignment), true)
+
+#define PUSH_ARRAY_NO_ZERO_ALIGNED(arena, T, count, alignment) \
+    (T*)ARENA_PUSH(arena, sizeof(T) * (count), (alignment), false)
 
 #define PUSH_ARRAY(arena, T, count) \
     (T*)ARENA_PUSH(arena, sizeof(T) * (count), MAX(ARENA_MAX_ALIGNMENT, ALIGNOF(T)), true)

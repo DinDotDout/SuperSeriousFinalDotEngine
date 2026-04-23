@@ -18,6 +18,7 @@ internal u8 *raw_buffer_get(u8 raw_buffer[], i32 elem_idx, u32 elem_size);
 //     POOL_H_FREE(&tp, h);
 // }
 
+typedef u32 PoolHandle;
 typedef struct Pool{
     u8  *raw_buffer; // elem_size * capacity
     u32 *idx_buffer; // count; maps handle -> raw_buffer index
@@ -29,8 +30,9 @@ typedef struct Pool{
 #define POOL(T) struct{ Pool pool; T *last_accessed; }
 #define POOL_INIT(arena, tp, capacity) pool_init((arena), &(tp)->pool, (capacity), sizeof(*(tp)->last_accessed), ALIGNOF(*(tp)->last_accessed))
 #define POOL_H_GET(tp) pool_handle_get(&(tp)->pool, sizeof(*(tp)->last_accessed))
-#define POOL_H_ACCES(tp, handle) ((tp)->last_accessed = pool_handle_access(&(tp)->pool, (handle), sizeof(*(tp)->last_accessed)))
+#define POOL_H_ACCESS(tp, handle) ((tp)->last_accessed = pool_handle_access(&(tp)->pool, (handle), sizeof(*(tp)->last_accessed)))
 #define POOL_H_FREE(tp, handle) pool_handle_free(&(tp)->pool, (handle))
+#define POOL_H_GET_NULL(tp) pool_handle_get_null(&(tp)->pool, sizeof(*(tp)->last_accessed))
 
 internal void       pool_init(Arena *arena, Pool *p, u32 capacity, u32 elem_size, u32 alignment);
 // internal void       pool_destroy(Pool *p, u32 elem_count, u32 elem_size);

@@ -192,6 +192,19 @@ vk_helper_texture_dimension_to_vk_image_type(DOT_TextureDimensionKind texture_di
     }
 }
 
+internal VkImageViewType
+vk_helper_texture_dimension_to_vk_image_view_type(DOT_TextureDimensionKind texture_dimension)
+{
+    switch(texture_dimension){
+    case DOT_TextureDimension_1D: return VK_IMAGE_VIEW_TYPE_1D;
+    case DOT_TextureDimension_2D: return VK_IMAGE_VIEW_TYPE_2D;
+    case DOT_TextureDimension_3D: return VK_IMAGE_VIEW_TYPE_3D;
+    case DOT_TextureDimension_Array1D: return VK_IMAGE_VIEW_TYPE_1D_ARRAY;
+    case DOT_TextureDimension_Array2D: return VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+    case DOT_TextureDimension_Array3D: return VK_IMAGE_VIEW_TYPE_CUBE_ARRAY;
+    }
+}
+
 internal VkFormat
 vk_helper_texture_format_to_vk_texture_format(DOT_TextureFormatKind texture_format)
 {

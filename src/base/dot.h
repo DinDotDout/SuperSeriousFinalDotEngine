@@ -133,6 +133,8 @@
 
 #define DOT_ENUM(T, name) T name; enum
 #define DOT_BIT(x) (1 << (x))
+#define DOT_BITS_MATCH(flags, mask) (((flags) & (mask)) == (mask))
+#define DOT_BITS_ANY(flags, mask) (((flags) & (mask)) != 0)
 
 #define DOT_X_ENUM_ARG(prefix, v) prefix##_##v,
 #define DOT_X_ENUM_STR(prefix, v) #v,
@@ -256,8 +258,8 @@ typedef double f64;
 //
 // Static Debug
 
-#define DOT_STATIC_ASSERT(x) \
-typedef int DOT_CONCAT(DOT_STATIC_ASSERT_, __COUNTER__) [(x) ? 1 : -1]
+#define DOT_STATIC_ASSERT(x, ...) \
+typedef int DOT_CONCAT(DOT_STATIC_ASSERT, __COUNTER__) [(x) ? 1 : -1]
 
 ////////////////////////////////////////////////////////////////
 //

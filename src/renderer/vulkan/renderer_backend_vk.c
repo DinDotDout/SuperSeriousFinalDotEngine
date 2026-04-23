@@ -1,3 +1,4 @@
+#include "renderer/renderer.h"
 global RendererBackendVk *g_vk_ctx;
 
 internal RendererBackendVk*
@@ -64,13 +65,13 @@ rbvk_vk_shader_module_from_dot_shader_module(DOT_ShaderModuleHandle dot_smh)
 }
 
 internal DOT_ShaderModuleHandle
-renderer_backend_vk_load_shader_from_file_buffer(String8 file_buffer)
+renderer_backend_vk_shader_load_from_data(String8 data)
 {
     VkShaderModuleCreateInfo create_info = {
         .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
         .pNext = NULL,
-        .codeSize = file_buffer.size,
-        .pCode = cast(u32*)file_buffer.str, // VK expects data like this
+        .codeSize = data.size,
+        .pCode = cast(u32*)data.str, // VK expects data like this
     };
 
     VkShaderModule vk_shader_module = VK_NULL_HANDLE;
@@ -80,7 +81,7 @@ renderer_backend_vk_load_shader_from_file_buffer(String8 file_buffer)
 }
 
 internal void
-renderer_backend_vk_unload_shader_module(DOT_ShaderModuleHandle shader_module_handle)
+renderer_backend_vk_shader_unload(DOT_ShaderModuleHandle shader_module_handle)
 {
     VkShaderModule vk_sm = rbvk_vk_shader_module_from_dot_shader_module(shader_module_handle);
     vkDestroyShaderModule(g_vk_ctx->device.device, vk_sm, NULL);
@@ -88,63 +89,94 @@ renderer_backend_vk_unload_shader_module(DOT_ShaderModuleHandle shader_module_ha
 
 // Handle should just be ie internal ptr to backend texture, or maybe RBVK_Texture
 internal DOT_TextureHandle
-renderer_backend_vk_create_texture(DOT_TextureCreateInfo *create_info)
+renderer_backend_vk_texture_create(DOT_TextureCreateInfo *create_info)
 {
-    // (JD) NOTE:Should we create a texture on backend init mapped to this handle?
-    if(create_info->data == NULL){
-        return (DOT_TextureHandle){0}; // (jd) NOTE: create a default RBVK_Texture and map to this?
+    if(create_info == NULL){
+       PoolHandle h = POOL_H_GET_NULL(&g_vk_ctx->texture_pool);
+       DOT_TextureHandle dot_texture_handle = { .handle[0] = h, };
+       return dot_texture_handle;
     }
     DOT_TextureDesc *desc = &create_info->texture_desc;
  
-    // NOTE: Make an internal pool to handle those
-    // RBVK_Texture *tex = PUSH_STRUCT(g_vk_ctx->base.permanent_arena, RBVK_Texture);
-    PoolHandle texture_h = POOL_GET_H(&g_vk_ctx->texture_pool);
-    RBVK_Texture *tex = POOL_ACCESS_H(&g_vk_ctx->texture_pool, texture_h);
-    tex->name = create_info->asset_info.name;
-    tex->vk_extent3d = (VkExtent3D){desc->width, desc->height, desc->depth};
-    tex->mip_levels = desc->mip_levels;
-    tex->vk_format = vk_helper_texture_format_to_vk_texture_format(desc->format_kind);
-    tex->sampler = NULL;
+    const PoolHandle texture_h = POOL_H_GET(&g_vk_ctx->texture_pool);
     DOT_TextureHandle dot_texture_handle = { .handle[0] = texture_h, };
 
-    VkImageViewCreateInfo vk_image_view_create_info = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .format = tex->vk_format,
-        // .type = tex->
-    };
-    (void)vk_image_view_create_info;
+    RBVK_Texture *texture = POOL_H_ACCESS(&g_vk_ctx->texture_pool, texture_h);
+    texture->name = create_info->asset_info.name;
+    texture->vk_extent3d = (VkExtent3D){desc->width, desc->height, desc->depth};
+    texture->mip_levels = desc->mip_levels;
+    texture->vk_format = vk_helper_texture_format_to_vk_texture_format(desc->format_kind);
+    texture->sampler = NULL;
 
-    VkImageCreateInfo vk_image_info = {
-        .sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .imageType = vk_helper_texture_dimension_to_vk_image_type(desc->dimension_kind),
-        .format = vk_helper_texture_format_to_vk_texture_format(desc->format_kind),
-        .extent = (VkExtent3D){desc->width, desc->height, desc->depth},
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+    const DOT_TextureFormatInfo format_info = renderer_get_texture_format_info(desc->format_kind);
+    const b8 format_depth_bit   = DOT_BITS_MATCH(format_info.format_flags, DOT_TextureFormatFlags_Depth);
+    const b8 format_stencil_bit = DOT_BITS_MATCH(format_info.format_flags, DOT_TextureFormatFlags_Stencil);
+    const b8 usage_compute_bit  = DOT_BITS_MATCH(desc->texture_usage_flags, DOT_TextureUsageFlags_Compute) ? VK_IMAGE_USAGE_STORAGE_BIT : 0;
+    const b8 usage_render_target_bit = DOT_BITS_MATCH(desc->texture_usage_flags, DOT_TextureUsageFlags_RenderTarget) ? VK_IMAGE_USAGE_STORAGE_BIT : 0;
 
-        .mipLevels = desc->mip_levels,
-        .arrayLayers = 1,
-        .samples = VK_SAMPLE_COUNT_1_BIT,
-        .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = VK_IMAGE_LAYOUT_UNDEFINED,
-    };
-    (void)vk_image_info;
-    // const bool is_render_target = ( creation.flags & TextureFlags::RenderTarget_mask ) == TextureFlags::RenderTarget_mask;
-    // const bool is_compute_used = ( creation.flags & TextureFlags::Compute_mask ) == TextureFlags::Compute_mask;
-    //
-    // // Default to always readable from shader.
-    // vk_image_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
-    //
-    // vk_image_info.usage |= is_compute_used ? VK_IMAGE_USAGE_STORAGE_BIT : 0;
-    //
-    // if ( TextureFormat::has_depth_or_stencil( creation.format ) ) {
-    //     // Depth/Stencil textures are normally textures you render into.
-    //     vk_image_info.usage |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-    //
-    // } else {
-    //     vk_image_info.usage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT; // TODO
-    //     vk_image_info.usage |= is_render_target ? VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT : 0;
-    // }
+    VkDevice device = g_vk_ctx->device.device;
+    {
+        VkImageUsageFlags image_usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT | (usage_compute_bit ? VK_IMAGE_USAGE_STORAGE_BIT : 0);
+        if(format_depth_bit || format_stencil_bit){
+            image_usage_flags |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        }else{
+            image_usage_flags |= VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+            image_usage_flags |= usage_render_target_bit ? VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT : 0;
+        }
+        VK_CHECK(vkCreateImage(
+            device,
+            &(VkImageCreateInfo){
+                .sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+                .imageType = vk_helper_texture_dimension_to_vk_image_type(desc->dimension_kind),
+                .format = vk_helper_texture_format_to_vk_texture_format(desc->format_kind),
+                .extent = (VkExtent3D){desc->width, desc->height, desc->depth},
+                .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+
+                .mipLevels = desc->mip_levels,
+                .arrayLayers = 1,
+                .samples = VK_SAMPLE_COUNT_1_BIT,
+                .tiling = VK_IMAGE_TILING_OPTIMAL,
+                .usage = image_usage_flags,
+            },
+            NULL,
+            &texture->vk_image));
+        VkMemoryRequirements reqs = {0};
+        vkGetImageMemoryRequirements(device, texture->vk_image, &reqs);
+        texture->alloc = vk_memory_pools_bump(&g_vk_ctx->memory_pools, reqs, VkMemory_PoolsKind_GpuOnly);
+    }
+    {
+        VkImageAspectFlags aspect_mask = VK_IMAGE_ASPECT_NONE;
+        aspect_mask |= format_depth_bit ? VK_IMAGE_ASPECT_DEPTH_BIT : 0;
+        aspect_mask |= format_stencil_bit ? VK_IMAGE_ASPECT_STENCIL_BIT : 0;
+        if(aspect_mask == 0){aspect_mask = VK_IMAGE_ASPECT_COLOR_BIT;}
+
+        VK_CHECK(vkCreateImageView(
+            device,
+            &(VkImageViewCreateInfo){
+                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                .image = texture->vk_image,
+                .viewType = vk_helper_texture_dimension_to_vk_image_view_type(desc->dimension_kind),
+                .format = texture->vk_format,
+                .subresourceRange = {
+                    .baseMipLevel = 0,
+                    .levelCount = 1,
+                    .baseArrayLayer = 0,
+                    .layerCount = 1,
+                    .aspectMask = aspect_mask,
+                }
+            },
+            NULL,
+            &texture->vk_image_view));
+    }
+
+    if(create_info->data){
+        VkBufferCreateInfo buffer_info = {
+            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+            .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            .size = desc->width * desc->height * 4,
+        };
+    }
 
     return dot_texture_handle;
 }
@@ -367,10 +399,8 @@ renderer_backend_vk_init(DOT_Window* window)
             vkGetDeviceQueue(device->device, candidate_device_info.present_family, 0, &device->present_queue);
         }
     }
-    {
-        RBVK_Device *device = &g_vk_ctx->device;
-        vk_memory_pools_create(device, &g_vk_ctx->memory_pools);
-    }
+    g_vk_ctx->memory_pools = vk_memory_pools_create(&g_vk_ctx->device);
+
     // TODO: We will probably need to move this to its own function to allow recreation
     // --- Create Swapchain ---
     {

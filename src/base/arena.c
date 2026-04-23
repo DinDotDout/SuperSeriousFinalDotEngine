@@ -158,7 +158,7 @@ arena_push(Arena *arena, usize alloc_size, usize alignment, b32 zero, char *file
         if(commit_size > arena_leftover_memory) commit_size = need_aligned;
         if(DOT_UNLIKELY(commit_size > arena_leftover_memory)){
             DOT_ERROR_FL(file, line,
-                "Can't commit more memory! needed = %M; leftover = %M", commit_size, arena_leftover_memory);
+                "Can't commit more memory! total = %M, needed = %M; leftover = %M", arena->reserved, commit_size, arena_leftover_memory);
             return NULL;
         }
         uptr commit_pos = arena_base + arena->committed;

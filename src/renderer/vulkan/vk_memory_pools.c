@@ -4,13 +4,25 @@ DOT_CONST_INT_BLOCK {
     VK_MEMORY_POOLS_READBACK_SIZE = MB(32),
 };
 
+// internal VkImage
+// vk_memory_pools_rbvk_texture_create(VkMemory_Pools *pools, const VkImageCreateInfo *vk_image_info, VkMemory_PoolsKind memory_kind)
+// {
+    // DOT_ASSERT(pools && pools->device);
+    // RBVK_Texture tex = {0};
+    // VK_CHECK(vkCreateImage(pools->device->device, vk_image_info, NULL, &tex.vk_image));
+    //
+    // VkMemoryRequirements reqs = {0};
+    // vkGetImageMemoryRequirements(pools->device->device, tex.vk_image, &reqs);
+    // tex.alloc = vk_memory_pools_bump(pools, reqs, memory_kind);
+// }
+
 internal VkMemory_Alloc
 vk_memory_pools_bump(VkMemory_Pools *pools, VkMemoryRequirements reqs, VkMemory_PoolsKind memory_kind)
 {
     VkMemory_Alloc memory_alloc = {0};
     switch(memory_kind){
         case VkMemory_PoolsKind_GpuOnly:
-            if (reqs.memoryTypeBits & (1u << pools->gpu_only_type)){
+            if(reqs.memoryTypeBits & (1u << pools->gpu_only_type)){
                 u64 aligned_memory = ALIGN_POW2(pools->gpu_only_used, reqs.alignment);
                 memory_alloc.offset = aligned_memory;
                 memory_alloc.memory = pools->gpu_only_mem;
@@ -21,7 +33,7 @@ vk_memory_pools_bump(VkMemory_Pools *pools, VkMemoryRequirements reqs, VkMemory_
             }
         break;
         case VkMemory_PoolsKind_Staging:
-            if (reqs.memoryTypeBits & (1u << pools->staging_type)){
+            if(reqs.memoryTypeBits & DOT_BIT(pools->staging_type)){
                 u64 aligned_memory = ALIGN_POW2(pools->staging_used, reqs.alignment);
                 pools->staging_used += aligned_memory;
                 memory_alloc.offset = aligned_memory;
@@ -32,7 +44,7 @@ vk_memory_pools_bump(VkMemory_Pools *pools, VkMemoryRequirements reqs, VkMemory_
             }
         break;
         case VkMemory_PoolsKind_Readback:
-            if (reqs.memoryTypeBits & (1u << pools->readback_type)){
+            if(reqs.memoryTypeBits & (1u << pools->readback_type)){
                 u64 aligned_memory = ALIGN_POW2(pools->readback_used, reqs.alignment);
                 pools->readback_used += aligned_memory;
                 memory_alloc.offset = aligned_memory;
@@ -65,14 +77,14 @@ vk_memory_pools_find_memory_type(
 
         VkMemoryPropertyFlags flags = memory_properties->memoryTypes[i].propertyFlags;
 
-        if((flags & forbidden) != 0)
+        if(DOT_BITS_ANY(flags, forbidden))
             continue;
 
-        if((flags & required) != required)
+        if(!DOT_BITS_MATCH(flags, required))
             continue;
 
         // Prefer types that include all preferred flags
-        if((flags & preferred) == preferred){
+        if(DOT_BITS_MATCH(flags, preferred)){
             return i;
         }
 
@@ -89,56 +101,58 @@ vk_memory_pools_find_memory_type(
 
 // NOTE: We are for now requesting specifically VRAM memory, meaning this will fail on integrated GPU's
 // we could eventually store the kind of GPU we selected and change the bit type configuration
-internal VkResult
+internal VkMemory_Pools
 vk_memory_pools_create(
-    struct RBVK_Device *device,
-    VkMemory_Pools *pools)
+    RBVK_Device *device)
 {
+    VkMemory_Pools pools = {
+        // .device = device,
+        .gpu_only_size = VK_MEMORY_POOLS_GPU_ONLY_SIZE,
+        .staging_size  = VK_MEMORY_POOLS_STAGING_SIZE,
+        .readback_size = VK_MEMORY_POOLS_READBACK_SIZE,
+    };
     VkPhysicalDeviceMemoryProperties memory_properties;
     vkGetPhysicalDeviceMemoryProperties(device->gpu, &memory_properties);
 
-    pools->gpu_only_size = VK_MEMORY_POOLS_GPU_ONLY_SIZE;
-    pools->staging_size  = VK_MEMORY_POOLS_STAGING_SIZE;
-    pools->readback_size = VK_MEMORY_POOLS_READBACK_SIZE;
 
     // --- 1) Choose memory types ---
     // GPU-only: DEVICE_LOCAL, not necessarily host visible
     {
         u32 type_bits = U32_MAX;
-        pools->gpu_only_type = vk_memory_pools_find_memory_type(
+        pools.gpu_only_type = vk_memory_pools_find_memory_type(
             &memory_properties,
             type_bits,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             (device->is_integrated_gpu ? 0 : VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
         );
-        DOT_ASSERT(pools->gpu_only_type != U32_MAX, "Could not find gpu memory type");
+        DOT_ASSERT(pools.gpu_only_type != U32_MAX, "Could not find gpu memory type");
     }
 
     // Upload: HOST_VISIBLE + HOST_COHERENT, prefer non-DEVICE_LOCAL on dGPU
     {
         u32 type_bits = U32_MAX;
-        pools->staging_type = vk_memory_pools_find_memory_type(
+        pools.staging_type = vk_memory_pools_find_memory_type(
             &memory_properties,
             type_bits,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
             0,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
         );
-        DOT_ASSERT(pools->staging_type != U32_MAX, "Could not find staging memory type");
+        DOT_ASSERT(pools.staging_type != U32_MAX, "Could not find staging memory type");
     }
 
     // Readback: HOST_VISIBLE + HOST_COHERENT + HOST_CACHED if possible
     {
         u32 type_bits = U32_MAX;
-        pools->readback_type = vk_memory_pools_find_memory_type(
+        pools.readback_type = vk_memory_pools_find_memory_type(
             &memory_properties,
             type_bits,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
             VK_MEMORY_PROPERTY_HOST_CACHED_BIT,
             0
         );
-        DOT_ASSERT(pools->readback_type != U32_MAX, "Could not find readback memory type");
+        DOT_ASSERT(pools.readback_type != U32_MAX, "Could not find readback memory type");
     }
 
     // --- 2) Allocate big blocks ---
@@ -146,11 +160,11 @@ vk_memory_pools_create(
     {
         VkMemoryAllocateInfo alloc_info = {
             .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-            .allocationSize  = pools->gpu_only_size,
-            .memoryTypeIndex = pools->gpu_only_type,
+            .allocationSize  = pools.gpu_only_size,
+            .memoryTypeIndex = pools.gpu_only_type,
         };
 
-        VK_CHECK(vkAllocateMemory(device->device, &alloc_info, NULL, &pools->gpu_only_mem));
+        VK_CHECK(vkAllocateMemory(device->device, &alloc_info, NULL, &pools.gpu_only_mem));
     }
 
     // Upload: create one big buffer and back it with upload memory
@@ -158,7 +172,7 @@ vk_memory_pools_create(
         // Create buffer with dummy memory type first to get requirements
         VkBufferCreateInfo buff_info = {
             .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            .size  = pools->staging_size,
+            .size  = pools.staging_size,
             .usage = (VkBufferUsageFlags)
                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
                 VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
@@ -174,18 +188,18 @@ vk_memory_pools_create(
         VkMemoryRequirements memory_requirements;
         vkGetBufferMemoryRequirements(device->device, temp_buff, &memory_requirements);
         vkDestroyBuffer(device->device, temp_buff, NULL);
-        pools->staging_size = memory_requirements.size;
+        pools.staging_size = memory_requirements.size;
 
         VkMemoryAllocateInfo alloc_info = {
             .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
             .allocationSize  = memory_requirements.size,
-            .memoryTypeIndex = pools->staging_type,
+            .memoryTypeIndex = pools.staging_type,
         };
 
-        VK_CHECK(vkAllocateMemory(device->device, &alloc_info, NULL, &pools->staging_mem));
+        VK_CHECK(vkAllocateMemory(device->device, &alloc_info, NULL, &pools.staging_mem));
         buff_info.size = memory_requirements.size;
-        VK_CHECK(vkCreateBuffer(device->device, &buff_info, NULL, &pools->staging_buffer));
-        VK_CHECK(vkBindBufferMemory(device->device, pools->staging_buffer, pools->staging_mem, 0));
+        VK_CHECK(vkCreateBuffer(device->device, &buff_info, NULL, &pools.staging_buffer));
+        VK_CHECK(vkBindBufferMemory(device->device, pools.staging_buffer, pools.staging_mem, 0));
     }
 
     // Readback: one big buffer backed by readback memory
@@ -193,7 +207,7 @@ vk_memory_pools_create(
         VkBuffer temp_buff;
         VkBufferCreateInfo buff_info = {
             .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            .size  = pools->readback_size,
+            .size  = pools.readback_size,
             .usage = (VkBufferUsageFlags)
                 VK_BUFFER_USAGE_TRANSFER_DST_BIT |
                 VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
@@ -207,25 +221,24 @@ vk_memory_pools_create(
         vkGetBufferMemoryRequirements(device->device, temp_buff, &memory_requirements);
         vkDestroyBuffer(device->device, temp_buff, NULL);
 
-        pools->readback_size = memory_requirements.size;
+        pools.readback_size = memory_requirements.size;
 
         VkMemoryAllocateInfo alloc_info = {
             .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
             .allocationSize  = memory_requirements.size,
-            .memoryTypeIndex = pools->readback_type,
+            .memoryTypeIndex = pools.readback_type,
         };
 
-        VK_CHECK(vkAllocateMemory(device->device, &alloc_info, NULL, &pools->readback_mem));
+        VK_CHECK(vkAllocateMemory(device->device, &alloc_info, NULL, &pools.readback_mem));
         buff_info.size = memory_requirements.size;
-        VK_CHECK(vkCreateBuffer(device->device, &buff_info, NULL, &pools->readback_buffer));
-        VK_CHECK(vkBindBufferMemory(device->device, pools->readback_buffer, pools->readback_mem, 0));
+        VK_CHECK(vkCreateBuffer(device->device, &buff_info, NULL, &pools.readback_buffer));
+        VK_CHECK(vkBindBufferMemory(device->device, pools.readback_buffer, pools.readback_mem, 0));
     }
-
-    return VK_SUCCESS;
+    return pools;
 }
 
 internal void
-vk_memory_pools_destroy(struct RBVK_Device *device, VkMemory_Pools *pools)
+vk_memory_pools_destroy(RBVK_Device *device, VkMemory_Pools *pools)
 {
     if(pools->staging_buffer)
         vkDestroyBuffer(device->device, pools->staging_buffer, NULL);
