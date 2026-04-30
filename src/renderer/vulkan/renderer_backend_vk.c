@@ -1,4 +1,3 @@
-#include "renderer/renderer.h"
 global RendererBackendVk *g_vk_ctx;
 
 internal RendererBackendVk*
@@ -75,7 +74,7 @@ renderer_backend_vk_shader_load_from_data(String8 data)
     };
 
     VkShaderModule vk_shader_module = VK_NULL_HANDLE;
-    VK_CHECK(vkCreateShaderModule(g_vk_ctx->device.device, &create_info, NULL, &vk_shader_module));
+    VK_CHECK(vkCreateShaderModule(g_vk_ctx->device.vk_device, &create_info, NULL, &vk_shader_module));
     DOT_ShaderModuleHandle dot_shader_module_handle = rbvk_dot_shader_module_from_vk_shader_module(vk_shader_module);
     return dot_shader_module_handle;
 }
@@ -84,37 +83,36 @@ internal void
 renderer_backend_vk_shader_unload(DOT_ShaderModuleHandle shader_module_handle)
 {
     VkShaderModule vk_sm = rbvk_vk_shader_module_from_dot_shader_module(shader_module_handle);
-    vkDestroyShaderModule(g_vk_ctx->device.device, vk_sm, NULL);
+    vkDestroyShaderModule(g_vk_ctx->device.vk_device, vk_sm, NULL);
 }
 
 // Handle should just be ie internal ptr to backend texture, or maybe RBVK_Texture
 internal DOT_TextureHandle
-renderer_backend_vk_texture_create(DOT_TextureCreateInfo *create_info)
+renderer_backend_vk_texture_create(const DOT_TextureCreateInfo *create_info)
 {
     if(create_info == NULL){
        PoolHandle h = POOL_H_GET_NULL(&g_vk_ctx->texture_pool);
        DOT_TextureHandle dot_texture_handle = { .handle[0] = h, };
        return dot_texture_handle;
     }
-    DOT_TextureDesc *desc = &create_info->texture_desc;
- 
-    const PoolHandle texture_h = POOL_H_GET(&g_vk_ctx->texture_pool);
-    DOT_TextureHandle dot_texture_handle = { .handle[0] = texture_h, };
+    const DOT_TextureDesc *desc = &create_info->texture_desc;
 
+    VkExtent3D extent_3d = {desc->width, desc->height, desc->depth};
+    const PoolHandle texture_h = POOL_H_GET(&g_vk_ctx->texture_pool);
     RBVK_Texture *texture = POOL_H_ACCESS(&g_vk_ctx->texture_pool, texture_h);
-    texture->name = create_info->asset_info.name;
-    texture->vk_extent3d = (VkExtent3D){desc->width, desc->height, desc->depth};
+    texture->debug_name = create_info->asset_info.name;
+    texture->vk_extent3d = extent_3d;
     texture->mip_levels = desc->mip_levels;
     texture->vk_format = vk_helper_texture_format_to_vk_texture_format(desc->format_kind);
     texture->sampler = NULL;
+    texture->vk_image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-    const DOT_TextureFormatInfo format_info = renderer_get_texture_format_info(desc->format_kind);
+    const DOT_TextureFormatInfo format_info = renderer_texture_format_info_get(desc->format_kind);
     const b8 format_depth_bit   = DOT_BITS_MATCH(format_info.format_flags, DOT_TextureFormatFlags_Depth);
     const b8 format_stencil_bit = DOT_BITS_MATCH(format_info.format_flags, DOT_TextureFormatFlags_Stencil);
-    const b8 usage_compute_bit  = DOT_BITS_MATCH(desc->texture_usage_flags, DOT_TextureUsageFlags_Compute) ? VK_IMAGE_USAGE_STORAGE_BIT : 0;
-    const b8 usage_render_target_bit = DOT_BITS_MATCH(desc->texture_usage_flags, DOT_TextureUsageFlags_RenderTarget) ? VK_IMAGE_USAGE_STORAGE_BIT : 0;
-
-    VkDevice device = g_vk_ctx->device.device;
+    const b8 usage_compute_bit  = DOT_BITS_MATCH(desc->texture_usage_flags, DOT_TextureUsageFlags_Compute);
+    const b8 usage_render_target_bit = DOT_BITS_MATCH(desc->texture_usage_flags, DOT_TextureUsageFlags_RenderTarget);
+    VkDevice vk_device = g_vk_ctx->device.vk_device;
     {
         VkImageUsageFlags image_usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT | (usage_compute_bit ? VK_IMAGE_USAGE_STORAGE_BIT : 0);
         if(format_depth_bit || format_stencil_bit){
@@ -124,12 +122,12 @@ renderer_backend_vk_texture_create(DOT_TextureCreateInfo *create_info)
             image_usage_flags |= usage_render_target_bit ? VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT : 0;
         }
         VK_CHECK(vkCreateImage(
-            device,
+            vk_device,
             &(VkImageCreateInfo){
                 .sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
                 .imageType = vk_helper_texture_dimension_to_vk_image_type(desc->dimension_kind),
                 .format = vk_helper_texture_format_to_vk_texture_format(desc->format_kind),
-                .extent = (VkExtent3D){desc->width, desc->height, desc->depth},
+                .extent = extent_3d,
                 .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
                 .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 
@@ -141,9 +139,7 @@ renderer_backend_vk_texture_create(DOT_TextureCreateInfo *create_info)
             },
             NULL,
             &texture->vk_image));
-        VkMemoryRequirements reqs = {0};
-        vkGetImageMemoryRequirements(device, texture->vk_image, &reqs);
-        texture->alloc = vk_memory_pools_bump(&g_vk_ctx->memory_pools, reqs, VkMemory_PoolsKind_GpuOnly);
+        texture->alloc = rbvk_memory_gpu_image_alloc(&g_vk_ctx->memory_pools, texture->vk_image);
     }
     {
         VkImageAspectFlags aspect_mask = VK_IMAGE_ASPECT_NONE;
@@ -152,7 +148,7 @@ renderer_backend_vk_texture_create(DOT_TextureCreateInfo *create_info)
         if(aspect_mask == 0){aspect_mask = VK_IMAGE_ASPECT_COLOR_BIT;}
 
         VK_CHECK(vkCreateImageView(
-            device,
+            vk_device,
             &(VkImageViewCreateInfo){
                 .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
                 .image = texture->vk_image,
@@ -171,16 +167,75 @@ renderer_backend_vk_texture_create(DOT_TextureCreateInfo *create_info)
     }
 
     if(create_info->data){
-        VkBufferCreateInfo buffer_info = {
-            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-            .size = desc->width * desc->height * 4,
-        };
-    }
+        u64 texture_size = format_info.block_size * extent_3d.height * extent_3d.width  * extent_3d.depth;
+        VkMemory_Alloc mem_alloc = rbvk_memory_pools_staging_ring_buffer_push(&g_vk_ctx->memory_pools,  texture_size, create_info->data);
+        // void* destination_data;
+        // vkMapMemory(vk_device, mem_alloc.vk_memory, 0, mem_alloc.size, 0, &destination_data);
+        // MEMORY_COPY_NO_ALIAS(destination_data, create_info->data, mem_alloc.size);
+        // vkUnmapMemory(vk_device, mem_alloc.vk_memory);
 
+
+        VkCommandBufferBeginInfo beginInfo = { 
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+            .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        };
+
+        VkCommandBuffer vk_command_buffer = g_vk_ctx->frame_datas[g_vk_ctx->current_frame].immediate_command_buffer;
+        // CommandBuffer* command_buffer = get_instant_command_buffer();
+        vkBeginCommandBuffer(vk_command_buffer, &beginInfo );
+
+        VkBufferImageCopy region = {
+            .bufferOffset = 0,
+            .bufferRowLength = 0,
+            .bufferImageHeight = 0,
+
+            .imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .imageSubresource.mipLevel = 0,
+            .imageSubresource.baseArrayLayer = 0,
+            .imageSubresource.layerCount = 1,
+
+            .imageOffset = { 0, 0, 0 },
+            .imageExtent = extent_3d,
+        };
+
+        vk_helper_transition_image(vk_command_buffer, texture->vk_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        vkCmdCopyBufferToImage(vk_command_buffer, mem_alloc.vk_buffer, texture->vk_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+        vk_helper_transition_image( vk_command_buffer, texture->vk_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+        vkEndCommandBuffer(vk_command_buffer);
+        // Submit command buffer
+        VkSubmitInfo submitInfo = { 
+            VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .commandBufferCount = 1,
+            .pCommandBuffers = &vk_command_buffer,
+        };
+
+        vkQueueSubmit(g_vk_ctx->device.graphics_queue, 1, &submitInfo, VK_NULL_HANDLE );
+ 
+        // (jd) NOTE: We are synchronizing here explicitly, we will want to deferr checking all uploads till later on
+        vkQueueWaitIdle(g_vk_ctx->device.graphics_queue);
+        rbvk_memory_pools_staging_ring_buffer_pop(&g_vk_ctx->memory_pools, &mem_alloc);
+
+        // TODO: free command buffer
+        vkResetCommandBuffer( vk_command_buffer, VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT );
+        texture->vk_image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    }
+    DOT_TextureHandle dot_texture_handle = { .handle[0] = texture_h, };
     return dot_texture_handle;
 }
 
+internal DOT_BufferHandle
+renderer_backend_vk_buffer_create(const DOT_BufferCreateInfo *create_info)
+{
+    const DOT_BufferDesc *desc = &create_info->buffer_desc;
+
+    const PoolHandle buffer_h = POOL_H_GET(&g_vk_ctx->buffer_pool);
+    RBVK_Buffer *buffer= POOL_H_ACCESS(&g_vk_ctx->buffer_pool, buffer_h);
+    (void)desc;
+    (void)buffer;
+    return (DOT_BufferHandle){0};
+
+}
 
 internal RBVK_Texture
 rbvk_texture_create(VkImageCreateInfo *image_info)
@@ -190,15 +245,9 @@ rbvk_texture_create(VkImageCreateInfo *image_info)
         .vk_extent3d = image_info->extent,
     };
 
-    VkDevice device = g_vk_ctx->device.device;
+    VkDevice device = g_vk_ctx->device.vk_device;
     VK_CHECK(vkCreateImage(device, image_info, NULL, &image.vk_image));
-
-    VkMemoryRequirements reqs = {0};
-    vkGetImageMemoryRequirements(device, image.vk_image, &reqs);
-
-    image.alloc = vk_memory_pools_bump(&g_vk_ctx->memory_pools, reqs, VkMemory_PoolsKind_GpuOnly);
-
-    VK_CHECK(vkBindImageMemory(device, image.vk_image, image.alloc.memory, image.alloc.offset));
+    image.alloc = rbvk_memory_gpu_image_alloc(&g_vk_ctx->memory_pools, image.vk_image);
     VK_CHECK(vkCreateImageView(
         device,
         &(VkImageViewCreateInfo){
@@ -217,20 +266,20 @@ rbvk_texture_create(VkImageCreateInfo *image_info)
         NULL,
         &image.vk_image_view));
 
-    // image.image->vk_image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+    // image.vk_imageimage->vk_image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
     return image;
 }
 
 
 internal RBVK_Buffer
-rbvk_create_buffer(
+rbvk_buffer_create(
     VkDeviceSize size,
     VkBufferUsageFlags usage,
-    VkMemory_PoolsKind pool_kind,
+    // VkMemory_PoolsKind pool_kind,
     String8 name)
 {
     RBVK_Buffer buf = {.name = name, .size = size};
-    VkDevice device = g_vk_ctx->device.device;
+    VkDevice device = g_vk_ctx->device.vk_device;
 
     VkBufferCreateInfo info = {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -239,22 +288,18 @@ rbvk_create_buffer(
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
     };
 
-    VK_CHECK(vkCreateBuffer(device, &info, NULL, &buf.buffer));
+    VK_CHECK(vkCreateBuffer(device, &info, NULL, &buf.vk_buffer));
+    VkMemory_Alloc alloc = rbvk_memory_gpu_buffer_alloc(&g_vk_ctx->memory_pools, buf.vk_buffer);
+    buf.alloc.vk_memory = alloc.vk_memory;
+    buf.alloc.offset = alloc.offset;
 
-    VkMemoryRequirements reqs;
-    vkGetBufferMemoryRequirements(device, buf.buffer, &reqs);
-
-    VkMemory_Alloc alloc = vk_memory_pools_bump(&g_vk_ctx->memory_pools, reqs, pool_kind);
-    buf.memory = alloc.memory;
-    buf.offset = alloc.offset;
-
-    VK_CHECK(vkBindBufferMemory(device, buf.buffer, buf.memory, buf.offset));
+    VK_CHECK(vkBindBufferMemory(device, buf.vk_buffer, buf.alloc.vk_memory, buf.alloc.offset));
     return buf;
 }
 
 internal void
 rbvk_destroy_image(RBVK_Texture *image){
-    VkDevice device = g_vk_ctx->device.device;
+    VkDevice device = g_vk_ctx->device.vk_device;
     vkDestroyImageView(device, image->vk_image_view, NULL);
     // vkUnmapMemory(device, image->alloc.memory);
     vkDestroyImage(device, image->vk_image, NULL);
@@ -263,6 +308,7 @@ rbvk_destroy_image(RBVK_Texture *image){
 internal void
 renderer_backend_vk_init(DOT_Window* window)
 {
+    // (jd) This is all super messy and error prone. Cleanup
 #ifdef DOT_USE_VOLK
     volkInitialize();
 #endif
@@ -279,31 +325,9 @@ renderer_backend_vk_init(DOT_Window* window)
 
     // --- Create Instance ---
     {
-        VkInstanceCreateInfo instance_create_info = {
-            .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-            .ppEnabledLayerNames     = string8_array_to_str_array(
-                temp.arena,
-                VK_SETTINGS.validation_layers.count,
-                VK_SETTINGS.validation_layers.data),
-            .enabledLayerCount       = VK_SETTINGS.validation_layers.count,
-            .ppEnabledExtensionNames = string8_array_to_str_array(
-                temp.arena,
-                VK_SETTINGS.instance_settings.instance_extensions.count,
-                VK_SETTINGS.instance_settings.instance_extensions.data),
-            .enabledExtensionCount = VK_SETTINGS.instance_settings.instance_extensions.count,
-            .pApplicationInfo = &(VkApplicationInfo){
-                .sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-                .pApplicationName   = VK_SETTINGS.instance_settings.application_name.cstr,
-                .applicationVersion = VK_SETTINGS.instance_settings.application_version,
-                .pEngineName        = VK_SETTINGS.instance_settings.engine_name.cstr,
-                .engineVersion      = VK_SETTINGS.instance_settings.engine_version,
-                .apiVersion         = VK_SETTINGS.instance_settings.api_version,
-            },
-        };
-
-        VkDebugUtilsMessengerCreateInfoEXT debug_utils_info;
+        VkDebugUtilsMessengerCreateInfoEXT *debug_utils_info_ptr = NULL;
         if(VK_EXT_DEBUG_UTILS_ENABLE){
-            debug_utils_info = (VkDebugUtilsMessengerCreateInfoEXT){
+            VkDebugUtilsMessengerCreateInfoEXT debug_utils_info = {
                 .sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
                 .messageSeverity =
                     VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
@@ -314,22 +338,43 @@ renderer_backend_vk_init(DOT_Window* window)
                     VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
                     VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
                 .pfnUserCallback = renderer_backend_vk_debug_callback,
-          };
-          instance_create_info.pNext = &debug_utils_info;
+            };
+            debug_utils_info_ptr = &debug_utils_info;
         }
-
-        VK_CHECK(vkCreateInstance(&instance_create_info, NULL, &g_vk_ctx->instance));
+        VK_CHECK(vkCreateInstance(
+            &(VkInstanceCreateInfo){
+                .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+                .ppEnabledLayerNames     = string8_array_to_str_array(
+                    temp.arena,
+                    VK_SETTINGS.validation_layers.count,
+                    VK_SETTINGS.validation_layers.data),
+                .enabledLayerCount       = VK_SETTINGS.validation_layers.count,
+                .ppEnabledExtensionNames = string8_array_to_str_array(
+                    temp.arena,
+                    VK_SETTINGS.instance_settings.instance_extensions.count,
+                    VK_SETTINGS.instance_settings.instance_extensions.data),
+                .enabledExtensionCount = VK_SETTINGS.instance_settings.instance_extensions.count,
+                .pApplicationInfo = &(VkApplicationInfo){
+                    .sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+                    .pApplicationName   = VK_SETTINGS.instance_settings.application_name.cstr,
+                    .applicationVersion = VK_SETTINGS.instance_settings.application_version,
+                    .pEngineName        = VK_SETTINGS.instance_settings.engine_name.cstr,
+                    .engineVersion      = VK_SETTINGS.instance_settings.engine_version,
+                    .apiVersion         = VK_SETTINGS.instance_settings.api_version,
+                },
+                .pNext = debug_utils_info_ptr,
+            }, NULL, &g_vk_ctx->instance));
 #ifdef DOT_USE_VOLK
         volkLoadInstance(g_vk_ctx->instance);
 #endif
-        if(VK_EXT_DEBUG_UTILS_ENABLE){
 
+        if(debug_utils_info_ptr){
 #ifndef DOT_USE_VOLK
             PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT =
                 (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(g_vk_ctx->instance, "vkCreateDebugUtilsMessengerEXT");
 #endif
             if(vkCreateDebugUtilsMessengerEXT){
-                VK_CHECK(vkCreateDebugUtilsMessengerEXT(g_vk_ctx->instance, &debug_utils_info, NULL, &g_vk_ctx->debug_messenger));
+                VK_CHECK(vkCreateDebugUtilsMessengerEXT(g_vk_ctx->instance, debug_utils_info_ptr, NULL, &g_vk_ctx->debug_messenger));
             }
         }
     }
@@ -344,7 +389,7 @@ renderer_backend_vk_init(DOT_Window* window)
         }
 
         RBVK_Device* device = &g_vk_ctx->device;
-        device->gpu                = candidate_device_info.gpu;
+        device->vk_gpu                = candidate_device_info.gpu;
         device->graphics_queue_idx = candidate_device_info.graphics_family;
         device->present_queue_idx  = candidate_device_info.present_family;
         device->is_integrated_gpu  = candidate_device_info.is_integrated_gpu;
@@ -386,17 +431,17 @@ renderer_backend_vk_init(DOT_Window* window)
         VkPhysicalDeviceProperties properties;
         vkGetPhysicalDeviceProperties(candidate_device_info.gpu, &properties);
         DOT_PRINT("Vulkan version: %u.%u.%u", VK_VERSION_MAJOR(properties.apiVersion), VK_VERSION_MINOR(properties.apiVersion), VK_VERSION_PATCH(properties.apiVersion));
-        VK_CHECK(vkCreateDevice(candidate_device_info.gpu, &device_create_info, NULL, &device->device));
+        VK_CHECK(vkCreateDevice(candidate_device_info.gpu, &device_create_info, NULL, &device->vk_device));
 
 #ifdef DOT_USE_VOLK
         volkLoadDevice(device->device);
 #endif
-        vkGetDeviceQueue(device->device, candidate_device_info.graphics_family, 0, &device->graphics_queue);
+        vkGetDeviceQueue(device->vk_device, candidate_device_info.graphics_family, 0, &device->graphics_queue);
         if(shared_present_graphics_queues){
             device->present_queue = device->graphics_queue;
         } else {
             DOT_ERROR("Different present and graphics queues unsupported");
-            vkGetDeviceQueue(device->device, candidate_device_info.present_family, 0, &device->present_queue);
+            vkGetDeviceQueue(device->vk_device, candidate_device_info.present_family, 0, &device->present_queue);
         }
     }
     g_vk_ctx->memory_pools = vk_memory_pools_create(&g_vk_ctx->device);
@@ -404,14 +449,14 @@ renderer_backend_vk_init(DOT_Window* window)
     // TODO: We will probably need to move this to its own function to allow recreation
     // --- Create Swapchain ---
     {
-        RBVK_Swapchain* swapchain = &g_vk_ctx->swapchain;
+        g_vk_ctx->draw_extent = (VkExtent2D){window->window->w, window->window->h};
         VkHelper_SwapchainDetails details = {0};
-        vk_helper_physical_device_swapchain_support(&VK_SETTINGS, g_vk_ctx->device.gpu, g_vk_ctx->surface, window, &details);
+        vk_helper_physical_device_swapchain_support(&VK_SETTINGS, g_vk_ctx->device.vk_gpu, g_vk_ctx->surface, window, &details);
+
+        RBVK_Swapchain* swapchain = &g_vk_ctx->swapchain;
         swapchain->extent = details.surface_extent;
         swapchain->image_format = details.best_surface_format.format;
         swapchain->image_datas.count = details.image_count;
-
-        VkExtent2D window_extents = {window->window->w, window->window->h};
         VkSwapchainCreateInfoKHR swapchain_create_info = {
             .sType            = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
             .surface          = g_vk_ctx->surface,
@@ -427,7 +472,6 @@ renderer_backend_vk_init(DOT_Window* window)
             .compositeAlpha   = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
             .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
             .oldSwapchain     = VK_NULL_HANDLE, // Will need to update this for recreation
-            .imageExtent      = window_extents,
         };
         if(g_vk_ctx->device.graphics_queue_idx != g_vk_ctx->device.present_queue_idx){
             DOT_ERROR("Different present and graphics queues unsupported");
@@ -436,15 +480,14 @@ renderer_backend_vk_init(DOT_Window* window)
             swapchain_create_info.pQueueFamilyIndices = queues;
             swapchain_create_info.queueFamilyIndexCount = ARRAY_COUNT(queues);
         }
-        VK_CHECK(vkCreateSwapchainKHR(g_vk_ctx->device.device, &swapchain_create_info, NULL, &swapchain->swapchain));
-        VkExtent3D draw_image_extent = vk_helper_extent3d_from_extent2d(window_extents);
-        g_vk_ctx->draw_extent = window_extents;
+        VK_CHECK(vkCreateSwapchainKHR(g_vk_ctx->device.vk_device, &swapchain_create_info, NULL, &swapchain->swapchain));
+
         VkImageCreateInfo image_info = {
             .sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
             .pNext       = NULL,
             .imageType   = VK_IMAGE_TYPE_2D,
             .format      = VK_FORMAT_R16G16B16A16_SFLOAT,
-            .extent      = draw_image_extent,
+            .extent      = vk_helper_extent3d_from_extent2d(g_vk_ctx->draw_extent),
             .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
             .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 
@@ -461,95 +504,97 @@ renderer_backend_vk_init(DOT_Window* window)
                      VK_IMAGE_USAGE_STORAGE_BIT |
                      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
         };
-
         g_vk_ctx->draw_image = rbvk_texture_create(&image_info);
         {
             //  --- Create Image Datas ---
-            VkDevice device = g_vk_ctx->device.device;
+            VkDevice device = g_vk_ctx->device.vk_device;
             vkGetSwapchainImagesKHR(device, swapchain->swapchain, &swapchain->image_datas.count, NULL);
             array(VkImage) swapchain_images = PUSH_ARRAY(temp.arena, VkImage, swapchain->image_datas.count);
             vkGetSwapchainImagesKHR(device, swapchain->swapchain, &swapchain->image_datas.count, swapchain_images);
             swapchain->image_datas.data = PUSH_ARRAY(ctx_arena, RBVK_SwapchainImageData, swapchain->image_datas.count);
 
-            VkImageViewCreateInfo image_view_create_info = {
-                .sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                .format   = swapchain->image_format,
-                .components = {
-                    .r = VK_COMPONENT_SWIZZLE_IDENTITY,
-                    .g = VK_COMPONENT_SWIZZLE_IDENTITY,
-                    .b = VK_COMPONENT_SWIZZLE_IDENTITY,
-                    .a = VK_COMPONENT_SWIZZLE_IDENTITY,
-                },
-                .subresourceRange = {
-                    .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-                    .baseMipLevel   = 0,
-                    .levelCount     = 1,
-                    .baseArrayLayer = 0,
-                    .layerCount     = 1,
-                }
-            };
+            for(u32 i = 0; i < swapchain->image_datas.count; ++i){
+                RBVK_SwapchainImageData *framedata = &swapchain->image_datas.data[i];
+                framedata->image = swapchain_images[i];
+                VK_CHECK(vkCreateImageView(device, 
+                    &(VkImageViewCreateInfo) {
+                        .sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                        .image = framedata->image,
+                        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                        .format   = swapchain->image_format,
+                        .components = {
+                            .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                            .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                            .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                            .a = VK_COMPONENT_SWIZZLE_IDENTITY,
+                        },
+                        .subresourceRange = {
+                            .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+                            .baseMipLevel   = 0,
+                            .levelCount     = 1,
+                            .baseArrayLayer = 0,
+                            .layerCount     = 1,
+                        },
+                    }, NULL, &framedata->image_view));
 
-            VkSemaphoreCreateInfo semaphore_create_info = {
-                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-                .flags = 0,
-                .pNext = NULL,
-            };
-                for(u32 i = 0; i < swapchain->image_datas.count; ++i){
-                    RBVK_SwapchainImageData *framedata = &swapchain->image_datas.data[i];
-                    // RBVK_SwapchainImageData *framedata = &SLICE_GET(swapchain->image_datas, i);
-                    framedata->image = swapchain_images[i];
-                    image_view_create_info.image = framedata->image;
-
-                    VK_CHECK(vkCreateImageView(device, &image_view_create_info, NULL, &framedata->image_view));
-                    VK_CHECK(vkCreateSemaphore(device, &semaphore_create_info, NULL, &framedata->image_semaphore));
-                }
+                VK_CHECK(vkCreateSemaphore(device,
+                    &(VkSemaphoreCreateInfo) {
+                        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+                        .flags = 0,
+                        .pNext = NULL,
+                    }, NULL, &framedata->image_semaphore));
+            }
         }
     }
     // --- Create Frame Structures ---
     {
-        u8 frame_overlap = VK_SETTINGS.frame_settings.frame_overlap;
-        VkDevice device = g_vk_ctx->device.device;
+        u8 frame_overlap = g_vk_ctx->base.frame_overlap;
+        VkDevice device = g_vk_ctx->device.vk_device;
         // WARN: Any allocation that can be recreated may be need to be pushed onto its own arena alloc ctx to avoid leaking
         g_vk_ctx->frame_data_count = frame_overlap;
         g_vk_ctx->frame_datas = PUSH_ARRAY(ctx_arena, RBVK_FrameData, frame_overlap);
         // --- Create Commands Buffers ---
         {
-            VkCommandPoolCreateInfo command_pool_info = {
-                .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-                .flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-                .queueFamilyIndex = g_vk_ctx->device.graphics_queue_idx,
-            };
-            VkCommandBufferAllocateInfo cmd_alloc_info = {
-                .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-                .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-                .commandBufferCount = 1,
-            };
             for(u8 i = 0; i < frame_overlap; ++i){
                 RBVK_FrameData *frame_data = &g_vk_ctx->frame_datas[i];
-                VK_CHECK(vkCreateCommandPool(device, &command_pool_info, NULL, &frame_data->command_pool));
-                cmd_alloc_info.commandPool = frame_data->command_pool;
+
+                VK_CHECK(vkCreateCommandPool(device,
+                    &(VkCommandPoolCreateInfo){
+                        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+                        .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+                        .queueFamilyIndex = g_vk_ctx->device.graphics_queue_idx,
+                    },
+                    NULL, &frame_data->command_pool));
+
+                VkCommandBufferAllocateInfo cmd_alloc_info = {
+                    .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+                    .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+                    .commandBufferCount = 1,
+                    .commandPool = frame_data->command_pool,
+                };
                 VK_CHECK(vkAllocateCommandBuffers(device, &cmd_alloc_info, &frame_data->frame_command_buffer));
+                VK_CHECK(vkAllocateCommandBuffers(device, &cmd_alloc_info, &frame_data->immediate_command_buffer));
                 frame_data->frame_arena = ARENA_ALLOC(.parent = ctx_arena, .reserve_size = KB(32));
+
             }
         }
         // --- Init Sync Structures ---
         {
-            VkFenceCreateInfo fence_create_info = {
-                .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-                .flags = VK_FENCE_CREATE_SIGNALED_BIT,
-                .pNext = NULL,
-            };
-            VkSemaphoreCreateInfo semaphore_create_info = {
-                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-                .flags = 0,
-                .pNext = NULL,
-            };
             for(u8 i = 0; i < frame_overlap; ++i){
                 RBVK_FrameData *frame_data = &g_vk_ctx->frame_datas[i];
-                VK_CHECK(vkCreateFence(device, &fence_create_info, NULL, &frame_data->render_fence));
-                // VK_CHECK(vkCreateSemaphore(device, &semaphore_create_info, NULL, &frame_data->render_semaphore));
-                VK_CHECK(vkCreateSemaphore(device, &semaphore_create_info, NULL, &frame_data->acquire_semaphore));
+                VK_CHECK(vkCreateFence(device,
+                    &(VkFenceCreateInfo){
+                        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+                        .flags = VK_FENCE_CREATE_SIGNALED_BIT,
+                    },
+                    NULL, &frame_data->render_fence));
+
+                VK_CHECK(vkCreateSemaphore(device,
+                    &(VkSemaphoreCreateInfo){
+                        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+                        .flags = 0,
+                    },
+                    NULL, &frame_data->acquire_semaphore));
             }
         }
         // --- Create descriptors
@@ -617,11 +662,11 @@ renderer_backend_vk_init(DOT_Window* window)
 
             g_vk_ctx->descriptor_set_count = ARRAY_COUNT(layouts);
             VK_CHECK(vkAllocateDescriptorSets(device, &alloc_info, g_vk_ctx->descriptor_sets));
+            POOL_INIT(ctx_arena, &g_vk_ctx->texture_pool, 512);
+            POOL_INIT(ctx_arena, &g_vk_ctx->buffer_pool, 4096);
+            POOL_INIT(ctx_arena, &g_vk_ctx->sampler_pool, 128);
         }
     }
-    POOL_INIT(ctx_arena, &g_vk_ctx->texture_pool, 512);
-    // POOL_INIT(ctx_arena, &g_vk_ctx->buffers_pool, 4096);
-    // POOL_INIT(ctx_arena, &g_vk_ctx->samplers_pool, 128);
 
     // {
     //     VkDevice device = g_vk_ctx->device.device;
@@ -661,7 +706,7 @@ renderer_create_postprocess_module(DOT_ShaderModuleHandle shader_module_h)
             g_vk_ctx->compute_layout,
             // g_vk_ctx->bindless_layout,
         };
-        VkDevice device = g_vk_ctx->device.device;
+        VkDevice device = g_vk_ctx->device.vk_device;
         VkPipelineLayoutCreateInfo pipeline_compute_layout = {
 	        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
 	        .setLayoutCount = ARRAY_COUNT(layouts),
@@ -700,14 +745,14 @@ renderer_create_postprocess_module(DOT_ShaderModuleHandle shader_module_h)
 	        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
 	        .pImageInfo = &imgInfo,
 	    };
-	    vkUpdateDescriptorSets(g_vk_ctx->device.device, 1, &drawImageWrite, 0, NULL);
+	    vkUpdateDescriptorSets(g_vk_ctx->device.vk_device, 1, &drawImageWrite, 0, NULL);
 
 }
 
 internal void
 renderer_backend_vk_shutdown()
 {
-    VkDevice device = g_vk_ctx->device.device;
+    VkDevice device = g_vk_ctx->device.vk_device;
 
     vkDeviceWaitIdle(device);
     {
@@ -716,7 +761,7 @@ renderer_backend_vk_shutdown()
         vkDestroyDescriptorPool(device, g_vk_ctx->descriptor_pool, NULL);
     }
 
-    for(u32 i = 0; i < VK_SETTINGS.frame_settings.frame_overlap; ++i){
+    for(u32 i = 0; i < g_vk_ctx->base.frame_overlap; ++i){
         RBVK_FrameData* frame_data = &g_vk_ctx->frame_datas[i];
         vkDestroyCommandPool(device, frame_data->command_pool, NULL);
         vkDestroyFence(device, frame_data->render_fence, NULL);
@@ -734,7 +779,7 @@ renderer_backend_vk_shutdown()
     vkDestroySwapchainKHR(device, g_vk_ctx->swapchain.swapchain, NULL);
     vk_memory_pools_destroy(&g_vk_ctx->device, &g_vk_ctx->memory_pools);
     vkDestroySurfaceKHR(g_vk_ctx->instance, g_vk_ctx->surface, NULL);
-    vkDestroyDevice(g_vk_ctx->device.device, NULL);
+    vkDestroyDevice(g_vk_ctx->device.vk_device, NULL);
     if(VK_EXT_DEBUG_UTILS_ENABLE){
 #ifndef DOT_USE_VOLK
         PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT =
@@ -748,9 +793,9 @@ renderer_backend_vk_shutdown()
 }
 
 internal void
-renderer_backend_vk_clear_bg(u8 current_frame, vec3 color)
+renderer_backend_vk_clear_bg(vec3 color)
 {
-	RBVK_FrameData *frame_data = &g_vk_ctx->frame_datas[current_frame];
+	RBVK_FrameData *frame_data = &g_vk_ctx->frame_datas[g_vk_ctx->current_frame];
 	VkCommandBuffer cmd = frame_data->frame_command_buffer;
 	(void)color;
 	RBVK_Texture *draw_image = &g_vk_ctx->draw_image;
@@ -762,10 +807,10 @@ renderer_backend_vk_clear_bg(u8 current_frame, vec3 color)
 	(void) clear_value;
 	VkImageSubresourceRange clear_range = vk_image_subresource_range(VK_IMAGE_ASPECT_COLOR_BIT);
 	(void) clear_range;
-	// vkCmdClearColorImage(cmd, draw_image->image, VK_IMAGE_LAYOUT_GENERAL, &clear_value, 1, &clear_range);
+	// vkCmdClearColorImage(cmd, draw_image->vk_image, VK_IMAGE_LAYOUT_GENERAL, &clear_value, 1, &clear_range);
 
 
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, g_vk_ctx->gradient_pipeline);
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, g_vk_ctx->gradient_pipeline);
 	// bind the descriptor set containing the draw image for the compute pipeline
 	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, g_vk_ctx->gradient_pipeline_layout, 0, 1, g_vk_ctx->descriptor_sets, 0, NULL);
 	// execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
@@ -773,12 +818,12 @@ renderer_backend_vk_clear_bg(u8 current_frame, vec3 color)
 }
 
 internal void
-renderer_backend_vk_begin_frame(u8 current_frame)
+renderer_backend_vk_begin_frame()
 {
-    RBVK_FrameData *frame_data = &g_vk_ctx->frame_datas[current_frame];
+    RBVK_FrameData *frame_data = &g_vk_ctx->frame_datas[g_vk_ctx->current_frame];
     ARENA_RESET(frame_data->frame_arena);
 
-    VkDevice device = g_vk_ctx->device.device;
+    VkDevice device = g_vk_ctx->device.vk_device;
     VK_CHECK(vkWaitForFences(device, 1, &frame_data->render_fence, true, TO_NSEC(1)));
     VK_CHECK(vkResetFences(device, 1, &frame_data->render_fence));
 
@@ -800,9 +845,9 @@ renderer_backend_vk_begin_frame(u8 current_frame)
 }
 
 internal void
-renderer_backend_vk_end_frame(u8 current_frame)
+renderer_backend_vk_end_frame()
 {
-    RBVK_FrameData *frame_data = &g_vk_ctx->frame_datas[current_frame];
+    RBVK_FrameData *frame_data = &g_vk_ctx->frame_datas[g_vk_ctx->current_frame];
     VkCommandBuffer cmd = frame_data->frame_command_buffer;
 
     RBVK_Texture *draw_image = &g_vk_ctx->draw_image;
@@ -845,13 +890,22 @@ renderer_backend_vk_end_frame(u8 current_frame)
 	    };
 	    VK_CHECK(vkQueuePresentKHR(g_vk_ctx->device.graphics_queue, &presentInfo));
 	}
+	rbvk_frame_counters_advance();
+}
+
+internal void
+rbvk_frame_counters_advance() {
+    // (jd) decide where tf  frame_overlap is going
+    g_vk_ctx->previous_frame = g_vk_ctx->current_frame;
+    g_vk_ctx->current_frame = (g_vk_ctx->current_frame + 1) % g_vk_ctx->base.frame_overlap;
+    ++g_vk_ctx->absolute_frame;
 }
 
 /* ================================================================== */
 /*  Overlay – Vulkan backend implementation                           */
 /*                                                                    */
 /*  Renders a 2-D overlay onto draw_image (before the blit to the     */
-/*  swapchain).  All GPU memory comes from the existing VkMemory_Pools */
+/*  swapchain).  All GPU memory comes from the existing RBVKMemory_Pools */
 /*  (gpu_only for the font image, staging for vertex/index data).     */
 /* ================================================================== */
 
@@ -893,7 +947,7 @@ global RBVK_OverlayState g_rbvk_overlay;
 internal void
 rbvk_overlay_create_render_pass(RBVK_OverlayState *overlay_state)
 {
-    VkDevice device = g_vk_ctx->device.device;
+    VkDevice device = g_vk_ctx->device.vk_device;
     VkFormat color_format = g_vk_ctx->draw_image.vk_format;
 
     VkAttachmentDescription color_attachment = {
@@ -948,7 +1002,7 @@ rbvk_overlay_create_render_pass(RBVK_OverlayState *overlay_state)
 internal void
 rbvk_overlay_create_framebuffer(RBVK_OverlayState *overlay_state)
 {
-    VkDevice device = g_vk_ctx->device.device;
+    VkDevice device = g_vk_ctx->device.vk_device;
     RBVK_Texture *draw = &g_vk_ctx->draw_image;
 
     VkFramebufferCreateInfo fb_info = {
@@ -970,8 +1024,8 @@ rbvk_overlay_create_framebuffer(RBVK_OverlayState *overlay_state)
 internal void
 rbvk_overlay_upload_font(RBVK_OverlayState *overlay_state, const void *pixels, int atlas_w, int atlas_h)
 {
-    VkDevice device = g_vk_ctx->device.device;
-    VkMemory_Pools *pools = &g_vk_ctx->memory_pools;
+    VkDevice device = g_vk_ctx->device.vk_device;
+    RBVKMemory_Pools *pools = &g_vk_ctx->memory_pools;
     VkDeviceSize image_size = (VkDeviceSize)atlas_w * atlas_h * 4;
  
     // TODO: USE rbvk_texture_create
@@ -990,20 +1044,16 @@ rbvk_overlay_upload_font(RBVK_OverlayState *overlay_state, const void *pixels, i
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     };
     VK_CHECK(vkCreateImage(device, &img_info, NULL, &overlay_state->font_image));
-
-    VkMemoryRequirements img_reqs;
-    vkGetImageMemoryRequirements(device, overlay_state->font_image, &img_reqs);
-
-    VkMemory_Alloc font_alloc = vk_memory_pools_bump(pools, img_reqs, VkMemory_PoolsKind_GpuOnly);
-    VK_CHECK(vkBindImageMemory(device, overlay_state->font_image, font_alloc.memory, font_alloc.offset));
+    VkMemory_Alloc font_alloc = rbvk_memory_gpu_image_alloc(pools, overlay_state->font_image);
+    VK_CHECK(vkBindImageMemory(device, overlay_state->font_image, font_alloc.vk_memory, font_alloc.offset));
 
     /* --- Copy pixels through the staging buffer --- */
     {
         /* Map a region of the staging buffer and write pixels */
         void *mapped;
-        VK_CHECK(vkMapMemory(device, pools->staging_mem, 0, image_size, 0, &mapped));
-        MEM_COPY(mapped, pixels, (usize)image_size);
-        vkUnmapMemory(device, pools->staging_mem);
+        VK_CHECK(vkMapMemory(device, pools->staging_buffer.vk_memory, 0, image_size, 0, &mapped));
+        MEMORY_COPY(mapped, pixels, (usize)image_size);
+        vkUnmapMemory(device, pools->staging_buffer.vk_memory);
 
         /* One-shot command buffer for the upload */
         VkCommandPool tmp_pool;
@@ -1052,7 +1102,7 @@ rbvk_overlay_upload_font(RBVK_OverlayState *overlay_state, const void *pixels, i
             .imageOffset       = {0, 0, 0},
             .imageExtent       = { (u32)atlas_w, (u32)atlas_h, 1 },
         };
-        vkCmdCopyBufferToImage(cmd, pools->staging_buffer, overlay_state->font_image,
+        vkCmdCopyBufferToImage(cmd, pools->staging_buffer.vk_buffer, overlay_state->font_image,
                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
         VkImageMemoryBarrier barrier_to_read = {
@@ -1091,7 +1141,8 @@ rbvk_overlay_upload_font(RBVK_OverlayState *overlay_state, const void *pixels, i
         .format   = VK_FORMAT_R8G8B8A8_UNORM,
         .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
     };
-    VK_CHECK(vkCreateImageView(device, &view_info, NULL, &overlay_state->font_image_view));
+    (void)(view_info);
+    // VK_CHECK(vkCreateImageView(device, &view_info, NULL, &overlay_state->font_image_view));
 
     /* --- Sampler --- */
     VkSamplerCreateInfo sampler_info = {
@@ -1113,7 +1164,7 @@ rbvk_overlay_upload_font(RBVK_OverlayState *overlay_state, const void *pixels, i
 internal void
 rbvk_overlay_create_descriptors(RBVK_OverlayState *overlay_state)
 {
-    VkDevice device = g_vk_ctx->device.device;
+    VkDevice device = g_vk_ctx->device.vk_device;
 
     VkDescriptorSetLayoutCreateInfo layout_info = {
         .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
@@ -1202,27 +1253,27 @@ rbvk_overlay_create_descriptors(RBVK_OverlayState *overlay_state)
     ubo_data.projection[3][1] =  1.0f;
     ubo_data.projection[3][3] =  1.0f;
 
-    RBVK_Buffer overlay_ubo_buffer = rbvk_create_buffer(
+    RBVK_Buffer overlay_ubo_buffer = rbvk_buffer_create(
         sizeof(OverlayUBO),
         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-        VkMemory_PoolsKind_Staging,
+        // VkMemory_PoolsKind_Staging,
         String8Lit("OverlayUBO"));
     // VkDeviceMemory       ubo_memory;
     // VkDeviceSize         ubo_offset;
 
     void* mapped;
     vkMapMemory(device,
-        overlay_ubo_buffer.memory,
-        overlay_ubo_buffer.offset,
+        overlay_ubo_buffer.alloc.vk_memory,
+        overlay_ubo_buffer.alloc.offset,
         sizeof(ubo_data),
         0,
         &mapped);
 
     memcpy(mapped, &ubo_data, sizeof(ubo_data));
-    vkUnmapMemory(device, overlay_ubo_buffer.memory);
+    vkUnmapMemory(device, overlay_ubo_buffer.alloc.vk_memory);
 
     VkDescriptorBufferInfo buffer_info = {
-        .buffer = overlay_ubo_buffer.buffer,
+        .buffer = overlay_ubo_buffer.vk_buffer,
         .offset = 0,
         .range  = sizeof(OverlayUBO),
     };
@@ -1246,7 +1297,7 @@ rbvk_overlay_create_descriptors(RBVK_OverlayState *overlay_state)
 internal void
 rbvk_overlay_create_pipeline(RBVK_OverlayState *overlay_state)
 {
-    VkDevice device = g_vk_ctx->device.device;
+    VkDevice device = g_vk_ctx->device.vk_device;
 
     VkShaderModuleCreateInfo vert_create_info = {
         .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -1386,32 +1437,32 @@ rbvk_overlay_create_pipeline(RBVK_OverlayState *overlay_state)
 /*  Reserve vertex / index regions from the staging pool              */
 /* ------------------------------------------------------------------ */
 
-internal void
-rbvk_overlay_reserve_buffers(RBVK_OverlayState *s)
-{
-    VkMemory_Pools *pools = &g_vk_ctx->memory_pools;
-
-    /* Vertex region */
-    VkMemoryRequirements vtx_reqs = {
-        .size           = RBVK_OVERLAY_MAX_VERTEX_BUFFER,
-        .alignment      = 16,
-        .memoryTypeBits = (1u << pools->staging_type),
-    };
-    VkMemory_Alloc vtx_alloc = vk_memory_pools_bump(pools, vtx_reqs, VkMemory_PoolsKind_Staging);
-    s->vertex_offset = vtx_alloc.offset;
-    /* Manually advance past the allocation (pool bump for staging doesn't add size) */
-    pools->staging_used = vtx_alloc.offset + RBVK_OVERLAY_MAX_VERTEX_BUFFER;
-
-    /* Index region */
-    VkMemoryRequirements idx_reqs = {
-        .size           = RBVK_OVERLAY_MAX_ELEMENT_BUFFER,
-        .alignment      = 16,
-        .memoryTypeBits = (1u << pools->staging_type),
-    };
-    VkMemory_Alloc idx_alloc = vk_memory_pools_bump(pools, idx_reqs, VkMemory_PoolsKind_Staging);
-    s->index_offset = idx_alloc.offset;
-    pools->staging_used = idx_alloc.offset + RBVK_OVERLAY_MAX_ELEMENT_BUFFER;
-}
+// internal void
+// rbvk_overlay_reserve_buffers(RBVK_OverlayState *s)
+// {
+//     RBVKMemory_Pools *pools = &g_vk_ctx->memory_pools;
+//
+//     /* Vertex region */
+//     VkMemoryRequirements vtx_reqs = {
+//         .size           = RBVK_OVERLAY_MAX_VERTEX_BUFFER,
+//         .alignment      = 16,
+//         .memoryTypeBits = (1u << pools->staging_type),
+//     };
+//     VkMemory_Alloc vtx_alloc = vk_memory_pools_bump(pools, vtx_reqs, VkMemory_PoolsKind_Staging);
+//     s->vertex_offset = vtx_alloc.offset;
+//     /* Manually advance past the allocation (pool bump for staging doesn't add size) */
+//     pools->staging_used = vtx_alloc.offset + RBVK_OVERLAY_MAX_VERTEX_BUFFER;
+//
+//     /* Index region */
+//     VkMemoryRequirements idx_reqs = {
+//         .size           = RBVK_OVERLAY_MAX_ELEMENT_BUFFER,
+//         .alignment      = 16,
+//         .memoryTypeBits = (1u << pools->staging_type),
+//     };
+//     VkMemory_Alloc idx_alloc = vk_memory_pools_bump(pools, idx_reqs, VkMemory_PoolsKind_Staging);
+//     s->index_offset = idx_alloc.offset;
+//     pools->staging_used = idx_alloc.offset + RBVK_OVERLAY_MAX_ELEMENT_BUFFER;
+// }
 
 /* ------------------------------------------------------------------ */
 /*  Public backend interface                                          */
@@ -1426,98 +1477,99 @@ renderer_backend_vk_overlay_init(const void *font_pixels, int font_w, int font_h
     rbvk_overlay_upload_font(&g_rbvk_overlay, font_pixels, font_w, font_h);
     rbvk_overlay_create_descriptors(&g_rbvk_overlay);
     rbvk_overlay_create_pipeline(&g_rbvk_overlay);
-    rbvk_overlay_reserve_buffers(&g_rbvk_overlay);
+    // rbvk_overlay_reserve_buffers(&g_rbvk_overlay);
 }
 
 internal void
 renderer_backend_vk_overlay_render(u8 frame_idx, OverlayDrawList *draw_list)
 {
-    RBVK_FrameData *fd = &g_vk_ctx->frame_datas[frame_idx];
-    VkCommandBuffer cmd = fd->frame_command_buffer;
-    VkDevice device = g_vk_ctx->device.device;
-    VkMemory_Pools *pools = &g_vk_ctx->memory_pools;
-
-    /* Upload vertex data into the staging buffer region */
-    if (draw_list->vertex_size > 0) {
-        void *mapped;
-        VK_CHECK(vkMapMemory(device, pools->staging_mem, g_rbvk_overlay.vertex_offset,
-                             draw_list->vertex_size, 0, &mapped));
-        MEM_COPY(mapped, draw_list->vertices, draw_list->vertex_size);
-        vkUnmapMemory(device, pools->staging_mem);
-    }
-
-    /* Upload index data into the staging buffer region */
-    if (draw_list->index_size > 0) {
-        void *mapped;
-        VK_CHECK(vkMapMemory(device, pools->staging_mem, g_rbvk_overlay.index_offset,
-                             draw_list->index_size, 0, &mapped));
-        MEM_COPY(mapped, draw_list->indices, draw_list->index_size);
-        vkUnmapMemory(device, pools->staging_mem);
-    }
-
-    /* Begin overlay render pass on draw_image */
-    VkRenderPassBeginInfo rp_begin = {
-        .sType       = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .renderPass  = g_rbvk_overlay.render_pass,
-        .framebuffer = g_rbvk_overlay.framebuffer,
-        .renderArea  = { {0, 0}, g_vk_ctx->draw_extent },
-    };
-    vkCmdBeginRenderPass(cmd, &rp_begin, VK_SUBPASS_CONTENTS_INLINE);
-
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_rbvk_overlay.pipeline);
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-        g_rbvk_overlay.pipeline_layout, 0, 2, g_rbvk_overlay.descriptor_sets, 0, NULL);
-
-    /* Bind vertex/index buffers from the staging pool */
-    VkDeviceSize vb_offset = g_rbvk_overlay.vertex_offset;
-    vkCmdBindVertexBuffers(cmd, 0, 1, &pools->staging_buffer, &vb_offset);
-    vkCmdBindIndexBuffer(cmd, pools->staging_buffer, g_rbvk_overlay.index_offset, VK_INDEX_TYPE_UINT16);
-
-    /* Push orthographic projection */
-    {
-        RBVK_OverlayPushConstants pc;
-        MEMORY_ZERO_STRUCT(&pc);
-        pc.projection[0][0] =  2.0f / (f32)draw_list->width;
-        pc.projection[1][1] = -2.0f / (f32)draw_list->height;
-        pc.projection[2][2] = -1.0f;
-        pc.projection[3][0] = -1.0f;
-        pc.projection[3][1] =  1.0f;
-        pc.projection[3][3] =  1.0f;
-        vkCmdPushConstants(cmd, g_rbvk_overlay.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT,
-                           0, sizeof(RBVK_OverlayPushConstants), &pc);
-    }
-
-    VkViewport vp = { 0, 0, (f32)draw_list->width, (f32)draw_list->height, 0.0f, 1.0f };
-    vkCmdSetViewport(cmd, 0, 1, &vp);
-
-    /* Draw commands */
-    u32 index_offset = 0;
-    for (u32 i = 0; i < draw_list->cmd_count; ++i) {
-        OverlayDrawCmd *dc = &draw_list->cmds[i];
-        if (!dc->elem_count) continue;
-
-        VkRect2D scissor = {
-            .offset = {
-                .x = MAX((i32)dc->clip_x, 0),
-                .y = MAX((i32)dc->clip_y, 0),
-            },
-            .extent = {
-                .width  = (u32)dc->clip_w,
-                .height = (u32)dc->clip_h,
-            },
-        };
-        vkCmdSetScissor(cmd, 0, 1, &scissor);
-        vkCmdDrawIndexed(cmd, dc->elem_count, 1, index_offset, 0, 0);
-        index_offset += dc->elem_count;
-    }
-
-    vkCmdEndRenderPass(cmd);
+    (void)frame_idx; (void)draw_list;
+    // RBVK_FrameData *fd = &g_vk_ctx->frame_datas[frame_idx];
+    // VkCommandBuffer cmd = fd->frame_command_buffer;
+    // VkDevice device = g_vk_ctx->device.vk_device;
+    // RBVKMemory_Pools *pools = &g_vk_ctx->memory_pools;
+    //
+    // /* Upload vertex data into the staging buffer region */
+    // if (draw_list->vertex_size > 0) {
+    //     void *mapped;
+    //     VK_CHECK(vkMapMemory(device, pools->staging_mem, g_rbvk_overlay.vertex_offset,
+    //                          draw_list->vertex_size, 0, &mapped));
+    //     MEMORY_COPY(mapped, draw_list->vertices, draw_list->vertex_size);
+    //     vkUnmapMemory(device, pools->staging_mem);
+    // }
+    //
+    // /* Upload index data into the staging buffer region */
+    // if (draw_list->index_size > 0) {
+    //     void *mapped;
+    //     VK_CHECK(vkMapMemory(device, pools->staging_mem, g_rbvk_overlay.index_offset,
+    //                          draw_list->index_size, 0, &mapped));
+    //     MEMORY_COPY(mapped, draw_list->indices, draw_list->index_size);
+    //     vkUnmapMemory(device, pools->staging_mem);
+    // }
+    //
+    // /* Begin overlay render pass on draw_image */
+    // VkRenderPassBeginInfo rp_begin = {
+    //     .sType       = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+    //     .renderPass  = g_rbvk_overlay.render_pass,
+    //     .framebuffer = g_rbvk_overlay.framebuffer,
+    //     .renderArea  = { {0, 0}, g_vk_ctx->draw_extent },
+    // };
+    // vkCmdBeginRenderPass(cmd, &rp_begin, VK_SUBPASS_CONTENTS_INLINE);
+    //
+    // vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_rbvk_overlay.pipeline);
+    // vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+    //     g_rbvk_overlay.pipeline_layout, 0, 2, g_rbvk_overlay.descriptor_sets, 0, NULL);
+    //
+    // /* Bind vertex/index buffers from the staging pool */
+    // VkDeviceSize vb_offset = g_rbvk_overlay.vertex_offset;
+    // vkCmdBindVertexBuffers(cmd, 0, 1, &pools->staging_buffer, &vb_offset);
+    // vkCmdBindIndexBuffer(cmd, pools->staging_buffer, g_rbvk_overlay.index_offset, VK_INDEX_TYPE_UINT16);
+    //
+    // /* Push orthographic projection */
+    // {
+    //     RBVK_OverlayPushConstants pc;
+    //     MEMORY_ZERO_STRUCT(&pc);
+    //     pc.projection[0][0] =  2.0f / (f32)draw_list->width;
+    //     pc.projection[1][1] = -2.0f / (f32)draw_list->height;
+    //     pc.projection[2][2] = -1.0f;
+    //     pc.projection[3][0] = -1.0f;
+    //     pc.projection[3][1] =  1.0f;
+    //     pc.projection[3][3] =  1.0f;
+    //     vkCmdPushConstants(cmd, g_rbvk_overlay.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT,
+    //                        0, sizeof(RBVK_OverlayPushConstants), &pc);
+    // }
+    //
+    // VkViewport vp = { 0, 0, (f32)draw_list->width, (f32)draw_list->height, 0.0f, 1.0f };
+    // vkCmdSetViewport(cmd, 0, 1, &vp);
+    //
+    // /* Draw commands */
+    // u32 index_offset = 0;
+    // for (u32 i = 0; i < draw_list->cmd_count; ++i) {
+    //     OverlayDrawCmd *dc = &draw_list->cmds[i];
+    //     if (!dc->elem_count) continue;
+    //
+    //     VkRect2D scissor = {
+    //         .offset = {
+    //             .x = MAX((i32)dc->clip_x, 0),
+    //             .y = MAX((i32)dc->clip_y, 0),
+    //         },
+    //         .extent = {
+    //             .width  = (u32)dc->clip_w,
+    //             .height = (u32)dc->clip_h,
+    //         },
+    //     };
+    //     vkCmdSetScissor(cmd, 0, 1, &scissor);
+    //     vkCmdDrawIndexed(cmd, dc->elem_count, 1, index_offset, 0, 0);
+    //     index_offset += dc->elem_count;
+    // }
+    //
+    // vkCmdEndRenderPass(cmd);
 }
 
 internal void
 renderer_backend_vk_overlay_shutdown(void)
 {
-    VkDevice device = g_vk_ctx->device.device;
+    VkDevice device = g_vk_ctx->device.vk_device;
     vkDeviceWaitIdle(device);
 
     vkDestroyPipeline(device, g_rbvk_overlay.pipeline, NULL);

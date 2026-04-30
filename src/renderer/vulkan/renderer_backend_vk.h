@@ -29,7 +29,7 @@ struct RBVK_Settings{
             String8 *data;
             usize    count;
         }device_extensions;
-        const void    *device_features;
+        const void  *device_features;
     }device_settings;
 
     struct RBVK_ValidationLayers{
@@ -115,8 +115,8 @@ struct RBVK_Settings{
 };
 
 typedef struct RBVK_Device{
-    VkDevice         device;
-    VkPhysicalDevice gpu;
+    VkDevice         vk_device;
+    VkPhysicalDevice vk_gpu;
     b32              is_integrated_gpu;
 
     VkQueue graphics_queue;
@@ -143,10 +143,10 @@ typedef struct RBVK_Device{
 // };
 
 typedef struct RBVK_Buffer{
-    VkBuffer        buffer;
-    VkDeviceMemory  memory;
-    VkDeviceSize    offset;
+    VkBuffer        vk_buffer;
     VkDeviceSize    size;
+
+    VkMemory_Alloc alloc;
     String8 name;
 }RBVK_Buffer;
 
@@ -161,7 +161,7 @@ typedef struct RBVK_Sampler{
     VkSamplerAddressMode vk_address_mode_v; // = VK_SAMPLER_ADDRESS_MODE_REPEAT
     VkSamplerAddressMode vk_address_mode_w; // = VK_SAMPLER_ADDRESS_MODE_REPEAT
 
-    String8 name;
+    String8 debug_name;
 }RBVK_Sampler;
 
 typedef struct RBVK_Texture{
@@ -180,7 +180,7 @@ typedef struct RBVK_Texture{
 
     RBVK_Sampler *sampler;
 
-    String8 name;
+    String8 debug_name;
 }RBVK_Texture;
 
 typedef struct RBVK_SwapchainImageData{
@@ -207,7 +207,8 @@ typedef struct RBVK_Swapchain{
 typedef struct RBVK_FrameData{
     Arena          *frame_arena;
     VkCommandPool   command_pool;
-    VkCommandBuffer frame_command_buffer;
+    VkCommandBuffer frame_command_buffer; // (jd) NOTE: * parallel recordings in flight
+    VkCommandBuffer immediate_command_buffer;
     VkSemaphore     acquire_semaphore;
     VkFence         render_fence;
     u32             swapchain_image_idx; // Selected swpachain img for a given frame
@@ -216,6 +217,7 @@ typedef struct RBVK_FrameData{
 typedef struct RBVK_FrameDatas RBVK_FrameDatas;
 typedef struct RendererBackendVk{
     RendererBackend base;
+
     RBVK_Device     device;
     RBVK_Swapchain  swapchain;
     VkInstance      instance;
@@ -227,6 +229,9 @@ typedef struct RendererBackendVk{
     }frame_datas2;
     u8                    frame_data_count;
     array(RBVK_FrameData) frame_datas;
+    u32 current_frame;
+    u32 previous_frame;
+    u64 absolute_frame;
 
     RBVK_Texture      draw_image;
     // NOTE: Splitting this from actual draw_image so that we can draw regions?
@@ -246,8 +251,10 @@ typedef struct RendererBackendVk{
     // VkDescriptorSet bindles_set;
     // VkDescriptorSet compute_set;
 
-    VkMemory_Pools memory_pools;
-    POOL(RBVK_Texture) texture_pool;
+    RBVKMemory_Pools memory_pools;
+    POOL(RBVK_Texture)  texture_pool;
+    POOL(RBVK_Buffer)   buffer_pool;
+    POOL(RBVK_Sampler)  sampler_pool;
 
     // NOTE: vk expects a malloc like allocator, which I don't intend on make or using for now
     // so our push arenas do not work for this :(
@@ -269,8 +276,14 @@ internal void renderer_backend_vk_merge_settings(RendererBackendConfig *backend_
 // Internal API
 internal RendererBackendVk* renderer_backend_as_vk(RendererBackend *base);
 
-internal RBVK_Texture rbvk_texture_create(VkImageCreateInfo *image_info);
-internal void         rbvk_destroy_image(RBVK_Texture *image);
+internal void rbvk_frame_counters_advance();
+internal RBVK_Texture   rbvk_texture_create(VkImageCreateInfo *image_info);
+internal RBVK_Buffer    rbvk_buffer_create2(VkBufferCreateInfo *buffer_info);
+// internal RBVK_Buffer    rbvk_buffer_create( VkDeviceSize size, VkBufferUsageFlags usage, VkMemory_PoolsKind pool_kind, String8 name);
+internal RBVK_Buffer    rbvk_buffer_create( VkDeviceSize size, VkMemory_PoolsKind pool_kind, String8 name);
+
+
+internal void rbvk_destroy_image(RBVK_Texture *image);
 
 internal DOT_ShaderModuleHandle rbvk_dot_shader_module_from_vk_shader_module(VkShaderModule vk_sm);
 internal VkShaderModule         rbvk_vk_shader_module_from_dot_shader_module(DOT_ShaderModuleHandle dot_smh);

@@ -32,13 +32,13 @@ renderer_init(Arena *arena, DOT_Renderer *renderer, DOT_Window *window, Renderer
         renderer,
         &(DOT_TextureCreateInfo) {
             .texture_desc = {
-            .width = 1,
-            .height = 1,
-            .depth = 1,
-            .mip_levels = 1,
-            .format_kind = DOT_TextureFormat_RGBA8_UNORM,
-        },
-        .data = (u8[]){0},
+                .width = 1,
+                .height = 1,
+                .depth = 1,
+                .mip_levels = 1,
+                .format_kind = DOT_TextureFormat_RGBA8_UNORM,
+            },
+            .data = (u8[]){0,0,0,0},
         }
     );
     (void)null_texture;
@@ -56,11 +56,12 @@ renderer_shutdown(DOT_Renderer *renderer)
         }
     }
     shader_cache_end(shader_cache);
+    // renderer_destroy_texture(&null_texture);
     RENDER_BACKEND_CALL(shutdown());
 }
 
 internal DOT_TextureFormatInfo
-renderer_get_texture_format_info(DOT_TextureFormatKind fmt)
+renderer_texture_format_info_get(DOT_TextureFormatKind fmt)
 {
     DOT_TextureFormatInfo info = {0};
     switch(fmt){
@@ -313,26 +314,19 @@ renderer_create_texture(DOT_Renderer *renderer, DOT_TextureCreateInfo *create_in
 void
 renderer_clear_background(DOT_Renderer *renderer, vec3 color)
 {
-    RendererBackend *backend = renderer->backend;
-    u8 frame_idx = renderer->current_frame % backend->frame_overlap;
-    RENDER_BACKEND_CALL(clear_bg(frame_idx, color));
+    RENDER_BACKEND_CALL(clear_bg(color));
 }
 
 internal void
 renderer_begin_frame(DOT_Renderer *renderer)
 {
-    RendererBackend *backend = renderer->backend;
-    u8 frame_idx = renderer->current_frame % backend->frame_overlap;
-    RENDER_BACKEND_CALL(begin_frame(frame_idx));
+    RENDER_BACKEND_CALL(begin_frame());
 }
 
 internal void
 renderer_end_frame(DOT_Renderer *renderer)
 {
-    RendererBackend *backend = renderer->backend;
-    u8 frame_idx = renderer->current_frame % backend->frame_overlap;
-    RENDER_BACKEND_CALL(end_frame(frame_idx));
-    ++renderer->current_frame;
+    RENDER_BACKEND_CALL(end_frame());
 }
 
 /* ------------------------------------------------------------------ */
@@ -361,7 +355,7 @@ renderer_overlay_shutdown(DOT_Renderer *renderer)
 }
 
 DOT_ShaderModule*
-renderer_load_shader_module_from_path(DOT_Renderer *renderer, String8 path)
+renderer_shader_module_load_from_path(DOT_Renderer *renderer, String8 path)
 {
     TempArena temp = threadctx_get_temp(0,0);
     String8 compiled_path = shader_cache_get_compiled_path(renderer->permanent_arena, path);

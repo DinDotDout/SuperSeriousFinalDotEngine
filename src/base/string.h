@@ -30,7 +30,7 @@ typedef struct String8List{
 #define StrFmt "%.*s"
 #define StrArg(sv) (int)(sv).size, (sv).str
 
-#define MEM_COPY_STRING8(dst, s) MEM_COPY(dst, (s).str, (s).size)
+#define MEMORY_COPY_STRING8(dst, s) MEM_COPY(dst, (s).str, (s).size)
 
 internal String8 string8_copy(Arena *arena, String8 string);
 internal String8 string8_cstring(char *c);

@@ -41,7 +41,7 @@
 ////////////////////////////////////////////////////////////////
 ///
 /// Compiler diagnostics
-///
+
 #if DOT_COMPILER_CLANG
 #   define DIAGNOSTIC_PUSH      _Pragma("clang diagnostic push")
 #   define DIAGNOSTIC_POP       _Pragma("clang diagnostic pop")
@@ -432,6 +432,17 @@ do { \
 
 ////////////////////////////////////////////////////////////////
 //
+// Useful Mem copy from raddebugger
+
+#define MEMORY_COPY_NO_ALIAS(dst, src, size)  memcpy((dst), (src), (size))
+#define MEMORY_COPY(dst, src, size)    memmove((dst), (src), (size))
+#define MEMORY_COPY_STRUCT(d,s)  MEMORY_COPY((d),(s),sizeof(*(d)))
+#define MEMORY_COPY_ARRAY(d,s)   MEMORY_COPY((d),(s),sizeof(d))
+// #define MemoryCopyTyped(d,s,c) MEMORY_COPY((d),(s),sizeof(*(d))*(c))
+
+
+////////////////////////////////////////////////////////////////
+//
 // Unused
 
 #if DOT_COMPILER_MSVC
@@ -461,16 +472,6 @@ do { \
 
 #define EACH_IN_RANGE(it, range) (u64 it = (range).min; it < (range).max; it += 1)
 #define EACH_NODE(it, T, first) (T *it = first; it != 0; it = it->next)
-
-////////////////////////////////////////////////////////////////
-//
-// Useful Mem copy from raddebugger
-
-#define MEM_COPY(dst, src, size)    memmove((dst), (src), (size))
-#define MEM_COPY_STRUCT(d,s)  MEM_COPY((d),(s),sizeof(*(d)))
-#define MEM_COPY_ARRAY(d,s)   MEM_COPY((d),(s),sizeof(d))
-// #define MemoryCopyTyped(d,s,c) MEM_COPY((d),(s),sizeof(*(d))*(c))
-
 
 ////////////////////////////////////////////////////////////////
 //

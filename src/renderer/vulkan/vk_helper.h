@@ -91,12 +91,13 @@ internal void vk_helper_transition_image(
 ///
 
 // NOTE: Maybe we could use a bunch of default arg init macros for this
-internal VkImageCreateInfo         vk_image_create_info(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent);
-internal VkSubmitInfo2             vk_submit_info(VkCommandBufferSubmitInfo* cmd, VkSemaphoreSubmitInfo* signal_semaphore_info, VkSemaphoreSubmitInfo* wait_semaphore_info);
-internal VkImageViewCreateInfo     vk_imageview_create_info(VkFormat format, VkImage image, VkImageAspectFlags aspectFlags);
-internal VkCommandBufferSubmitInfo vk_command_buffer_submit_info(VkCommandBuffer cmd);
-internal VkSemaphoreSubmitInfo     vk_semaphore_submit_info(VkPipelineStageFlags2 stageMask, VkSemaphore semaphore);
-internal VkImageSubresourceRange   vk_image_subresource_range(VkImageAspectFlags aspect_mask);
+internal VkImageCreateInfo          vk_image_create_info(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent);
+internal VkSubmitInfo2              vk_submit_info(VkCommandBufferSubmitInfo* cmd, VkSemaphoreSubmitInfo* signal_semaphore_info, VkSemaphoreSubmitInfo* wait_semaphore_info);
+internal VkImageViewCreateInfo      vk_imageview_create_info(VkFormat format, VkImage image, VkImageAspectFlags aspectFlags);
+internal VkCommandBufferSubmitInfo  vk_command_buffer_submit_info(VkCommandBuffer cmd);
+internal VkSemaphoreSubmitInfo      vk_semaphore_submit_info(VkPipelineStageFlags2 stageMask, VkSemaphore semaphore);
+internal VkImageSubresourceRange    vk_image_subresource_range(VkImageAspectFlags aspect_mask);
+internal VkMemoryRequirements2      vk_buffer_memory_requirements(VkDevice vk_device, VkBuffer vk_buffer);
 
 #endif // !VK_HELPER_H
 #ifdef VK_HELPER_IMPLEMENTATION
@@ -504,9 +505,9 @@ vk_helper_transition_image(
             .subresourceRange = (VkImageSubresourceRange){
                 .aspectMask = aspect_mask,
                 .baseMipLevel = 0,
-                .levelCount = VK_REMAINING_MIP_LEVELS,
+                .levelCount = VK_REMAINING_MIP_LEVELS, // 1 ?
                 .baseArrayLayer = 0,
-                .layerCount = VK_REMAINING_ARRAY_LAYERS,
+                .layerCount = VK_REMAINING_ARRAY_LAYERS, // 1 ?
             }
         } ,
     };
@@ -548,6 +549,10 @@ void vk_helper_copy_image_to_image(VkCommandBuffer cmd, VkImage source, VkImage 
 
 	vkCmdBlitImage2(cmd, &blitInfo);
 }
+///
+///////////////////////////////////////////
+/// Vk CreateInfo helpers
+///
 
 internal VkImageSubresourceRange
 vk_image_subresource_range(VkImageAspectFlags aspect_mask)
@@ -559,12 +564,36 @@ vk_image_subresource_range(VkImageAspectFlags aspect_mask)
         .baseArrayLayer = 0,
         .layerCount = VK_REMAINING_ARRAY_LAYERS,
     };
-    return subImage;
+    return(subImage);
 }
 
-///////////////////////////////////////////
-/// Vk CreateInfo helpers
-///
+internal VkMemoryRequirements2
+vk_image_memory_requirements(VkDevice vk_device, VkImage vk_image)
+{
+    VkMemoryRequirements2 reqs = { .sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2 };
+    vkGetImageMemoryRequirements2(
+        vk_device,
+        &(VkImageMemoryRequirementsInfo2){
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2,
+            .image = vk_image,
+        },
+        &reqs);
+    return(reqs);
+}
+
+internal VkMemoryRequirements2
+vk_buffer_memory_requirements(VkDevice vk_device, VkBuffer vk_buffer)
+{
+    VkMemoryRequirements2 reqs = { .sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2 };
+    vkGetBufferMemoryRequirements2(
+        vk_device,
+        &(VkBufferMemoryRequirementsInfo2){
+            .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2,
+            .buffer = vk_buffer,
+        },
+        &reqs);
+    return(reqs);
+}
 
 internal VkSemaphoreSubmitInfo
 vk_semaphore_submit_info(VkPipelineStageFlags2 stageMask, VkSemaphore semaphore)
@@ -576,8 +605,7 @@ vk_semaphore_submit_info(VkPipelineStageFlags2 stageMask, VkSemaphore semaphore)
 	    .deviceIndex = 0,
 	    .value = 1
     };
-
-	return submitInfo;
+	return(submitInfo);
 }
 
 internal VkCommandBufferSubmitInfo

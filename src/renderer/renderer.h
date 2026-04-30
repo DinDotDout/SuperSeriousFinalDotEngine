@@ -77,18 +77,31 @@ typedef DOT_ENUM(u8, DOT_TextureUsageFlags){
     DOT_TextureUsageFlags_Compute       = DOT_BIT(2),
 };
 
+
+typedef DOT_ENUM(u8, DOT_BufferUsageFlags){
+    DOT_BufferUsageFlags_Default    = DOT_BIT(0),
+    DOT_BufferUsageFlags_Staging    = DOT_BIT(1),
+    DOT_BufferUsageFlags_GPU        = DOT_BIT(2),
+};
+
 typedef struct DOT_TextureFormatInfo{
     u8 channels;
-    u8 block_size; // How big channel combination is ie rgba8 = 32b
+    u8 bit_depth;
+    u8 block_size;
 
     u8 block_width;
     u8 block_height;
     DOT_TextureFormatFlags format_flags;
 }DOT_TextureFormatInfo;
 
+typedef struct DOT_BufferHandle{
+    DOT_AssetHandle handle;
+}DOT_BufferHandle;
+
 typedef struct DOT_TextureHandle{
     DOT_AssetHandle handle;
 }DOT_TextureHandle;
+
 global DOT_TextureHandle null_texture = {0};
 
 typedef struct DOT_TextureDesc{
@@ -99,8 +112,12 @@ typedef struct DOT_TextureDesc{
     u16 height; // = 1;
     u16 depth; // = 1;
     u8 mip_levels; // = 1; // 0 will auto generate
-  
 }DOT_TextureDesc;
+
+typedef struct DOT_BufferDesc{
+    u64 size;
+    DOT_BufferUsageFlags buffer_usage_flags;
+}DOT_BufferDesc;
 
 typedef struct DOT_TextureAsset{
     DOT_Asset asset;
@@ -118,6 +135,17 @@ typedef struct DOT_TextureCreateInfo{
     // u8 flags; // = 0; // TextureFlags bitmasks
     // TextureHandle alias = k_invalid_texture;
 }DOT_TextureCreateInfo;
+
+typedef struct DOT_BufferCreateInfo{
+    DOT_AssetCreateInfo asset_info;
+    void *data; // must fill in desc manually
+                //
+    // b32 create_mips; // Enabling this will auto fill mip_levels if no mip_levels
+
+    DOT_BufferDesc buffer_desc; // This is now filled in by the texture loaded
+    // u8 flags; // = 0; // TextureFlags bitmasks
+    // TextureHandle alias = k_invalid_texture;
+}DOT_BufferCreateInfo;
 
 ////////////////////////////////////////////////////////////////
 // UI Overlay
@@ -195,12 +223,12 @@ typedef struct RendererConfig{
 #define RENDERER_BACKEND_FN_LIST \
     FN(void, init, DOT_Window *window) \
     FN(void, shutdown) \
-    FN(void, begin_frame, u8 current_frame) \
-    FN(void, end_frame, u8 current_frame) \
-    FN(void, clear_bg, u8 current_frame, vec3 color) \
+    FN(void, begin_frame) \
+    FN(void, end_frame) \
+    FN(void, clear_bg, vec3 color) \
     FN(DOT_ShaderModuleHandle, shader_load_from_data, String8 fb) \
     FN(void, shader_unload, DOT_ShaderModuleHandle shader_module) \
-    FN(DOT_TextureHandle, texture_create, DOT_TextureCreateInfo *create_info) \
+    FN(DOT_TextureHandle, texture_create, const DOT_TextureCreateInfo *create_info) \
     FN(void, overlay_init, const void *font_pixels, int font_w, int font_h) \
     FN(void, overlay_shutdown) \
     FN(void, overlay_render, u8 frame_idx, OverlayDrawList *draw_list)
@@ -236,7 +264,7 @@ typedef struct DOT_Renderer{
     Arena *permanent_arena;
 
     // u8         frame_overlap;
-    u64        current_frame;
+    // u64        current_frame;
     FrameData *frame_data;
 
     ShaderCache shader_cache;
@@ -245,14 +273,14 @@ typedef struct DOT_Renderer{
 
 
 DOT_ENGINE_API void renderer_clear_background(DOT_Renderer *renderer, vec3 color);
-DOT_ENGINE_API DOT_ShaderModule* renderer_load_shader_module_from_path(DOT_Renderer *renderer, String8 path);
+DOT_ENGINE_API DOT_ShaderModule* renderer_shader_module_load_from_path(DOT_Renderer *renderer, String8 path);
 DOT_ENGINE_API DOT_TextureAsset renderer_create_texture_asset(DOT_Renderer *renderer, DOT_TextureCreateInfo *create_info);
 DOT_ENGINE_API DOT_TextureHandle renderer_create_texture(DOT_Renderer *renderer, DOT_TextureCreateInfo *create_info);
 
 internal void renderer_begin_frame(DOT_Renderer *renderer);
 internal void renderer_end_frame(DOT_Renderer *renderer);
 
-internal DOT_TextureFormatInfo renderer_get_texture_format_info(DOT_TextureFormatKind fmt);
+internal DOT_TextureFormatInfo renderer_texture_format_info_get(DOT_TextureFormatKind fmt);
 internal RendererBackend* renderer_backend_create(Arena *arena, RendererBackendConfig *backend_config);
 internal void renderer_init(Arena *arena, DOT_Renderer *renderer, DOT_Window *window, RendererConfig *config);
 internal void renderer_shutdown(DOT_Renderer *renderer);

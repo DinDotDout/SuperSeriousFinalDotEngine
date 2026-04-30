@@ -17,12 +17,12 @@ DIAGNOSTIC_PUSH
 internal void renderer_backend_null_load(DOT_Window* window) { }
 internal void renderer_backend_null_init(DOT_Window* window) { }
 internal void renderer_backend_null_shutdown() { }
-internal void renderer_backend_null_begin_frame(u8 current_frame) { }
-internal void renderer_backend_null_end_frame(u8 current_frame) { }
-internal void renderer_backend_null_clear_bg(u8 current_frame, vec3 color) { }
+internal void renderer_backend_null_begin_frame() { }
+internal void renderer_backend_null_end_frame() { }
+internal void renderer_backend_null_clear_bg() { }
 internal void renderer_backend_null_shader_unload(DOT_ShaderModuleHandle sm) { }
 
-internal DOT_TextureHandle renderer_backend_null_texture_create(DOT_TextureCreateInfo *create_info)
+internal DOT_TextureHandle renderer_backend_null_texture_create(const DOT_TextureCreateInfo *create_info)
 { 
     return (DOT_TextureHandle){0};
 }
