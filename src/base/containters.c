@@ -5,6 +5,10 @@ raw_buffer_get(u8 raw_buffer[], i32 elem_idx, u32 elem_size)
     return res;
 }
 
+////////////////////////////////////////////////////////////////
+///
+/// Pool
+
 // Reserve 0 for default and zero every time we hand it?
 internal void*
 pool_handle_access(Pool *p, PoolHandle h, u32 elem_size)

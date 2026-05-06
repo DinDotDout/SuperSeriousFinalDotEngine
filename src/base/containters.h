@@ -1,5 +1,9 @@
 internal u8 *raw_buffer_get(u8 raw_buffer[], i32 elem_idx, u32 elem_size);
 
+////////////////////////////////////////////////////////////////
+///
+/// Pool
+
 // (jd) Uses:
 // typedef POOL(int) IntPool;
 //typedef struct IntPool{

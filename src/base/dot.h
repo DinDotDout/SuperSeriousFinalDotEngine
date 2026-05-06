@@ -43,32 +43,54 @@
 /// Compiler diagnostics
 
 #if DOT_COMPILER_CLANG
-#   define DIAGNOSTIC_PUSH      _Pragma("clang diagnostic push")
-#   define DIAGNOSTIC_POP       _Pragma("clang diagnostic pop")
-#   define DIAGNOSTIC_IGNORE(w) _Pragma(DOT_STR(clang diagnostic ignored w))
-#   define DIAGNOSTIC_ERROR(w)  _Pragma(DOT_STR(clang diagnostic error w))
+#   define DOT_DIAGNOSTIC_PUSH      _Pragma("clang diagnostic push")
+#   define DOT_DIAGNOSTIC_POP       _Pragma("clang diagnostic pop")
+#   define DOT_DIAGNOSTIC_IGNORE(w) _Pragma(DOT_STR(clang diagnostic ignored w))
+#   define DOT_DIAGNOSTIC_ERROR(w)  _Pragma(DOT_STR(clang diagnostic error w))
 // DOT_STR
 #elif DOT_COMPILER_GCC
-#   define DIAGNOSTIC_PUSH      _Pragma("GCC diagnostic push")
-#   define DIAGNOSTIC_POP       _Pragma("GCC diagnostic pop")
-#   define DIAGNOSTIC_IGNORE(w) _Pragma(DOT_STR(GCC diagnostic ignored error w))
-#   define DIAGNOSTIC_ERROR(w)  _Pragma(DOT_STR(GCC diagnostic error w))
+#   define DOT_DIAGNOSTIC_PUSH      _Pragma("GCC diagnostic push")
+#   define DOT_DIAGNOSTIC_POP       _Pragma("GCC diagnostic pop")
+#   define DOT_DIAGNOSTIC_IGNORE(w) _Pragma(DOT_STR(GCC diagnostic ignored error w))
+#   define DOT_DIAGNOSTIC_ERROR(w)  _Pragma(DOT_STR(GCC diagnostic error w))
 #elif DOT_COMPILER_MSVC
-#   define DIAGNOSTIC_PUSH      __pragma(warning(push))
-#   define DIAGNOSTIC_POP       __pragma(warning(pop))
-#   define DIAGNOSTIC_IGNORE(w) __pragma(warning(disable: w))
-#   define DIAGNOSTIC_ERROR(w)  __pragma(warning(error: w))
+#   define DOT_DIAGNOSTIC_PUSH      __pragma(warning(push))
+#   define DOT_DIAGNOSTIC_POP       __pragma(warning(pop))
+#   define DOT_DIAGNOSTIC_IGNORE(w) __pragma(warning(disable: w))
+#   define DOT_DIAGNOSTIC_ERROR(w)  __pragma(warning(error: w))
 #else
-#   define DIAGNOSTIC_PUSH
-#   define DIAGNOSTIC_POP
-#   define DIAGNOSTIC_IGNORE(w)
-#   define DIAGNOSTIC_ERROR(w)
+#   define DOT_DIAGNOSTIC_PUSH
+#   define DOT_DIAGNOSTIC_POP
+#   define DOT_DIAGNOSTIC_IGNORE(w)
+#   define DOT_DIAGNOSTIC_ERROR(w)
 #endif
 
 #if DOT_COMPILER_CLANG || (DOT_COMPILER_GCC && __GNUC__ >= 7)
     #define DOT_FALLTHROUGH __attribute__((fallthrough))
 #else
     #define DOT_FALLTHROUGH /* fallthrough */
+#endif
+
+#if defined(__clang__)
+    #define DOT_ALLOW_PARTIAL_SWITCH \
+        _Pragma("clang diagnostic push") \
+        _Pragma("clang diagnostic ignored \"-Wswitch-enum\"")
+
+    #define DOT_RESTORE_PARTIAL_SWITCH \
+        _Pragma("clang diagnostic pop")
+
+#elif defined(__GNUC__)
+    #define DOT_DISABLE_SWITCH_ENUM \
+        _Pragma("GCC diagnostic push") \
+        _Pragma("GCC diagnostic ignored \"-Wswitch-enum\"")
+
+    #define DOT_RESTORE_SWITCH_ENUM \
+        _Pragma("GCC diagnostic pop")
+
+#else
+    // MSVC or unknown compiler — no-op
+    #define DOT_DISABLE_SWITCH_ENUM
+    #define DOT_RESTORE_SWITCH_ENUM
 #endif
 
 
@@ -278,7 +300,6 @@ typedef int DOT_CONCAT(DOT_STATIC_ASSERT, __COUNTER__) [(x) ? 1 : -1]
 #endif
 
 // NOTE: Make this a runtime arg
-#define DOT_LOG_LEVEL DOT_LogLevelKind_Warning
 typedef enum DOT_LogLevelKind{
     DOT_LogLevelKind_Debug,
     DOT_LogLevelKind_Warning,
@@ -304,6 +325,8 @@ typedef struct DOT_PrintDebugParams{
 
 // Maybe the loging system should just be tied to a frame arena / thread arena
 #define DOT_MAX_LOG_LEVEL_LENGTH 2048
+
+internal void dot_set_log_level(DOT_LogLevelKind log_level);
 internal void dot_print_debug_(const DOT_PrintDebugParams* params, PRINTF_STRING const char *fmt, ...);
 
 #define DOT_PRINT_DEBUG_PARAMS_DEFAULT(...) \
@@ -446,9 +469,9 @@ do { \
 // Unused
 
 #if DOT_COMPILER_MSVC
-#   define UNUSED(x) (__pragma(warning(suppress:4100))(x))
+#   define DOT_UNUSED(x) (__pragma(warning(suppress:4100))(x))
 #else
-#   define UNUSED(x) ((void)(x))
+#   define DOT_UNUSED(x) ((void)(x))
 #endif
 
 #if DOT_COMPILER_MSVC
