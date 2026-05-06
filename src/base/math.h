@@ -57,3 +57,9 @@ vec3 v3(f32 x, f32 y, f32 z)
     vec3 res = {.x = x, .y = y, .z = z};
     return res;
 }
+
+vec2 v2(f32 x, f32 y)
+{
+    vec2 res = {.x = x, .y = y};
+    return res;
+}

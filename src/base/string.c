@@ -1,4 +1,36 @@
 internal String8
+string8_append_string8(Arena *arena, String8 a, String8 b)
+{
+    String8 new_str;
+    new_str.size = a.size+b.size;
+    new_str.str = PUSH_ARRAY_NO_ZERO(arena, u8, new_str.size + 1);
+    MEMORY_COPY_NO_ALIAS(new_str.str, a.str, a.size);
+    MEMORY_COPY_NO_ALIAS(new_str.str + a.size, b.str, b.size);
+    new_str.str[new_str.size] = 0;
+    return(new_str);
+}
+
+internal String8
+string8_chop_last_slash(String8 string)
+{
+    if(string.size == 0){
+        return string;
+    }
+    u8 *last = string.str + string.size - 1;
+    for(;last >= string.str; --last){
+        if(*last == '/' || *last == '\\'){
+            break;
+        }
+    }
+    if(last >= string.str){
+        string.size = cast(u64)(last - string.str);
+    }else{
+        string.size = 0;
+    }
+    return(string);
+}
+
+internal String8
 string8_copy(Arena *arena, String8 string)
 {
   String8 str;
@@ -33,14 +65,14 @@ string8_array_has(String8* arr, usize size, String8 b)
 }
 
 internal String8
-string8_cstring(char *c)
+string8_from_cstring(char *c)
 {
     String8 result = {.cstr = c, .size = strlen(c)};
     return result;
 }
 
 internal const char**
-string8_array_to_str_array(Arena *arena, usize size, const String8 src[])
+cstr_array_from_string8_array(Arena *arena, usize size, const String8 src[])
 {
     const char **dst = PUSH_ARRAY(arena, const char*, size);
     for(u64 i = 0; i < size; ++i){
