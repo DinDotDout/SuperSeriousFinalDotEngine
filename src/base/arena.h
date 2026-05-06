@@ -119,8 +119,8 @@ internal void   arena_print_debug(Arena *arena);
 #define PUSH_STRUCT(arena, T) (T*)PUSH_ARRAY(arena, T, 1)
 
 // (jd) NOTE: Experiments. Clang seems to optimize the copy pretty well
-#define PUSH_COPY(arena, T, src) MEM_COPY_STRUCT(PUSH_ARRAY_NO_ZERO(arena, T, 1), (src))
-#define PUSH_COPY_LIT(arena, T, src) MEM_COPY_STRUCT(PUSH_ARRAY_NO_ZERO(arena, T, 1), &(T)src)
+#define PUSH_COPY(arena, T, src) MEMORY_COPY_STRUCT(PUSH_ARRAY_NO_ZERO(arena, T, 1), (src))
+#define PUSH_COPY_LIT(arena, T, src) MEMORY_COPY_STRUCT(PUSH_ARRAY_NO_ZERO(arena, T, 1), &(T)src)
 #define PUSH_SLICE(arena, T, c) {.data = PUSH_ARRAY(arena, T, c), .count = (c)}
 #define PUSH_SLICE_LIT(arena, slice_type, T, c) (slice_type){.data = PUSH_ARRAY(arena, T, c), .count= (c)}
 
