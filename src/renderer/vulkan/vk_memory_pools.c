@@ -64,7 +64,8 @@ rbvk_memory_pools_staging_ring_buffer_push(RBVKMemory_Pools *pools, u64 size, vo
     void *destination_data;
     if(data){
         VK_CHECK(vkMapMemory(pools->vk_device, alloc.vk_memory, alloc.offset, alloc.size, 0, &destination_data));
-        MEMORY_COPY_NO_ALIAS(destination_data, data, alloc.size);
+        DOT_PRINT("alloc size %M", alloc.size); 
+        MEMORY_COPY_NO_ALIAS(destination_data, data, size);
         vkUnmapMemory(pools->vk_device, alloc.vk_memory);
     }
     return(alloc);
@@ -76,17 +77,18 @@ rbvk_memory_gpu_buffer_alloc(RBVKMemory_Pools *pools, VkBuffer vk_buffer)
     VkMemoryRequirements2 reqs2 = vk_buffer_memory_requirements(pools->vk_device, vk_buffer);
     VkMemoryRequirements reqs = reqs2.memoryRequirements;
     VkMemory_Alloc alloc = { .size = reqs.size, .pool_kind = VkMemory_PoolsKind_GpuOnly };
-    if((reqs.memoryTypeBits & (1u << pools->gpu_pool.vk_memory_type_idx)) != 0){
-        u64 aligned_memory = ALIGN_POW2(pools->gpu_pool.used, reqs.alignment);
-        alloc.offset = aligned_memory;
-        alloc.vk_memory = pools->gpu_pool.vk_memory;
-        pools->gpu_pool.used += aligned_memory + reqs.size;
-        if(pools->gpu_pool.used > pools->gpu_pool.size){
-            DOT_ERROR("Out of GPU only memory, consider increasing it!");
-        }
-    }else{
-        DOT_ERROR("Invalid buffer memory type");
+    if((reqs.memoryTypeBits & (1u << pools->gpu_pool.vk_memory_type_idx)) == 0){
+        DOT_ERROR("Invalid image memory type");
     }
+    u64 aligned_memory = ALIGN_POW2(pools->gpu_pool.used, reqs.alignment);
+    alloc.offset = aligned_memory;
+    alloc.vk_memory = pools->gpu_pool.vk_memory;
+    u64 needed = (aligned_memory - pools->gpu_pool.used) + reqs.size;
+    pools->gpu_pool.used += needed;
+    if(pools->gpu_pool.used > pools->gpu_pool.size){
+        DOT_ERROR("Out of GPU only memory, consider increasing it!. Current %M/%M, needed %M", pools->gpu_pool.used, pools->gpu_pool.size, needed);
+    }
+    DOT_PRINT("Total memory %M/%M, needed used %M", pools->gpu_pool.used, pools->gpu_pool.size, needed);
     return(alloc);
 }
 
@@ -96,17 +98,18 @@ rbvk_memory_gpu_image_alloc(RBVKMemory_Pools *pools, VkImage vk_image)
     VkMemoryRequirements2 reqs2 = vk_image_memory_requirements(pools->vk_device, vk_image);
     VkMemoryRequirements reqs = reqs2.memoryRequirements;
     VkMemory_Alloc alloc = { .size = reqs.size, .pool_kind = VkMemory_PoolsKind_GpuOnly };
-    if(reqs.memoryTypeBits & (1u << pools->gpu_pool.vk_memory_type_idx)){
-        u64 aligned_memory = ALIGN_POW2(pools->gpu_pool.used, reqs.alignment);
-        alloc.offset = aligned_memory;
-        alloc.vk_memory = pools->gpu_pool.vk_memory;
-        pools->gpu_pool.used += aligned_memory + reqs.size;
-        if(pools->gpu_pool.used > pools->gpu_pool.size){
-            DOT_ERROR("Out of GPU only memory, consider increasing it!");
-        }
-    }else{
+    if((reqs.memoryTypeBits & (1u << pools->gpu_pool.vk_memory_type_idx)) == 0){
         DOT_ERROR("Invalid image memory type");
     }
+    u64 aligned_memory = ALIGN_POW2(pools->gpu_pool.used, reqs.alignment);
+    alloc.offset = aligned_memory;
+    alloc.vk_memory = pools->gpu_pool.vk_memory;
+    u64 needed = (aligned_memory - pools->gpu_pool.used) + reqs.size;
+    pools->gpu_pool.used += needed;
+    if(pools->gpu_pool.used > pools->gpu_pool.size){
+        DOT_ERROR("Out of GPU only memory, consider increasing it!. Current %M/%M, needed %M", pools->gpu_pool.used, pools->gpu_pool.size, needed);
+    }
+    DOT_PRINT("Total memory %M/%M, needed used %M", pools->gpu_pool.used, pools->gpu_pool.size, needed);
     VK_CHECK(vkBindImageMemory(pools->vk_device, vk_image, alloc.vk_memory, alloc.offset));
     return(alloc);
 }

@@ -3,6 +3,8 @@
 
 #define DOT_GAME_PATH "src/game/"
 #define DOT_GAME_SHADER_PATH DOT_GAME_PATH"shaders/"
+#define DOT_GAME_ASSET_PATH DOT_ENGINE_ASSET_PATH
+
 // typedef struct DOT_GameAPI {
 //     void (*run)(DOT_Game *game);
 //     void (*init)(DOT_Game *game);
@@ -21,9 +23,10 @@ typedef struct DOT_Game{
 
     Arena *permanent_arena;
     Arena *transient_arena;
-}DOT_Game;
 
-DOT_ShaderModule *test_shader_module;
+    DOT_ShaderModule *test_shader_module;
+    DOT_Model *test_model;
+}DOT_Game;
 
 #ifdef DOT_HOT_RELOAD
 typedef struct DOT_GameVtable DOT_GameVtable;

@@ -1,10 +1,21 @@
 #ifndef APPLICATION_CONFIG_H
 #define APPLICATION_CONFIG_H
 
+#define DOT_ENGINE_ASSET_PATH  "assets/"
+
 #define DOT_RENDER_BACKEND_ONLY_VK
-DOT_CONST_INT_BLOCK {
+
+// Some of the calculations aren't being translated properly. Revise memory allocs
+DOT_CONST_INT_BLOCK{
+    ENGINE_FRAME_OVERLAP = 3,
+    ENGINE_FRAME_ARENA_SIZE = KB(32),
+
     ENGINE_RENDERER_BACKEND_MEM_SIZE = KB(512),
-    ENGINE_RENDERER_MEM_SIZE = KB(256) + ENGINE_RENDERER_BACKEND_MEM_SIZE,
+    ENGINE_RENDERER_TRANSIENT_MEM_SIZE = MB(1),
+
+    ENGINE_RENDERER_PERMANENT_MEM_SIZE = KB(256) + ENGINE_RENDERER_TRANSIENT_MEM_SIZE +
+        ENGINE_RENDERER_BACKEND_MEM_SIZE + (ENGINE_FRAME_ARENA_SIZE * ENGINE_FRAME_OVERLAP),
+
 #if defined(DOT_RENDER_BACKEND_ONLY_DX12)
 #   if DOT_OS_POSIX
 #       error Unavaliable backend on linux!
@@ -16,14 +27,14 @@ DOT_CONST_INT_BLOCK {
     ENGINE_RENDERER_BACKEND = RendererBackendKind_Auto,
 #endif
     THREAD_TEMP_ARENA_COUNT = 2,
-    THREAD_SCRATCH_MEM_SIZE = KB(128),
+    THREAD_TEMP_ARENA_SIZE = MB(40),
 
-    GAME_PERMANENT_MEMORY_SIZE = MB(1),
+    GAME_PERMANENT_MEMORY_SIZE = MB(20),
     GAME_TRANSIENT_MEMORY_SIZE = KB(32),
 
-    APPLICATION_MEMORY_SIZE = MB(1) + ENGINE_RENDERER_BACKEND_MEM_SIZE +
-                              GAME_PERMANENT_MEMORY_SIZE +
-                              GAME_TRANSIENT_MEMORY_SIZE,
+    APPLICATION_MEMORY_SIZE = MB(5) + ENGINE_RENDERER_PERMANENT_MEM_SIZE +
+        GAME_PERMANENT_MEMORY_SIZE +
+        GAME_TRANSIENT_MEMORY_SIZE,
 };
 
 #define DOT_MAKE_VERSION(major, minor, patch) \
@@ -42,7 +53,7 @@ struct DOT_EngineConfig{
     .engine_version     = DOT_MAKE_VERSION(0,0,0),
     .engine_memory_size = APPLICATION_MEMORY_SIZE,
     .thread_options = &(ThreadCtxOptions) {
-        .per_thread_temp_arena_size  = THREAD_SCRATCH_MEM_SIZE / THREAD_TEMP_ARENA_COUNT,
+        .per_thread_temp_arena_size  = THREAD_TEMP_ARENA_SIZE,
         .per_thread_temp_arena_count = THREAD_TEMP_ARENA_COUNT,
     },
     .game_config = &(DOT_GameConfig){
@@ -50,13 +61,14 @@ struct DOT_EngineConfig{
         .transient_memory_size = GAME_TRANSIENT_MEMORY_SIZE,
     },
     .renderer_config = &(RendererConfig){
-        .renderer_memory_size = ENGINE_RENDERER_MEM_SIZE,
-        .frame_arena_size = KB(32),
+        .renderer_transient_memory_size = ENGINE_RENDERER_TRANSIENT_MEM_SIZE,
+        .renderer_permanent_memory_size = ENGINE_RENDERER_PERMANENT_MEM_SIZE,
+        .frame_arena_size = ENGINE_FRAME_ARENA_SIZE,
         .backend_config = &(RendererBackendConfig){
             .backend_memory_size  = ENGINE_RENDERER_BACKEND_MEM_SIZE,
             .backend_kind = ENGINE_RENDERER_BACKEND,
             .present_mode = RendererPresentModeKind_Mailbox,
-            .frame_overlap = 3,
+            .frame_overlap = ENGINE_FRAME_OVERLAP,
         },
         .shader_cache_config = &(ShaderCacheConfig){
             .shader_modules_count = SHADER_CACHE_SHADER_COUNT,

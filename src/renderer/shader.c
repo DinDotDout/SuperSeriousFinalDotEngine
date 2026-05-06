@@ -38,7 +38,7 @@ shader_cache_init(Arena *arena, ShaderCache *shader_cache, ShaderCacheConfig *sh
 internal void
 shader_cache_end(ShaderCache *shader_cache)
 {
-    UNUSED(shader_cache);
+    DOT_UNUSED(shader_cache);
 }
 
 internal u64

@@ -119,7 +119,7 @@ vk_helper_all_layers(const struct RBVK_Settings *vk_settings)
         b32 found = false;
         const String8 layer_name = vk_settings->validation_layers.data[i];
         for(u64 j = 0; j < available_layer_count; ++j){
-            if(string8_equal(layer_name, string8_cstring(available_layers[j].layerName))){
+            if(string8_equal(layer_name, string8_from_cstring(available_layers[j].layerName))){
                 DOT_PRINT("Found Layer %s", layer_name);
                 found = true;
                 break;
@@ -149,7 +149,7 @@ vk_helper_instance_all_required_extensions(const struct RBVK_Settings* vk_settin
         const String8 instance_extension_name = vk_settings->instance_settings.instance_extensions.data[i];
         for(u64 j = 0; j < extension_count; ++j){
             char* name = available_extensions[j].extensionName;
-            if(string8_equal(instance_extension_name, string8_cstring(name))){
+            if(string8_equal(instance_extension_name, string8_from_cstring(name))){
                 DOT_PRINT("Found instance extension \"%s\"", instance_extension_name);
                 found = true;
                 break;
@@ -215,6 +215,8 @@ vk_helper_texture_format_to_vk_texture_format(DOT_TextureFormatKind texture_form
     case DOT_TextureFormat_R8_UNORM: return VK_FORMAT_R8_UNORM;
     case DOT_TextureFormat_R8_UINT: return VK_FORMAT_R8_UINT;
     case DOT_TextureFormat_RG8_UNORM: return VK_FORMAT_R8G8_UNORM;
+    case DOT_TextureFormat_RGB8_UNORM: return VK_FORMAT_R8G8B8_UNORM;
+    case DOT_TextureFormat_RGB8_SRGB: return VK_FORMAT_R8G8B8_SRGB;
     case DOT_TextureFormat_RGBA8_UNORM: return VK_FORMAT_R8G8B8A8_UNORM;
     case DOT_TextureFormat_RGBA8_SRGB: return VK_FORMAT_R8G8B8A8_SRGB;
     case DOT_TextureFormat_BGRA8_UNORM: return VK_FORMAT_B8G8R8A8_UNORM;
@@ -260,7 +262,7 @@ vk_helper_physical_device_all_required_extensions(
         b32 found = false;
         String8 device_extension_name = vk_settings->device_settings.device_extensions.data[i];
         for(u64 j = 0; j < extension_count; ++j){
-            if(string8_equal(device_extension_name, string8_cstring(available_extensions[j].extensionName))){
+            if(string8_equal(device_extension_name, string8_from_cstring(available_extensions[j].extensionName))){
                 DOT_PRINT("Found extension \"%s\"", device_extension_name);
                 found = true;
                 break;
@@ -693,7 +695,7 @@ vk_imageview_create_info(VkFormat format, VkImage image, VkImageAspectFlags aspe
 internal void*
 vk_alloc(void* data, usize size, usize alignment, VkSystemAllocationScope scope)
 {
-    UNUSED(data); UNUSED(size); UNUSED(alignment); UNUSED(scope);
+    DOT_UNUSED(data); DOT_UNUSED(size); DOT_UNUSED(alignment); DOT_UNUSED(scope);
     DOT_PRINT("VK Alloc: size=%M; scope=\n", size, string_VkSystemAllocationScope(scope));
 
     Arena* arena = cast(Arena*)data;
@@ -705,7 +707,7 @@ vk_alloc(void* data, usize size, usize alignment, VkSystemAllocationScope scope)
 internal void*
 vk_realloc(void* data, void* old_mem, usize size, usize alignment, VkSystemAllocationScope scope)
 {
-    UNUSED(data); UNUSED(size); UNUSED(alignment); UNUSED(scope); UNUSED(old_mem);
+    DOT_UNUSED(data); DOT_UNUSED(size); DOT_UNUSED(alignment); DOT_UNUSED(scope); DOT_UNUSED(old_mem);
     DOT_PRINT("VK Realloc: size=%M; scope=%s", size, string_VkSystemAllocationScope(scope) );
     Arena* arena = cast(Arena*)data;
     void* mem = arena_push(arena, size, alignment, true, __FILE__, __LINE__);
@@ -716,7 +718,7 @@ vk_realloc(void* data, void* old_mem, usize size, usize alignment, VkSystemAlloc
 internal void
 vk_free(void* data, void* mem)
 {
-    UNUSED(data); UNUSED(mem);
+    DOT_UNUSED(data); DOT_UNUSED(mem);
     Arena* arena = cast(Arena*)data;
     DOT_PRINT("VK free");
     arena_print_debug(arena);
@@ -725,7 +727,7 @@ vk_free(void* data, void* mem)
 internal void
 vk_internal_alloc(void* data, usize size, VkInternalAllocationType alloc_type, VkSystemAllocationScope scope)
 {
-    UNUSED(data); UNUSED(size); UNUSED(scope); UNUSED(alloc_type);
+    DOT_UNUSED(data); DOT_UNUSED(size); DOT_UNUSED(scope); DOT_UNUSED(alloc_type);
     DOT_PRINT("VK Internal Alloc: size=%M; scope=%s", size, string_VkSystemAllocationScope(scope));
     // Arena* arena = cast(Arena*)data;
     // arena_print_debug(arena);
@@ -734,7 +736,7 @@ vk_internal_alloc(void* data, usize size, VkInternalAllocationType alloc_type, V
 internal void
 vk_internal_free(void* data, usize size, VkInternalAllocationType alloc_type, VkSystemAllocationScope scope)
 {
-    UNUSED(data); UNUSED(size); UNUSED(scope); UNUSED(alloc_type);
+    DOT_UNUSED(data); DOT_UNUSED(size); DOT_UNUSED(scope); DOT_UNUSED(alloc_type);
     DOT_PRINT( "VK Internal Free: size=%M; scope=%s", size, string_VkSystemAllocationScope(scope) );
 }
 

@@ -14,32 +14,37 @@ renderer_init(Arena *arena, DOT_Renderer *renderer, DOT_Window *window, Renderer
 {
     renderer->permanent_arena = ARENA_ALLOC(
         .parent       = arena,
-        .reserve_size = renderer_config->renderer_memory_size,
-        .name         = "Application_Renderer");
+        .reserve_size = renderer_config->renderer_permanent_memory_size,
+        .name         = "Application render permanent");
+
+    renderer->transient_arena = ARENA_ALLOC(
+        .parent       = arena,
+        .reserve_size = renderer_config->renderer_transient_memory_size,
+        .name         = "Application renderer transient");
 
     shader_cache_init(renderer->permanent_arena, &renderer->shader_cache, renderer_config->shader_cache_config);
     renderer->backend = renderer_backend_create(renderer->permanent_arena, renderer_config->backend_config);
 
-
-    // renderer->frame_data    = PUSH_ARRAY(renderer->permanent_arena, FrameData, renderer->frame_overlap);
-    // for(u8 i = 0; i < backend->frame_data_count; ++i){
-    //     renderer->frame_data[i].temp_arena = ARENA_ALLOC(
-    //         .parent       = renderer->permanent_arena,
-    //         .reserve_size = renderer_config->frame_arena_size);
-    // }
+    renderer->frame_data_count = renderer->backend->frame_overlap;
+    renderer->frame_datas    = PUSH_ARRAY(renderer->permanent_arena, FrameData, renderer->frame_data_count);
+    for(u8 i = 0; i < renderer->frame_data_count; ++i){
+        renderer->frame_datas[i].temp_arena = ARENA_ALLOC(
+            .parent       = renderer->permanent_arena,
+            .reserve_size = renderer_config->frame_arena_size);
+    }
     RENDER_BACKEND_CALL(init(window));
-    null_texture = renderer_create_texture(
+    null_texture = renderer_texture_create(
         renderer,
-        &(DOT_TextureCreateInfo) {
-            .texture_desc = {
-                .width = 1,
-                .height = 1,
-                .depth = 1,
-                .mip_levels = 1,
-                .format_kind = DOT_TextureFormat_RGBA8_UNORM,
-            },
-            .data = (u8[]){0,0,0,0},
-        }
+        &(DOT_TextureDesc) {
+            .width = 1,
+            .height = 1,
+            .depth = 1,
+            .mip_levels = 1,
+            .format_kind = DOT_TextureFormat_RGBA8_UNORM,
+            .dimension_kind = DOT_TextureDimension_2D,
+        },
+        (u8[]){0,0,0,0},
+        String8Lit("null_texture")
     );
     (void)null_texture;
 }
@@ -56,7 +61,7 @@ renderer_shutdown(DOT_Renderer *renderer)
         }
     }
     shader_cache_end(shader_cache);
-    // renderer_destroy_texture(&null_texture);
+    renderer_texture_destroy(renderer, null_texture);
     RENDER_BACKEND_CALL(shutdown());
 }
 
@@ -78,6 +83,15 @@ renderer_texture_format_info_get(DOT_TextureFormatKind fmt)
     case DOT_TextureFormat_RG8_UNORM:
         info.channels     = 2;
         info.block_size   = 2;
+        info.block_width  = 1;
+        info.block_height = 1;
+    break;
+    case DOT_TextureFormat_RGB8_SRGB:
+        info.format_flags |= DOT_TextureFormatFlags_SRGB;
+        DOT_FALLTHROUGH;
+    case DOT_TextureFormat_RGB8_UNORM:
+        info.channels     = 3;
+        info.block_size   = 3;
         info.block_width  = 1;
         info.block_height = 1;
     break;
@@ -230,7 +244,6 @@ renderer_pick_texture_format(int comp, u8 size_bytes, b32 srgb)
         case 4: return DOT_TextureFormat_RGBA32F;
         }
     }else if(size_bytes == 2){ // 16-bit integer formats (PNG, TGA, etc.)
-
         switch(comp){
         case 1: return DOT_TextureFormat_R16F;
         case 2: return DOT_TextureFormat_RG16F;
@@ -241,74 +254,81 @@ renderer_pick_texture_format(int comp, u8 size_bytes, b32 srgb)
         switch(comp){ // 8-bit formats
         case 1: return DOT_TextureFormat_R8_UNORM;
         case 2: return DOT_TextureFormat_RG8_UNORM;
-        case 3: return srgb ? DOT_TextureFormat_RGBA8_SRGB : DOT_TextureFormat_RGBA8_UNORM;
+        case 3: return srgb ? DOT_TextureFormat_RGB8_SRGB : DOT_TextureFormat_RGB8_UNORM;
         case 4: return srgb ? DOT_TextureFormat_RGBA8_SRGB : DOT_TextureFormat_RGBA8_UNORM;
         }
     }
     return DOT_TextureFormat_Invalid;
 }
 
-// (JD) NOTE: When having an asset loading system, we may not need to load raw textures directly
-//      and can always pass it in the raw texture data. We probably also won't need to use stb to
-//      parse arbitrary image formats
+void
+renderer_texture_destroy(DOT_Renderer *renderer, DOT_TextureHandle handle)
+{
+    RENDER_BACKEND_CALL(texture_destroy(handle));
+}
+
 DOT_TextureAsset
-renderer_create_texture_asset(DOT_Renderer *renderer, DOT_TextureCreateInfo *create_info)
-{ 
-    DOT_TextureAsset texture_asset = {
+renderer_texture_asset_create(DOT_Renderer *renderer, const DOT_AssetCreateInfo *asset_info, u8 mip_levels)
+{
+    TempArena temp = threadctx_get_temp(0,0);
+    String8 file_data = platform_read_entire_file(temp.arena, asset_info->path);
+
+    void *data = NULL;
+    u8 size_bytes = 0;
+    b32 is_hdr = stbi_is_hdr_from_memory(file_data.str, file_data.size);
+    b32 is_16_bit = is_hdr || stbi_is_16_bit_from_memory(file_data.str, file_data.size);
+    u32 width = 0;
+    u32 height = 0;
+    int comp = 0;
+    stbi_info_from_memory(file_data.str, file_data.size, (int*)&width, (int*)&height, &comp);
+    comp = comp == 3 ? STBI_rgb_alpha : comp;
+    if(is_hdr){
+        data = stbi_loadf_from_memory(file_data.str, file_data.size, (int*)&width, (int*)&height, NULL, comp);
+        size_bytes = 4;
+    }else if(is_16_bit){
+        data = stbi_load_16_from_memory(file_data.str, file_data.size, (int*)&width, (int*)&height, NULL, comp);
+        size_bytes = 2;
+    }else{
+        data = stbi_load_from_memory(file_data.str, file_data.size, (int*)&width, (int*)&height, NULL, comp);
+        size_bytes = 1;
+    }
+
+    if(mip_levels == 0){
+        u32 mip_w = width;
+        u32 mip_h = height;
+        mip_levels = 1;
+        while(mip_w > 1 || mip_h > 1){
+            mip_w = mip_w > 1 ? mip_w / 2 : 1;
+            mip_h = mip_h > 1 ? mip_h / 2 : 1;
+            mip_levels++;
+        }
+    }
+    String8 debug_name = string8_append_string8(renderer->transient_arena, String8Lit("render_backend_"), asset_info->name);
+    DOT_TextureAsset asset = {
         .asset = {
             .kind = DOT_Asset_Texture,
-            .name = create_info->asset_info.name,
-            .path = create_info->asset_info.path,
-            .desc = create_info->asset_info.desc,
+            .name = string8_copy(renderer->transient_arena, asset_info->name),
+            .desc = asset_info->desc,
+            .path = asset_info->path,
         },
-        .desc = create_info->texture_desc,
-        .handle = renderer_create_texture(renderer, create_info),
+        .desc = {
+            .mip_levels = mip_levels,
+            .dimension_kind = DOT_TextureDimension_2D,
+            .format_kind = renderer_pick_texture_format(comp, size_bytes, true),
+            .width = width,
+            .height = height,
+            .depth = 1,
+        },
     };
-    return texture_asset;
+    asset.handle = renderer_texture_create(renderer, &asset.desc, data, debug_name),
+    temp_arena_restore(temp);
+    return asset;
 }
 
 DOT_TextureHandle
-renderer_create_texture(DOT_Renderer *renderer, DOT_TextureCreateInfo *create_info)
+renderer_texture_create(DOT_Renderer *renderer, const DOT_TextureDesc *create_info, void *data, String8 debug_name)
 {
-    TempArena temp = threadctx_get_temp(0,0);
-    DOT_TextureDesc *texture_desc = &create_info->texture_desc;
-    if(create_info->data == NULL){
-        String8 asset_path = create_info->asset_info.path;
-        if(asset_path.size > 0){
-            String8 file_data = platform_read_entire_file(temp.arena, asset_path);
-            u8 size_bytes = 0;
-            b32 is_hdr = stbi_is_16_bit_from_memory(file_data.str, file_data.size);
-            b32 is_16_bit = is_hdr || stbi_is_16_bit_from_memory(file_data.str, file_data.size);
-            int comp;
-            if(is_hdr){
-                create_info->data = stbi_loadf_from_memory(file_data.str, file_data.size, cast(int*)&texture_desc->width, cast(int*)&texture_desc->height, &comp, STBI_default);
-                size_bytes = 4;
-            }else if(is_16_bit){
-                create_info->data = stbi_load_16_from_memory(file_data.str, file_data.size, cast(int*)&texture_desc->width, cast(int*)&texture_desc->height, &comp, STBI_default);
-                size_bytes = 2;
-            }else{
-                create_info->data = stbi_load_from_memory(file_data.str, file_data.size, cast(int*)&texture_desc->width, cast(int*)&texture_desc->height, &comp, STBI_default);
-                size_bytes = 1;
-            }
-            // (jd) NOTE: We assume we read srgb always for now
-            create_info->texture_desc.format_kind = renderer_pick_texture_format(comp, size_bytes, true);
-        }else{
-            DOT_WARNING("No texture data nor asset path passed set");
-        }
-    }
-    if(texture_desc->mip_levels == 0){
-        texture_desc->mip_levels = 1;
-        u32 mip_w = texture_desc->width;
-        u32 mip_h = texture_desc->height;
-        for(;mip_w > 1 && mip_h > 1; ++texture_desc->mip_levels){
-            mip_w /= 2;
-            mip_h /= 2;
-        }
-    }
-
-    DOT_TextureHandle handle = RENDER_BACKEND_CALL(texture_create(create_info));
-    temp_arena_restore(temp);
-    return handle;
+    return RENDER_BACKEND_CALL(texture_create(create_info, data, debug_name));
 }
 
 void
@@ -336,21 +356,21 @@ renderer_end_frame(DOT_Renderer *renderer)
 internal void
 renderer_overlay_init(DOT_Renderer *renderer, const void *font_pixels, int font_w, int font_h)
 {
-    UNUSED(renderer);
+    DOT_UNUSED(renderer);
     RENDER_BACKEND_CALL(overlay_init(font_pixels, font_w, font_h));
 }
 
 internal void
 renderer_overlay_render(DOT_Renderer *renderer, u8 frame_idx, OverlayDrawList *draw_list)
 {
-    UNUSED(renderer);
+    DOT_UNUSED(renderer);
     renderer_backend_vk_overlay_render(frame_idx, draw_list);
 }
 
 internal void
 renderer_overlay_shutdown(DOT_Renderer *renderer)
 {
-    UNUSED(renderer);
+    DOT_UNUSED(renderer);
     RENDER_BACKEND_CALL(overlay_shutdown());
 }
 

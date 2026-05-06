@@ -25,8 +25,14 @@ b32 dot_game_init(DOT_Game *game, DOT_Renderer *renderer,
     g_game->permanent_arena = ARENA_ALLOC(.name = "engine permanent arena", .buffer = permanent_memory, .reserve_size = permanent_memory_size);
     g_game->transient_arena = ARENA_ALLOC(.name = "engine transient arena", .buffer = transient_memory, .reserve_size = transient_memory_size);
 
-    test_shader_module = renderer_shader_module_load_from_path(game->renderer, String8Lit(DOT_GAME_SHADER_PATH"compute.glsl"));
-    renderer_create_postprocess_module(test_shader_module->shader_module_handle);
+    g_game->test_shader_module = renderer_shader_module_load_from_path(game->renderer, String8Lit(DOT_GAME_SHADER_PATH"compute.glsl"));
+    renderer_create_postprocess_module(g_game->test_shader_module->shader_module_handle);
+
+    // String8 model_path = String8Lit(DOT_GAME_ASSET_PATH"glTF-Sample-Models/2.0/DamagedHelmet/glTF-Embedded/DamagedHelmet.gltf");
+    String8 model_path = String8Lit(DOT_GAME_ASSET_PATH"glTF-Sample-Models/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf");
+    // String8 model_path = String8Lit(DOT_GAME_ASSET_PATH"glTF-Sample-Models/2.0/2CylinderEngine/glTF/2CylinderEngine.gltf");
+    DOT_Model model = dot_model_load_from_path(g_game->renderer, model_path);
+    (void)model;
     return true;
 }
 

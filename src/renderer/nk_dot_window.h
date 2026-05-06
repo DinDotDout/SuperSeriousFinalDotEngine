@@ -75,7 +75,7 @@ global NkDot_State g_nk_dot;
 NK_INTERN void
 nk_dot_clipboard_paste(nk_handle usr, struct nk_text_edit *edit)
 {
-    UNUSED(usr);
+    DOT_UNUSED(usr);
     usize len = 0;
     const char *text = RGFW_readClipboard(&len);
     if (text)
@@ -85,7 +85,7 @@ nk_dot_clipboard_paste(nk_handle usr, struct nk_text_edit *edit)
 NK_INTERN void
 nk_dot_clipboard_copy(nk_handle usr, const char *text, int len)
 {
-    UNUSED(usr);
+    DOT_UNUSED(usr);
     if (!len) return;
     RGFW_writeClipboard(text, len);
 }

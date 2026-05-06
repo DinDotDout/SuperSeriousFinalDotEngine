@@ -39,7 +39,7 @@ renderer_backend_vk_debug_callback(
     const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
     void* user_data)
 {
-    UNUSED(message_type); UNUSED(user_data);
+    DOT_UNUSED(message_type); DOT_UNUSED(user_data);
     if(message_severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT){
         DOT_WARNING("validation layer: %s", callback_data->pMessage);
         // os_print_stacktrace();
@@ -88,19 +88,18 @@ renderer_backend_vk_shader_unload(DOT_ShaderModuleHandle shader_module_handle)
 
 // Handle should just be ie internal ptr to backend texture, or maybe RBVK_Texture
 internal DOT_TextureHandle
-renderer_backend_vk_texture_create(const DOT_TextureCreateInfo *create_info)
+renderer_backend_vk_texture_create(const DOT_TextureDesc *desc, void *data, String8 debug_name)
 {
-    if(create_info == NULL){
+    if(desc == NULL){
        PoolHandle h = POOL_H_GET_NULL(&g_vk_ctx->texture_pool);
        DOT_TextureHandle dot_texture_handle = { .handle[0] = h, };
        return dot_texture_handle;
     }
-    const DOT_TextureDesc *desc = &create_info->texture_desc;
 
     VkExtent3D extent_3d = {desc->width, desc->height, desc->depth};
     const PoolHandle texture_h = POOL_H_GET(&g_vk_ctx->texture_pool);
     RBVK_Texture *texture = POOL_H_ACCESS(&g_vk_ctx->texture_pool, texture_h);
-    texture->debug_name = create_info->asset_info.name;
+    texture->debug_name = debug_name;
     texture->vk_extent3d = extent_3d;
     texture->mip_levels = desc->mip_levels;
     texture->vk_format = vk_helper_texture_format_to_vk_texture_format(desc->format_kind);
@@ -166,9 +165,9 @@ renderer_backend_vk_texture_create(const DOT_TextureCreateInfo *create_info)
             &texture->vk_image_view));
     }
 
-    if(create_info->data){
+    if(data){
         u64 texture_size = format_info.block_size * extent_3d.height * extent_3d.width  * extent_3d.depth;
-        VkMemory_Alloc mem_alloc = rbvk_memory_pools_staging_ring_buffer_push(&g_vk_ctx->memory_pools,  texture_size, create_info->data);
+        VkMemory_Alloc mem_alloc = rbvk_memory_pools_staging_ring_buffer_push(&g_vk_ctx->memory_pools,  texture_size, data);
         // void* destination_data;
         // vkMapMemory(vk_device, mem_alloc.vk_memory, 0, mem_alloc.size, 0, &destination_data);
         // MEMORY_COPY_NO_ALIAS(destination_data, create_info->data, mem_alloc.size);
@@ -298,15 +297,24 @@ rbvk_buffer_create(
 }
 
 internal void
-rbvk_destroy_image(RBVK_Texture *image){
+renderer_backend_vk_texture_destroy(DOT_TextureHandle handle)
+{
+    const PoolHandle texture_h = handle.handle[0];
+    RBVK_Texture *tex = POOL_H_ACCESS(&g_vk_ctx->texture_pool, texture_h);
+    rbvk_texture_destroy(tex);
+    POOL_H_FREE(&g_vk_ctx->texture_pool, texture_h);
+}
+
+internal void
+rbvk_texture_destroy(RBVK_Texture *image){
     VkDevice device = g_vk_ctx->device.vk_device;
     vkDestroyImageView(device, image->vk_image_view, NULL);
-    // vkUnmapMemory(device, image->alloc.memory);
+    // vkUnmapMemory(device, image->alloc.vk_memory);
     vkDestroyImage(device, image->vk_image, NULL);
 }
 
 internal void
-renderer_backend_vk_init(DOT_Window* window)
+renderer_backend_vk_init(DOT_Window *window)
 {
     // (jd) This is all super messy and error prone. Cleanup
 #ifdef DOT_USE_VOLK
@@ -344,12 +352,12 @@ renderer_backend_vk_init(DOT_Window* window)
         VK_CHECK(vkCreateInstance(
             &(VkInstanceCreateInfo){
                 .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-                .ppEnabledLayerNames     = string8_array_to_str_array(
+                .ppEnabledLayerNames     = cstr_array_from_string8_array(
                     temp.arena,
                     VK_SETTINGS.validation_layers.count,
                     VK_SETTINGS.validation_layers.data),
                 .enabledLayerCount       = VK_SETTINGS.validation_layers.count,
-                .ppEnabledExtensionNames = string8_array_to_str_array(
+                .ppEnabledExtensionNames = cstr_array_from_string8_array(
                     temp.arena,
                     VK_SETTINGS.instance_settings.instance_extensions.count,
                     VK_SETTINGS.instance_settings.instance_extensions.data),
@@ -420,7 +428,7 @@ renderer_backend_vk_init(DOT_Window* window)
             .pQueueCreateInfos       = queue_infos,
             .queueCreateInfoCount    = queue_count,
             .pEnabledFeatures        = &(VkPhysicalDeviceFeatures){},
-            .ppEnabledExtensionNames = string8_array_to_str_array(
+            .ppEnabledExtensionNames = cstr_array_from_string8_array(
                 temp.arena,
                 VK_SETTINGS.device_settings.device_extensions.count,
                 VK_SETTINGS.device_settings.device_extensions.data),
@@ -775,7 +783,8 @@ renderer_backend_vk_shutdown()
     vkDestroyPipelineLayout(device, g_vk_ctx->gradient_pipeline_layout, NULL);
     vkDestroyPipeline(device, g_vk_ctx->gradient_pipeline, NULL);
 
-    rbvk_destroy_image(&g_vk_ctx->draw_image);
+    rbvk_texture_destroy(&g_vk_ctx->draw_image);
+
     vkDestroySwapchainKHR(device, g_vk_ctx->swapchain.swapchain, NULL);
     vk_memory_pools_destroy(&g_vk_ctx->device, &g_vk_ctx->memory_pools);
     vkDestroySurfaceKHR(g_vk_ctx->instance, g_vk_ctx->surface, NULL);

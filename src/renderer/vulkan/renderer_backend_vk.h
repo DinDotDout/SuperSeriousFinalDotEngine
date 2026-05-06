@@ -278,12 +278,12 @@ internal RendererBackendVk* renderer_backend_as_vk(RendererBackend *base);
 
 internal void rbvk_frame_counters_advance();
 internal RBVK_Texture   rbvk_texture_create(VkImageCreateInfo *image_info);
-internal RBVK_Buffer    rbvk_buffer_create2(VkBufferCreateInfo *buffer_info);
+internal void rbvk_texture_destroy(RBVK_Texture *image);
+
 // internal RBVK_Buffer    rbvk_buffer_create( VkDeviceSize size, VkBufferUsageFlags usage, VkMemory_PoolsKind pool_kind, String8 name);
 internal RBVK_Buffer    rbvk_buffer_create( VkDeviceSize size, VkMemory_PoolsKind pool_kind, String8 name);
 
 
-internal void rbvk_destroy_image(RBVK_Texture *image);
 
 internal DOT_ShaderModuleHandle rbvk_dot_shader_module_from_vk_shader_module(VkShaderModule vk_sm);
 internal VkShaderModule         rbvk_vk_shader_module_from_dot_shader_module(DOT_ShaderModuleHandle dot_smh);

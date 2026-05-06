@@ -12,7 +12,7 @@ const String8 dot_asset_str[] = {
 DOT_STATIC_ASSERT(DOT_Asset_Count == ARRAY_COUNT(dot_asset_str));
 
 typedef struct DOT_AssetCreateInfo{
-    String8 path; // Will try to load from here and fill in asset desc
+    String8 path;
     String8 name;
     String8 desc; 
 }DOT_AssetCreateInfo;
