@@ -1,5 +1,6 @@
 internal void
-threadctx_init(const ThreadCtxOptions* thread_ctx_opts, u8 thread_id){
+threadctx_init(const ThreadCtxOptions* thread_ctx_opts, u8 thread_id)
+{
     DOT_ASSERT(thread_ctx_opts);
     if(thread_ctx_opts->per_thread_temp_arena_count < 2){
       DOT_WARNING("We probably need at least two temp_arenas to double buffer "
@@ -29,7 +30,8 @@ threadctx_init(const ThreadCtxOptions* thread_ctx_opts, u8 thread_id){
 }
 
 internal void
-threadctx_shutdown(){
+threadctx_shutdown()
+{
     Arena* main_arena = thread_ctx.temp_arenas[0]->parent;
     for(u8 i = 0; i < thread_ctx.temp_arena_count; ++i){
         arena_print_debug(thread_ctx.temp_arenas[i]);
@@ -39,15 +41,21 @@ threadctx_shutdown(){
 
 
 internal TempArena
-threadctx_get_temp(Arena *avoid[], u32 avoid_count){
-    for(u8 i = 0; i < thread_ctx.temp_arena_count; ++i){
-        Arena *candidate_temp = thread_ctx.temp_arenas[i];
+threadctx_get_temp(Arena *avoid[], u32 avoid_count)
+{
+    // Spread memory usage across arenas
+    local_persist thread_local u64 next = 0;
+    u32 arena_count = thread_ctx.temp_arena_count;
+    for(u8 tries = 0; tries < arena_count; ++tries){
+        u8 idx = next;
+        next = (next + 1) % arena_count;
+
+        Arena *candidate_temp = thread_ctx.temp_arenas[idx];
         DOT_ASSERT(candidate_temp);
 
-        // NOTE: Checks if candidate_temp is in the avoid list
         b32 collision = false;
-        for(u32 j = 0; j < avoid_count; ++j){
-            if(candidate_temp == avoid[j]){
+        for(u32 i = 0; i < avoid_count; ++i){
+            if(candidate_temp == avoid[i]){
                 collision = true;
                 break;
             }
