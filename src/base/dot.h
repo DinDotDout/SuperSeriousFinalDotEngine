@@ -93,10 +93,10 @@
     #define DOT_RESTORE_SWITCH_ENUM
 #endif
 
-
 ////////////////////////////////////////////////////////////////
 //
 // OS
+
 #if defined(_WIN32)
 #define DOT_OS_POSIX 0
 #define DOT_OS_WINDOWS 1
@@ -153,17 +153,12 @@
 // the data, otherwise we lose te ability to get warning out of
 // unhandled switch statement cases
 
-#define DOT_ENUM(T, name) T name; enum
-#define DOT_BIT(x) (1 << (x))
+#define DOT_BIT(x)                  (1 << (x))
 #define DOT_BITS_MATCH(flags, mask) (((flags) & (mask)) == (mask))
-#define DOT_BITS_ANY(flags, mask) (((flags) & (mask)) != 0)
+#define DOT_BITS_ANY(flags, mask)   (((flags) & (mask)) != 0)
 
 #define DOT_X_ENUM_ARG(prefix, v) prefix##_##v,
 #define DOT_X_ENUM_STR(prefix, v) #v,
-
-#define DOT_CONST_INT_BLOCK enum
-
-
 
 ////////////////////////////////////////////////////////////////
 //
@@ -289,24 +284,24 @@ typedef int DOT_CONCAT(DOT_STATIC_ASSERT, __COUNTER__) [(x) ? 1 : -1]
 
 #if DOT_COMPILER_MSVC
 #   include <sal.h>
-#   define PRINTF_LIKE(fmtpos, argpos) 
-#   define PRINTF_STRING _Printf_format_string_
+#   define DOT_PRINTF_LIKE(fmtpos, argpos) 
+#   define DOT_PRINTF_STRING _Printf_format_string_
 #elif DOT_COMPILER_GCC || DOT_COMPILER_CLANG
-#   define PRINTF_LIKE(fmtpos, argpos) __attribute__((format(printf, fmtpos, argpos)))
-#   define PRINTF_STRING
+#   define DOT_PRINTF_LIKE(fmtpos, argpos) __attribute__((format(printf, fmtpos, argpos)))
+#   define DOT_PRINTF_STRING
 #else
-#   define PRINTF_LIKE(fmtpos, argpos)
-#   define PRINTF_STRING
+#   define DOT_PRINTF_LIKE(fmtpos, argpos)
+#   define DOT_PRINTF_STRING
 #endif
 
-// NOTE: Make this a runtime arg
-typedef enum DOT_LogLevelKind{
+typedef enum DOT_LogLevelKind DOT_LogLevelKind;
+enum DOT_LogLevelKind{
     DOT_LogLevelKind_Debug,
     DOT_LogLevelKind_Warning,
     DOT_LogLevelKind_Error,
     DOT_LogLevelKind_Assert,
     DOT_LogLevelKind_Count,
-}DOT_LogLevelKind;
+};
 
 global const char *dot_log_level_kind_str[] = {
     [DOT_LogLevelKind_Debug]   = "",
@@ -314,7 +309,6 @@ global const char *dot_log_level_kind_str[] = {
     [DOT_LogLevelKind_Assert]  = "Assertion failed",
     [DOT_LogLevelKind_Error]   = "Error",
 };
-
 DOT_STATIC_ASSERT(DOT_LogLevelKind_Count == ARRAY_COUNT(dot_log_level_kind_str));
 
 typedef struct DOT_PrintDebugParams{
@@ -327,7 +321,10 @@ typedef struct DOT_PrintDebugParams{
 #define DOT_MAX_LOG_LEVEL_LENGTH 2048
 
 internal void dot_set_log_level(DOT_LogLevelKind log_level);
-internal void dot_print_debug_(const DOT_PrintDebugParams* params, PRINTF_STRING const char *fmt, ...);
+
+// This causes -Wformat to jump due to custom format specifiers %S %M %m :(
+// DOT_PRINTF_LIKE(2,3)
+internal void dot_print_debug_(const DOT_PrintDebugParams* params, DOT_PRINTF_STRING const char *fmt, ...);
 
 #define DOT_PRINT_DEBUG_PARAMS_DEFAULT(...) \
 &(DOT_PrintDebugParams) { \
@@ -382,7 +379,7 @@ do { \
 
 ////////////////////////////////////////////////////////////////
 //
-// Cast for easy cast grep
+// Cast for easy grep
 
 #define cast(t) (t)
 
@@ -439,30 +436,46 @@ do { \
 #define DOT_SWAP(Type, a, b) do { Type tmp = (a); (a) = (b); (b) = tmp; } while (0)
 #endif
 
-#define ALIGN_POW2(x, align) (((x) + (align) - 1) & (~((align) - 1)))
-#define ALIGN_DOWN_POW2(x, align) ((x) & ~((align) - 1))
-#define IS_POW2(x) (((x) & ((x) - 1)) == 0)
-#define MOD_POW2(x, n) (((x) & ((n) - 1)))
+#define ALIGN_POW2(x, align)        (((x) + (align) - 1) & (~((align) - 1)))
+#define ALIGN_DOWN_POW2(x, align)   ((x) & ~((align) - 1))
+#define IS_POW2(x)                  (((x) & ((x) - 1)) == 0)
+#define MOD_POW2(x, n)              (((x) & ((n) - 1)))
 
-#define MEMORY_ZERO(s, z) memset((s), 0, (z))
-#define MEMORY_ZERO_STRUCT(s) MEMORY_ZERO((s), sizeof(*(s)))
-#define MEMORY_ZERO_ARRAY(a) MEMORY_ZERO((a), sizeof(a))
+#define MEMORY_ZERO(s, z)       memset((s), 0, (z))
+#define MEMORY_ZERO_STRUCT(s)   MEMORY_ZERO((s), sizeof(*(s)))
+#define MEMORY_ZERO_ARRAY(a)    MEMORY_ZERO((a), sizeof(a))
 #define MEMORY_ZERO_TYPED(m, c) MEMORY_ZERO((m), sizeof(*(m)) * (c))
 
-#define MEMORY_COMPARE(a, b, size) memcmp((a), (b), (size))
-#define MEMORY_EQUAL(a, b, size) (MEMORY_COMPARE((a), (b), (size)) == 0)
-#define MEMORY_EQUAL_STRUCT(a, b) (MEMORY_COMPARE((a), (b), sizeof(*(a))) == 0)
+#define MEMORY_COMPARE(a, b, size)  memcmp((a), (b), (size))
+#define MEMORY_EQUAL(a, b, size)    (MEMORY_COMPARE((a), (b), (size)) == 0)
+#define MEMORY_EQUAL_STRUCT(a, b)   (MEMORY_COMPARE((a), (b), sizeof(*(a))) == 0)
 
 ////////////////////////////////////////////////////////////////
 //
 // Useful Mem copy from raddebugger
 
-#define MEMORY_COPY_NO_ALIAS(dst, src, size)  memcpy((dst), (src), (size))
-#define MEMORY_COPY(dst, src, size)    memmove((dst), (src), (size))
-#define MEMORY_COPY_STRUCT(d,s)  MEMORY_COPY((d),(s),sizeof(*(d)))
-#define MEMORY_COPY_ARRAY(d,s)   MEMORY_COPY((d),(s),sizeof(d))
-// #define MemoryCopyTyped(d,s,c) MEMORY_COPY((d),(s),sizeof(*(d))*(c))
+#define MEMORY_COPY_NO_ALIAS(dst, src, size)    memcpy((dst), (src), (size))
+#define MEMORY_COPY(dst, src, size)             memmove((dst), (src), (size))
+#define MEMORY_COPY_STRUCT(dst,src)             MEMORY_COPY((dst),(src),sizeof(*(dst)))
+#define MEMORY_COPY_ARRAY(dst,src)              MEMORY_COPY((dst),(src),sizeof(dst))
+// #define MemoryCopyTyped(dst,src,c) MEMORY_COPY((dst),(ssrc),sizeof(*(dst))*(c))
 
+////////////////////////////////////////////////////////////////
+//
+// Removalble debug field names
+
+typedef struct String8 String8;
+void dot_debug_name_set(u32 capacity, char *ptr, String8 src);
+
+#ifdef DEBUG
+#   define DOT_DEBUG_NAME_LEN 16
+#   define DOT_DEBUG_NAME(field, size) char field[size]
+#   define DOT_DEBUG_NAME_SET(buff, str8) dot_debug_name_set(sizeof(buff), buff, str8)
+#else
+#   define DOT_DEBUG_NAME_LEN 0
+#   define DOT_DEBUG_NAME(field, size)
+#   define DOT_DEBUG_NAME_SET(buff, str8) (void) str8
+#endif
 
 ////////////////////////////////////////////////////////////////
 //

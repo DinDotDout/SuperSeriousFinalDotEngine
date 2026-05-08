@@ -1,5 +1,8 @@
 #define NOB_IMPLEMENTATION
 #define NOB_NO_ECHO
+
+// NOTE: Should probably just allow msvc or clang (not clang cl)
+
 #include "../src/third_party/nob.h/nob.h"
 Nob_Log_Level nob_minimal_log_level = NOB_ERROR;
 
@@ -13,10 +16,10 @@ Nob_Log_Level nob_minimal_log_level = NOB_ERROR;
         .count = (sizeof((char *[]){__VA_ARGS__}) / sizeof(char *)) \
     }
 
-#define OUTPUT_FOLDER "build/"
-#define SRC_FOLDER   "src/dot_engine/"
+#define OUTPUT_FOLDER           "build/"
+#define SRC_FOLDER              "src/dot_engine/"
 
-#define SCRIPTS_FOLDER "scripts/"
+#define LINKER_SCRIPTS_FOLDER   "scripts/"
 
 #if defined(_WIN32)
 #   define AUTO_PLATFORM PlatformKind_Windows
@@ -157,12 +160,14 @@ typedef struct {
 
 static CompilerConfig compiler_cfg[] = {
     [CompilerKind_Clang] = {
-        .base = ARG_LIST("-std=c11",
+        .base = ARG_LIST(
+            "-std=c11",
             "-Wall", "-Wextra", "-Wno-override-init",
             "-Wdiv-by-zero", "-Wno-unused-function",
-            // "-Wno-unused-parameter",
             "-Werror=vla",
-        ),
+            // "-Wno-unused-parameter",
+            "-fvisibility=hidden",
+            ),
         .opt = {
             [OptimizationLevelKind_Debug] =
                 ARG_LIST(
@@ -371,9 +376,9 @@ int main(int argc, char **argv)
     }else{
         nob_cmd_append(&cmd, "-lm", "-lvulkan",  "-lpthread");
         nob_cmd_append(&cmd, "-I", "src/");
-        // nob_cmd_append(&cmd, "-Wl,-T"SCRIPTS_FOLDER"phdrs.ld");
-        // nob_cmd_append(&cmd, "-Wl,-T"SCRIPTS_FOLDER"rodata.ld");
-        nob_cmd_append(&cmd, "-Wl,-T"SCRIPTS_FOLDER"plugins_section.ld");
+        // nob_cmd_append(&cmd, "-Wl,-T"LINKER_SCRIPTS_FOLDER"phdrs.ld");
+        // nob_cmd_append(&cmd, "-Wl,-T"LINKER_SCRIPTS_FOLDER"rodata.ld");
+        nob_cmd_append(&cmd, "-Wl,-T"LINKER_SCRIPTS_FOLDER"plugins_section.ld");
 
 
         // nob_cmd_append(&cmd, " -Wl,-z,rosegment ");
