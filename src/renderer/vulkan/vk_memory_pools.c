@@ -1,19 +1,9 @@
-DOT_CONST_INT_BLOCK {
+enum
+{
     VK_MEMORY_POOLS_GPU_ONLY_SIZE = MB(512),
     VK_MEMORY_POOLS_STAGING_SIZE  = MB(64),
     VK_MEMORY_POOLS_READBACK_SIZE = MB(32),
 };
-
-
-// internal VkBuffer
-// RBVKMemory_Pools(RBVKMemory_Pools *pools, VkMemory_PoolsKind buffer_kind)
-// {
-//     switch(buffer_kind){
-//         case VkMemory_PoolsKind_Staging: return pools->staging_buffer.vk_buffer;
-//         case VkMemory_PoolsKind_Readback: return pools->readback_buffer.vk_buffer;
-//         default: DOT_ERROR("Invalid buffer kind");
-//     }
-// }
 
 internal VkMemory_Alloc
 rbvk_memory_ring_buffer_push(RBVKMemory_RingBuffer *ring_buffer, u64 size)
