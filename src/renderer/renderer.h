@@ -3,8 +3,8 @@
 
 ////////////////////////////////////////////////////////////////
 // Render Resource Types
+// (jd) TODO: split resources / resouce info into its own header
 
-// (JD) NOTE: Consider moving all the type definitions to its own header
 #define DOT_TEXTURE_KIND(X) \
     X(DOT_TextureDimension, 1D) \
     X(DOT_TextureDimension, 2D) \
@@ -66,20 +66,23 @@ global const char *dot_texture_format_kind_str[] = {
 
 // (jd) just xmacro all of this
 // Maybe I should really consider code generation to avoid cluttering all this
-typedef DOT_ENUM(u8, DOT_TextureFormatFlags){
+typedef u8 DOT_TextureFormatFlags;
+enum{
     DOT_TextureFormatFlags_Compressed   = DOT_BIT(0),
     DOT_TextureFormatFlags_SRGB         = DOT_BIT(1),
     DOT_TextureFormatFlags_Depth        = DOT_BIT(2),
     DOT_TextureFormatFlags_Stencil      = DOT_BIT(3),
 };
 
-typedef DOT_ENUM(u8, DOT_TextureUsageFlags){
+typedef u8 DOT_TextureUsageFlags;
+enum{
     DOT_TextureUsageFlags_Default       = DOT_BIT(0),
     DOT_TextureUsageFlags_RenderTarget  = DOT_BIT(1),
     DOT_TextureUsageFlags_Compute       = DOT_BIT(2),
 };
 
-typedef DOT_ENUM(u8, DOT_BufferUsageFlags){
+typedef u8 DOT_BufferUsageFlags;
+enum{
     DOT_BufferUsageFlags_Default    = DOT_BIT(0),
     DOT_BufferUsageFlags_Staging    = DOT_BIT(1),
     DOT_BufferUsageFlags_GPU        = DOT_BIT(2),
@@ -129,7 +132,6 @@ typedef struct DOT_TextureAsset{
 // We need a create texture info for user facing. Will be gpu only
 // only in renderer stuff will do gpu/staging,
 // we need a create texture for internal creation
-
 typedef struct DOT_TextureCreateInfo{
     void *data;
     String8 debug_name;
@@ -150,6 +152,7 @@ typedef struct DOT_BufferCreateInfo{
 ////////////////////////////////////////////////////////////////
 // UI Overlay
 
+// (jd) TODO: Kill this AI Overlay stuff and redo
 typedef struct OverlayVertex{
     f32 position[2];
     f32 uv[2];
@@ -205,7 +208,8 @@ global const char *renderer_present_mode_kind_str[] = {
 
 typedef struct RendererBackendConfig{
     RendererBackendKind backend_kind;
-    u64 backend_memory_size;
+    u32 backend_memory_size;
+    u32 backend_transient_memory_size;
 
     RendererPresentModeKind present_mode;
     u8 frame_overlap;
@@ -222,25 +226,29 @@ typedef struct RendererConfig{
 
 // renderer_backend_funcs.x.h
 #define RENDERER_BACKEND_FN_LIST \
-    FN(void, init, DOT_Window *window) \
-    FN(void, shutdown) \
-    FN(void, begin_frame) \
-    FN(void, end_frame) \
-    FN(void, clear_bg, vec3 color) \
-    FN(DOT_ShaderModuleHandle, shader_load_from_data, String8 fb) \
-    FN(void, shader_unload, DOT_ShaderModuleHandle shader_module) \
-    FN(DOT_TextureHandle, texture_create, const DOT_TextureDesc *desc, void *data, String8 debug_name) \
-    FN(void, texture_destroy, DOT_TextureHandle texture_handle) \
-    FN(void, overlay_init, const void *font_pixels, int font_w, int font_h) \
-    FN(void, overlay_shutdown) \
-    FN(void, overlay_render, u8 frame_idx, OverlayDrawList *draw_list)
+    FN(void, init, (DOT_Window *window)) \
+    FN(void, shutdown, (void)) \
+    FN(void, begin_frame, (void)) \
+    FN(void, end_frame, (void)) \
+    FN(void, clear_bg, (vec3 color)) \
+    FN(DOT_ShaderModuleHandle, shader_load_from_data, (String8 fb)) \
+    FN(void, shader_unload, (DOT_ShaderModuleHandle shader_module)) \
+    FN(DOT_TextureHandle, texture_create, (const DOT_TextureDesc *desc, void *data, String8 debug_name)) \
+    FN(void, texture_destroy, (DOT_TextureHandle texture_handle)) \
+    FN(void, resource_cleanup_list_push, (void)) \
+    FN(void, resource_cleanup_list_pop_at, (u32)) \
+    FN(void, resource_cleanup_list_pop_last, (void)) \
+    FN(void, overlay_init, (const void *font_pixels, int font_w, int font_h)) \
+    FN(void, overlay_shutdown, (void)) \
+    FN(void, overlay_render, (u8 frame_idx, OverlayDrawList *draw_list))
 
 typedef struct RendererBackend{
     RendererBackendKind backend_kind;
     Arena *permanent_arena;
+    Arena *transient_arena;
     u8 frame_overlap;
 
-#define FN(ret, name, ...) ret (*name) (__VA_ARGS__);
+#define FN(ret, name, params) ret (*name) params;
     RENDERER_BACKEND_FN_LIST
 #undef FN
 }RendererBackend;
@@ -278,19 +286,20 @@ typedef struct DOT_Renderer{
 }DOT_Renderer;
 
 
-DOT_ENGINE_API void renderer_clear_background(DOT_Renderer *renderer, vec3 color);
-DOT_ENGINE_API DOT_ShaderModule* renderer_shader_module_load_from_path(DOT_Renderer *renderer, String8 path);
-DOT_ENGINE_API DOT_TextureAsset renderer_texture_asset_create(DOT_Renderer *renderer, const DOT_AssetCreateInfo *asset_info, u8 mip_levels);
-DOT_ENGINE_API DOT_TextureHandle renderer_texture_create(DOT_Renderer *renderer, const DOT_TextureDesc *desc, void *data, String8 debug_name);
-DOT_ENGINE_API void renderer_texture_destroy(DOT_Renderer *renderer, DOT_TextureHandle handle);
+DOT_ENGINE_API void                 renderer_clear_background(DOT_Renderer *renderer, vec3 color);
+DOT_ENGINE_API DOT_ShaderModule*    renderer_shader_module_load_from_path(DOT_Renderer *renderer, String8 path);
+DOT_ENGINE_API DOT_TextureAsset     renderer_texture_asset_create(DOT_Renderer *renderer, const DOT_AssetCreateInfo *asset_info, u8 mip_levels);
+DOT_ENGINE_API DOT_TextureHandle    renderer_texture_create(DOT_Renderer *renderer, const DOT_TextureDesc *desc, void *data, String8 debug_name);
+DOT_ENGINE_API void                 renderer_texture_destroy(DOT_Renderer *renderer, DOT_TextureHandle handle);
+
+internal void                   renderer_init(Arena *arena, DOT_Renderer *renderer, DOT_Window *window, RendererConfig *config);
+internal void                   renderer_shutdown(DOT_Renderer *renderer);
+internal RendererBackend*       renderer_backend_create(Arena *arena, RendererBackendConfig *backend_config);
 
 internal void renderer_begin_frame(DOT_Renderer *renderer);
 internal void renderer_end_frame(DOT_Renderer *renderer);
 
-internal DOT_TextureFormatInfo renderer_texture_format_info_get(DOT_TextureFormatKind fmt);
-internal RendererBackend* renderer_backend_create(Arena *arena, RendererBackendConfig *backend_config);
-internal void renderer_init(Arena *arena, DOT_Renderer *renderer, DOT_Window *window, RendererConfig *config);
-internal void renderer_shutdown(DOT_Renderer *renderer);
+internal DOT_TextureFormatInfo  renderer_texture_format_info_get(DOT_TextureFormatKind fmt);
 
 internal void renderer_overlay_init(DOT_Renderer *renderer, const void *font_pixels, int font_w, int font_h);
 internal void renderer_overlay_render(DOT_Renderer *renderer, u8 frame_idx, OverlayDrawList *draw_list);

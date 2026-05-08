@@ -1,119 +1,6 @@
 #ifndef RENDERER_BACKEND_VK_H
 #define RENDERER_BACKEND_VK_H
 
-#ifdef NDEBUG
-#define VALIDATION_LAYERS_ENABLE 0
-#define VK_EXT_DEBUG_UTILS_ENABLE 0
-#else
-#define VALIDATION_LAYERS_ENABLE 1
-#define VK_EXT_DEBUG_UTILS_ENABLE 1
-#endif
-
-typedef struct RBVK_Settings RBVK_Settings;
-struct RBVK_Settings{
-    struct RBVK_InstanceSettings{
-        struct RBVK_InstanceExtensions{
-            String8 *data;
-            usize    count;
-        }instance_extensions;
-
-        String8 application_name;
-        u32 application_version;
-        String8 engine_name;
-        u32 engine_version;
-        u32 api_version;
-    }instance_settings;
-
-    struct RBVK_DeviceSettings{
-        struct RBVK_DeviceExtensions{
-            String8 *data;
-            usize    count;
-        }device_extensions;
-        const void  *device_features;
-    }device_settings;
-
-    struct RBVK_ValidationLayers{
-        String8 *data;
-        usize    count;
-    }validation_layers;
-
-    struct RBVK_SwapchainSettings{
-        const VkFormat         preferred_format;
-        const VkColorSpaceKHR  preferred_colorspace;
-        VkPresentModeKHR preferred_present_mode; // Set from renderer settings
-    }swapchain_settings;
-
-    struct FrameSettings{
-        u8 frame_overlap;
-    }frame_settings;
-
-// TODO:This things will be useful for debugging!
-// Make stub and add to all those pfns in case we do not find one it just won't do anything
-// pfnSetDebugUtilsObjectNameEXT = ( PFN_vkSetDebugUtilsObjectNameEXT )vkGetDeviceProcAddr( vulkan_device, "vkSetDebugUtilsObjectNameEXT" );
-// pfnCmdBeginDebugUtilsLabelEXT = ( PFN_vkCmdBeginDebugUtilsLabelEXT )vkGetDeviceProcAddr( vulkan_device, "vkCmdBeginDebugUtilsLabelEXT" );
-// pfnCmdEndDebugUtilsLabelEXT = ( PFN_vkCmdEndDebugUtilsLabelEXT )vkGetDeviceProcAddr( vulkan_device, "vkCmdEndDebugUtilsLabelEXT" );
-} global VK_SETTINGS = {
-    .instance_settings = {
-        .application_name    = String8Lit("dot_engine"),
-        .application_version = VK_MAKE_VERSION(1, 0, 0),
-
-        .engine_name         = String8Lit("dot_engine"),
-        .engine_version      = VK_MAKE_VERSION(1, 0, 0),
-
-        .api_version         = VK_API_VERSION_1_4,
-
-        .instance_extensions = SLICE(String8, {
-            String8Lit(VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME),
-            String8Lit(VK_KHR_SURFACE_EXTENSION_NAME),
-#ifdef VK_EXT_DEBUG_UTILS_ENABLE
-            String8Lit(VK_EXT_DEBUG_UTILS_EXTENSION_NAME),
-#endif
-            String8Lit(DOT_VK_SURFACE),
-        }),
-    },
-    .validation_layers = SLICE(String8, {
-#ifdef VALIDATION_LAYERS_ENABLE
-        String8Lit("VK_LAYER_KHRONOS_validation"),
-#endif
-    }),
-    .device_settings = {
-        .device_extensions = SLICE(String8, {
-            String8Lit(VK_KHR_SWAPCHAIN_EXTENSION_NAME),
-            String8Lit(VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME),
-            String8Lit(VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME),
-            String8Lit(VK_EXT_GRAPHICS_PIPELINE_LIBRARY_EXTENSION_NAME),
-            String8Lit(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME),
-        }),
-        .device_features = 
-            &(VkPhysicalDeviceVulkan12Features){
-                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
-                .bufferDeviceAddress = true,
-                .descriptorIndexing = true,
-                .descriptorBindingPartiallyBound = true,
-                .descriptorBindingVariableDescriptorCount = true,
-                .runtimeDescriptorArray = true,
-        .pNext =
-            &(VkPhysicalDeviceVulkan13Features){
-                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
-                .synchronization2 = VK_TRUE,
-                .dynamicRendering = true,
-        .pNext =
-            &(VkPhysicalDeviceDescriptorBufferFeaturesEXT){
-                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT,
-                .descriptorBuffer = VK_TRUE,
-        .pNext =
-            &(VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT){
-                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_FEATURES_EXT,
-                .graphicsPipelineLibrary = VK_TRUE,
-        .pNext = NULL,
-            }}}},
-    },
-    .swapchain_settings = {
-        .preferred_format       = VK_FORMAT_B8G8R8A8_SRGB,
-        .preferred_colorspace   = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
-    },
-};
-
 typedef struct RBVK_Device{
     VkDevice         vk_device;
     VkPhysicalDevice vk_gpu;
@@ -126,28 +13,12 @@ typedef struct RBVK_Device{
     u32     present_queue_idx;
 }RBVK_Device;
 
-// struct TextureDescription{
-//     void *native_handle
-//     cstring name
-//
-//     u16 width
-//     u16 height
-//     u16 depth
-//     u8 mipmaps
-//     u8 render_target
-//     u8 compute_access
-//
-//     // VkFormat format = VK_FORMAT_UNDEFINED;
-//     // TextureType::Enum type = TextureType::Texture2D;
-//
-// };
-
 typedef struct RBVK_Buffer{
     VkBuffer        vk_buffer;
     VkDeviceSize    size;
 
     VkMemory_Alloc alloc;
-    String8 name;
+    DOT_DEBUG_NAME(name, DOT_DEBUG_NAME_LEN);
 }RBVK_Buffer;
 
 typedef struct RBVK_Sampler{
@@ -161,7 +32,7 @@ typedef struct RBVK_Sampler{
     VkSamplerAddressMode vk_address_mode_v; // = VK_SAMPLER_ADDRESS_MODE_REPEAT
     VkSamplerAddressMode vk_address_mode_w; // = VK_SAMPLER_ADDRESS_MODE_REPEAT
 
-    String8 debug_name;
+    DOT_DEBUG_NAME(name, DOT_DEBUG_NAME_LEN);
 }RBVK_Sampler;
 
 typedef struct RBVK_Texture{
@@ -170,7 +41,6 @@ typedef struct RBVK_Texture{
     VkExtent3D  vk_extent3d;
 
     VkFormat    vk_format; // DOT_TEXTURE_FORMAT to vk
-    // DOT_TextureDimensionKind // needed?
     VkImageLayout vk_image_layout;
 
     // Store layout here for transitioning from one the other and only provide target layout?
@@ -180,7 +50,7 @@ typedef struct RBVK_Texture{
 
     RBVK_Sampler *sampler;
 
-    String8 debug_name;
+    DOT_DEBUG_NAME(name, DOT_DEBUG_NAME_LEN);
 }RBVK_Texture;
 
 typedef struct RBVK_SwapchainImageData{
@@ -213,6 +83,25 @@ typedef struct RBVK_FrameData{
     VkFence         render_fence;
     u32             swapchain_image_idx; // Selected swpachain img for a given frame
 }RBVK_FrameData;
+
+
+typedef struct ResourceCleanupList ResourceCleanupList;
+struct ResourceCleanupList{
+    // ResourceCleanupList children[10];
+    // u32 *children_count;
+    ResourceCleanupList *first_child; // ->first_child then while (first_sibling != current_sibling)
+    ResourceCleanupList *first_sibling;
+    TempArena temp;
+
+    u32 texture_id_count[RBVK_TEXURE_MAX];
+    u32 *texture_ids; // RBVK_Texture
+
+    u32 buffer_id_count[RBVK_BUFFER_MAX];
+    u32 *buffer_ids; // RBVK_Buffer
+
+    u32 sampler_id_count[RBVK_SAMPLER_MAX];
+    u32 *sampler_ids; // RBVK_Sampler
+};
 
 typedef struct RBVK_FrameDatas RBVK_FrameDatas;
 typedef struct RendererBackendVk{
@@ -256,6 +145,9 @@ typedef struct RendererBackendVk{
     POOL(RBVK_Buffer)   buffer_pool;
     POOL(RBVK_Sampler)  sampler_pool;
 
+    u32 cleanup_list_idx;
+    ResourceCleanupList cleanup_list[RBVK_RESOURCE_CLEANUP_LIST_MAX];
+
     // NOTE: vk expects a malloc like allocator, which I don't intend on make or using for now
     // so our push arenas do not work for this :(
     VkAllocationCallbacks    vk_allocator;
@@ -266,25 +158,31 @@ typedef struct RBVK_Pipeline{
     VkPipeline pipeline;
 }RBVK_Pipeline;
 
-#define FN(ret, name, ...) internal ret renderer_backend_vk_##name (__VA_ARGS__);
+#define FN(ret, name, params) internal ret renderer_backend_vk_##name params;
 RENDERER_BACKEND_FN_LIST
 #undef FN
 
+internal void               renderer_backend_vk_merge_render_settings(RendererBackendConfig *backend_config);
 internal RendererBackendVk* renderer_backend_vk_create(Arena *arena, RendererBackendConfig *backend_config);
-internal void renderer_backend_vk_merge_settings(RendererBackendConfig *backend_config);
-
-// Internal API
 internal RendererBackendVk* renderer_backend_as_vk(RendererBackend *base);
 
-internal void rbvk_frame_counters_advance();
-internal RBVK_Texture   rbvk_texture_create(VkImageCreateInfo *image_info);
-internal void rbvk_texture_destroy(RBVK_Texture *image);
+internal void renderer_backend_resource_cleanup_list_push();
+internal void renderer_backend_resource_cleanup_list_pop_last();
+internal void renderer_backend_resource_cleanup_list_pop_at(u32 idx); // drops children
 
-// internal RBVK_Buffer    rbvk_buffer_create( VkDeviceSize size, VkBufferUsageFlags usage, VkMemory_PoolsKind pool_kind, String8 name);
-internal RBVK_Buffer    rbvk_buffer_create( VkDeviceSize size, VkMemory_PoolsKind pool_kind, String8 name);
+// (jd) NOTE: should we allow this and mem copy the resource list?
+// If we already know the layout/size and we use a specific arena chunk we can maybe
+// work like a pool? tho maybe there is too much memory wasted
+internal void renderer_backend_resource_cleanup_list_reparent_at(u32 idx); // reparents children
 
+// Internal API
+internal void               rbvk_frame_counters_advance();
 
+internal RBVK_Texture       rbvk_texture_create(VkImageCreateInfo *image_info);
+internal void               rbvk_texture_destroy(RBVK_Texture *image);
+internal RBVK_Buffer        rbvk_buffer_create(VkDeviceSize size, VkMemory_PoolsKind pool_kind, String8 name);
 
+// Should these be also coming from a pool like RBVK_Resources?
 internal DOT_ShaderModuleHandle rbvk_dot_shader_module_from_vk_shader_module(VkShaderModule vk_sm);
 internal VkShaderModule         rbvk_vk_shader_module_from_dot_shader_module(DOT_ShaderModuleHandle dot_smh);
 

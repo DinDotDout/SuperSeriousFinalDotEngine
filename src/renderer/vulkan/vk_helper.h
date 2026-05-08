@@ -55,22 +55,24 @@ typedef struct VkHelper_CandidateDeviceInfo{
 /// Vk Support helpers
 ///
 
-struct RBVK_Settings;
-internal b32 vk_helper_all_layers(const struct RBVK_Settings *vk_settings);
+typedef struct RBVK_VulkanConfig RBVK_VulkanConfig;
+typedef struct RBVK_RenderSettings RBVK_RenderSettings;
+internal b32 vk_helper_all_layers(const RBVK_VulkanConfig *vk_config);
 internal VkHelper_CandidateDeviceInfo vk_helper_pick_best_device(
-    const struct RBVK_Settings *vk_settings,
+    const RBVK_VulkanConfig *vk_config,
+    const RBVK_RenderSettings *renderer_settings,
     VkInstance instance,
     VkSurfaceKHR surface);
 
 internal b32 vk_helper_physical_device_swapchain_support(
-    const struct RBVK_Settings *vk_settings,
+    const RBVK_RenderSettings *render_setings,
     VkPhysicalDevice gpu,
     VkSurfaceKHR surface,
     DOT_Window *window,
     VkHelper_SwapchainDetails *details);
 
-internal b32              vk_helper_physical_device_all_required_extensions(const struct RBVK_Settings *vk_settings, VkPhysicalDevice device);
-internal b32              vk_helper_instance_all_required_extensions(const struct RBVK_Settings *vk_settings);
+internal b32              vk_helper_physical_device_all_required_extensions(const RBVK_VulkanConfig *vk_config, VkPhysicalDevice device);
+internal b32              vk_helper_instance_all_required_extensions(const RBVK_VulkanConfig *vk_config);
 internal VkPresentModeKHR vk_helper_present_mode_kind_to_vk_present_mode_khr(RendererPresentModeKind present_mode);
 internal VkFormat         vk_helper_texture_format_to_vk_texture_format(DOT_TextureFormatKind present_mode);
 
@@ -107,7 +109,7 @@ internal VkMemoryRequirements2      vk_buffer_memory_requirements(VkDevice vk_de
 ///
 
 internal b32
-vk_helper_all_layers(const struct RBVK_Settings *vk_settings)
+vk_helper_all_layers(const RBVK_VulkanConfig *vk_config)
 {
     TempArena temp = threadctx_get_temp(NULL, 0);
     u32 available_layer_count = 0;
@@ -115,9 +117,9 @@ vk_helper_all_layers(const struct RBVK_Settings *vk_settings)
     array(VkLayerProperties) available_layers = PUSH_ARRAY(temp.arena, VkLayerProperties, available_layer_count);
     vkEnumerateInstanceLayerProperties(&available_layer_count, available_layers);
     b32 all_found = true;
-    for(u64 i = 0; i < vk_settings->validation_layers.count; ++i){
+    for(u64 i = 0; i < vk_config->validation_layers.count; ++i){
         b32 found = false;
-        const String8 layer_name = vk_settings->validation_layers.data[i];
+        const String8 layer_name = vk_config->validation_layers.data[i];
         for(u64 j = 0; j < available_layer_count; ++j){
             if(string8_equal(layer_name, string8_from_cstring(available_layers[j].layerName))){
                 DOT_PRINT("Found Layer %s", layer_name);
@@ -135,7 +137,7 @@ vk_helper_all_layers(const struct RBVK_Settings *vk_settings)
 }
 
 internal b32
-vk_helper_instance_all_required_extensions(const struct RBVK_Settings* vk_settings)
+vk_helper_instance_all_required_extensions(const RBVK_VulkanConfig* vk_config)
 {
     TempArena temp = threadctx_get_temp(NULL, 0);
     u32 extension_count;
@@ -144,9 +146,9 @@ vk_helper_instance_all_required_extensions(const struct RBVK_Settings* vk_settin
     vkEnumerateInstanceExtensionProperties(NULL, &extension_count, available_extensions);
 
     b32 all_found = true;
-    for(u64 i = 0; i < vk_settings->instance_settings.instance_extensions.count; ++i){
+    for(u64 i = 0; i < vk_config->instance.extensions.count; ++i){
         b32 found = false;
-        const String8 instance_extension_name = vk_settings->instance_settings.instance_extensions.data[i];
+        const String8 instance_extension_name = vk_config->instance.extensions.data[i];
         for(u64 j = 0; j < extension_count; ++j){
             char* name = available_extensions[j].extensionName;
             if(string8_equal(instance_extension_name, string8_from_cstring(name))){
@@ -248,7 +250,7 @@ vk_helper_texture_format_to_vk_texture_format(DOT_TextureFormatKind texture_form
 
 internal b32
 vk_helper_physical_device_all_required_extensions(
-    const struct RBVK_Settings *vk_settings,
+    const RBVK_VulkanConfig *vk_config,
     VkPhysicalDevice device)
 {
     TempArena temp = threadctx_get_temp(NULL, 0);
@@ -258,9 +260,9 @@ vk_helper_physical_device_all_required_extensions(
     vkEnumerateDeviceExtensionProperties(device, NULL, &extension_count, available_extensions);
 
     b32 all_found = true;
-    for(u64 i = 0; i < vk_settings->device_settings.device_extensions.count; ++i){
+    for(u64 i = 0; i < vk_config->device.extensions.count; ++i){
         b32 found = false;
-        String8 device_extension_name = vk_settings->device_settings.device_extensions.data[i];
+        String8 device_extension_name = vk_config->device.extensions.data[i];
         for(u64 j = 0; j < extension_count; ++j){
             if(string8_equal(device_extension_name, string8_from_cstring(available_extensions[j].extensionName))){
                 DOT_PRINT("Found extension \"%s\"", device_extension_name);
@@ -279,7 +281,7 @@ vk_helper_physical_device_all_required_extensions(
 
 internal b32
 vk_helper_physical_device_swapchain_support(
-    const struct RBVK_Settings *vk_settings,
+    const RBVK_RenderSettings *render_settings,
     VkPhysicalDevice gpu,
     VkSurfaceKHR surface,
     DOT_Window *window,
@@ -327,9 +329,9 @@ vk_helper_physical_device_swapchain_support(
             surface_extent.height = CLAMP(cast(u32)e.y, surface_capabilities.minImageExtent.height, surface_capabilities.maxImageExtent.height);
         }
 
-        VkFormat         preferred_format       = vk_settings->swapchain_settings.preferred_format;
-        VkColorSpaceKHR  preferred_colorspace   = vk_settings->swapchain_settings.preferred_colorspace;
-        VkPresentModeKHR preferred_present_mode = vk_settings->swapchain_settings.preferred_present_mode;
+        VkFormat         preferred_format       = render_settings->swapchain.preferred_format;
+        VkColorSpaceKHR  preferred_colorspace   = render_settings->swapchain.preferred_colorspace;
+        VkPresentModeKHR preferred_present_mode = render_settings->swapchain.preferred_present_mode;
 
         VkSurfaceFormat2KHR desired_format = swapchain_support_details.surface_formats[0]; // Keep this one if none found
         array(VkSurfaceFormat2KHR) surface_formats = swapchain_support_details.surface_formats;
@@ -365,7 +367,8 @@ vk_helper_physical_device_swapchain_support(
 
 internal VkHelper_CandidateDeviceInfo
 vk_helper_pick_best_device(
-    const struct RBVK_Settings *vk_settings,
+    const RBVK_VulkanConfig *vk_config,
+    const RBVK_RenderSettings *render_settings,
     VkInstance instance,
     VkSurfaceKHR surface)
 {
@@ -387,8 +390,8 @@ vk_helper_pick_best_device(
         b32 is_integrated_gpu = true;
         VkPhysicalDevice dev = devices[i];
         // We to first ensure we have what we want before even rating the device
-        if (!vk_helper_physical_device_all_required_extensions(vk_settings, dev)
-            || !vk_helper_physical_device_swapchain_support(vk_settings, dev, surface, NULL, NULL)){
+        if (!vk_helper_physical_device_all_required_extensions(vk_config, dev)
+            || !vk_helper_physical_device_swapchain_support(render_settings, dev, surface, NULL, NULL)){
             continue;
         }
 
@@ -737,7 +740,7 @@ internal void
 vk_internal_free(void* data, usize size, VkInternalAllocationType alloc_type, VkSystemAllocationScope scope)
 {
     DOT_UNUSED(data); DOT_UNUSED(size); DOT_UNUSED(scope); DOT_UNUSED(alloc_type);
-    DOT_PRINT( "VK Internal Free: size=%M; scope=%s", size, string_VkSystemAllocationScope(scope) );
+    DOT_PRINT("VK Internal Free: size=%M; scope=%s", size, string_VkSystemAllocationScope(scope));
 }
 
 #ifdef VK_USE_CUSTOM_ALLOCATOR

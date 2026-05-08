@@ -342,7 +342,6 @@ nk_dot_shutdown(DOT_Renderer *renderer)
     nk_font_atlas_clear(&s->font_atlas);
     nk_buffer_free(&s->cmds);
     nk_free(&s->ctx);
-
     MEMORY_ZERO_STRUCT(s);
 }
 

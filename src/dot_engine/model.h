@@ -152,7 +152,7 @@ dot_model_from_cgltf(DOT_Renderer *renderer, const cgltf_data *data, String8 glt
             );
 
         // String8 path = string8_from_cstring(image->uri);
-        DOT_PRINT("image name: %S, image uri: %s", name, full_path);
+        DOT_PRINT("image name: %S, image uri: %S", name, full_path);
         renderer_texture_asset_create(
             renderer,
             &(DOT_AssetCreateInfo){

@@ -6,15 +6,18 @@
 #define DOT_RENDER_BACKEND_ONLY_VK
 
 // Some of the calculations aren't being translated properly. Revise memory allocs
-DOT_CONST_INT_BLOCK{
-    ENGINE_FRAME_OVERLAP = 3,
-    ENGINE_FRAME_ARENA_SIZE = KB(32),
+enum
+{
+    ENGINE_RENDER_FRAME_OVERLAP = 3,
+    ENGINE_RENDER_FRAME_ARENA_SIZE = KB(32),
 
-    ENGINE_RENDERER_BACKEND_MEM_SIZE = KB(512),
-    ENGINE_RENDERER_TRANSIENT_MEM_SIZE = MB(1),
+    ENGINE_RENDERER_BACKEND_MEM_SIZE            = KB(512),
+    ENGINE_RENDERER_BACKEND_TRANSIENT_MEM_SIZE  = KB(512),
+
+    ENGINE_RENDERER_TRANSIENT_MEM_SIZE          = MB(1),
 
     ENGINE_RENDERER_PERMANENT_MEM_SIZE = KB(256) + ENGINE_RENDERER_TRANSIENT_MEM_SIZE +
-        ENGINE_RENDERER_BACKEND_MEM_SIZE + (ENGINE_FRAME_ARENA_SIZE * ENGINE_FRAME_OVERLAP),
+        ENGINE_RENDERER_BACKEND_MEM_SIZE + (ENGINE_RENDER_FRAME_ARENA_SIZE * ENGINE_RENDER_FRAME_OVERLAP),
 
 #if defined(DOT_RENDER_BACKEND_ONLY_DX12)
 #   if DOT_OS_POSIX
@@ -26,6 +29,7 @@ DOT_CONST_INT_BLOCK{
 #else
     ENGINE_RENDERER_BACKEND = RendererBackendKind_Auto,
 #endif
+
     THREAD_TEMP_ARENA_COUNT = 2,
     THREAD_TEMP_ARENA_SIZE = MB(40),
 
@@ -63,12 +67,15 @@ struct DOT_EngineConfig{
     .renderer_config = &(RendererConfig){
         .renderer_transient_memory_size = ENGINE_RENDERER_TRANSIENT_MEM_SIZE,
         .renderer_permanent_memory_size = ENGINE_RENDERER_PERMANENT_MEM_SIZE,
-        .frame_arena_size = ENGINE_FRAME_ARENA_SIZE,
+        .frame_arena_size = ENGINE_RENDER_FRAME_ARENA_SIZE,
         .backend_config = &(RendererBackendConfig){
             .backend_memory_size  = ENGINE_RENDERER_BACKEND_MEM_SIZE,
+            .backend_transient_memory_size = ENGINE_RENDERER_BACKEND_TRANSIENT_MEM_SIZE,
             .backend_kind = ENGINE_RENDERER_BACKEND,
+            .frame_overlap = ENGINE_RENDER_FRAME_OVERLAP,
             .present_mode = RendererPresentModeKind_Mailbox,
-            .frame_overlap = ENGINE_FRAME_OVERLAP,
+            // .present_format = RGBA8,
+            // .present_color_space = srgb non linear,
         },
         .shader_cache_config = &(ShaderCacheConfig){
             .shader_modules_count = SHADER_CACHE_SHADER_COUNT,

@@ -21,6 +21,9 @@ internal void renderer_backend_null_begin_frame() { }
 internal void renderer_backend_null_end_frame() { }
 internal void renderer_backend_null_clear_bg() { }
 internal void renderer_backend_null_shader_unload(DOT_ShaderModuleHandle sm) { }
+internal void renderer_backend_null_resource_cleanup_list_push(void){}
+internal void renderer_backend_null_resource_cleanup_list_pop_at(u32 idx){}
+internal void renderer_backend_null_resource_cleanup_list_pop_last(void){}
 
 internal DOT_TextureHandle
 renderer_backend_null_texture_create(const DOT_TextureDesc *desc, void *data, String8 debug_name)
@@ -45,10 +48,10 @@ internal void renderer_backend_null_overlay_init(const void *font_pixels, int fo
 internal void renderer_backend_null_overlay_shutdown(void) { }
 internal void renderer_backend_null_overlay_render(u8 frame_idx, OverlayDrawList *draw_list) { }
 
+
 internal RendererBackendNull*
-renderer_backend_null_create(Arena *arena, RendererBackendConfig *backend_config){
-	g_null_ctx = PUSH_STRUCT(arena, RendererBackendNull);
-#define FN(ret, name, ...) g_null_ctx->base.name = renderer_backend_null_##name;
+renderer_backend_null_create(Arena *arena, RendererBackendConfig *backend_config){ g_null_ctx = PUSH_STRUCT(arena, RendererBackendNull);
+#define FN(ret, name, params) g_null_ctx->base.name = renderer_backend_null_##name;
     RENDERER_BACKEND_FN_LIST
 #undef FN
     return g_null_ctx;

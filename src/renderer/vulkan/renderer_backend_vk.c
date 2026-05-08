@@ -14,21 +14,26 @@ renderer_backend_vk_create(Arena *arena, RendererBackendConfig *backend_config)
     Arena *backend_arena = ARENA_ALLOC(
         .parent = arena,
         .reserve_size = backend_config->backend_memory_size,);
+    Arena *backend_transient_arena = ARENA_ALLOC(
+        .parent = arena,
+        .reserve_size = backend_config->backend_transient_memory_size,);
     g_vk_ctx = PUSH_STRUCT(backend_arena, RendererBackendVk);
     g_vk_ctx->base.backend_kind = RendererBackendKind_Vk;
     g_vk_ctx->base.permanent_arena = backend_arena;
-#define FN(ret, name, ...) g_vk_ctx->base.name = renderer_backend_vk_##name;
+    g_vk_ctx->base.transient_arena = backend_transient_arena;
+
+#define FN(ret, name, params) g_vk_ctx->base.name = renderer_backend_vk_##name;
     RENDERER_BACKEND_FN_LIST
 #undef FN
-    renderer_backend_vk_merge_settings(backend_config);
+    renderer_backend_vk_merge_render_settings(backend_config);
     return g_vk_ctx;
 }
 
 internal void
-renderer_backend_vk_merge_settings(RendererBackendConfig *backend_config)
+renderer_backend_vk_merge_render_settings(RendererBackendConfig *backend_config)
 {
-    VK_SETTINGS.frame_settings.frame_overlap = backend_config->frame_overlap;
-    VK_SETTINGS.swapchain_settings.preferred_present_mode = vk_helper_present_mode_kind_to_vk_present_mode_khr(backend_config->present_mode);
+    g_rbvk_render_settings.frame.frame_overlap = backend_config->frame_overlap;
+    g_rbvk_render_settings.swapchain.preferred_present_mode = vk_helper_present_mode_kind_to_vk_present_mode_khr(backend_config->present_mode);
     g_vk_ctx->base.frame_overlap = backend_config->frame_overlap;
 }
 
@@ -95,11 +100,10 @@ renderer_backend_vk_texture_create(const DOT_TextureDesc *desc, void *data, Stri
        DOT_TextureHandle dot_texture_handle = { .handle[0] = h, };
        return dot_texture_handle;
     }
-
     VkExtent3D extent_3d = {desc->width, desc->height, desc->depth};
     const PoolHandle texture_h = POOL_H_GET(&g_vk_ctx->texture_pool);
     RBVK_Texture *texture = POOL_H_ACCESS(&g_vk_ctx->texture_pool, texture_h);
-    texture->debug_name = debug_name;
+    DOT_DEBUG_NAME_SET(texture->name, debug_name);
     texture->vk_extent3d = extent_3d;
     texture->mip_levels = desc->mip_levels;
     texture->vk_format = vk_helper_texture_format_to_vk_texture_format(desc->format_kind);
@@ -229,12 +233,43 @@ renderer_backend_vk_buffer_create(const DOT_BufferCreateInfo *create_info)
     const DOT_BufferDesc *desc = &create_info->buffer_desc;
 
     const PoolHandle buffer_h = POOL_H_GET(&g_vk_ctx->buffer_pool);
-    RBVK_Buffer *buffer= POOL_H_ACCESS(&g_vk_ctx->buffer_pool, buffer_h);
+    RBVK_Buffer *buffer = POOL_H_ACCESS(&g_vk_ctx->buffer_pool, buffer_h);
     (void)desc;
     (void)buffer;
     return (DOT_BufferHandle){0};
 
 }
+
+// NOTE(JD): Will start to just make enclosing scopes
+// Should extend to be a graph
+internal void
+renderer_backend_resource_cleanup_list_push(){
+    // cleanup_list
+    ResourceCleanupList *cleanup_list = &g_vk_ctx->cleanup_list[g_vk_ctx->cleanup_list_idx];
+    cleanup_list->temp = temp_arena_get(g_vk_ctx->base.transient_arena);
+    // Add resources onto temp
+    g_vk_ctx->cleanup_list_idx += 1;
+}
+
+// internal void
+// renderer_backend_resource_cleanup_list_push_child(ResourceCleanupList *parent, u32 idx){
+//     DOT_ASSERT(idx < g_vk_ctx->cleanup_list_idx, "Idx must be an active resource list!");
+//     // cleanup_list
+//     ResourceCleanupList *elems = &g_vk_ctx->cleanup_list[g_vk_ctx->cleanup_list_idx];
+//     elems.
+//     RBVK_TEXURE_MAX
+//     g_vk_ctx->cleanup_list_idx += 1;
+// }
+
+internal void
+renderer_backend_resource_cleanup_list_pop_last(){
+    ResourceCleanupList *cleanup_list = &g_vk_ctx->cleanup_list[g_vk_ctx->cleanup_list_idx];
+    // Iterate vk resources to free vk things
+    temp_arena_restore(cleanup_list->temp);
+}
+
+internal void
+renderer_backend_resource_cleanup_list_pop_at(u32 idx){(void)idx;}
 
 internal RBVK_Texture
 rbvk_texture_create(VkImageCreateInfo *image_info)
@@ -277,9 +312,12 @@ rbvk_buffer_create(
     // VkMemory_PoolsKind pool_kind,
     String8 name)
 {
-    RBVK_Buffer buf = {.name = name, .size = size};
-    VkDevice device = g_vk_ctx->device.vk_device;
+    RBVK_Buffer buf = {
+        .size = size,
+    };
+    DOT_DEBUG_NAME_SET(buf.name, name);
 
+    VkDevice device = g_vk_ctx->device.vk_device;
     VkBufferCreateInfo info = {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .size  = size,
@@ -323,11 +361,11 @@ renderer_backend_vk_init(DOT_Window *window)
     Arena *ctx_arena = g_vk_ctx->base.permanent_arena;
     // g_vk_ctx->vk_allocator = VkAllocatorParams(ctx_arena);
     TempArena temp = threadctx_get_temp(0,0);
-    if(!vk_helper_all_layers(&VK_SETTINGS)){
+    if(!vk_helper_all_layers(&g_rbvk_vk_config)){
         DOT_ERROR("Could not find all requested layers");
     }
 
-    if(!vk_helper_instance_all_required_extensions(&VK_SETTINGS)){
+    if(!vk_helper_instance_all_required_extensions(&g_rbvk_vk_config)){
         DOT_ERROR("Could not find all requested instance extensions");
     }
 
@@ -354,21 +392,21 @@ renderer_backend_vk_init(DOT_Window *window)
                 .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
                 .ppEnabledLayerNames     = cstr_array_from_string8_array(
                     temp.arena,
-                    VK_SETTINGS.validation_layers.count,
-                    VK_SETTINGS.validation_layers.data),
-                .enabledLayerCount       = VK_SETTINGS.validation_layers.count,
+                    g_rbvk_vk_config.validation_layers.count,
+                    g_rbvk_vk_config.validation_layers.data),
+                .enabledLayerCount       = g_rbvk_vk_config.validation_layers.count,
                 .ppEnabledExtensionNames = cstr_array_from_string8_array(
                     temp.arena,
-                    VK_SETTINGS.instance_settings.instance_extensions.count,
-                    VK_SETTINGS.instance_settings.instance_extensions.data),
-                .enabledExtensionCount = VK_SETTINGS.instance_settings.instance_extensions.count,
+                    g_rbvk_vk_config.instance.extensions.count,
+                    g_rbvk_vk_config.instance.extensions.data),
+                .enabledExtensionCount = g_rbvk_vk_config.instance.extensions.count,
                 .pApplicationInfo = &(VkApplicationInfo){
                     .sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-                    .pApplicationName   = VK_SETTINGS.instance_settings.application_name.cstr,
-                    .applicationVersion = VK_SETTINGS.instance_settings.application_version,
-                    .pEngineName        = VK_SETTINGS.instance_settings.engine_name.cstr,
-                    .engineVersion      = VK_SETTINGS.instance_settings.engine_version,
-                    .apiVersion         = VK_SETTINGS.instance_settings.api_version,
+                    .pApplicationName   = g_rbvk_vk_config.instance.application_name.cstr,
+                    .applicationVersion = g_rbvk_vk_config.instance.application_version,
+                    .pEngineName        = g_rbvk_vk_config.instance.engine_name.cstr,
+                    .engineVersion      = g_rbvk_vk_config.instance.engine_version,
+                    .apiVersion         = g_rbvk_vk_config.instance.api_version,
                 },
                 .pNext = debug_utils_info_ptr,
             }, NULL, &g_vk_ctx->instance));
@@ -391,7 +429,7 @@ renderer_backend_vk_init(DOT_Window *window)
     dot_window_create_surface(window, &g_vk_ctx->base);
     // --- Create Device --- 
     {
-        VkHelper_CandidateDeviceInfo candidate_device_info = vk_helper_pick_best_device(&VK_SETTINGS, g_vk_ctx->instance, g_vk_ctx->surface);
+        VkHelper_CandidateDeviceInfo candidate_device_info = vk_helper_pick_best_device(&g_rbvk_vk_config, &g_rbvk_render_settings, g_vk_ctx->instance, g_vk_ctx->surface);
         if(candidate_device_info.score == -1){
             DOT_ERROR("Could not find a suitable device");
         }
@@ -430,10 +468,10 @@ renderer_backend_vk_init(DOT_Window *window)
             .pEnabledFeatures        = &(VkPhysicalDeviceFeatures){},
             .ppEnabledExtensionNames = cstr_array_from_string8_array(
                 temp.arena,
-                VK_SETTINGS.device_settings.device_extensions.count,
-                VK_SETTINGS.device_settings.device_extensions.data),
-            .enabledExtensionCount   = VK_SETTINGS.device_settings.device_extensions.count,
-            .pNext = VK_SETTINGS.device_settings.device_features,
+                g_rbvk_vk_config.device.extensions.count,
+                g_rbvk_vk_config.device.extensions.data),
+            .enabledExtensionCount   = g_rbvk_vk_config.device.extensions.count,
+            .pNext = g_rbvk_vk_config.device.features,
         };
 
         VkPhysicalDeviceProperties properties;
@@ -459,7 +497,7 @@ renderer_backend_vk_init(DOT_Window *window)
     {
         g_vk_ctx->draw_extent = (VkExtent2D){window->window->w, window->window->h};
         VkHelper_SwapchainDetails details = {0};
-        vk_helper_physical_device_swapchain_support(&VK_SETTINGS, g_vk_ctx->device.vk_gpu, g_vk_ctx->surface, window, &details);
+        vk_helper_physical_device_swapchain_support(&g_rbvk_render_settings, g_vk_ctx->device.vk_gpu, g_vk_ctx->surface, window, &details);
 
         RBVK_Swapchain* swapchain = &g_vk_ctx->swapchain;
         swapchain->extent = details.surface_extent;
@@ -670,9 +708,9 @@ renderer_backend_vk_init(DOT_Window *window)
 
             g_vk_ctx->descriptor_set_count = ARRAY_COUNT(layouts);
             VK_CHECK(vkAllocateDescriptorSets(device, &alloc_info, g_vk_ctx->descriptor_sets));
-            POOL_INIT(ctx_arena, &g_vk_ctx->texture_pool, 512);
-            POOL_INIT(ctx_arena, &g_vk_ctx->buffer_pool, 4096);
-            POOL_INIT(ctx_arena, &g_vk_ctx->sampler_pool, 128);
+            POOL_INIT(ctx_arena, &g_vk_ctx->texture_pool, RBVK_TEXURE_MAX);
+            POOL_INIT(ctx_arena, &g_vk_ctx->buffer_pool, RBVK_BUFFER_MAX);
+            POOL_INIT(ctx_arena, &g_vk_ctx->sampler_pool, RBVK_SAMPLER_MAX);
         }
     }
 

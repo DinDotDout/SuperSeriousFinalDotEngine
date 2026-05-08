@@ -16,6 +16,7 @@
             "-DNK_PRIVATE",
             "-DNK_IMPLEMENTATION",
             "-DNK_INCLUDE_FIXED_TYPES",
+            "-DDEBUG",
             "-DNK_INCLUDE_FONT_BAKING",
             "-fno-common",
             "-I", "src/",

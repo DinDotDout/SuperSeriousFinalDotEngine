@@ -1,4 +1,5 @@
-typedef DOT_ENUM(u8, DOT_AssetKind){
+typedef u8 DOT_AssetKind;
+enum{
     DOT_Asset_Unknown,
     DOT_Asset_Texture,
     DOT_Asset_Count,

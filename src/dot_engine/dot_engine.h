@@ -40,7 +40,7 @@
 #    define DOT_ENGINE_API __declspec(dllimport)
 #  endif
 #else
-#  define DOT_ENGINE_API
+#   define DOT_ENGINE_API __attribute__((visibility("default")))
 #endif
 
 #define DOT_INT_SKIP // Already included ints by rgfw
