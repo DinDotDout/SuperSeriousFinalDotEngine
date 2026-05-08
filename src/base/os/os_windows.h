@@ -2,12 +2,20 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <dbghelp.h>
-#pragma comment(lib, "DbgHelp.lib") // ????
+// #pragma comment(lib, "DbgHelp.lib") // ????
+
+// NOTE: Windows reserve size is 64kb even though commit size is 4
+enum
+{
+    PLATFORM_REGULAR_PAGE_SIZE = KB(64),
+    PLATFORM_LARGE_PAGE_SIZE = MB(2),
+    PLATFORM_CACHE_LINE_SIZE = 64,
+};
 
 internal u64
 platform_os_get_timer_freq()
 {
-    LARGE_INTEGER freq;
+    LARGE_INTEGER freq
     QueryPerformanceFrequency(&freq);
     return freq.QuadPart;
 }
@@ -25,7 +33,7 @@ os_print_stacktrace()
 {
     thread_local static void* buffer[4096];
     USHORT frames = CaptureStackBackTrace(0, 64, stack, NULL);
-    for (USHORT i = 0; i < frames; i++){
+    for(USHORT i = 0; i < frames; i++){
         printf("%p\n", stack[i]);
     }
 }

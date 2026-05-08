@@ -55,28 +55,14 @@ typedef struct ArenaInitParams{
     int   reserve_line;
 }ArenaInitParams;
 
-//////////////////////////////////////////////////////////
-/// TempArena
-/// TempArenas are not meant to be kept around or stored in structs as they
-/// encode a point in an actual arena and modify it. Thus, having multiple Temps
-/// on the same Arena will not work unless we pop them on reverse creation order
-/// like on the threadctx_get_temp / temp_arena_restore pattern
-
-typedef struct TempArena{
-    u64    prev_offset;
-    Arena *arena;
-}TempArena;
-
-internal TempArena temp_arena_get(Arena *arena);
-internal void      temp_arena_restore(TempArena temp);
-
 internal Arena* arena_alloc_(ArenaInitParams *params);
 internal Arena* arena_alloc_from_memory(ArenaInitParams *params);
 internal Arena* arena_alloc_from_arena(ArenaInitParams *params);
 internal Arena* arena_alloc_from_os(ArenaInitParams *params);
+
+internal u8*    arena_push(Arena *arena, usize size, usize alignment, b32 zero, char *file, u32 line);
 internal void   arena_reset(Arena *arena, char *file, u32 line);
 internal void   arena_free(Arena *arena, char *file, u32 line);
-internal u8* arena_push(Arena *arena, usize size, usize alignment, b32 zero, char *file, u32 line);
 internal void   arena_print_debug(Arena *arena);
 
 #define ARENA_DEFAULT_PARAMS(...) \
@@ -91,9 +77,9 @@ internal void   arena_print_debug(Arena *arena);
         __VA_ARGS__ \
     }
 
-#define ARENA_ALLOC(...) arena_alloc_(ARENA_DEFAULT_PARAMS(__VA_ARGS__))
-#define ARENA_RESET(arena) arena_reset(arena, __FILE__, __LINE__)
-#define ARENA_FREE(arena) arena_free(arena, __FILE__, __LINE__)
+#define ARENA_ALLOC(...)    arena_alloc_(ARENA_DEFAULT_PARAMS(__VA_ARGS__))
+#define ARENA_RESET(arena)  arena_reset(arena, __FILE__, __LINE__)
+#define ARENA_FREE(arena)   arena_free(arena, __FILE__, __LINE__)
 
 #define ARENA_PUSH(arena, size, alignment, zero) \
     arena_push((arena), (size), (alignment), (zero), __FILE__, __LINE__)
@@ -119,9 +105,23 @@ internal void   arena_print_debug(Arena *arena);
 #define PUSH_STRUCT(arena, T) (T*)PUSH_ARRAY(arena, T, 1)
 
 // (jd) NOTE: Experiments. Clang seems to optimize the copy pretty well
-#define PUSH_COPY(arena, T, src) MEMORY_COPY_STRUCT(PUSH_ARRAY_NO_ZERO(arena, T, 1), (src))
-#define PUSH_COPY_LIT(arena, T, src) MEMORY_COPY_STRUCT(PUSH_ARRAY_NO_ZERO(arena, T, 1), &(T)src)
+#define PUSH_COPY(arena, T, src)        MEMORY_COPY_STRUCT(PUSH_ARRAY_NO_ZERO(arena, T, 1), (src))
+#define PUSH_COPY_LIT(arena, T, src)    MEMORY_COPY_STRUCT(PUSH_ARRAY_NO_ZERO(arena, T, 1), &(T)src)
+
 #define PUSH_SLICE(arena, T, c) {.data = PUSH_ARRAY(arena, T, c), .count = (c)}
 #define PUSH_SLICE_LIT(arena, slice_type, T, c) (slice_type){.data = PUSH_ARRAY(arena, T, c), .count= (c)}
+
+//////////////////////////////////////////////////////////
+/// TempArena
+/// 
+
+typedef struct TempArena{
+    u64    prev_offset;
+    Arena *arena;
+}TempArena;
+
+internal TempArena temp_arena_get(Arena *arena);
+internal void      temp_arena_restore(TempArena temp);
+
 
 #endif // !ARENA_H

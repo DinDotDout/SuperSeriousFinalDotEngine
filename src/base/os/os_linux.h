@@ -7,6 +7,13 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 
+enum
+{
+    PLATFORM_REGULAR_PAGE_SIZE = KB(4),
+    PLATFORM_LARGE_PAGE_SIZE = MB(2),
+    PLATFORM_CACHE_LINE_SIZE = 64,
+};
+
 internal u64
 platform_os_get_timer_freq()
 {

@@ -45,8 +45,8 @@ arena_alloc_from_memory(ArenaInitParams *params){
 
     Arena* arena              = cast(Arena*)align;
     arena->base               = cast(u8*)align;
-    arena->reserved           = params->reserve_size-diff;
-    arena->committed          = params->reserve_size-diff;
+    arena->reserved           = params->reserve_size - diff;
+    arena->committed          = params->reserve_size - diff;
     arena->commit_expand_size = params->commit_expand_size;
     arena->large_pages        = params->large_pages;
     arena->name               = params->name;
@@ -150,8 +150,7 @@ arena_push(Arena *arena, usize alloc_size, usize alignment, b32 zero, char *file
         i64 needed_memory = arena->used - arena->committed;
         // need_zero -= needed_memory;
 
-        u64 page_size = arena->large_pages ? PLATFORM_LARGE_PAGE_SIZE
-                                        : PLATFORM_REGULAR_PAGE_SIZE;
+        u64 page_size = arena->large_pages ? PLATFORM_LARGE_PAGE_SIZE : PLATFORM_REGULAR_PAGE_SIZE;
         usize need_aligned = ALIGN_POW2(needed_memory, page_size);
         usize commit_size  = MAX(arena->commit_expand_size, need_aligned);
         usize arena_leftover_memory = arena->reserved - arena->committed;
@@ -180,7 +179,7 @@ arena_push(Arena *arena, usize alloc_size, usize alignment, b32 zero, char *file
 
 internal void
 arena_print_debug(Arena* arena){
-    if (!arena){
+    if(!arena){
         DOT_PRINT("Arena: <null>\n");
         return;
     }

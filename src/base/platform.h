@@ -6,14 +6,6 @@
 #   include "os/os_windows.h"
 #endif
 
-// sysconf(_SC_PAGESIZE)
-DOT_CONST_INT_BLOCK{
-    PLATFORM_REGULAR_PAGE_SIZE = KB(4),
-    PLATFORM_LARGE_PAGE_SIZE = MB(2),
-
-    PLATFORM_CACHE_LINE_SIZE = 64,
-};
-
 ////////////////////////////////////////////////////////////////
 //
 // Compiler
@@ -59,8 +51,7 @@ typedef struct Arena Arena;
 internal bool platform_file_exists(String8 file_path);
 internal String8 platform_read_entire_file(Arena *arena, String8 path);
 b32 platform_file_is_newer(String8 a, String8 b);
-    
-
+ 
 u64 platform_get_time_ns(void);
 
 ////////////////////////////////////////////////////////////////
