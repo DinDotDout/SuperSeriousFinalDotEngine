@@ -243,7 +243,7 @@ renderer_backend_vk_buffer_create(const DOT_BufferCreateInfo *create_info)
 // NOTE(JD): Will start to just make enclosing scopes
 // Should extend to be a graph
 internal void
-renderer_backend_resource_cleanup_list_push(){
+renderer_backend_vk_resource_cleanup_list_push(){
     // cleanup_list
     ResourceCleanupList *cleanup_list = &g_vk_ctx->cleanup_list[g_vk_ctx->cleanup_list_idx];
     cleanup_list->temp = temp_arena_get(g_vk_ctx->base.transient_arena);
@@ -262,14 +262,14 @@ renderer_backend_resource_cleanup_list_push(){
 // }
 
 internal void
-renderer_backend_resource_cleanup_list_pop_last(){
+renderer_backend_vk_resource_cleanup_list_pop_last(){
     ResourceCleanupList *cleanup_list = &g_vk_ctx->cleanup_list[g_vk_ctx->cleanup_list_idx];
     // Iterate vk resources to free vk things
     temp_arena_restore(cleanup_list->temp);
 }
 
 internal void
-renderer_backend_resource_cleanup_list_pop_at(u32 idx){(void)idx;}
+renderer_backend_vk_resource_cleanup_list_pop_at(u32 idx){(void)idx;}
 
 internal RBVK_Texture
 rbvk_texture_create(VkImageCreateInfo *image_info)

@@ -166,10 +166,6 @@ internal void               renderer_backend_vk_merge_render_settings(RendererBa
 internal RendererBackendVk* renderer_backend_vk_create(Arena *arena, RendererBackendConfig *backend_config);
 internal RendererBackendVk* renderer_backend_as_vk(RendererBackend *base);
 
-internal void renderer_backend_resource_cleanup_list_push();
-internal void renderer_backend_resource_cleanup_list_pop_last();
-internal void renderer_backend_resource_cleanup_list_pop_at(u32 idx); // drops children
-
 // (jd) NOTE: should we allow this and mem copy the resource list?
 // If we already know the layout/size and we use a specific arena chunk we can maybe
 // work like a pool? tho maybe there is too much memory wasted
