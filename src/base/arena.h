@@ -7,8 +7,14 @@
 // specify initial commit size as well as how often subsequent ones will force
 // prefaulting again. Optionally, on LINUX we may use huge pages through THP
 
-#define ARENA_MAX_ALIGNMENT 8
-#define ARENA_MIN_CAPACITY KB(16)
+enum
+{
+    // (jd) NOTE: May help in avoid false sharing
+    ARENA_HEADER_SIZE_B = PLATFORM_CACHE_LINE_SIZE,
+
+    ARENA_MAX_ALIGNMENT = 8,
+    ARENA_MIN_CAPACITY  = KB(16),
+};
 
 typedef enum ArenaKind{
     ArenaKind_Null,
@@ -17,6 +23,7 @@ typedef enum ArenaKind{
     ArenaKind_FromBuffer,
     ArenaKind_Count,
 }ArenaKind;
+
 
 typedef struct Arena Arena;
 struct Arena{
@@ -36,7 +43,7 @@ struct Arena{
     char *name;
 };
 
-DOT_STATIC_ASSERT(sizeof(Arena) <= PLATFORM_CACHE_LINE_SIZE, "Keep cache line sized");
+DOT_STATIC_ASSERT(sizeof(Arena) <= ARENA_HEADER_SIZE_B, "Keep cache line sized");
 
 typedef struct ArenaInitParams{
     // These 2 will be used to alloc from if not empty, otherwise we will make a new os alloc

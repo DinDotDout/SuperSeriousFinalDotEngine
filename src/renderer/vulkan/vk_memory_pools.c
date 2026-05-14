@@ -17,7 +17,7 @@ rbvk_memory_ring_buffer_push(RBVKMemory_RingBuffer *ring_buffer, u64 size)
             DOT_ERROR("Out of Staging memory, consider increasing it!");
         }
     }
-    if (offset < ring_buffer->tail && offset + size > ring_buffer->tail) {
+    if(offset < ring_buffer->tail && offset + size > ring_buffer->tail){
         DOT_ERROR("Out of Staging memory, consider increasing it!");
     }
  

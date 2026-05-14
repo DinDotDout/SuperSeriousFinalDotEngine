@@ -11,7 +11,7 @@ temp_arena_restore(TempArena temp){
     temp.arena->used = temp.prev_offset;
 }
 
-internal inline Arena*
+internal Arena*
 arena_alloc_(ArenaInitParams *params){
     Arena* arena;
     if(params->buffer){
@@ -103,9 +103,8 @@ arena_alloc_from_os(ArenaInitParams *params){
 internal void
 arena_reset(Arena *arena, char *file, u32 line){
     DOT_ASSERT_FL(arena, file, line);
-    u64 arena_size = sizeof(Arena);
-    ASAN_POISON(arena->base + arena_size, arena->reserved - arena_size);
-    arena->used = arena_size;
+    ASAN_POISON(arena->base + ARENA_HEADER_SIZE_B, arena->reserved - arena_size);
+    arena->used = ARENA_HEADER_SIZE_B;
 }
 
 internal void

@@ -432,6 +432,21 @@ do { \
 #   error alignof not defined for this compiler.
 #endif
 
+#if ((defined(__GNUC__) && __GNUC__ >= 4) || defined(__clang__))
+#   define DOT_OFFSETOF(st,m) (__builtin_offsetof(st,m))
+#else
+#   define DOT_OFFSETOF(T, member) ((usize)&(((T*)0)->member))
+#endif
+
+#if defined(__clang__) || defined(__GNUC__)
+    #define TYPEOF(x) __typeof__(x)
+#elif defined(_MSC_VER) && _MSC_VER >= 1939 && defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202000L
+    // MSVC 19.39+ (VS 2022 17.9+)
+    #define TYPEOF(x) __typeof__(x)
+#else
+    #error "typeof is not supported on this compiler. Upgrade MSVC to 17.9+ or use GCC/Clang."
+#endif
+
 #ifndef DOT_SWAP
 #define DOT_SWAP(Type, a, b) do { Type tmp = (a); (a) = (b); (b) = tmp; } while (0)
 #endif
