@@ -7,7 +7,6 @@
 // init dependencies.
 // We can then iterate over the section and run all init plugins whenever we want
 
-
 typedef struct Plugin Plugin;
 typedef void (*PluginInitFn)();
 typedef void (*PluginEndFn)();
@@ -23,38 +22,10 @@ struct Plugin{
     PluginInitFn init;
     PluginEndFn end;
 };
-
-// TODO: Needs testing on windows
-#if DOT_COMPILER_MSVC || (DOT_COMPILER_CLANG && DOT_OS_WINDOWS)
-    #pragma section("plugins$a", read)
-    #pragma section("plugins$m", read)
-    #pragma section("plugins$z", read)
-
-    #define PLUGIN_SECTION __declspec(allocate("plugins$m"))
-    __declspec(allocate("plugins$a")) extern const Plugin __start_plugins;
-    __declspec(allocate("plugins$z")) extern const Plugin __stop_plugins;
-#else
-    // Plugins will be used as an array, so we have to tell asan to not poison in between elements.
-    // This is not needed in GCC and it will actually give a warning
-    #define PLUGIN_SECTION(priority) \
-        __attribute__((used, section(".plugins." #priority))) \
-        __attribute__((no_sanitize("address")))
-
-    extern const Plugin __start_plugins[];
-    extern const Plugin __stop_plugins[];
-#endif
-
-#define PluginParams(...) (Plugin){ \
-    .name = "Unnamed", \
-    .file = __FILE__, \
-    .line = __LINE__, \
-    .init = plugin_init_stub, \
-    .end = plugin_end_stub, \
-    __VA_ARGS__ \
-}
+DECLARE_SECTION(Plugin, DOT_plugins);
 
 #define PluginRegister(n, priority, ...) \
-    PLUGIN_SECTION(priority) static const Plugin DOT_CONCAT(__Plugin_, n) = (Plugin){ \
+    SECTION_ITEM(DOT_plugins, priority) static const Plugin DOT_CONCAT(__DOT_Plugin_, n) = (Plugin){ \
         .name = #n, \
         .file = __FILE__, \
         .line = __LINE__, \
@@ -64,8 +35,8 @@ struct Plugin{
     }
 
 void plugins_init(void) {
-    Plugin* begin = (Plugin*) &__start_plugins[0];
-    const Plugin* end = &__stop_plugins[0];
+    Plugin *begin = cast(Plugin*) &__start_DOT_plugins[0];
+    const Plugin *end = &__stop_DOT_plugins[0];
     DOT_PRINT("Initializing %td Plugins", end - begin);
     for (const Plugin* p = begin; p != end; ++p){
         DOT_PRINT_FL(p->file, p->line, "PLUGIN: %s->Init()", p->name);
@@ -74,9 +45,9 @@ void plugins_init(void) {
 }
 
 internal inline void plugins_shutdown(){
-    const Plugin* begin = &__start_plugins[0];
-    const Plugin* end = &__stop_plugins[0];
-    for (const Plugin* p = begin; p != end; ++p){
+    const Plugin *begin = &__start_DOT_plugins[0];
+    const Plugin *end = &__stop_DOT_plugins[0];
+    for (const Plugin *p = begin; p != end; ++p){
         DOT_PRINT_FL(p->file, p->line, "PLUGIN: %s->End()", p->name);
         p->end();
     }

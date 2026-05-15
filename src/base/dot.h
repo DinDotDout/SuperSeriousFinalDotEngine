@@ -18,6 +18,13 @@
 
 #include <threads.h>
 
+#if defined(NDEBUG)
+#   define DOT_DEBUG 0
+#else
+#   define DOT_DEBUG 1
+#endif
+
+
 ////////////////////////////////////////////////////////////////
 //
 // Compiler
@@ -264,6 +271,9 @@ typedef double f64;
 #define DOT_CONCAT_2(x, y) x ## y
 #define DOT_CONCAT(x, y) DOT_CONCAT_2(x, y)
 
+
+#define DOT_FILE_LINE (__FILE__ ": " DOT_STR(__LINE__))
+
 ////////////////////////////////////////////////////////////////
 //
 // Source location helper
@@ -482,7 +492,7 @@ do { \
 typedef struct String8 String8;
 void dot_debug_name_set(u32 capacity, char *ptr, String8 src);
 
-#ifdef DEBUG
+#ifdef DOT_DEBUG
 #   define DOT_DEBUG_NAME_LEN 16
 #   define DOT_DEBUG_NAME(field, size) char field[size]
 #   define DOT_DEBUG_NAME_SET(buff, str8) dot_debug_name_set(sizeof(buff), buff, str8)
@@ -540,7 +550,7 @@ void dot_debug_name_set(u32 capacity, char *ptr, String8 src);
 
 ////////////////////////////////////////////////////////////////
 //
-// This runs after static initialization and before main
+// C static init
 
 #if DOT_COMPILER_MSVC
 #   pragma section(".CRT$XCU",read)
@@ -558,11 +568,47 @@ void dot_debug_name_set(u32 capacity, char *ptr, String8 src);
         __attribute__((constructor)) static void fn(void)
 #endif
 
+////////////////////////////////////////////////////////////////
+//
+// Custom section
+// This requires a custom linker script akin to
+//
+// // plugins_section.ld
+// SECTIONS
+// {
+//   .DOT_plugins : {
+//     PROVIDE_HIDDEN(__start_DOT_plugins = .);
+//     KEEP(*(SORT_BY_INIT_PRIORITY(.DOT_plugins.*)))
+//     PROVIDE_HIDDEN(__stop_DOT_plugins = .);
+//   }
+// } INSERT AFTER .data;
 
-#if defined(NDEBUG)
-#   define DOT_DEBUG 0
+
+#if DOT_COMPILER_MSVC || (DOT_COMPILER_CLANG && DOT_OS_WINDOWS)
+    // ???
+    // #pragma section("plugins$a", read)
+    // #pragma section("plugins$m", read)
+    // #pragma section("plugins$z", read)
+
+    #define DECLARE_SECTION(name) \
+        __declspec(allocate(#name "$a")) extern const void *__start_##name; \
+        __declspec(allocate(#name "$z")) extern const void *__stop_##name;
+
+    #define SECTION_ITEM(name) __declspec(allocate(#name "$m"))
 #else
-#   define DOT_DEBUG 1
+    #define DECLARE_SECTION(T, name) \
+        extern const T __start_##name[]; \
+        extern const T __stop_##name[];
+
+    #define SECTION_ITEM(name, priority) \
+        __attribute__((used, section("." #name "." #priority))) \
+        __attribute__((no_sanitize("address")))
 #endif
+
+#define REGISTER_IN_SECTION(name, type, symbol, ...) \
+    SECTION_ITEM(name) static const type symbol = (type){ __VA_ARGS__ }
+
+#define EACH_IN_SECTION(name, type, it) \
+    (const type *it = (const type *)&__start_##name; it != (const type *)&__stop_##name; ++it)
 
 #endif // !DOT_H

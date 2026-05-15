@@ -59,6 +59,7 @@ PluginRegister(Profiler, 0,
 #endif // !DOT_PROFILER_H
 
 #ifdef DOT_PROFILER_IMPL
+
 internal void
 dot_print_time_elapsed(u64 total_tsc_elapsed, DOT_ProfileAnchor *anchor){
     f64 percent = 100.0 * ((f64)anchor->tsc_elapsed_exclusive / (f64)total_tsc_elapsed);
