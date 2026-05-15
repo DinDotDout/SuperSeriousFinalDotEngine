@@ -62,14 +62,14 @@ typedef struct ArenaInitParams{
     int   reserve_line;
 }ArenaInitParams;
 
-internal Arena* arena_alloc_(ArenaInitParams *params);
-internal Arena* arena_alloc_from_memory(ArenaInitParams *params);
-internal Arena* arena_alloc_from_arena(ArenaInitParams *params);
-internal Arena* arena_alloc_from_os(ArenaInitParams *params);
+internal Arena *arena_create_(ArenaInitParams *params);
+internal Arena *arena_create_from_memory(ArenaInitParams *params);
+internal Arena *arena_create_from_arena(ArenaInitParams *params);
+internal Arena *arena_create_from_os(ArenaInitParams *params);
 
 internal u8*    arena_push(Arena *arena, usize size, usize alignment, b32 zero, char *file, u32 line);
 internal void   arena_reset(Arena *arena, char *file, u32 line);
-internal void   arena_free(Arena *arena, char *file, u32 line);
+internal void   arena_destroy(Arena *arena, char *file, u32 line);
 internal void   arena_print_debug(Arena *arena);
 
 #define ARENA_DEFAULT_PARAMS(...) \
@@ -80,13 +80,13 @@ internal void   arena_print_debug(Arena *arena);
         .large_pages        = false, \
         .reserve_file       = __FILE__, \
         .reserve_line       = __LINE__, \
-        .name               = "Default", \
+        .name               = DOT_FILE_LINE, \
         __VA_ARGS__ \
     }
 
-#define ARENA_ALLOC(...)    arena_alloc_(ARENA_DEFAULT_PARAMS(__VA_ARGS__))
-#define ARENA_RESET(arena)  arena_reset(arena, __FILE__, __LINE__)
-#define ARENA_FREE(arena)   arena_free(arena, __FILE__, __LINE__)
+#define ARENA_CREATE(...)       arena_create_(ARENA_DEFAULT_PARAMS(__VA_ARGS__))
+#define ARENA_RESET(arena)      arena_reset(arena, __FILE__, __LINE__)
+#define ARENA_DESTROY(arena)    arena_destroy(arena, __FILE__, __LINE__)
 
 #define ARENA_PUSH(arena, size, alignment, zero) \
     arena_push((arena), (size), (alignment), (zero), __FILE__, __LINE__)

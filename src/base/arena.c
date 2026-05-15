@@ -12,62 +12,60 @@ temp_arena_restore(TempArena temp){
 }
 
 internal Arena*
-arena_alloc_(ArenaInitParams *params){
-    Arena* arena;
+arena_create_(ArenaInitParams *params){
+    Arena *arena;
     if(params->buffer){
         // NOTE: Keeping this use case just in case. If we ever end up using it
         // we will have to add some check to not try to free the handed buffer as
         // the arena will not really own it
         // DOT_ERROR("Not sure we will ever use this directly?");
-        arena = arena_alloc_from_memory(params);
+        arena = arena_create_from_memory(params);
     }else if(params->parent){
-        arena = arena_alloc_from_arena(params);
+        arena = arena_create_from_arena(params);
     }else{
-        arena = arena_alloc_from_os(params);
+        arena = arena_create_from_os(params);
     }
     return arena;
 }
 internal Arena*
-arena_alloc_from_memory(ArenaInitParams *params){
+arena_create_from_memory(ArenaInitParams *params){
     DOT_ASSERT_FL(params->buffer != NULL, params->reserve_file, params->reserve_line, "Invalid memory provided");
-    DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Allocating arena from buffer");
+    DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Allocating arena from buffer with %M", params->reserve_size);
     // NOTE: Since we don't own the memory it must be backed and we assume it is committed (reserve == commit)
 
     DOT_ASSERT_FL(params->buffer != NULL, params->reserve_file, params->reserve_line, "Invalid memory provided");
     uptr base = cast(uptr)params->buffer;
     uptr align = ALIGN_POW2(base, ALIGNOF(Arena));
     iptr diff = align - base;
-    printf("%td\n", ALIGNOF(Arena));
-    printf("%td\n", align);
-    printf("%td\n", base);
-
-    printf("%td\n", diff);
-
-    Arena* arena              = cast(Arena*)align;
-    arena->base               = cast(u8*)align;
-    arena->reserved           = params->reserve_size - diff;
-    arena->committed          = params->reserve_size - diff;
-    arena->commit_expand_size = params->commit_expand_size;
-    arena->large_pages        = params->large_pages;
-    arena->name               = params->name;
-    arena->parent             = params->parent;
-    arena->kind               = ArenaKind_FromBuffer;
+    Arena *arena = cast(Arena*)align;
+    *arena = (Arena){
+        .base               = cast(u8*)align,
+        .reserved           = params->reserve_size - diff,
+        .committed          = params->reserve_size - diff,
+        .commit_expand_size = params->commit_expand_size,
+        .large_pages        = params->large_pages,
+        .name               = params->name,
+        .parent             = params->parent,
+        .kind               = ArenaKind_FromBuffer,
+    };
     ARENA_RESET(arena);
     return arena;
 }
 
 internal Arena*
-arena_alloc_from_arena(ArenaInitParams *params){
+arena_create_from_arena(ArenaInitParams *params){
     DOT_ASSERT_FL(params->parent != NULL, params->reserve_file, params->reserve_line, "Invalid memory provided");
     DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Allocating arena from parent");
     params->buffer = PUSH_SIZE_NO_ZERO(params->parent, params->reserve_size);
-    Arena* arena = arena_alloc_from_memory(params);
+    arena_print_debug(params->parent);
+    Arena *arena = arena_create_from_memory(params);
+
     arena->kind  = ArenaKind_FromParent;
     return arena;
 }
 
 internal Arena*
-arena_alloc_from_os(ArenaInitParams *params){
+arena_create_from_os(ArenaInitParams *params){
     DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Allocating arena from os");
     DOT_ASSERT_FL(params->reserve_size > 0, params->reserve_file, params->reserve_line, "No reserve_size provided");
     DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Arena \"%s\": requested %M", params->name, params->reserve_size);
@@ -86,16 +84,17 @@ arena_alloc_from_os(ArenaInitParams *params){
         os_commit(memory, initial_commit);
     }
     DOT_ASSERT_FL(memory, params->reserve_file, params->reserve_line, "Could not allocate");
-
     Arena* arena = cast(Arena*) memory;
-    arena->base               = memory;
-    arena->reserved           = reserved;
-    arena->committed          = initial_commit;
-    arena->commit_expand_size = commit_expand_size;
-    arena->large_pages        = params->large_pages;
-    arena->name               = params->name;
-    arena->parent             = params->parent;
-    arena->kind               = ArenaKind_FromOS;
+    *arena = (Arena){
+        .base               = memory,
+        .reserved           = reserved,
+        .committed          = initial_commit,
+        .commit_expand_size = commit_expand_size,
+        .large_pages        = params->large_pages,
+        .name               = params->name,
+        .parent             = params->parent,
+        .kind               = ArenaKind_FromOS,
+    };
     ARENA_RESET(arena);
     return arena;
 }
@@ -108,7 +107,7 @@ arena_reset(Arena *arena, char *file, u32 line){
 }
 
 internal void
-arena_free(Arena *arena, char *file, u32 line){
+arena_destroy(Arena *arena, char *file, u32 line){
     u64 reserved = arena->reserved;
     void* base = arena->base;
     arena->used = 0;
@@ -133,7 +132,7 @@ arena_push(Arena *arena, usize alloc_size, usize alignment, b32 zero, char *file
     uptr arena_base = cast(uptr)arena->base;
     uptr current_address =  arena_base + arena->used;
     uptr aligned_address = ALIGN_POW2(current_address, alignment);
-    u8 *mem_offset = (u8*) aligned_address;
+    u8 *mem_offset = cast(u8*) aligned_address;
     DOT_ASSERT_FL((aligned_address % alignment) == 0, file, line, "Unaligned address");
     usize required_padded = aligned_address - current_address + alloc_size;
     arena->used += required_padded;
@@ -155,6 +154,7 @@ arena_push(Arena *arena, usize alloc_size, usize alignment, b32 zero, char *file
         usize arena_leftover_memory = arena->reserved - arena->committed;
         if(commit_size > arena_leftover_memory) commit_size = need_aligned;
         if(DOT_UNLIKELY(commit_size > arena_leftover_memory)){
+            arena_print_debug(arena);
             DOT_ERROR_FL(file, line,
                 "Can't commit more memory on %s! total = %M, needed = %M; leftover = %M", arena->name, arena->reserved, commit_size, arena_leftover_memory);
             return NULL;
@@ -192,7 +192,7 @@ arena_print_debug(Arena* arena){
 
     DOT_PRINT("Arena '%s'", arena->name ? arena->name : "<unnamed>");
     if(arena->parent){
-        DOT_PRINT("Arena parent: '%s'", arena->parent ? arena->parent->name : "no parent");
+        DOT_PRINT("  Arena parent: '%s'", arena->parent ? arena->parent->name : "no parent");
     }
     DOT_PRINT("  Base:              %p", arena->base);
     DOT_PRINT("  Used:              %M", arena->used);

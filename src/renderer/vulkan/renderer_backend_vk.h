@@ -85,23 +85,21 @@ typedef struct RBVK_FrameData{
 }RBVK_FrameData;
 
 
-typedef struct ResourceCleanupList ResourceCleanupList;
-struct ResourceCleanupList{
+typedef struct ResourceCleanupList{
     // ResourceCleanupList children[10];
     // u32 *children_count;
-    ResourceCleanupList *first_child; // ->first_child then while (first_sibling != current_sibling)
-    ResourceCleanupList *first_sibling;
-    TempArena temp;
+    // TempArena temp;
+    u32 texture_id_count;
+    PoolHandle *texture_ids; // RBVK_Texture
 
-    u32 texture_id_count[RBVK_TEXURE_MAX];
-    u32 *texture_ids; // RBVK_Texture
+    u32 buffer_id_count;
+    PoolHandle *buffer_ids; // RBVK_Buffer
 
-    u32 buffer_id_count[RBVK_BUFFER_MAX];
-    u32 *buffer_ids; // RBVK_Buffer
+    u32 sampler_id_count;
+    PoolHandle *sampler_ids; // RBVK_Sampler
 
-    u32 sampler_id_count[RBVK_SAMPLER_MAX];
-    u32 *sampler_ids; // RBVK_Sampler
-};
+    TreeHeader node;
+}ResourceCleanupList;
 
 typedef struct RBVK_FrameDatas RBVK_FrameDatas;
 typedef struct RendererBackendVk{
@@ -144,9 +142,7 @@ typedef struct RendererBackendVk{
     POOL(RBVK_Texture)  texture_pool;
     POOL(RBVK_Buffer)   buffer_pool;
     POOL(RBVK_Sampler)  sampler_pool;
-
-    u32 cleanup_list_idx;
-    ResourceCleanupList cleanup_list[RBVK_RESOURCE_CLEANUP_LIST_MAX];
+    TREE_POOL(ResourceCleanupList) resource_cleanup_list;
 
     // NOTE: vk expects a malloc like allocator, which I don't intend on make or using for now
     // so our push arenas do not work for this :(

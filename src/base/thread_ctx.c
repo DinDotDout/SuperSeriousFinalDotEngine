@@ -15,13 +15,13 @@ threadctx_init(const ThreadCtxOptions* thread_ctx_opts, u8 thread_id)
 
     u64 per_arena_memory = thread_ctx_opts->per_thread_temp_arena_size;
 
-    Arena *main_arena = ARENA_ALLOC(.reserve_size = total_memory, .name = "Thread Arena");
+    Arena *main_arena = ARENA_CREATE(.reserve_size = total_memory, .name = "Thread Arena");
     thread_ctx.thread_id        = thread_id;
     thread_ctx.temp_arena_count = temp_arena_count;
     thread_ctx.temp_arenas      = PUSH_ARRAY(main_arena, Arena*, temp_arena_count);
 
     for(u8 i = 0; i < temp_arena_count; ++i){
-        thread_ctx.temp_arenas[i] = ARENA_ALLOC(
+        thread_ctx.temp_arenas[i] = ARENA_CREATE(
             .parent       = main_arena,
             .reserve_size = per_arena_memory,
             .name         = cstr_format(main_arena, "Thread SubArena %u", i),
@@ -36,7 +36,7 @@ threadctx_shutdown()
     for(u8 i = 0; i < thread_ctx.temp_arena_count; ++i){
         arena_print_debug(thread_ctx.temp_arenas[i]);
     }
-    ARENA_FREE(main_arena);
+    ARENA_DESTROY(main_arena);
 }
 
 

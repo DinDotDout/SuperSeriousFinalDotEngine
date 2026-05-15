@@ -11,16 +11,16 @@ renderer_backend_as_vk(RendererBackend *base)
 internal RendererBackendVk*
 renderer_backend_vk_create(Arena *arena, RendererBackendConfig *backend_config)
 {
-    Arena *backend_arena = ARENA_ALLOC(
+    Arena *backend_arena = ARENA_CREATE(
         .parent = arena,
         .reserve_size = backend_config->backend_memory_size,);
-    Arena *backend_transient_arena = ARENA_ALLOC(
-        .parent = arena,
-        .reserve_size = backend_config->backend_transient_memory_size,);
+
     g_vk_ctx = PUSH_STRUCT(backend_arena, RendererBackendVk);
     g_vk_ctx->base.backend_kind = RendererBackendKind_Vk;
     g_vk_ctx->base.permanent_arena = backend_arena;
-    g_vk_ctx->base.transient_arena = backend_transient_arena;
+    g_vk_ctx->base.transient_arena = ARENA_CREATE(
+        .parent = backend_arena,
+        .reserve_size = backend_config->backend_transient_memory_size,);
 
 #define FN(ret, name, params) g_vk_ctx->base.name = renderer_backend_vk_##name;
     RENDERER_BACKEND_FN_LIST
@@ -96,13 +96,13 @@ internal DOT_TextureHandle
 renderer_backend_vk_texture_create(const DOT_TextureDesc *desc, void *data, String8 debug_name)
 {
     if(desc == NULL){
-       PoolHandle h = POOL_H_GET_NULL(&g_vk_ctx->texture_pool);
-       DOT_TextureHandle dot_texture_handle = { .handle[0] = h, };
+       PoolHandle h = POOL_GET_NULL(&g_vk_ctx->texture_pool);
+       DOT_TextureHandle dot_texture_handle = {.handle[0] = pool_handle_pack(h),};
        return dot_texture_handle;
     }
     VkExtent3D extent_3d = {desc->width, desc->height, desc->depth};
-    const PoolHandle texture_h = POOL_H_GET(&g_vk_ctx->texture_pool);
-    RBVK_Texture *texture = POOL_H_ACCESS(&g_vk_ctx->texture_pool, texture_h);
+    const PoolHandle texture_h = POOL_ALLOC(&g_vk_ctx->texture_pool);
+    RBVK_Texture *texture = POOL_GET(&g_vk_ctx->texture_pool, texture_h);
     DOT_DEBUG_NAME_SET(texture->name, debug_name);
     texture->vk_extent3d = extent_3d;
     texture->mip_levels = desc->mip_levels;
@@ -223,7 +223,7 @@ renderer_backend_vk_texture_create(const DOT_TextureDesc *desc, void *data, Stri
         vkResetCommandBuffer( vk_command_buffer, VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT );
         texture->vk_image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     }
-    DOT_TextureHandle dot_texture_handle = { .handle[0] = texture_h, };
+    DOT_TextureHandle dot_texture_handle = {.handle[0] = pool_handle_pack(texture_h),};
     return dot_texture_handle;
 }
 
@@ -232,8 +232,8 @@ renderer_backend_vk_buffer_create(const DOT_BufferCreateInfo *create_info)
 {
     const DOT_BufferDesc *desc = &create_info->buffer_desc;
 
-    const PoolHandle buffer_h = POOL_H_GET(&g_vk_ctx->buffer_pool);
-    RBVK_Buffer *buffer = POOL_H_ACCESS(&g_vk_ctx->buffer_pool, buffer_h);
+    const PoolHandle buffer_h = POOL_ALLOC(&g_vk_ctx->buffer_pool);
+    RBVK_Buffer *buffer = POOL_GET(&g_vk_ctx->buffer_pool, buffer_h);
     (void)desc;
     (void)buffer;
     return (DOT_BufferHandle){0};
@@ -245,10 +245,10 @@ renderer_backend_vk_buffer_create(const DOT_BufferCreateInfo *create_info)
 internal void
 renderer_backend_vk_resource_cleanup_list_push(){
     // cleanup_list
-    ResourceCleanupList *cleanup_list = &g_vk_ctx->cleanup_list[g_vk_ctx->cleanup_list_idx];
-    cleanup_list->temp = temp_arena_get(g_vk_ctx->base.transient_arena);
-    // Add resources onto temp
-    g_vk_ctx->cleanup_list_idx += 1;
+    // ResourceCleanupList *cleanup_list = &g_vk_ctx->cleanup_list[g_vk_ctx->cleanup_list_idx];
+    // cleanup_list->temp = temp_arena_get(g_vk_ctx->base.transient_arena);
+    // // Add resources onto temp
+    // g_vk_ctx->cleanup_list_idx += 1;
 }
 
 // internal void
@@ -263,9 +263,9 @@ renderer_backend_vk_resource_cleanup_list_push(){
 
 internal void
 renderer_backend_vk_resource_cleanup_list_pop_last(){
-    ResourceCleanupList *cleanup_list = &g_vk_ctx->cleanup_list[g_vk_ctx->cleanup_list_idx];
-    // Iterate vk resources to free vk things
-    temp_arena_restore(cleanup_list->temp);
+    // ResourceCleanupList *cleanup_list = &g_vk_ctx->cleanup_list[g_vk_ctx->cleanup_list_idx];
+    // // Iterate vk resources to free vk things
+    // temp_arena_restore(cleanup_list->temp);
 }
 
 internal void
@@ -337,10 +337,10 @@ rbvk_buffer_create(
 internal void
 renderer_backend_vk_texture_destroy(DOT_TextureHandle handle)
 {
-    const PoolHandle texture_h = handle.handle[0];
-    RBVK_Texture *tex = POOL_H_ACCESS(&g_vk_ctx->texture_pool, texture_h);
+    const PoolHandle texture_h = pool_handle_unpack(handle.handle[0]);
+    RBVK_Texture *tex = POOL_GET(&g_vk_ctx->texture_pool, texture_h);
     rbvk_texture_destroy(tex);
-    POOL_H_FREE(&g_vk_ctx->texture_pool, texture_h);
+    POOL_FREE(&g_vk_ctx->texture_pool, texture_h);
 }
 
 internal void
@@ -620,7 +620,7 @@ renderer_backend_vk_init(DOT_Window *window)
                 };
                 VK_CHECK(vkAllocateCommandBuffers(device, &cmd_alloc_info, &frame_data->frame_command_buffer));
                 VK_CHECK(vkAllocateCommandBuffers(device, &cmd_alloc_info, &frame_data->immediate_command_buffer));
-                frame_data->frame_arena = ARENA_ALLOC(.parent = ctx_arena, .reserve_size = KB(32));
+                frame_data->frame_arena = ARENA_CREATE(.parent = ctx_arena, .reserve_size = KB(32));
 
             }
         }

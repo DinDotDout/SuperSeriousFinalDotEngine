@@ -10,15 +10,15 @@ renderer_backend_create(Arena *arena, RendererBackendConfig *backend_config)
 }
 
 internal void
-renderer_init(Arena *arena, DOT_Renderer *renderer, DOT_Window *window, RendererConfig *renderer_config)
+renderer_init(Arena *arena, DOT_Renderer *renderer, DOT_Window *window, const RendererConfig *renderer_config)
 {
-    renderer->permanent_arena = ARENA_ALLOC(
+    renderer->permanent_arena = ARENA_CREATE(
         .parent       = arena,
         .reserve_size = renderer_config->renderer_permanent_memory_size,
         .name         = "Application render permanent");
 
-    renderer->transient_arena = ARENA_ALLOC(
-        .parent       = arena,
+    renderer->transient_arena = ARENA_CREATE(
+        .parent       = renderer->permanent_arena,
         .reserve_size = renderer_config->renderer_transient_memory_size,
         .name         = "Application renderer transient");
 
@@ -28,7 +28,7 @@ renderer_init(Arena *arena, DOT_Renderer *renderer, DOT_Window *window, Renderer
     renderer->frame_data_count = renderer->backend->frame_overlap;
     renderer->frame_datas    = PUSH_ARRAY(renderer->permanent_arena, FrameData, renderer->frame_data_count);
     for(u8 i = 0; i < renderer->frame_data_count; ++i){
-        renderer->frame_datas[i].temp_arena = ARENA_ALLOC(
+        renderer->frame_datas[i].temp_arena = ARENA_CREATE(
             .parent       = renderer->permanent_arena,
             .reserve_size = renderer_config->frame_arena_size);
     }
