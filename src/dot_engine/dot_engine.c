@@ -1,13 +1,17 @@
 #include "dot_engine.h"
 
 internal void
-dot_engine_init(DOT_Engine *engine)
+dot_engine_init(DOT_Engine *engine, b8 tests_only)
 {
-    engine->permanent_arena = ARENA_ALLOC(.reserve_size = DOT_ENGINE_CONFIG.engine_memory_size, .name = "DOT_Engine Arena");
     threadctx_init(DOT_ENGINE_CONFIG.thread_options, 0); // NOTE: Should make entry points per thread
+    if(tests_only){
+        return;
+    }
+    engine->permanent_arena = ARENA_CREATE(.reserve_size = DOT_ENGINE_CONFIG.engine_memory_size, .name = "DOT_Engine Arena");
     plugins_init();
     dot_window_init(&engine->window);
-    renderer_init(engine->permanent_arena, &engine->renderer, &engine->window, DOT_ENGINE_CONFIG.renderer_config);
+    RendererConfig *renderer_config = DOT_ENGINE_CONFIG.renderer_config;
+    renderer_init(engine->permanent_arena, &engine->renderer, &engine->window, renderer_config);
     // nk_dot_init(&engine->renderer, &engine->window);
 
     engine->game = PUSH_STRUCT(engine->permanent_arena, DOT_Game);
@@ -85,13 +89,24 @@ dot_engine_shutdown(DOT_Engine *engine)
     dot_window_shutdown(&engine->window);
     plugins_shutdown();
     threadctx_shutdown();
-    ARENA_FREE(engine->permanent_arena);
+    ARENA_DESTROY(engine->permanent_arena);
 }
 
-int main() {
+int
+main(int argc, char *argv[])
+{
     DOT_Engine engine = {0};
-    dot_engine_init(&engine);
+    b8 tests_only = false;
+    if(argc > 1){
+        String8 arg1 = string8_from_cstring(argv[1]);
+        String8 tests = String8Lit("-tests");
+        tests_only = string8_equal(arg1, tests);
+    }
+    dot_engine_init(&engine, tests_only);
+    if(tests_only){
+        return tests_run();
+    }
     dot_engine_run(&engine);
     dot_engine_shutdown(&engine);
-    return 0;
+    return(0);
 }

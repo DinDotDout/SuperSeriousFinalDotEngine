@@ -104,7 +104,7 @@ typedef struct DOT_Engine{
     Arena *permanent_arena;
 }DOT_Engine;
 
-internal void dot_engine_init(DOT_Engine *engine);
+internal void dot_engine_init(DOT_Engine *engine, b8 tests_only);
 internal void dot_engine_run(DOT_Engine *engine);
 internal void dot_engine_shutdown(DOT_Engine *engine);
 DOT_DIAGNOSTIC_POP

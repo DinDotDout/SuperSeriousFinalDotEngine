@@ -292,7 +292,7 @@ DOT_ENGINE_API DOT_TextureAsset     renderer_texture_asset_create(DOT_Renderer *
 DOT_ENGINE_API DOT_TextureHandle    renderer_texture_create(DOT_Renderer *renderer, const DOT_TextureDesc *desc, void *data, String8 debug_name);
 DOT_ENGINE_API void                 renderer_texture_destroy(DOT_Renderer *renderer, DOT_TextureHandle handle);
 
-internal void                   renderer_init(Arena *arena, DOT_Renderer *renderer, DOT_Window *window, RendererConfig *config);
+internal void                   renderer_init(Arena *arena, DOT_Renderer *renderer, DOT_Window *window, const RendererConfig *config);
 internal void                   renderer_shutdown(DOT_Renderer *renderer);
 internal RendererBackend*       renderer_backend_create(Arena *arena, RendererBackendConfig *backend_config);
 

@@ -11,49 +11,47 @@ raw_buffer_get(u8 raw_buffer[], i32 elem_idx, u32 elem_size)
 
 // Reserve 0 for default and zero every time we hand it?
 internal void*
-pool_handle_access(Pool *p, PoolHandle h)
+pool_get(Pool *p, PoolHandle h)
 {
-    DOT_ASSERT(h < p->capacity, "Invalid pool handle");
-    void *elem = raw_buffer_get(p->raw_buffer, h, p->elem_size);
-    if(h == 0){
+    DOT_ASSERT(h.idx < p->capacity, "Invalid pool handle");
+    void *elem = raw_buffer_get(p->raw_buffer, h.idx, p->elem_size);
+    if(h.idx == 0){
         MEMORY_ZERO(elem, p->elem_size);
     }
     return(elem);
 }
 
 internal PoolHandle
-pool_handle_get_null(Pool *p)
+pool_get_null(Pool *p)
 {
-    PoolHandle h = p->idx_buffer[0];
-    void *elem = raw_buffer_get(p->raw_buffer, h, p->elem_size);
+    PoolHandle h = POOL_NULL_HANDLE;
+    void *elem = raw_buffer_get(p->raw_buffer, h.idx, p->elem_size);
     MEMORY_ZERO(elem, p->elem_size);
     return(h);
 }
 
 internal PoolHandle
-pool_handle_get(Pool *p)
+pool_alloc(Pool *p)
 {
-    if(!(p->count < p->capacity)){
+    if(DOT_UNLIKELY(p->count >= p->capacity)){
        DOT_WARNING("Pool capacity, exceeded, returning zero handle"); 
-       return(0);
+       return(pool_get_null(p));
     }
-    PoolHandle h = p->idx_buffer[p->count];
+    PoolHandle h = {.idx = p->idx_buffer[p->count]};
     p->count += 1;
-    void *elem = raw_buffer_get(p->raw_buffer, h, p->elem_size);
+    void *elem = raw_buffer_get(p->raw_buffer, h.idx, p->elem_size);
     MEMORY_ZERO(elem, p->elem_size);
     return(h);
 }
 
 internal void
-pool_handle_free(Pool *p, PoolHandle h)
+pool_free(Pool *p, PoolHandle h)
 {
-    if(h == 0 || p->count == 1){
+    if(h.idx == 0 || p->count == 1){
         return;
     }
-    // If we end up making generational counters we can maybe swap with some other idx
-    // to spread generations
     p->count -= 1;
-    p->idx_buffer[p->count] = h;
+    p->idx_buffer[p->count] = h.idx;
 }
 
 internal void
@@ -72,113 +70,141 @@ pool_init(Arena *arena, Pool *p, u32 capacity, u32 elem_size, u32 alignment)
 
 ////////////////////////////////////////////////////////////////
 ///
-/// Pool Tree
+/// Tree Pool
 
 internal TreeHeader*
-tree_header_get_(TreePool *tree_pool, PoolHandle idx)
+tree_header_(TreePool *tree_pool, PoolHandle idx)
 {
     Pool *pool = &tree_pool->pool;
-    u8 *elem = pool_handle_access(pool, idx);
+    u8 *elem = pool_get(pool, idx);
     TreeHeader *header = cast(TreeHeader*)(cast(u8*)elem + tree_pool->offsetoff_header);
     return(header);
 }
 
 internal PoolHandle
-tree_init(Arena *arena, TreePool *tp, u32 capacity, u32 elem_size, u32 alignment, u32 offsetoff_header)
+tree_init(Arena *arena, TreePool *tree_pool, u32 capacity, u32 elem_size, u32 alignment, u32 offsetoff_header)
 {
-    pool_init(arena, &tp->pool, capacity, elem_size, alignment);
-    tp->offsetoff_header = offsetoff_header;
-    PoolHandle root = pool_handle_get(&tp->pool);
-    tp->tree_root = root;
+    pool_init(arena, &tree_pool->pool, capacity, elem_size, alignment);
+    tree_pool->offsetoff_header = offsetoff_header;
+    PoolHandle root = pool_alloc(&tree_pool->pool);
+    tree_pool->tree_root = root;
     return(root);
 }
 
-
 internal PoolHandle
-tree_get_next_sibling(TreePool *tp, PoolHandle node_h)
+tree_get_next_sibling(TreePool *tree_pool, PoolHandle node)
 {
-    TreeHeader *parent_header = tree_header_get_(tp, node_h);
-    PoolHandle sibling_h = parent_header->sibling;
-    return(sibling_h);
+    TreeHeader *node_header = tree_header_(tree_pool, node);
+    PoolHandle sibling = node_header->sibling;
+    return(sibling);
 }
 
 internal PoolHandle
-tree_get_last_child(TreePool *tp, PoolHandle parent_h)
+tree_get_last_child(TreePool *tree_pool, PoolHandle parent)
 {
-    TreeHeader *parent_header = tree_header_get_(tp, parent_h);
-    PoolHandle last_child_h = parent_header->last_child;
-    return(last_child_h);
+    TreeHeader *parent_header = tree_header_(tree_pool, parent);
+    PoolHandle last_child = parent_header->last_child;
+    return(last_child);
 }
 
 internal PoolHandle
-tree_get_first_child(TreePool *tp, PoolHandle parent_h)
+tree_get_first_child(TreePool *tree_pool, PoolHandle parent)
 {
-    PoolHandle last_child_h = tree_get_last_child(tp, parent_h);
-    PoolHandle first_child_h = tree_get_next_sibling(tp, last_child_h);
-    return(first_child_h);
+    PoolHandle last_child = tree_get_last_child(tree_pool, parent);
+    PoolHandle first_child = tree_get_next_sibling(tree_pool, last_child);
+    return(first_child);
 }
-
-// internal PoolHandle
-// tree_push_sibling_new(TreePool *tp, PoolHandle prev_h)
-// {
-//     PoolHandle new_elem_h = pool_handle_get(&tp->pool);
-//     TreeHeader *prev_header = tree_header_get_(tp, prev_h);
-//     TreeHeader *new_header = tree_header_get_(tp, new_elem_h);
-//     new_header->sibling = prev_header->sibling;
-//     prev_header->sibling = new_elem_h;
-//     return new_elem_h;
-// }
 
 internal void
-tree_push_sibling(TreePool *tp, PoolHandle prev_h, PoolHandle new_h)
+tree_push_sibling(TreePool *tree_pool, PoolHandle prev_h, PoolHandle new)
 {
-    TreeHeader *prev_header = tree_header_get_(tp, prev_h);
-    TreeHeader *new_header = tree_header_get_(tp, new_h);
+    TreeHeader *prev_header = tree_header_(tree_pool, prev_h);
+    TreeHeader *new_header = tree_header_(tree_pool, new);
     new_header->sibling = prev_header->sibling;
-    prev_header->sibling = new_h;
+    prev_header->sibling = new;
 }
 
-
 internal void
-tree_push_front(TreePool *tp, PoolHandle parent_h, PoolHandle new_h)
+tree_push_front(TreePool *tree_pool, PoolHandle parent, PoolHandle new)
 {
-    if(parent_h != 0){
-        TreeHeader *parent_header = tree_header_get_(tp, parent_h);
-        tree_push_sibling(tp, parent_header->last_child, new_h);
+    if(parent.idx != 0){
+        TreeHeader *parent_header = tree_header_(tree_pool, parent);
+        TreeHeader *new_header = tree_header_(tree_pool, new);
+        if(pool_handle_is_null(parent_header->last_child)){
+            parent_header->last_child = new;
+            new_header->sibling = new;
+        }else{
+            tree_push_sibling(tree_pool, parent_header->last_child, new);
+        }
     }
 }
 
 internal PoolHandle
-tree_push_front_new(TreePool *tp, PoolHandle parent_h)
+tree_push_front_new(TreePool *tree_pool, PoolHandle parent)
 {
-    PoolHandle new_elem_h = pool_handle_get(&tp->pool);
-    tree_push_front(tp, parent_h, new_elem_h);
-    return(new_elem_h);
+    PoolHandle new_elem = pool_alloc(&tree_pool->pool);
+    tree_push_front(tree_pool, parent, new_elem);
+    return(new_elem);
 }
 
 internal PoolHandle
-tree_pop_sibling(TreePool *tp, PoolHandle node_h)
+tree_pop_sibling(TreePool *tree_pool, PoolHandle node)
 {
-    TreeHeader *node_header = tree_header_get_(tp, node_h);
-    PoolHandle old_sibling_h = node_header->sibling;
-    TreeHeader *old_header = tree_header_get_(tp, old_sibling_h);
+    TreeHeader *node_header = tree_header_(tree_pool, node);
+    PoolHandle old_sibling = node_header->sibling;
+    TreeHeader *old_header = tree_header_(tree_pool, old_sibling);
     node_header->sibling = old_header->sibling;
-    return(old_sibling_h);
-}
-
-internal void*
-tree_handle_access(TreePool *tp, PoolHandle h)
-{
-    void *ret = pool_handle_access(&tp->pool, h);
-    return(ret);
+    return(old_sibling);
 }
 
 internal void
-tree_pop_front(TreePool *tp, PoolHandle parent_h)
+tree_pop_front(TreePool *tree_pool, PoolHandle parent)
 {
-    if(parent_h != 0){
-        TreeHeader *p = tree_header_get_(tp, parent_h);
-        PoolHandle old_first_h = tree_pop_sibling(tp, p->last_child);
-        pool_handle_free(&tp->pool, old_first_h);
+    if(parent.idx != 0){
+        TreeHeader *p = tree_header_(tree_pool, parent);
+        PoolHandle old_first_h = tree_pop_sibling(tree_pool, p->last_child);
+        pool_free(&tree_pool->pool, old_first_h);
     }
+}
+
+// (jd) NOTE: Should we always assume worst case of root containing all children
+// or pass in a capacity?
+internal TreeIterator
+tree_iter_begin(Arena *arena, TreePool *tree_pool, PoolHandle root)
+{
+    DOT_ASSERT(root.idx != 0);
+    u32 stack_capacity = tree_pool->pool.count;
+    TreeIterator it = {
+        .tree_pool = tree_pool,
+        .stack_capacity = stack_capacity,
+        .stack = PUSH_ARRAY_NO_ZERO(arena, PoolHandle, stack_capacity),
+        .stack_idx = 0,
+    };
+    it.stack[it.stack_idx++] = root;
+    return it;
+}
+
+internal PoolHandle
+tree_iter_next(TreeIterator *it)
+{
+    if(it->stack_idx == 0){
+        return(POOL_IT_END);
+    }
+    PoolHandle curr = it->stack[--it->stack_idx];
+    PoolHandle first = tree_get_first_child(it->tree_pool, curr);
+    if(first.idx == 0){
+        return(curr);
+    }
+    it->stack[it->stack_idx++] = first;
+    PoolHandle next = tree_get_next_sibling(it->tree_pool, first);
+    while (next.idx != first.idx) {
+        if (it->stack_idx >= it->stack_capacity) {
+          DOT_ERROR("Tree iterator capacity exceeded, either the iterator is "
+                    "too small or a node has been inserted more than once");
+          return(POOL_IT_END);
+        }
+        it->stack[it->stack_idx++] = next;
+        next = tree_get_next_sibling(it->tree_pool, next);
+    }
+    return(curr);
 }
