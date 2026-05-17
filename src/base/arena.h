@@ -16,19 +16,14 @@ enum
     ARENA_MIN_CAPACITY  = KB(16),
 };
 
-typedef enum ArenaKind{
-    ArenaKind_Null,
-    ArenaKind_FromOS,
-    ArenaKind_FromParent,
-    ArenaKind_FromBuffer,
-    ArenaKind_Count,
-}ArenaKind;
-
+typedef enum ArenaFlags{
+    ArenaFlags_OwnsMemory = DOT_BIT(0),
+    ArenaFlags_LargePages = DOT_BIT(1),
+    // ArenaFlags_ChainArena = DOT_BIT(2),
+}ArenaFlags;
 
 typedef struct Arena Arena;
 struct Arena{
-    Arena *parent; // Can be null, possible memory owner
-
     u64 used;
     u8 *base;
 
@@ -36,11 +31,12 @@ struct Arena{
     u64 committed;
     u64 commit_expand_size;
 
-    b32 large_pages;
-    ArenaKind kind;
+    ArenaFlags flags;
 
-    // Debug
+#if DOT_DEBUG
+    Arena *parent; // do we really need this?
     char *name;
+#endif
 };
 
 DOT_STATIC_ASSERT(sizeof(Arena) <= ARENA_HEADER_SIZE_B, "Keep cache line sized");

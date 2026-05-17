@@ -351,7 +351,7 @@ do { \
     abort(); \
 } while(0)
 
-#define DOT_ERROR(...) DOT_ERROR_IMPL(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error), __VA_ARGS__)
+#define DOT_ERROR(...)          DOT_ERROR_IMPL(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error), __VA_ARGS__)
 #define DOT_ERROR_FL(f, l, ...) DOT_ERROR_IMPL(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error, .file = (f), .line = (l)), __VA_ARGS__)
 #define DOT_TODO(msg) \
 do { \
@@ -359,13 +359,12 @@ do { \
     abort(); \
 } while(0)
 
-#ifndef NDEBUG
-
+#if DOT_DEBUG
 // --- Printing Macros ---
-#define DOT_PRINT(...) dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(), __VA_ARGS__)
-#define DOT_PRINT_FL(f, l, ...) dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.file = (f), .line = (l)), __VA_ARGS__)
-#define DOT_WARNING(...) dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Warning), __VA_ARGS__)
-#define DOT_WARNING_FL(f, l, ...) dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.file = (f), .line = (l), .print_debug_kind = DOT_LogLevelKind_Warning), __VA_ARGS__)
+#define DOT_PRINT(...)              dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(), __VA_ARGS__)
+#define DOT_PRINT_FL(f, l, ...)     dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.file = (f), .line = (l)), __VA_ARGS__)
+#define DOT_WARNING(...)            dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Warning), __VA_ARGS__)
+#define DOT_WARNING_FL(f, l, ...)   dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.file = (f), .line = (l), .print_debug_kind = DOT_LogLevelKind_Warning), __VA_ARGS__)
 
 // --- Assertion Macros ---
 // WARN: "##" allows us to not have and fmt but uses an extension
@@ -376,15 +375,15 @@ do { \
         DEBUG_BREAK; \
     } \
 } while(0)
-#define DOT_ASSERT(cond, ...) DOT_ASSERT_IMPL((cond), DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error), __VA_ARGS__)
-#define DOT_ASSERT_FL(cond, f, l, ...) DOT_ASSERT_IMPL((cond), DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error, .file = (f), .line = (l)), __VA_ARGS__)
+#define DOT_ASSERT(cond, ...)           DOT_ASSERT_IMPL((cond), DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error), __VA_ARGS__)
+#define DOT_ASSERT_FL(cond, f, l, ...)  DOT_ASSERT_IMPL((cond), DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error, .file = (f), .line = (l)), __VA_ARGS__)
 #else
 #define DOT_PRINT(...) ((void)0)
-#define DOT_PRINT_FL(f, l, ...) ((void)0)
+#define DOT_PRINT_FL(f, l, ...) do{((void)f); ((void)l);}while(0)
 #define DOT_WARNING(...) ((void)0)
-#define DOT_WARNING_FL(f, l, ...) ((void)0)
+#define DOT_WARNING_FL(f, l, ...) do{((void)f); ((void)l);}while(0)
 #define DOT_ASSERT(...) ((void)0)
-#define DOT_ASSERT_FL(...) ((void)0)
+#define DOT_ASSERT_FL(cond, f, l, ...) do{((void)f); ((void)l);}while(0)
 #endif
 
 ////////////////////////////////////////////////////////////////
@@ -492,7 +491,7 @@ do { \
 typedef struct String8 String8;
 void dot_debug_name_set(u32 capacity, char *ptr, String8 src);
 
-#ifdef DOT_DEBUG
+#if DOT_DEBUG
 #   define DOT_DEBUG_NAME_LEN 16
 #   define DOT_DEBUG_NAME(field, size) char field[size]
 #   define DOT_DEBUG_NAME_SET(buff, str8) dot_debug_name_set(sizeof(buff), buff, str8)
@@ -554,18 +553,18 @@ void dot_debug_name_set(u32 capacity, char *ptr, String8 src);
 
 #if DOT_COMPILER_MSVC
 #   pragma section(".CRT$XCU",read)
-#   define CONSTRUCTOR2_(fn, p) \
+#   define DOT_CONSTRUCTOR2_(fn, p) \
         __declspec(allocate(".CRT$XCU")) void (*fn##_)(void) = fn; \
         __pragma(comment(linker,"/include:" p #fn "_")) \
         static void fn(void)
 #   ifdef _WIN64
-        #define CONSTRUCTOR(fn) CONSTRUCTOR2_(fn,"")
+        #define DOT_CONSTRUCTOR(fn) CONSTRUCTOR2_(fn,"")
 #   else
-        #define CONSTRUCTOR(fn) CONSTRUCTOR2_(fn,"_")
+        #define DOT_CONSTRUCTOR(fn) CONSTRUCTOR2_(fn,"_")
 #   endif
 #else
-#   define CONSTRUCTOR(fn) \
-        __attribute__((constructor)) static void fn(void)
+#   define DOT_CONSTRUCTOR(fn) \
+        __attribute__((constructor)) static void fn
 #endif
 
 ////////////////////////////////////////////////////////////////

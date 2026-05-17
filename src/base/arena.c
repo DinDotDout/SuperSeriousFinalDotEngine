@@ -43,10 +43,11 @@ arena_create_from_memory(ArenaInitParams *params){
         .reserved           = params->reserve_size - diff,
         .committed          = params->reserve_size - diff,
         .commit_expand_size = params->commit_expand_size,
-        .large_pages        = params->large_pages,
-        .name               = params->name,
-        .parent             = params->parent,
-        .kind               = ArenaKind_FromBuffer,
+        .flags              = params->large_pages ? ArenaFlags_LargePages : 0,
+#if DOT_DEBUG
+        // .name               = params->name,
+        // .parent             = params->parent,
+#endif
     };
     ARENA_RESET(arena);
     return arena;
@@ -59,8 +60,6 @@ arena_create_from_arena(ArenaInitParams *params){
     params->buffer = PUSH_SIZE_NO_ZERO(params->parent, params->reserve_size);
     arena_print_debug(params->parent);
     Arena *arena = arena_create_from_memory(params);
-
-    arena->kind  = ArenaKind_FromParent;
     return arena;
 }
 
@@ -90,10 +89,12 @@ arena_create_from_os(ArenaInitParams *params){
         .reserved           = reserved,
         .committed          = initial_commit,
         .commit_expand_size = commit_expand_size,
-        .large_pages        = params->large_pages,
+        .flags              = ArenaFlags_OwnsMemory |
+            (params->large_pages ? ArenaFlags_LargePages : 0),
+#if DOT_DEBUG
         .name               = params->name,
         .parent             = params->parent,
-        .kind               = ArenaKind_FromOS,
+#endif
     };
     ARENA_RESET(arena);
     return arena;
@@ -113,12 +114,12 @@ arena_destroy(Arena *arena, char *file, u32 line){
     arena->used = 0;
     arena->reserved = 0;
     arena->commit_expand_size = 0;
-    if(arena->kind != ArenaKind_FromOS){
-        if(arena->parent){
-            DOT_WARNING_FL(file, line, "Trying to free sub-arena '%s' with parent '%s'!\nThis arena does not own the memory!", arena->name, arena->parent->name);
-        }else{
-            DOT_WARNING_FL(file, line, "Trying to free sub-arena '%s!\nThis arena does not own the memory!", arena->name, arena->parent->name);
-        }
+    if(!DOT_BITS_MATCH(arena->flags, ArenaFlags_OwnsMemory)){
+        DOT_WARNING_FL(file, line,
+            "Trying to free sub-arena '%s' with parent '%s'!\nThis "
+            "arena does not own the memory!",
+            arena->name,
+            arena->parent ? arena->parent->name : "no parent");
         return;
     }
     DOT_PRINT("Arena \"%s\": freed %M", arena->name, arena->reserved);
@@ -127,7 +128,6 @@ arena_destroy(Arena *arena, char *file, u32 line){
 
 internal u8*
 arena_push(Arena *arena, usize alloc_size, usize alignment, b32 zero, char *file, u32 line){
-    DOT_ASSERT(arena->kind != ArenaKind_Null);
     DOT_ASSERT_FL(alloc_size > 0, file, line);
     uptr arena_base = cast(uptr)arena->base;
     uptr current_address =  arena_base + arena->used;
@@ -148,19 +148,19 @@ arena_push(Arena *arena, usize alloc_size, usize alignment, b32 zero, char *file
         i64 needed_memory = arena->used - arena->committed;
         // need_zero -= needed_memory;
 
-        u64 page_size = arena->large_pages ? PLATFORM_LARGE_PAGE_SIZE : PLATFORM_REGULAR_PAGE_SIZE;
+        b32 large_pages = DOT_BITS_MATCH(arena->flags, ArenaFlags_LargePages);
+        u64 page_size = large_pages ? PLATFORM_LARGE_PAGE_SIZE : PLATFORM_REGULAR_PAGE_SIZE;
         usize need_aligned = ALIGN_POW2(needed_memory, page_size);
         usize commit_size  = MAX(arena->commit_expand_size, need_aligned);
         usize arena_leftover_memory = arena->reserved - arena->committed;
         if(commit_size > arena_leftover_memory) commit_size = need_aligned;
         if(DOT_UNLIKELY(commit_size > arena_leftover_memory)){
             arena_print_debug(arena);
-            DOT_ERROR_FL(file, line,
-                "Can't commit more memory on %s! total = %M, needed = %M; leftover = %M", arena->name, arena->reserved, commit_size, arena_leftover_memory);
+            DOT_WARNING_FL(file, line, "Can't commit more memory total = %M, needed = %M; leftover = %M", arena->reserved, commit_size, arena_leftover_memory);
             return NULL;
         }
         uptr commit_pos = arena_base + arena->committed;
-        if(arena->large_pages){
+        if(large_pages){
             os_commit_large((void*)commit_pos, commit_size);
         }else{
             os_commit((void*)commit_pos, commit_size);
@@ -183,21 +183,17 @@ arena_print_debug(Arena* arena){
         return;
     }
 
-    const u64 page_size = arena->large_pages
-        ? PLATFORM_LARGE_PAGE_SIZE
-        : PLATFORM_REGULAR_PAGE_SIZE;
+    b32 large_pages = DOT_BITS_MATCH(arena->flags, ArenaFlags_LargePages);
+    const u64 page_size = large_pages ? PLATFORM_LARGE_PAGE_SIZE : PLATFORM_REGULAR_PAGE_SIZE;
 
     const u64 committed_pages = arena->committed / page_size;
     const u64 reserved_pages  = arena->reserved / page_size;
-
     DOT_PRINT("Arena '%s'", arena->name ? arena->name : "<unnamed>");
-    if(arena->parent){
-        DOT_PRINT("  Arena parent: '%s'", arena->parent ? arena->parent->name : "no parent");
-    }
+    DOT_PRINT("  Arena parent: '%s'", arena->parent ? arena->parent->name : "no parent");
     DOT_PRINT("  Base:              %p", arena->base);
     DOT_PRINT("  Used:              %M", arena->used);
     DOT_PRINT("  Committed:         %M (%llu pages)", arena->committed, committed_pages);
     DOT_PRINT("  Reserved:          %M (%llu pages)", arena->reserved,  reserved_pages);
-    DOT_PRINT("  Page size:         %M (%s)", page_size, arena->large_pages ? "large pages" : "regular pages");
+    DOT_PRINT("  Page size:         %M (%s)", page_size, large_pages ? "large pages" : "regular pages");
     DOT_PRINT("  Commit expand:     %M\n", arena->commit_expand_size);
 }

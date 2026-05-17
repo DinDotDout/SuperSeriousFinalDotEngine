@@ -178,11 +178,12 @@ static CompilerConfig compiler_cfg[] = {
                 ),
             [OptimizationLevelKind_Release] =
                 ARG_LIST("-O2", "-g",
+                // "-Wno-unused-but-set-variable",
                 // "-fsanitize=address,undefined",
                 // "-fsanitize-recover=address,undefined",
             ),
             [OptimizationLevelKind_Final] =
-                ARG_LIST("-O3", "-DNDEBUG",),
+                ARG_LIST("-O3", "-DNDEBUG", "-Wno-unused-but-set-variable",),
         },
     },
     [CompilerKind_Msvc] = {
