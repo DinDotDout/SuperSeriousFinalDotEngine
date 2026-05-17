@@ -34,7 +34,7 @@ internal PoolHandle
 pool_alloc(Pool *p)
 {
     if(DOT_UNLIKELY(p->count >= p->capacity)){
-       DOT_WARNING("Pool capacity, exceeded, returning zero handle"); 
+       DOT_WARNING("Pool capacity, exceeded, returning zero handle");
        return(pool_get_null(p));
     }
     PoolHandle h = {.idx = p->idx_buffer[p->count]};

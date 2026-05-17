@@ -97,14 +97,24 @@ main(int argc, char *argv[])
 {
     DOT_Engine engine = {0};
     b8 tests_only = false;
+    b8 tests_list_only = false;
+    b8 any_arg = false;
     if(argc > 1){
         String8 arg1 = string8_from_cstring(argv[1]);
         String8 tests = String8Lit("-tests");
+        String8 tests_list = String8Lit("-tests_list");
         tests_only = string8_equal(arg1, tests);
+        tests_list_only = string8_equal(arg1, tests_list);
+        any_arg = tests_only || tests_list_only;
+
     }
-    dot_engine_init(&engine, tests_only);
+    dot_engine_init(&engine, any_arg);
     if(tests_only){
-        return tests_run();
+        return(dot_test_suites_run());
+    }
+    if(tests_list_only){
+        dot_test_suites_print();
+        return(0);
     }
     dot_engine_run(&engine);
     dot_engine_shutdown(&engine);

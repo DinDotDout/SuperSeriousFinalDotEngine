@@ -7,7 +7,7 @@
 #include "third_party/stb/stb_sprintf.h"
 #define DOT_INT_SKIP
 #include "base/dot.h"
-#include "base_tests.h"
+#include "base/test_suite.h"
 #include "base/platform.h"
 #include "base/arena.h"
 #include "base/string.h"

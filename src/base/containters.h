@@ -6,6 +6,7 @@
 typedef struct PoolHandle{
     u32 idx;
     // u32 gen;
+    // _Atomic u16 *refcount_buffer;
 }PoolHandle;
 
 #define POOL_NULL_HANDLE (PoolHandle){0}
@@ -111,7 +112,7 @@ internal PoolHandle     tree_iter_next(TreeIterator *it);
 
 #define EACH_TREE_NODE(h, it) (PoolHandle h; (h = tree_iter_next(&it), h.idx);) 
 
-REGISTER_TEST(pool_tests)
+DOT_TEST_SUITE(pool_tests)
 {
     DOT_TestResults test = {0};
     typedef struct Particle {
@@ -140,7 +141,6 @@ REGISTER_TEST(pool_tests)
     (void)p;
     POOL_ELEM_INIT(&pp, h2, p2_init);
     POOL_ELEM_INIT(&pp, h3, ((Particle){.x=7, .y=8, .z=9, .vx=0.7f, .vy=0.8f, .vz=0.9f, .alive=1}));
-
 
     DOT_TEST_CHECK(test, "POOL_GET", POOL_GET(&pp, h1)->vz == 0.3f);
     DOT_TEST_CHECK(test, "POOL_GET", POOL_GET(&pp, h2)->vx == 0.4f);
@@ -171,16 +171,16 @@ REGISTER_TEST(pool_tests)
     return test;
 }
 
-REGISTER_TEST(tree_tests)
+DOT_TEST_SUITE(tree_tests)
 {
     TempArena temp = threadctx_get_temp(0,0);
     DOT_TestResults test = {0};
-    typedef struct SceneNode {
+    typedef struct SceneNode{
         const char *name;
         float       local_xform[16];
         int         mesh_id;
         TreeHeader  node;
-    } SceneNode;
+    }SceneNode;
 
     Arena *arena = ARENA_CREATE();
 
