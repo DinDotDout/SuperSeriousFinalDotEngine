@@ -8,7 +8,6 @@ typedef struct PoolHandle{
     // u32 gen;
     // _Atomic u16 *refcount_buffer;
 }PoolHandle;
-
 #define POOL_NULL_HANDLE (PoolHandle){0}
 
 internal inline u64
@@ -39,6 +38,8 @@ pool_handle_unpack(u64 pack)
 typedef struct Pool{
     u8  *raw_buffer; // elem_size * capacity
     u32 *idx_buffer; // count; maps handle -> raw_buffer index
+    // u32  head; // Make it a ring buffer when adding refcount to spread usage
+    // u32  tail;
     // _Atomic u16 *refcount_buffer;
     // _Atomic u16 *gen_buffer;
     u32  count;
@@ -50,17 +51,17 @@ internal void       pool_init(Arena *arena, Pool *p, u32 capacity, u32 elem_size
 internal PoolHandle pool_alloc(Pool *p);
 internal void       pool_free(Pool *p, PoolHandle h);
 internal void      *pool_get(Pool *p, PoolHandle h);
-internal PoolHandle pool_get_null(Pool *p);
+internal PoolHandle pool_null_handle_get(Pool *p);
 
 // (jd) The ref deref crazyness is just there to preserve the syntax of how you would call the functions
 #define POOL(T) struct{Pool pool; T *last_accessed;}
-#define POOL_INIT(arena, tp, capacity)  pool_init((arena), &(tp)->pool, (capacity), sizeof(*(tp)->last_accessed), ALIGNOF(*(tp)->last_accessed))
+#define POOL_INIT(arena, tp, capacity)  pool_init((arena), &(tp)->pool, (capacity), sizeof(*(tp)->last_accessed), DOT_ALIGNOF(*(tp)->last_accessed))
 #define POOL_ALLOC(tp)                  pool_alloc(&(tp)->pool)
 #define POOL_GET(tp, handle)            ((tp)->last_accessed = pool_get(&(tp)->pool, (handle)))
 #define POOL_ELEM_INIT(tp, handle, ...) ((tp)->last_accessed = pool_get(&(tp)->pool, (handle)), (*(tp)->last_accessed) = __VA_ARGS__, (tp)->last_accessed)
 #define POOL_REF_COPY(tp, handle)       pool_ref_copy(&(tp)->pool, (handle))
 #define POOL_FREE(tp, handle)           pool_free(&(tp)->pool, (handle))
-#define POOL_GET_NULL(tp)               pool_get_null(&(tp)->pool)
+#define POOL_NULL_HANDLE_GET(tp)               pool_null_handle_get(&(tp)->pool)
 #define POOL_IT_END POOL_NULL_HANDLE
 
 ////////////////////////////////////////////////////////////////
@@ -85,7 +86,7 @@ typedef struct TreeIterator{
     PoolHandle  *stack;
     u32          stack_idx;
     u32          stack_capacity;
-} TreeIterator;
+}TreeIterator;
 
 // internal u8 *tree_push_front(Pool *p, TreeHeader *header, u32 elem_size, u32 header_offset);
 internal PoolHandle     tree_init(Arena *arena, TreePool *tp, u32 capacity, u32 elem_size, u32 alignment, u32 offsetoff_header);
@@ -95,13 +96,13 @@ internal void           tree_pop_front(TreePool *tp, PoolHandle parent_h);
 
 // (jd) NOTE: We could define a iteration methods if needed and specify in on iter begin
 // Right to left, depth first, preorder
-internal TreeIterator   tree_iter_begin(Arena *arena, TreePool *tree_pool, PoolHandle root);
+internal TreeIterator   tree_iter_begin(Arena *arena, TreePool *tree_pool, PoolHandle start);
 internal PoolHandle     tree_iter_next(TreeIterator *it);
 
 // In case we already have a node and need a different name, we can specify it in TREE_INIT_NAME
-#define TREE_INIT_NAME(arena, ttp, T, field_name, capacity) tree_init((arena), &((ttp)->tree_pool), (capacity), sizeof(*((ttp)->last_accessed)), ALIGNOF(*((ttp)->last_accessed)), DOT_OFFSETOF(T, field_name))
+#define TREE_INIT_NAME(arena, ttp, T, field_name, capacity) tree_init((arena), &((ttp)->tree_pool), (capacity), sizeof(*((ttp)->last_accessed)), DOT_ALIGNOF(*((ttp)->last_accessed)), DOT_OFFSETOF(T, field_name))
 #define TREE_POOL(T) struct{TreePool tree_pool; T *last_accessed;}
-#define TREE_INIT(arena, ttp, T, capacity)  tree_init((arena), &((ttp)->tree_pool), (capacity), sizeof(*((ttp)->last_accessed)), ALIGNOF(*((ttp)->last_accessed)), DOT_OFFSETOF(T, node))
+#define TREE_INIT(arena, T, ttp, capacity)  tree_init((arena), &((ttp)->tree_pool), (capacity), sizeof(*((ttp)->last_accessed)), DOT_ALIGNOF(*((ttp)->last_accessed)), DOT_OFFSETOF(T, node))
 #define TREE_PUSH_FRONT(ttp, parent, new)   tree_push_front(&((ttp)->tree_pool), parent, new)
 #define TREE_PUSH_FRONT_NEW(ttp, parent)    tree_push_front_new(&((ttp)->tree_pool), parent)
 #define TREE_POP_FRONT(ttp, parent)         tree_pop_front(&((ttp)->tree_pool), parent)
@@ -109,8 +110,10 @@ internal PoolHandle     tree_iter_next(TreeIterator *it);
 // (jd) WARN: Dot not edit by doing *TREE_GET(tp, h) = {0}
 // It will kill the intrusive data
 #define TREE_GET(ttp, h)                    ((ttp)->last_accessed = pool_get(&((ttp)->tree_pool.pool), h))
+#define TREE_GET_ROOT(ttp)                  ((ttp)->last_accessed = pool_get(&((ttp)->tree_pool.pool), ((ttp)->tree_pool.tree_root)))
 
-#define EACH_TREE_NODE(h, it) (PoolHandle h; (h = tree_iter_next(&it), h.idx);) 
+#define TREE_ITER_BEGIN(a, ttp, node) tree_iter_begin(a, &(ttp)->tree_pool, node)
+#define EACH_TREE_NODE(h, it) (PoolHandle h; (h = tree_iter_next(it), h.idx);) 
 
 DOT_TEST_SUITE(pool_tests)
 {
@@ -185,7 +188,7 @@ DOT_TEST_SUITE(tree_tests)
     Arena *arena = ARENA_CREATE();
 
     TREE_POOL(SceneNode) tp;
-    PoolHandle root = TREE_INIT(arena, &tp, SceneNode, 32);
+    PoolHandle root = TREE_INIT(arena, SceneNode, &tp, 32);
     SceneNode *root_n = TREE_GET(&tp, root);
     root_n->name = "Root";
     root_n->mesh_id = -1;
@@ -220,7 +223,7 @@ DOT_TEST_SUITE(tree_tests)
     const char *seen[16] = {0};
     int count = 0;
 
-    for EACH_TREE_NODE(h, it){
+    for EACH_TREE_NODE(h, &it){
         seen[count++] = TREE_GET(&tp, h)->name;
     }
     temp_arena_restore(temp);
@@ -246,7 +249,7 @@ DOT_TEST_SUITE(tree_tests)
     it = tree_iter_begin(temp.arena, &tp.tree_pool, root);
     count = 0;
     MEMORY_ZERO_ARRAY(seen);
-    for EACH_TREE_NODE(h, it){
+    for EACH_TREE_NODE(h, &it){
         seen[count++] = TREE_GET(&tp, h)->name;
     }
     temp_arena_restore(temp);
@@ -256,7 +259,7 @@ DOT_TEST_SUITE(tree_tests)
     it = tree_iter_begin(temp.arena, &tp.tree_pool, root);
     count = 0;
     MEMORY_ZERO_ARRAY(seen);
-    for EACH_TREE_NODE(h, it){
+    for EACH_TREE_NODE(h, &it){
         seen[count++] = TREE_GET(&tp, h)->name;
     }
     temp_arena_restore(temp);

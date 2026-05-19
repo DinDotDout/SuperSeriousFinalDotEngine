@@ -396,23 +396,23 @@ do { \
 //
 // B size utils
 
-#define KB(x) ((x) * (u64)1024)
-#define MB(x) ((KB(x)) * (u64)1024)
-#define GB(x) ((MB(x)) * (u64)1024)
+#define DOT_KB(x) ((x) * (u64)1024)
+#define DOT_MB(x) ((DOT_KB(x)) * (u64)1024)
+#define DOT_GB(x) ((DOT_MB(x)) * (u64)1024)
 
 ////////////////////////////////////////////////////////////////
 //
 // MATH
 
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-#define MAX3(a, b, c) (MAX(MAX(a,b), c))
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
-#define MIN3(a, b, c) (MIN(MIN(a,b), c))
+#define DOT_MAX(a, b) ((a) > (b) ? (a) : (b))
+#define DOT_MAX3(a, b, c) (DOT_MAX(DOT_MAX(a,b), c))
+#define DOT_MIN(a, b) ((a) < (b) ? (a) : (b))
+#define DOT_MIN3(a, b, c) (DOT_MIN(DOT_MIN(a,b), c))
 
-#define CLAMP(x, bot, top) (((x) < (bot)) ? (bot) : ((x) > (top)) ? (top) : (x))
-#define CLAMP01(x) (CLAMP((x),0,1))
+#define DOT_CLAMP(x, bot, top) (((x) < (bot)) ? (bot) : ((x) > (top)) ? (top) : (x))
+#define DOT_CLAMP01(x) (DOT_CLAMP((x),0,1))
 
-#define ABS(x) ((x) < 0 ? -(x) : (x))
+#define DOT_ABS(x) ((x) < 0 ? -(x) : (x))
 
 ////////////////////////////////////////////////////////////////
 //
@@ -422,8 +422,8 @@ do { \
 #   define DOT_LIKELY(x) __builtin_expect(!!(x), 1)
 #   define DOT_UNLIKELY(x) __builtin_expect(!!(x), 0)
 #else
-#   define Dot_Likely(x) (x)
-#   define Dot_Unlikely(x) (x)
+#   define DOT_LIKELY(x) (x)
+#   define DOT_UNLIKELY(x) (x)
 #endif
 
 
@@ -432,11 +432,11 @@ do { \
 // Memory
 
 #if DOT_COMPILER_MSVC
-#   define ALIGNOF(T) __alignof(T)
+#   define DOT_ALIGNOF(T) __alignof(T)
 #elif DOT_COMPILER_CLANG
-#   define ALIGNOF(T) __alignof__(T)
+#   define DOT_ALIGNOF(T) __alignof__(T)
 #elif DOT_COMPILER_GCC
-#   define ALIGNOF(T) __alignof__(T)
+#   define DOT_ALIGNOF(T) __alignof__(T)
 #else
 #   error alignof not defined for this compiler.
 #endif
@@ -459,7 +459,6 @@ do { \
 #ifndef DOT_SWAP
 #define DOT_SWAP(Type, a, b) do { Type tmp = (a); (a) = (b); (b) = tmp; } while (0)
 #endif
-
 #define ALIGN_POW2(x, align)        (((x) + (align) - 1) & (~((align) - 1)))
 #define ALIGN_DOWN_POW2(x, align)   ((x) & ~((align) - 1))
 #define IS_POW2(x)                  (((x) & ((x) - 1)) == 0)

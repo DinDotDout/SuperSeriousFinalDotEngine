@@ -13,7 +13,7 @@ enum
     ARENA_HEADER_SIZE_B = PLATFORM_CACHE_LINE_SIZE,
 
     ARENA_MAX_ALIGNMENT = 8,
-    ARENA_MIN_CAPACITY  = KB(16),
+    ARENA_MIN_CAPACITY  = DOT_KB(16),
 };
 
 typedef enum ArenaFlags{
@@ -84,26 +84,14 @@ internal void   arena_print_debug(Arena *arena);
 #define ARENA_RESET(arena)      arena_reset(arena, __FILE__, __LINE__)
 #define ARENA_DESTROY(arena)    arena_destroy(arena, __FILE__, __LINE__)
 
-#define ARENA_PUSH(arena, size, alignment, zero) \
-    arena_push((arena), (size), (alignment), (zero), __FILE__, __LINE__)
+#define ARENA_PUSH(arena, size, alignment, zero) arena_push((arena), (size), (alignment), (zero), __FILE__, __LINE__)
+#define PUSH_SIZE_NO_ZERO(arena, size)      ARENA_PUSH(arena, (size), ARENA_MAX_ALIGNMENT, false)
+#define PUSH_SIZE(arena, size)              ARENA_PUSH(arena, size, ARENA_MAX_ALIGNMENT, true)
 
-#define PUSH_SIZE_NO_ZERO(arena, size) \
-    ARENA_PUSH(arena, (size), ARENA_MAX_ALIGNMENT, false)
-
-#define PUSH_SIZE(arena, size) \
-    ARENA_PUSH(arena, size, ARENA_MAX_ALIGNMENT, true)
-
-#define PUSH_ARRAY_ALIGNED(arena, T, count, alignment) \
-    (T*)ARENA_PUSH(arena, sizeof(T) * (count), (alignment), true)
-
-#define PUSH_ARRAY_NO_ZERO_ALIGNED(arena, T, count, alignment) \
-    (T*)ARENA_PUSH(arena, sizeof(T) * (count), (alignment), false)
-
-#define PUSH_ARRAY(arena, T, count) \
-    (T*)ARENA_PUSH(arena, sizeof(T) * (count), MAX(ARENA_MAX_ALIGNMENT, ALIGNOF(T)), true)
-
-#define PUSH_ARRAY_NO_ZERO(arena, T, count) \
-   (T*)ARENA_PUSH(arena, sizeof(T) * (count), MAX(ARENA_MAX_ALIGNMENT, ALIGNOF(T)), false)
+#define PUSH_ARRAY_ALIGNED(arena, T, count, alignment)          (T*)ARENA_PUSH(arena, sizeof(T) * (count), (alignment), true)
+#define PUSH_ARRAY_NO_ZERO_ALIGNED(arena, T, count, alignment)  (T*)ARENA_PUSH(arena, sizeof(T) * (count), (alignment), false)
+#define PUSH_ARRAY(arena, T, count)                             (T*)ARENA_PUSH(arena, sizeof(T) * (count), DOT_MAX(ARENA_MAX_ALIGNMENT, DOT_ALIGNOF(T)), true)
+#define PUSH_ARRAY_NO_ZERO(arena, T, count)                     (T*)ARENA_PUSH(arena, sizeof(T) * (count), DOT_MAX(ARENA_MAX_ALIGNMENT, DOT_ALIGNOF(T)), false)
 
 #define PUSH_STRUCT(arena, T) (T*)PUSH_ARRAY(arena, T, 1)
 
@@ -132,11 +120,11 @@ test_basic_allocation_fn(void)
 {
     DOT_TestResults test = {0};
 
-    Arena *arena = ARENA_CREATE(.reserve_size = MB(4), .commit_size = KB(64));
+    Arena *arena = ARENA_CREATE(.reserve_size = DOT_MB(4), .commit_size = DOT_KB(64));
 
     DOT_TEST_CHECK(test, "Arena created", arena != NULL);
-    DOT_TEST_CHECK(test, "Reserve size", arena->reserved >= MB(4));
-    DOT_TEST_CHECK(test, "Commit size", arena->committed >= KB(64));
+    DOT_TEST_CHECK(test, "Reserve size", arena->reserved >= DOT_MB(4));
+    DOT_TEST_CHECK(test, "Commit size", arena->committed >= DOT_KB(64));
     DOT_TEST_CHECK(test, "Initial used", arena->used == sizeof(Arena));
 
     ARENA_DESTROY(arena);
@@ -148,7 +136,7 @@ test_alignment_fn(void)
 {
     DOT_TestResults test = {0};
 
-    Arena *arena = ARENA_CREATE(.reserve_size = MB(2), .commit_size = KB(64));
+    Arena *arena = ARENA_CREATE(.reserve_size = DOT_MB(2), .commit_size = DOT_KB(64));
 
     u8 *p1 = PUSH_ARRAY_ALIGNED(arena, u8, 32, 8);
     DOT_TEST_CHECK(test, "Align 8", ((uintptr_t)p1 % 8) == 0);
@@ -165,11 +153,11 @@ test_out_of_bounds_fn(void)
 {
     DOT_TestResults test = {0};
 
-    Arena *arena = ARENA_CREATE(.reserve_size = MB(1), .commit_size = KB(64));
+    Arena *arena = ARENA_CREATE(.reserve_size = DOT_MB(1), .commit_size = DOT_KB(64));
 
-    PUSH_ARRAY(arena, u8, MB(1) - sizeof(Arena) - 128);
+    PUSH_ARRAY(arena, u8, DOT_MB(1) - sizeof(Arena) - 128);
 
-    void *p = PUSH_ARRAY_NO_ZERO(arena, u8, KB(256));
+    void *p = PUSH_ARRAY_NO_ZERO(arena, u8, DOT_KB(256));
     DOT_TEST_CHECK(test, "Out-of-bounds returns NULL", p == NULL);
 
     ARENA_DESTROY(arena);
@@ -181,7 +169,7 @@ test_reset_fn(void)
 {
     DOT_TestResults test = {0};
 
-    Arena *arena = ARENA_CREATE(.reserve_size = MB(2), .commit_size = KB(64));
+    Arena *arena = ARENA_CREATE(.reserve_size = DOT_MB(2), .commit_size = DOT_KB(64));
 
     PUSH_ARRAY(arena, u8, 128);
     DOT_TEST_CHECK(test, "Used > sizeof(Arena)", arena->used > sizeof(Arena));
@@ -189,8 +177,8 @@ test_reset_fn(void)
     ARENA_RESET(arena);
 
     DOT_TEST_CHECK(test, "Used reset", arena->used == 0);
-    DOT_TEST_CHECK(test, "Reserve preserved", arena->reserved >= MB(2));
-    DOT_TEST_CHECK(test, "Commit preserved", arena->committed >= KB(64));
+    DOT_TEST_CHECK(test, "Reserve preserved", arena->reserved >= DOT_MB(2));
+    DOT_TEST_CHECK(test, "Commit preserved", arena->committed >= DOT_KB(64));
 
     ARENA_DESTROY(arena);
     return test;
@@ -202,8 +190,8 @@ test_large_pages_fn(void)
     DOT_TestResults test = {0};
 
     Arena *arena = ARENA_CREATE(
-        .reserve_size = MB(32),
-        .commit_size = MB(2),
+        .reserve_size = DOT_MB(32),
+        .commit_size = DOT_MB(2),
         .large_pages = true
     );
 
@@ -220,7 +208,7 @@ test_padding_behavior_fn(void)
 {
     DOT_TestResults test = {0};
 
-    Arena *arena = ARENA_CREATE(.reserve_size = MB(1), .commit_size = KB(64));
+    Arena *arena = ARENA_CREATE(.reserve_size = DOT_MB(1), .commit_size = DOT_KB(64));
 
     u64 before = arena->used;
     u8 *p = PUSH_ARRAY_ALIGNED(arena, u8, 16, 64);
@@ -238,9 +226,9 @@ NO_ASAN internal inline void
 test_page_fault_progression()
 {
     Arena *arena = ARENA_CREATE(
-        .reserve_size = MB(300),
-        .commit_size = MB(200),
-        // .commit_expand_size = MB(100),
+        .reserve_size = DOT_MB(300),
+        .commit_size = DOT_MB(200),
+        // .commit_expand_size = DOT_MB(100),
         // .large_pages = true,
     );
 
@@ -270,7 +258,7 @@ test_page_fault_progression()
             // flush no‑fault run before printing the fault
             if (nofault_count > 0) {
                 DOT_PRINT(
-                    "No‑fault run: %lu KB (%lu pages) from page %lu to %lu",
+                    "No‑fault run: %lu DOT_KB (%lu pages) from page %lu to %lu",
                     nofault_count * (PLATFORM_REGULAR_PAGE_SIZE / 1024),
                     nofault_count,
                     nofault_start,
@@ -291,7 +279,7 @@ test_page_fault_progression()
     // flush trailing no‑fault run
     if (nofault_count > 0) {
         DOT_PRINT(
-            "No‑fault run: %lu KB (%lu pages) from page %lu to %lu\n",
+            "No‑fault run: %lu DOT_KB (%lu pages) from page %lu to %lu\n",
             nofault_count * (PLATFORM_REGULAR_PAGE_SIZE / 1024),
             nofault_count,
             nofault_start,

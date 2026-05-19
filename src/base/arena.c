@@ -35,7 +35,7 @@ arena_create_from_memory(ArenaInitParams *params){
 
     DOT_ASSERT_FL(params->buffer != NULL, params->reserve_file, params->reserve_line, "Invalid memory provided");
     uptr base = cast(uptr)params->buffer;
-    uptr align = ALIGN_POW2(base, ALIGNOF(Arena));
+    uptr align = ALIGN_POW2(base, DOT_ALIGNOF(Arena));
     iptr diff = align - base;
     Arena *arena = cast(Arena*)align;
     *arena = (Arena){
@@ -45,8 +45,8 @@ arena_create_from_memory(ArenaInitParams *params){
         .commit_expand_size = params->commit_expand_size,
         .flags              = params->large_pages ? ArenaFlags_LargePages : 0,
 #if DOT_DEBUG
-        // .name               = params->name,
-        // .parent             = params->parent,
+        .name               = params->name,
+        .parent             = params->parent,
 #endif
     };
     ARENA_RESET(arena);
@@ -56,10 +56,12 @@ arena_create_from_memory(ArenaInitParams *params){
 internal Arena*
 arena_create_from_arena(ArenaInitParams *params){
     DOT_ASSERT_FL(params->parent != NULL, params->reserve_file, params->reserve_line, "Invalid memory provided");
-    DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Allocating arena from parent");
-    params->buffer = PUSH_SIZE_NO_ZERO(params->parent, params->reserve_size);
+    DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Allocating arena from parent:");
     arena_print_debug(params->parent);
+    params->buffer = PUSH_SIZE_NO_ZERO(params->parent, params->reserve_size);
     Arena *arena = arena_create_from_memory(params);
+    printf("\n");
+    printf("\n");
     return arena;
 }
 
@@ -72,9 +74,9 @@ arena_create_from_os(ArenaInitParams *params){
     u64 page_size = params->large_pages ? PLATFORM_LARGE_PAGE_SIZE : PLATFORM_REGULAR_PAGE_SIZE;
 
     u64 reserved           = ALIGN_POW2(params->reserve_size, page_size);
-    u64 initial_commit     = ALIGN_POW2(MAX(params->commit_size, page_size), page_size);
-    u64 commit_expand_size = ALIGN_POW2(MAX(params->commit_expand_size, page_size), page_size);
-    initial_commit         = MIN(initial_commit, reserved);
+    u64 initial_commit     = ALIGN_POW2(DOT_MAX(params->commit_size, page_size), page_size);
+    u64 commit_expand_size = ALIGN_POW2(DOT_MAX(params->commit_expand_size, page_size), page_size);
+    initial_commit         = DOT_MIN(initial_commit, reserved);
 
     void *memory = os_reserve(reserved);
     if(params->large_pages){
@@ -123,7 +125,7 @@ arena_destroy(Arena *arena, char *file, u32 line){
         return;
     }
     DOT_PRINT("Arena \"%s\": freed %M", arena->name, arena->reserved);
-    os_release(cast(void*)base, reserved);
+    os_release(base, reserved);
 }
 
 internal u8*
@@ -151,12 +153,12 @@ arena_push(Arena *arena, usize alloc_size, usize alignment, b32 zero, char *file
         b32 large_pages = DOT_BITS_MATCH(arena->flags, ArenaFlags_LargePages);
         u64 page_size = large_pages ? PLATFORM_LARGE_PAGE_SIZE : PLATFORM_REGULAR_PAGE_SIZE;
         usize need_aligned = ALIGN_POW2(needed_memory, page_size);
-        usize commit_size  = MAX(arena->commit_expand_size, need_aligned);
+        usize commit_size  = DOT_MAX(arena->commit_expand_size, need_aligned);
         usize arena_leftover_memory = arena->reserved - arena->committed;
         if(commit_size > arena_leftover_memory) commit_size = need_aligned;
         if(DOT_UNLIKELY(commit_size > arena_leftover_memory)){
             arena_print_debug(arena);
-            DOT_WARNING_FL(file, line, "Can't commit more memory total = %M, needed = %M; leftover = %M", arena->reserved, commit_size, arena_leftover_memory);
+            DOT_ERROR_FL(file, line, "Can't commit more memory total = %M, needed = %M; leftover = %M", arena->reserved, commit_size, arena_leftover_memory);
             return NULL;
         }
         uptr commit_pos = arena_base + arena->committed;
@@ -176,11 +178,46 @@ arena_push(Arena *arena, usize alloc_size, usize alignment, b32 zero, char *file
     return mem_offset;
 }
 
+internal String8
+arena_to_string(Arena *arena)
+{
+    String8 str = String8Lit("");
+    if(!arena){
+        str = string8_format(arena, "Arena: <null>\n");
+        return str;
+    }
+
+    b32 large_pages = DOT_BITS_MATCH(arena->flags, ArenaFlags_LargePages);
+    const u64 page_size = large_pages ? PLATFORM_LARGE_PAGE_SIZE : PLATFORM_REGULAR_PAGE_SIZE;
+
+    const u64 committed_pages = arena->committed / page_size;
+    const u64 reserved_pages  = arena->reserved / page_size;
+    str = string8_format(arena, 
+        "Arena '%s'\n "
+        "  Arena parent: '%s'\n"
+        "  Base:              %p\n"
+        "  Used:              %M\n"
+        "  Committed:         %M (%llu pages)\n"
+        "  Reserved:          %M (%llu pages)\n"
+        "  Page size:         %M (%s)\n"
+        "  Commit expand:     %M\n",
+        arena->name ? arena->name : "<unnamed>",
+        arena->parent ? arena->parent->name : "no parent",
+        arena->base,
+        arena->used,
+        arena->committed, committed_pages,
+        reserved_pages, arena->reserved,
+        page_size, large_pages ? "large pages" : "regular pages",
+        arena->commit_expand_size
+    );
+    return str;
+}
+
 internal void
-arena_print_debug(Arena* arena){
+arena_print_debug(Arena* arena)
+{
     if(!arena){
         DOT_PRINT("Arena: <null>\n");
-        return;
     }
 
     b32 large_pages = DOT_BITS_MATCH(arena->flags, ArenaFlags_LargePages);

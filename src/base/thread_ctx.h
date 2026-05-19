@@ -9,10 +9,10 @@ typedef struct ThreadCtxOptions{
 internal thread_local struct ThreadCtx{
     u8      thread_id;
     u8      temp_arena_count;
-    Arena** temp_arenas;
+    Arena **temp_arenas;
 }thread_ctx = {0};
 
-internal void threadctx_init(const ThreadCtxOptions* thread_ctx_opts, u8 thread_id);
+internal void threadctx_init(Arena *arena, const ThreadCtxOptions *thread_ctx_opts, u8 thread_id);
 internal void threadctx_destroy();
 
 #define AVOID_LIST(...) ARRAY_PARAM(Arena*, __VA_ARGS__)

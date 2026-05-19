@@ -3,11 +3,11 @@
 internal void
 dot_engine_init(DOT_Engine *engine, b8 tests_only)
 {
-    threadctx_init(DOT_ENGINE_CONFIG.thread_options, 0); // NOTE: Should make entry points per thread
+    engine->permanent_arena = ARENA_CREATE(.reserve_size = DOT_ENGINE_CONFIG.engine_memory_size, .name = "DOT_Engine Arena");
+    threadctx_init(engine->permanent_arena, DOT_ENGINE_CONFIG.thread_options, 0); // NOTE: Should make entry points per thread
     if(tests_only){
         return;
     }
-    engine->permanent_arena = ARENA_CREATE(.reserve_size = DOT_ENGINE_CONFIG.engine_memory_size, .name = "DOT_Engine Arena");
     plugins_init();
     dot_window_init(&engine->window);
     RendererConfig *renderer_config = DOT_ENGINE_CONFIG.renderer_config;

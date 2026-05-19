@@ -22,7 +22,7 @@ internal void renderer_backend_null_end_frame() { }
 internal void renderer_backend_null_clear_bg() { }
 internal void renderer_backend_null_shader_unload(DOT_ShaderModuleHandle sm) { }
 internal void renderer_backend_null_resource_cleanup_list_push(void){}
-internal void renderer_backend_null_resource_cleanup_list_pop_at(u32 idx){}
+internal void renderer_backend_null_resource_cleanup_list_pop_at(PoolHandle idx){}
 internal void renderer_backend_null_resource_cleanup_list_pop_last(void){}
 
 internal DOT_TextureHandle

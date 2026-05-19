@@ -325,8 +325,8 @@ vk_helper_physical_device_swapchain_support(
         VkExtent2D surface_extent = surface_capabilities.currentExtent;
         if(surface_extent.width == U32_MAX){ // Should we just do this outside this func?
             DOT_Extent2D e = dot_window_get_framebuffer_size(window);
-            surface_extent.width = CLAMP(cast(u32)e.x, surface_capabilities.minImageExtent.width, surface_capabilities.maxImageExtent.width);
-            surface_extent.height = CLAMP(cast(u32)e.y, surface_capabilities.minImageExtent.height, surface_capabilities.maxImageExtent.height);
+            surface_extent.width = DOT_CLAMP(cast(u32)e.x, surface_capabilities.minImageExtent.width, surface_capabilities.maxImageExtent.width);
+            surface_extent.height = DOT_CLAMP(cast(u32)e.y, surface_capabilities.minImageExtent.height, surface_capabilities.maxImageExtent.height);
         }
 
         VkFormat         preferred_format       = render_settings->swapchain.preferred_format;
@@ -484,6 +484,39 @@ internal VkExtent2D
 vk_helper_extent2d_from_extent3d(VkExtent3D extent3d)
 {
     return (VkExtent2D){extent3d.width, extent3d.height};
+}
+
+internal void
+vk_helper_rbvk_texture_transition(
+    VkCommandBuffer cmd,
+    RBVK_Texture *tex,
+    VkImageLayout new_layout)
+{
+    VkImageAspectFlags aspect_mask = (new_layout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL)
+    	? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+    VkDependencyInfo dep_info = {
+        .sType                   = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+        .imageMemoryBarrierCount = 1,
+        .pImageMemoryBarriers = &(VkImageMemoryBarrier2){
+            .sType            = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+            .srcStageMask     = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+            .srcAccessMask    = VK_ACCESS_2_MEMORY_WRITE_BIT,
+            .dstStageMask     = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+            .dstAccessMask    = VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT,
+            .oldLayout        = tex->vk_image_layout,
+            .newLayout        = new_layout,
+            .image            = tex->vk_image,
+            .subresourceRange = (VkImageSubresourceRange){
+                .aspectMask = aspect_mask,
+                .baseMipLevel = 0,
+                .levelCount = VK_REMAINING_MIP_LEVELS, // 1 ?
+                .baseArrayLayer = 0,
+                .layerCount = VK_REMAINING_ARRAY_LAYERS, // 1 ?
+            }
+        } ,
+    };
+    tex->vk_image_layout = new_layout;
+    vkCmdPipelineBarrier2(cmd, &dep_info);
 }
 
 internal void

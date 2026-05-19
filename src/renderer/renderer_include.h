@@ -2,6 +2,8 @@
 #define RENDERER_INCLUDE_H
 
 #include "shader.h"
+
+#include "render_types.h"
 #include "renderer.h"
 
 #include "renderer_backend_null.h"
@@ -14,5 +16,7 @@
 
 #include "shader.c"
 #include "renderer.c"
+#include "render_types.c"
+
 #include "nk_dot_window.h"
 #endif // !RENDERER_INCLUDE_H

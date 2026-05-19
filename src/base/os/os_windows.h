@@ -7,8 +7,8 @@
 // NOTE: Windows reserve size is 64kb even though commit size is 4
 enum
 {
-    PLATFORM_REGULAR_PAGE_SIZE = KB(64),
-    PLATFORM_LARGE_PAGE_SIZE = MB(2),
+    PLATFORM_REGULAR_PAGE_SIZE = DOT_KB(64),
+    PLATFORM_LARGE_PAGE_SIZE = DOT_MB(2),
     PLATFORM_CACHE_LINE_SIZE = 64,
 };
 

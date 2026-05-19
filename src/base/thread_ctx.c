@@ -1,5 +1,5 @@
 internal void
-threadctx_init(const ThreadCtxOptions* thread_ctx_opts, u8 thread_id)
+threadctx_init(Arena *arena, const ThreadCtxOptions *thread_ctx_opts, u8 thread_id)
 {
     DOT_ASSERT(thread_ctx_opts);
     if(thread_ctx_opts->per_thread_temp_arena_count < 2){
@@ -11,11 +11,11 @@ threadctx_init(const ThreadCtxOptions* thread_ctx_opts, u8 thread_id)
 
     // NOTE: Storing space for the actual arena backing + extra page for arena metadata
     u64 total_memory = thread_ctx_opts->per_thread_temp_arena_size * temp_arena_count
-        + MAX(sizeof(Arena) * temp_arena_count, PLATFORM_REGULAR_PAGE_SIZE);
+        + DOT_MAX(sizeof(Arena) * temp_arena_count, PLATFORM_REGULAR_PAGE_SIZE);
 
     u64 per_arena_memory = thread_ctx_opts->per_thread_temp_arena_size;
 
-    Arena *main_arena = ARENA_CREATE(.reserve_size = total_memory, .name = "Thread Arena");
+    Arena *main_arena = ARENA_CREATE(.parent = arena, .reserve_size = total_memory, .name = "Thread Arena");
     thread_ctx.thread_id        = thread_id;
     thread_ctx.temp_arena_count = temp_arena_count;
     thread_ctx.temp_arenas      = PUSH_ARRAY(main_arena, Arena*, temp_arena_count);
@@ -32,13 +32,10 @@ threadctx_init(const ThreadCtxOptions* thread_ctx_opts, u8 thread_id)
 internal void
 threadctx_shutdown()
 {
-    Arena* main_arena = thread_ctx.temp_arenas[0]->parent;
     for(u8 i = 0; i < thread_ctx.temp_arena_count; ++i){
         arena_print_debug(thread_ctx.temp_arenas[i]);
     }
-    ARENA_DESTROY(main_arena);
 }
-
 
 internal TempArena
 threadctx_get_temp(Arena *avoid[], u32 avoid_count)

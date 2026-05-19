@@ -13,6 +13,7 @@ raw_buffer_get(u8 raw_buffer[], i32 elem_idx, u32 elem_size)
 internal void*
 pool_get(Pool *p, PoolHandle h)
 {
+    DOT_ASSERT(p->capacity > 0, "Uninitialized pool");
     DOT_ASSERT(h.idx < p->capacity, "Invalid pool handle");
     void *elem = raw_buffer_get(p->raw_buffer, h.idx, p->elem_size);
     if(h.idx == 0){
@@ -22,8 +23,9 @@ pool_get(Pool *p, PoolHandle h)
 }
 
 internal PoolHandle
-pool_get_null(Pool *p)
+pool_null_handle_get(Pool *p)
 {
+    DOT_ASSERT(p->capacity > 0, "Uninitialized pool");
     PoolHandle h = POOL_NULL_HANDLE;
     void *elem = raw_buffer_get(p->raw_buffer, h.idx, p->elem_size);
     MEMORY_ZERO(elem, p->elem_size);
@@ -33,9 +35,10 @@ pool_get_null(Pool *p)
 internal PoolHandle
 pool_alloc(Pool *p)
 {
+    DOT_ASSERT(p->capacity > 0, "Uninitialized pool");
     if(DOT_UNLIKELY(p->count >= p->capacity)){
        DOT_WARNING("Pool capacity, exceeded, returning zero handle");
-       return(pool_get_null(p));
+       return(pool_null_handle_get(p));
     }
     PoolHandle h = {.idx = p->idx_buffer[p->count]};
     p->count += 1;
@@ -47,6 +50,7 @@ pool_alloc(Pool *p)
 internal void
 pool_free(Pool *p, PoolHandle h)
 {
+    DOT_ASSERT(p->capacity > 0, "Uninitialized pool");
     if(h.idx == 0 || p->count == 1){
         return;
     }
@@ -170,9 +174,8 @@ tree_pop_front(TreePool *tree_pool, PoolHandle parent)
 // (jd) NOTE: Should we always assume worst case of root containing all children
 // or pass in a capacity?
 internal TreeIterator
-tree_iter_begin(Arena *arena, TreePool *tree_pool, PoolHandle root)
+tree_iter_begin(Arena *arena, TreePool *tree_pool, PoolHandle iter_root)
 {
-    DOT_ASSERT(root.idx != 0);
     u32 stack_capacity = tree_pool->pool.count;
     TreeIterator it = {
         .tree_pool = tree_pool,
@@ -180,7 +183,7 @@ tree_iter_begin(Arena *arena, TreePool *tree_pool, PoolHandle root)
         .stack = PUSH_ARRAY_NO_ZERO(arena, PoolHandle, stack_capacity),
         .stack_idx = 0,
     };
-    it.stack[it.stack_idx++] = root;
+    it.stack[it.stack_idx++] = iter_root;
     return it;
 }
 
