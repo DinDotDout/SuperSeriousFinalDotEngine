@@ -84,24 +84,25 @@ typedef struct RBVK_FrameData{
     u32             swapchain_image_idx; // Selected swpachain img for a given frame
 }RBVK_FrameData;
 
+typedef PoolHandle RBVK_TextureHandle;
+typedef PoolHandle RBVK_BufferHandle;
+typedef PoolHandle RBVK_SamplerHandle;
 
-typedef struct ResourceCleanupList{
-    // ResourceCleanupList children[10];
-    // u32 *children_count;
-    // TempArena temp;
+typedef struct RBVK_ResourceCleanupCtx RBVK_ResourceCleanupCtx;
+typedef TREE_POOL(RBVK_ResourceCleanupCtx) ResourceCleanupListTree;
+struct RBVK_ResourceCleanupCtx{
+    TreeHeader node;
+
     u32 texture_id_count;
-    PoolHandle *texture_ids; // RBVK_Texture
+    RBVK_SamplerHandle texture_ids[RBVK_RESOURCE_CLEANUP_CTX_TEXTURES]; // RBVK_Texture
 
     u32 buffer_id_count;
-    PoolHandle *buffer_ids; // RBVK_Buffer
+    RBVK_BufferHandle buffer_ids[RBVK_RESOURCE_CLEANUP_CTX_BUFFERS]; // RBVK_Buffer
 
     u32 sampler_id_count;
-    PoolHandle *sampler_ids; // RBVK_Sampler
+    RBVK_SamplerHandle sampler_ids[RBVK_RESOURCE_CLEANUP_CTX_SAMPLERS]; // RBVK_Sampler
+};
 
-    TreeHeader node;
-}ResourceCleanupList;
-
-typedef struct RBVK_FrameDatas RBVK_FrameDatas;
 typedef struct RendererBackendVk{
     RendererBackend base;
 
@@ -110,17 +111,15 @@ typedef struct RendererBackendVk{
     VkInstance      instance;
     VkSurfaceKHR    surface;
 
-    struct RBVK_FrameDatas{
-        RBVK_FrameData *data;
-        u8 count;
-    }frame_datas2;
     u8                    frame_data_count;
     array(RBVK_FrameData) frame_datas;
     u32 current_frame;
     u32 previous_frame;
     u64 absolute_frame;
 
-    RBVK_Texture      draw_image;
+    // RBVK_Texture      draw_image;
+    RBVK_TextureHandle     draw_image;
+
     // NOTE: Splitting this from actual draw_image so that we can draw regions?
     VkExtent2D      draw_extent;
 
@@ -142,7 +141,7 @@ typedef struct RendererBackendVk{
     POOL(RBVK_Texture)  texture_pool;
     POOL(RBVK_Buffer)   buffer_pool;
     POOL(RBVK_Sampler)  sampler_pool;
-    TREE_POOL(ResourceCleanupList) resource_cleanup_list;
+    ResourceCleanupListTree resource_cleanup_list_tree;
 
     // NOTE: vk expects a malloc like allocator, which I don't intend on make or using for now
     // so our push arenas do not work for this :(
@@ -161,6 +160,7 @@ RENDERER_BACKEND_FN_LIST
 internal void               renderer_backend_vk_merge_render_settings(RendererBackendConfig *backend_config);
 internal RendererBackendVk* renderer_backend_vk_create(Arena *arena, RendererBackendConfig *backend_config);
 internal RendererBackendVk* renderer_backend_as_vk(RendererBackend *base);
+internal void renderer_backend_vk_resource_cleanup_list_push_rbvk_texture(PoolHandle texture_id);
 
 // (jd) NOTE: should we allow this and mem copy the resource list?
 // If we already know the layout/size and we use a specific arena chunk we can maybe
@@ -170,7 +170,7 @@ internal void renderer_backend_resource_cleanup_list_reparent_at(u32 idx); // re
 // Internal API
 internal void               rbvk_frame_counters_advance();
 
-internal RBVK_Texture       rbvk_texture_create(VkImageCreateInfo *image_info);
+internal RBVK_TextureHandle rbvk_texture_create(const DOT_TextureDesc *desc, void *data, String8 debug_name);
 internal void               rbvk_texture_destroy(RBVK_Texture *image);
 internal RBVK_Buffer        rbvk_buffer_create(VkDeviceSize size, VkMemory_PoolsKind pool_kind, String8 name);
 

@@ -1,5 +1,6 @@
 # Vulkan loader leaks
 leak:wl_proxy_create_for_id
 leak:wayland-client.c
+leak:loader_icd_scan
 
 leak:_xcb_in_read

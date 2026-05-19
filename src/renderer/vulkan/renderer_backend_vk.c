@@ -91,26 +91,32 @@ renderer_backend_vk_shader_unload(DOT_ShaderModuleHandle shader_module_handle)
     vkDestroyShaderModule(g_vk_ctx->device.vk_device, vk_sm, NULL);
 }
 
-// Handle should just be ie internal ptr to backend texture, or maybe RBVK_Texture
 internal DOT_TextureHandle
 renderer_backend_vk_texture_create(const DOT_TextureDesc *desc, void *data, String8 debug_name)
 {
-    if(desc == NULL){
-       PoolHandle h = POOL_GET_NULL(&g_vk_ctx->texture_pool);
-       DOT_TextureHandle dot_texture_handle = {.handle[0] = pool_handle_pack(h),};
-       return dot_texture_handle;
-    }
-    VkExtent3D extent_3d = {desc->width, desc->height, desc->depth};
-    const PoolHandle texture_h = POOL_ALLOC(&g_vk_ctx->texture_pool);
-    RBVK_Texture *texture = POOL_GET(&g_vk_ctx->texture_pool, texture_h);
-    DOT_DEBUG_NAME_SET(texture->name, debug_name);
-    texture->vk_extent3d = extent_3d;
-    texture->mip_levels = desc->mip_levels;
-    texture->vk_format = vk_helper_texture_format_to_vk_texture_format(desc->format_kind);
-    texture->sampler = NULL;
-    texture->vk_image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+    RBVK_TextureHandle h = rbvk_texture_create(desc, data, debug_name);
+    DOT_TextureHandle dot_texture_handle = {.handle[0] = pool_handle_pack(h),};
+    return dot_texture_handle;
+}
 
-    const DOT_TextureFormatInfo format_info = renderer_texture_format_info_get(desc->format_kind);
+internal RBVK_TextureHandle
+rbvk_texture_create(const DOT_TextureDesc *desc, void *data, String8 debug_name)
+{
+    if(desc == NULL){
+       RBVK_TextureHandle texture_h = POOL_NULL_HANDLE_GET(&g_vk_ctx->texture_pool);
+       return texture_h;
+    }
+    const RBVK_TextureHandle texture_h = POOL_ALLOC(&g_vk_ctx->texture_pool);
+    RBVK_Texture *texture = POOL_GET(&g_vk_ctx->texture_pool, texture_h);
+    VkExtent3D image_extent_3d        = {desc->width, desc->height, desc->depth};
+    texture->vk_extent3d        = image_extent_3d;
+    texture->mip_levels         = desc->mip_levels;
+    texture->vk_format          = vk_helper_texture_format_to_vk_texture_format(desc->format_kind);
+    texture->sampler            = NULL;
+    texture->vk_image_layout    = VK_IMAGE_LAYOUT_UNDEFINED;
+    DOT_DEBUG_NAME_SET(texture->name, debug_name);
+
+    const DOT_TextureFormatInfo format_info = renderer_texture_format_info_from_format(desc->format_kind);
     const b8 format_depth_bit   = DOT_BITS_MATCH(format_info.format_flags, DOT_TextureFormatFlags_Depth);
     const b8 format_stencil_bit = DOT_BITS_MATCH(format_info.format_flags, DOT_TextureFormatFlags_Stencil);
     const b8 usage_compute_bit  = DOT_BITS_MATCH(desc->texture_usage_flags, DOT_TextureUsageFlags_Compute);
@@ -130,7 +136,7 @@ renderer_backend_vk_texture_create(const DOT_TextureDesc *desc, void *data, Stri
                 .sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
                 .imageType = vk_helper_texture_dimension_to_vk_image_type(desc->dimension_kind),
                 .format = vk_helper_texture_format_to_vk_texture_format(desc->format_kind),
-                .extent = extent_3d,
+                .extent = image_extent_3d,
                 .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
                 .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 
@@ -170,61 +176,55 @@ renderer_backend_vk_texture_create(const DOT_TextureDesc *desc, void *data, Stri
     }
 
     if(data){
-        u64 texture_size = format_info.block_size * extent_3d.height * extent_3d.width  * extent_3d.depth;
-        VkMemory_Alloc mem_alloc = rbvk_memory_pools_staging_ring_buffer_push(&g_vk_ctx->memory_pools,  texture_size, data);
-        // void* destination_data;
-        // vkMapMemory(vk_device, mem_alloc.vk_memory, 0, mem_alloc.size, 0, &destination_data);
-        // MEMORY_COPY_NO_ALIAS(destination_data, create_info->data, mem_alloc.size);
-        // vkUnmapMemory(vk_device, mem_alloc.vk_memory);
-
-
-        VkCommandBufferBeginInfo beginInfo = { 
-            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-            .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-        };
+        u64 texture_size = format_info.block_size * image_extent_3d.height * image_extent_3d.width  * image_extent_3d.depth;
+        VkMemory_Alloc mem_alloc = rbvk_memory_pools_staging_ring_buffer_push(&g_vk_ctx->memory_pools, texture_size, data);
 
         VkCommandBuffer vk_command_buffer = g_vk_ctx->frame_datas[g_vk_ctx->current_frame].immediate_command_buffer;
-        // CommandBuffer* command_buffer = get_instant_command_buffer();
-        vkBeginCommandBuffer(vk_command_buffer, &beginInfo );
 
-        VkBufferImageCopy region = {
-            .bufferOffset = 0,
-            .bufferRowLength = 0,
-            .bufferImageHeight = 0,
+        vkBeginCommandBuffer(vk_command_buffer,
+            &(VkCommandBufferBeginInfo){
+                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+                .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+            });
+        vk_helper_rbvk_texture_transition(vk_command_buffer, texture, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        // vk_helper_transition_image(vk_command_buffer, texture->vk_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        // vkCmdCopyBufferToImage(vk_command_buffer, mem_alloc.vk_buffer, texture->vk_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, 
+        vkCmdCopyBufferToImage(vk_command_buffer, mem_alloc.vk_buffer, texture->vk_image, texture->vk_image_layout, 1, 
+            &(VkBufferImageCopy) {
+                .bufferOffset = 0,
+                .bufferRowLength = 0,
+                .bufferImageHeight = 0,
 
-            .imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .imageSubresource.mipLevel = 0,
-            .imageSubresource.baseArrayLayer = 0,
-            .imageSubresource.layerCount = 1,
+                .imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .imageSubresource.mipLevel = 0,
+                .imageSubresource.baseArrayLayer = 0,
+                .imageSubresource.layerCount = 1,
 
-            .imageOffset = { 0, 0, 0 },
-            .imageExtent = extent_3d,
-        };
-
-        vk_helper_transition_image(vk_command_buffer, texture->vk_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        vkCmdCopyBufferToImage(vk_command_buffer, mem_alloc.vk_buffer, texture->vk_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-        vk_helper_transition_image( vk_command_buffer, texture->vk_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                .imageOffset = { 0, 0, 0 },
+                .imageExtent = image_extent_3d,
+            });
+        vk_helper_rbvk_texture_transition(vk_command_buffer, texture, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        // vk_helper_transition_image(vk_command_buffer, texture->vk_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        // texture->vk_image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
         vkEndCommandBuffer(vk_command_buffer);
-        // Submit command buffer
-        VkSubmitInfo submitInfo = { 
-            VK_STRUCTURE_TYPE_SUBMIT_INFO,
-            .commandBufferCount = 1,
-            .pCommandBuffers = &vk_command_buffer,
-        };
 
-        vkQueueSubmit(g_vk_ctx->device.graphics_queue, 1, &submitInfo, VK_NULL_HANDLE );
+        vkQueueSubmit(g_vk_ctx->device.graphics_queue, 1,
+            &(VkSubmitInfo){
+                VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                .commandBufferCount = 1,
+                .pCommandBuffers = &vk_command_buffer,
+            },
+            VK_NULL_HANDLE);
  
         // (jd) NOTE: We are synchronizing here explicitly, we will want to deferr checking all uploads till later on
         vkQueueWaitIdle(g_vk_ctx->device.graphics_queue);
         rbvk_memory_pools_staging_ring_buffer_pop(&g_vk_ctx->memory_pools, &mem_alloc);
 
-        // TODO: free command buffer
-        vkResetCommandBuffer( vk_command_buffer, VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT );
-        texture->vk_image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        vkResetCommandBuffer(vk_command_buffer, VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
     }
-    DOT_TextureHandle dot_texture_handle = {.handle[0] = pool_handle_pack(texture_h),};
-    return dot_texture_handle;
+    renderer_backend_vk_resource_cleanup_list_push_rbvk_texture(texture_h);
+    return texture_h;
 }
 
 internal DOT_BufferHandle
@@ -232,7 +232,7 @@ renderer_backend_vk_buffer_create(const DOT_BufferCreateInfo *create_info)
 {
     const DOT_BufferDesc *desc = &create_info->buffer_desc;
 
-    const PoolHandle buffer_h = POOL_ALLOC(&g_vk_ctx->buffer_pool);
+    const RBVK_BufferHandle buffer_h = POOL_ALLOC(&g_vk_ctx->buffer_pool);
     RBVK_Buffer *buffer = POOL_GET(&g_vk_ctx->buffer_pool, buffer_h);
     (void)desc;
     (void)buffer;
@@ -240,68 +240,61 @@ renderer_backend_vk_buffer_create(const DOT_BufferCreateInfo *create_info)
 
 }
 
+internal void
+renderer_backend_vk_resource_cleanup_list_push_scope()
+{
+}
+
 // NOTE(JD): Will start to just make enclosing scopes
 // Should extend to be a graph
 internal void
-renderer_backend_vk_resource_cleanup_list_push(){
-    // cleanup_list
-    // ResourceCleanupList *cleanup_list = &g_vk_ctx->cleanup_list[g_vk_ctx->cleanup_list_idx];
-    // cleanup_list->temp = temp_arena_get(g_vk_ctx->base.transient_arena);
-    // // Add resources onto temp
-    // g_vk_ctx->cleanup_list_idx += 1;
+renderer_backend_vk_resource_cleanup_list_push_rbvk_texture(PoolHandle texture_id)
+{
+    RBVK_ResourceCleanupCtx *root = TREE_GET_ROOT(&g_vk_ctx->resource_cleanup_list_tree);
+    root->texture_ids[root->texture_id_count++] = texture_id;
 }
 
 // internal void
-// renderer_backend_resource_cleanup_list_push_child(ResourceCleanupList *parent, u32 idx){
+// renderer_backend_resource_cleanup_list_push_child(RBVK_ResourceCleanupCtx *parent, u32 idx){
 //     DOT_ASSERT(idx < g_vk_ctx->cleanup_list_idx, "Idx must be an active resource list!");
 //     // cleanup_list
-//     ResourceCleanupList *elems = &g_vk_ctx->cleanup_list[g_vk_ctx->cleanup_list_idx];
+//     RBVK_ResourceCleanupCtx *elems = &g_vk_ctx->cleanup_list[g_vk_ctx->cleanup_list_idx];
 //     elems.
 //     RBVK_TEXURE_MAX
 //     g_vk_ctx->cleanup_list_idx += 1;
 // }
 
 internal void
-renderer_backend_vk_resource_cleanup_list_pop_last(){
-    // ResourceCleanupList *cleanup_list = &g_vk_ctx->cleanup_list[g_vk_ctx->cleanup_list_idx];
-    // // Iterate vk resources to free vk things
-    // temp_arena_restore(cleanup_list->temp);
+renderer_backend_vk_resource_cleanup_list_pop_last()
+{
 }
 
 internal void
-renderer_backend_vk_resource_cleanup_list_pop_at(u32 idx){(void)idx;}
-
-internal RBVK_Texture
-rbvk_texture_create(VkImageCreateInfo *image_info)
+renderer_backend_vk_resource_cleanup_list_pop_at(PoolHandle pop_start)
 {
-    RBVK_Texture image = {
-        .vk_format = image_info->format,
-        .vk_extent3d = image_info->extent,
-    };
+    (void)pop_start;
+}
 
-    VkDevice device = g_vk_ctx->device.vk_device;
-    VK_CHECK(vkCreateImage(device, image_info, NULL, &image.vk_image));
-    image.alloc = rbvk_memory_gpu_image_alloc(&g_vk_ctx->memory_pools, image.vk_image);
-    VK_CHECK(vkCreateImageView(
-        device,
-        &(VkImageViewCreateInfo){
-            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .viewType = VK_IMAGE_VIEW_TYPE_2D,
-            .image = image.vk_image,
-            .format = image_info->format,
-            .subresourceRange = {
-                .baseMipLevel = 0,
-                .levelCount = 1,
-                .baseArrayLayer = 0,
-                .layerCount = 1,
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            }
-        },
-        NULL,
-        &image.vk_image_view));
-
-    // image.vk_imageimage->vk_image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
-    return image;
+internal void
+renderer_backend_vk_resource_cleanup_list_pop_all(){
+    TempArena t = threadctx_get_temp(0,0);
+    ResourceCleanupListTree *tree = &g_vk_ctx->resource_cleanup_list_tree;
+    TreeIterator it = TREE_ITER_BEGIN(t.arena, tree, tree->tree_pool.tree_root);
+    for EACH_TREE_NODE(h, &it){
+        RBVK_ResourceCleanupCtx *cleanup_list = TREE_GET(tree, h);
+        for EACH_INDEX(i, cleanup_list->texture_id_count){
+            RBVK_Texture *tex = POOL_GET(&g_vk_ctx->texture_pool, cleanup_list->texture_ids[i]);
+            rbvk_texture_destroy(tex);
+            POOL_FREE(&g_vk_ctx->texture_pool, cleanup_list->texture_ids[i]);
+        }
+        for EACH_INDEX(i, cleanup_list->buffer_id_count){
+            POOL_FREE(&g_vk_ctx->buffer_pool, cleanup_list->buffer_ids[i]);
+        }
+        for EACH_INDEX(i, cleanup_list->sampler_id_count){
+            POOL_FREE(&g_vk_ctx->sampler_pool, cleanup_list->sampler_ids[i]);
+        }
+    }
+    temp_arena_restore(t);
 }
 
 
@@ -351,6 +344,7 @@ rbvk_texture_destroy(RBVK_Texture *image){
     vkDestroyImage(device, image->vk_image, NULL);
 }
 
+
 internal void
 renderer_backend_vk_init(DOT_Window *window)
 {
@@ -359,6 +353,11 @@ renderer_backend_vk_init(DOT_Window *window)
     volkInitialize();
 #endif
     Arena *ctx_arena = g_vk_ctx->base.permanent_arena;
+    POOL_INIT(ctx_arena, &g_vk_ctx->texture_pool,   RBVK_TEXURE_MAX);
+    POOL_INIT(ctx_arena, &g_vk_ctx->buffer_pool,    RBVK_BUFFER_MAX);
+    POOL_INIT(ctx_arena, &g_vk_ctx->sampler_pool,   RBVK_SAMPLER_MAX);
+    TREE_INIT(ctx_arena, RBVK_ResourceCleanupCtx, &g_vk_ctx->resource_cleanup_list_tree, RBVK_CTX_RESCOURCE_POOL);
+
     // g_vk_ctx->vk_allocator = VkAllocatorParams(ctx_arena);
     TempArena temp = threadctx_get_temp(0,0);
     if(!vk_helper_all_layers(&g_rbvk_vk_config)){
@@ -528,29 +527,40 @@ renderer_backend_vk_init(DOT_Window *window)
         }
         VK_CHECK(vkCreateSwapchainKHR(g_vk_ctx->device.vk_device, &swapchain_create_info, NULL, &swapchain->swapchain));
 
-        VkImageCreateInfo image_info = {
-            .sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-            .pNext       = NULL,
-            .imageType   = VK_IMAGE_TYPE_2D,
-            .format      = VK_FORMAT_R16G16B16A16_SFLOAT,
-            .extent      = vk_helper_extent3d_from_extent2d(g_vk_ctx->draw_extent),
-            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        // VkImageCreateInfo image_info = {
+        //     .sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        //     .pNext       = NULL,
+        //     .imageType   = VK_IMAGE_TYPE_2D,
+        //     .format      = VK_FORMAT_R16G16B16A16_SFLOAT,
+        //     .extent      = vk_helper_extent3d_from_extent2d(g_vk_ctx->draw_extent),
+        //     .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        //     .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        //
+        //     .mipLevels = 1,
+        //     .arrayLayers = 1,
+        //
+        //     // for MSAA. we will not be using it by default, so default it to 1
+        //     // sample per pixel.
+        //     .samples = VK_SAMPLE_COUNT_1_BIT,
+        //     // optimal tiling, which means the image is stored on the best gpu format
+        //     .tiling = VK_IMAGE_TILING_OPTIMAL, // VK_IMAGE_TILING_LINEAR (for staging / copying)
+        //     .usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+        //              VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+        //              VK_IMAGE_USAGE_STORAGE_BIT |
+        //              VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+        // };
+        g_vk_ctx->draw_image = rbvk_texture_create(
+            &(DOT_TextureDesc){
+                .dimension_kind = DOT_TextureDimension_2D,
+                .format_kind = DOT_TextureFormat_RGBA16F,
+                .texture_usage_flags = DOT_TextureUsageFlags_RenderTarget,
+                .width = g_vk_ctx->draw_extent.width,
+                .height = g_vk_ctx->draw_extent.height,
+                .depth = 1,
+                .mip_levels = 1,
 
-            .mipLevels = 1,
-            .arrayLayers = 1,
+            }, NULL, String8Lit("Draw Image"));
 
-            // for MSAA. we will not be using it by default, so default it to 1
-            // sample per pixel.
-            .samples = VK_SAMPLE_COUNT_1_BIT,
-            // optimal tiling, which means the image is stored on the best gpu format
-            .tiling = VK_IMAGE_TILING_OPTIMAL, // VK_IMAGE_TILING_LINEAR (for staging / copying)
-            .usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                     VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                     VK_IMAGE_USAGE_STORAGE_BIT |
-                     VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
-        };
-        g_vk_ctx->draw_image = rbvk_texture_create(&image_info);
         {
             //  --- Create Image Datas ---
             VkDevice device = g_vk_ctx->device.vk_device;
@@ -620,8 +630,7 @@ renderer_backend_vk_init(DOT_Window *window)
                 };
                 VK_CHECK(vkAllocateCommandBuffers(device, &cmd_alloc_info, &frame_data->frame_command_buffer));
                 VK_CHECK(vkAllocateCommandBuffers(device, &cmd_alloc_info, &frame_data->immediate_command_buffer));
-                frame_data->frame_arena = ARENA_CREATE(.parent = ctx_arena, .reserve_size = KB(32));
-
+                frame_data->frame_arena = ARENA_CREATE(.parent = ctx_arena, .reserve_size = DOT_KB(32));
             }
         }
         // --- Init Sync Structures ---
@@ -708,9 +717,6 @@ renderer_backend_vk_init(DOT_Window *window)
 
             g_vk_ctx->descriptor_set_count = ARRAY_COUNT(layouts);
             VK_CHECK(vkAllocateDescriptorSets(device, &alloc_info, g_vk_ctx->descriptor_sets));
-            POOL_INIT(ctx_arena, &g_vk_ctx->texture_pool, RBVK_TEXURE_MAX);
-            POOL_INIT(ctx_arena, &g_vk_ctx->buffer_pool, RBVK_BUFFER_MAX);
-            POOL_INIT(ctx_arena, &g_vk_ctx->sampler_pool, RBVK_SAMPLER_MAX);
         }
     }
 
@@ -776,10 +782,11 @@ renderer_create_postprocess_module(DOT_ShaderModuleHandle shader_module_h)
 	        .stage = stageinfo,
 	    };
 
+        RBVK_Texture *draw_tex = POOL_GET(&g_vk_ctx->texture_pool, g_vk_ctx->draw_image);
 	    VK_CHECK(vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &compute_pipeline_create_info, NULL, &g_vk_ctx->gradient_pipeline));
         VkDescriptorImageInfo imgInfo = {
 	        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-	        .imageView = g_vk_ctx->draw_image.vk_image_view,
+	        .imageView = draw_tex->vk_image_view,
 	    };
 
 	    VkWriteDescriptorSet drawImageWrite = {
@@ -795,49 +802,6 @@ renderer_create_postprocess_module(DOT_ShaderModuleHandle shader_module_h)
 
 }
 
-internal void
-renderer_backend_vk_shutdown()
-{
-    VkDevice device = g_vk_ctx->device.vk_device;
-
-    vkDeviceWaitIdle(device);
-    {
-        vkDestroyDescriptorSetLayout(device, g_vk_ctx->compute_layout, NULL);
-        vkDestroyDescriptorSetLayout(device, g_vk_ctx->bindless_layout, NULL);
-        vkDestroyDescriptorPool(device, g_vk_ctx->descriptor_pool, NULL);
-    }
-
-    for(u32 i = 0; i < g_vk_ctx->base.frame_overlap; ++i){
-        RBVK_FrameData* frame_data = &g_vk_ctx->frame_datas[i];
-        vkDestroyCommandPool(device, frame_data->command_pool, NULL);
-        vkDestroyFence(device, frame_data->render_fence, NULL);
-        vkDestroySemaphore(device, frame_data->acquire_semaphore, NULL);
-    }
-    for(u32 i = 0; i < g_vk_ctx->swapchain.image_datas.count; ++i){
-        vkDestroyImageView(device, g_vk_ctx->swapchain.image_datas.data[i].image_view, NULL);
-        vkDestroySemaphore(device, g_vk_ctx->swapchain.image_datas.data[i].image_semaphore, NULL);
-    }
-
-    vkDestroyPipelineLayout(device, g_vk_ctx->gradient_pipeline_layout, NULL);
-    vkDestroyPipeline(device, g_vk_ctx->gradient_pipeline, NULL);
-
-    rbvk_texture_destroy(&g_vk_ctx->draw_image);
-
-    vkDestroySwapchainKHR(device, g_vk_ctx->swapchain.swapchain, NULL);
-    vk_memory_pools_destroy(&g_vk_ctx->device, &g_vk_ctx->memory_pools);
-    vkDestroySurfaceKHR(g_vk_ctx->instance, g_vk_ctx->surface, NULL);
-    vkDestroyDevice(g_vk_ctx->device.vk_device, NULL);
-    if(VK_EXT_DEBUG_UTILS_ENABLE){
-#ifndef DOT_USE_VOLK
-        PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT =
-            (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(g_vk_ctx->instance, "vkDestroyDebugUtilsMessengerEXT");
-#endif
-        if(vkDestroyDebugUtilsMessengerEXT){
-            vkDestroyDebugUtilsMessengerEXT(g_vk_ctx->instance, g_vk_ctx->debug_messenger, NULL);
-        }
-    }
-    vkDestroyInstance(g_vk_ctx->instance, NULL);
-}
 
 internal void
 renderer_backend_vk_clear_bg(vec3 color)
@@ -845,7 +809,7 @@ renderer_backend_vk_clear_bg(vec3 color)
 	RBVK_FrameData *frame_data = &g_vk_ctx->frame_datas[g_vk_ctx->current_frame];
 	VkCommandBuffer cmd = frame_data->frame_command_buffer;
 	(void)color;
-	RBVK_Texture *draw_image = &g_vk_ctx->draw_image;
+	RBVK_Texture *draw_image = POOL_GET(&g_vk_ctx->texture_pool, g_vk_ctx->draw_image);
 	(void) draw_image;
 
 	VkClearColorValue clear_value = {
@@ -885,7 +849,7 @@ renderer_backend_vk_begin_frame()
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
     };
     VK_CHECK(vkBeginCommandBuffer(cmd, &cmd_begin_info));
-    RBVK_Texture *draw_image = &g_vk_ctx->draw_image;
+	RBVK_Texture *draw_image = POOL_GET(&g_vk_ctx->texture_pool, g_vk_ctx->draw_image);
     VkImage swapchain_image = g_vk_ctx->swapchain.image_datas.data[frame_data->swapchain_image_idx].image;
     vk_helper_transition_image(cmd, swapchain_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
     vk_helper_transition_image(cmd, draw_image->vk_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
@@ -897,7 +861,7 @@ renderer_backend_vk_end_frame()
     RBVK_FrameData *frame_data = &g_vk_ctx->frame_datas[g_vk_ctx->current_frame];
     VkCommandBuffer cmd = frame_data->frame_command_buffer;
 
-    RBVK_Texture *draw_image = &g_vk_ctx->draw_image;
+	RBVK_Texture *draw_image = POOL_GET(&g_vk_ctx->texture_pool, g_vk_ctx->draw_image);
     RBVK_SwapchainImageData *image_data = &g_vk_ctx->swapchain.image_datas.data[frame_data->swapchain_image_idx];
     VkImage swapchain_image = image_data->image;
     VkSemaphore swapchain_semaphore = image_data->image_semaphore;
@@ -995,7 +959,9 @@ internal void
 rbvk_overlay_create_render_pass(RBVK_OverlayState *overlay_state)
 {
     VkDevice device = g_vk_ctx->device.vk_device;
-    VkFormat color_format = g_vk_ctx->draw_image.vk_format;
+
+    RBVK_Texture *draw_tex = POOL_GET(&g_vk_ctx->texture_pool, g_vk_ctx->draw_image);
+    VkFormat color_format = draw_tex->vk_format;
 
     VkAttachmentDescription color_attachment = {
         .format         = color_format,
@@ -1050,13 +1016,13 @@ internal void
 rbvk_overlay_create_framebuffer(RBVK_OverlayState *overlay_state)
 {
     VkDevice device = g_vk_ctx->device.vk_device;
-    RBVK_Texture *draw = &g_vk_ctx->draw_image;
+	RBVK_Texture *draw_image = POOL_GET(&g_vk_ctx->texture_pool, g_vk_ctx->draw_image);
 
     VkFramebufferCreateInfo fb_info = {
         .sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
         .renderPass      = overlay_state->render_pass,
         .attachmentCount = 1,
-        .pAttachments    = &draw->vk_image_view,
+        .pAttachments    = &draw_image->vk_image_view,
         .width           = g_vk_ctx->draw_extent.width,
         .height          = g_vk_ctx->draw_extent.height,
         .layers          = 1,
@@ -1638,4 +1604,49 @@ renderer_backend_vk_overlay_shutdown(void)
     /* vertex/index memory is owned by the staging pool – not freed here */
 
     MEMORY_ZERO_STRUCT(&g_rbvk_overlay);
+}
+
+internal void
+renderer_backend_vk_shutdown()
+{
+    VkDevice device = g_vk_ctx->device.vk_device;
+
+    vkDeviceWaitIdle(device);
+    {
+        vkDestroyDescriptorSetLayout(device, g_vk_ctx->compute_layout, NULL);
+        vkDestroyDescriptorSetLayout(device, g_vk_ctx->bindless_layout, NULL);
+        vkDestroyDescriptorPool(device, g_vk_ctx->descriptor_pool, NULL);
+    }
+
+    for(u32 i = 0; i < g_vk_ctx->base.frame_overlap; ++i){
+        RBVK_FrameData* frame_data = &g_vk_ctx->frame_datas[i];
+        vkDestroyCommandPool(device, frame_data->command_pool, NULL);
+        vkDestroyFence(device, frame_data->render_fence, NULL);
+        vkDestroySemaphore(device, frame_data->acquire_semaphore, NULL);
+    }
+    for(u32 i = 0; i < g_vk_ctx->swapchain.image_datas.count; ++i){
+        vkDestroyImageView(device, g_vk_ctx->swapchain.image_datas.data[i].image_view, NULL);
+        vkDestroySemaphore(device, g_vk_ctx->swapchain.image_datas.data[i].image_semaphore, NULL);
+    }
+
+    vkDestroyPipelineLayout(device, g_vk_ctx->gradient_pipeline_layout, NULL);
+    vkDestroyPipeline(device, g_vk_ctx->gradient_pipeline, NULL);
+
+    renderer_backend_vk_resource_cleanup_list_pop_all();
+    // rbvk_texture_destroy(&g_vk_ctx->draw_image);
+
+    vkDestroySwapchainKHR(device, g_vk_ctx->swapchain.swapchain, NULL);
+    vk_memory_pools_destroy(&g_vk_ctx->device, &g_vk_ctx->memory_pools);
+    vkDestroySurfaceKHR(g_vk_ctx->instance, g_vk_ctx->surface, NULL);
+    vkDestroyDevice(g_vk_ctx->device.vk_device, NULL);
+    if(VK_EXT_DEBUG_UTILS_ENABLE){
+#ifndef DOT_USE_VOLK
+        PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT =
+            (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(g_vk_ctx->instance, "vkDestroyDebugUtilsMessengerEXT");
+#endif
+        if(vkDestroyDebugUtilsMessengerEXT){
+            vkDestroyDebugUtilsMessengerEXT(g_vk_ctx->instance, g_vk_ctx->debug_messenger, NULL);
+        }
+    }
+    vkDestroyInstance(g_vk_ctx->instance, NULL);
 }
