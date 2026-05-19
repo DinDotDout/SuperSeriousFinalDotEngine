@@ -16,13 +16,24 @@
 // pfnCmdBeginDebugUtilsLabelEXT    = (PFN_vkCmdBeginDebugUtilsLabelEXT)    vkGetDeviceProcAddr(vulkan_device, "vkCmdBeginDebugUtilsLabelEXT");
 // pfnCmdEndDebugUtilsLabelEXT      = (PFN_vkCmdEndDebugUtilsLabelEXT)      vkGetDeviceProcAddr(vulkan_device, "vkCmdEndDebugUtilsLabelEXT");
 
+// (jd) TODO: Make this dynamic. (json or something)
 enum
 {
-    RBVK_RESOURCE_CLEANUP_LIST_MAX = 32,
-
     RBVK_TEXURE_MAX = 512,
     RBVK_BUFFER_MAX = 4096,
     RBVK_SAMPLER_MAX = 128,
+
+    RBVK_CTX_RESCOURCE_POOL = 128,
+    RBVK_RESOURCE_CLEANUP_CTX_TEXTURES  = 24,
+    RBVK_RESOURCE_CLEANUP_CTX_BUFFERS   = 24,
+    RBVK_RESOURCE_CLEANUP_CTX_SAMPLERS  = 24,
+
+    RENDER_BACKEND_ALLOC_SIZE =
+        (RBVK_CTX_RESCOURCE_POOL * RBVK_RESOURCE_CLEANUP_CTX_TEXTURES * RBVK_RESOURCE_CLEANUP_CTX_BUFFERS * RBVK_RESOURCE_CLEANUP_CTX_SAMPLERS * sizeof(PoolHandle))
+        // (jd) RBVK_Texture isn't yet included here, maybe we need to make render_backend_vk_types
+        // + RBVK_TEXURE_MAX * sizeof(RBVK_Texture)
+        // + RBVK_BUFFER_MAX * sizeof(RBVK_Buffer)
+        // + RBVK_SAMPLER_MAX * sizeof(RBVK_Sampler)
 };
 
 typedef struct RBVK_VulkanConfig{
