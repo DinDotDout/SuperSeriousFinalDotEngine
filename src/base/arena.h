@@ -21,7 +21,6 @@ typedef enum ArenaFlags{
     ArenaFlags_LargePages = DOT_BIT(1),
     // ArenaFlags_ChainArena = DOT_BIT(2),
 }ArenaFlags;
-
 typedef struct Arena Arena;
 struct Arena{
     u64 used;
@@ -53,21 +52,39 @@ typedef struct ArenaInitParams{
     b32 large_pages;
 
     // Debug
+#ifdef DOT_DEBUG
     char *name;
     char *reserve_file;
     int   reserve_line;
+#endif
 }ArenaInitParams;
 
-internal Arena *arena_create_(ArenaInitParams *params);
-internal Arena *arena_create_from_memory(ArenaInitParams *params);
-internal Arena *arena_create_from_arena(ArenaInitParams *params);
-internal Arena *arena_create_from_os(ArenaInitParams *params);
+typedef struct ArenaOpParams{
+    Arena *arena;
+    usize size;
+    usize alignment;
+    b32 zero;
+#ifdef DOT_DEBUG
+    char *file;
+    u32 line;
+#endif
+}ArenaOpParams;
 
-internal u8*    arena_push(Arena *arena, usize size, usize alignment, b32 zero, char *file, u32 line);
-internal void   arena_reset(Arena *arena, char *file, u32 line);
-internal void   arena_destroy(Arena *arena, char *file, u32 line);
+internal Arena *arena_create_(ArenaInitParams *params);
+internal Arena *arena_create_from_memory(ArenaInitParams *);
+internal Arena *arena_create_from_arena(ArenaInitParams *);
+internal Arena *arena_create_from_os(ArenaInitParams *);
+
+internal u8*    arena_push(ArenaOpParams *);
+internal void   arena_reset(ArenaOpParams *);
+internal void   arena_destroy(ArenaOpParams *);
+
+// internal u8*    arena_push(Arena *arena, usize size, usize alignment, b32 zero, char *file, u32 line);
+// internal void   arena_reset(Arena *arena, char *file, u32 line);
+// internal void   arena_destroy(Arena *arena, char *file, u32 line);
 internal void   arena_print_debug(Arena *arena);
 
+#ifdef DOT_DEBUG
 #define ARENA_DEFAULT_PARAMS(...) \
     &(ArenaInitParams){ \
         .reserve_size       = ARENA_MIN_CAPACITY,\
@@ -79,17 +96,38 @@ internal void   arena_print_debug(Arena *arena);
         .name               = DOT_FILE_LINE, \
         __VA_ARGS__ \
     }
+#define ARENA_OP_PARAMS(...) \
+    &(ArenaOpParams){ \
+        .file       = __FILE__, \
+        .line       = __LINE__, \
+        __VA_ARGS__ \
+    }
+#else
+#define ARENA_DEFAULT_PARAMS(...) \
+    &(ArenaInitParams){ \
+        .reserve_size       = ARENA_MIN_CAPACITY,\
+        .parent             = NULL, \
+        .commit_expand_size = PLATFORM_REGULAR_PAGE_SIZE, \
+        .large_pages        = false, \
+        __VA_ARGS__ \
+    }
+#define ARENA_OP_PARAMS(...) \
+    &(ArenaOpParams){ \
+        __VA_ARGS__ \
+    }
+#endif
 
-#define ARENA_CREATE(...)       arena_create_(ARENA_DEFAULT_PARAMS(__VA_ARGS__))
-#define ARENA_RESET(arena)      arena_reset(arena, __FILE__, __LINE__)
-#define ARENA_DESTROY(arena)    arena_destroy(arena, __FILE__, __LINE__)
 
-#define ARENA_PUSH(arena, size, alignment, zero) arena_push((arena), (size), (alignment), (zero), __FILE__, __LINE__)
-#define PUSH_SIZE_NO_ZERO(arena, size)      ARENA_PUSH(arena, (size), ARENA_MAX_ALIGNMENT, false)
+#define ARENA_CREATE(...)           arena_create_(ARENA_DEFAULT_PARAMS(__VA_ARGS__))
+#define ARENA_RESET(a)              arena_reset(ARENA_OP_PARAMS(.arena = (a)));
+#define ARENA_DESTROY(a)            arena_reset(ARENA_OP_PARAMS(.arena = (a)));
+#define ARENA_PUSH(a, sz, align, z) arena_push(ARENA_OP_PARAMS(.arena = (a), .size = (sz), .alignment = (align), .zero = (z)))
+
+#define PUSH_SIZE_NO_ZERO(arena, size)      ARENA_PUSH(arena, size, ARENA_MAX_ALIGNMENT, false)
 #define PUSH_SIZE(arena, size)              ARENA_PUSH(arena, size, ARENA_MAX_ALIGNMENT, true)
 
-#define PUSH_ARRAY_ALIGNED(arena, T, count, alignment)          (T*)ARENA_PUSH(arena, sizeof(T) * (count), (alignment), true)
-#define PUSH_ARRAY_NO_ZERO_ALIGNED(arena, T, count, alignment)  (T*)ARENA_PUSH(arena, sizeof(T) * (count), (alignment), false)
+#define PUSH_ARRAY_ALIGNED(arena, T, count, alignment)          (T*)ARENA_PUSH(arena, sizeof(T) * (count), alignment, true)
+#define PUSH_ARRAY_NO_ZERO_ALIGNED(arena, T, count, alignment)  (T*)ARENA_PUSH(arena, sizeof(T) * (count), alignment, false)
 #define PUSH_ARRAY(arena, T, count)                             (T*)ARENA_PUSH(arena, sizeof(T) * (count), DOT_MAX(ARENA_MAX_ALIGNMENT, DOT_ALIGNOF(T)), true)
 #define PUSH_ARRAY_NO_ZERO(arena, T, count)                     (T*)ARENA_PUSH(arena, sizeof(T) * (count), DOT_MAX(ARENA_MAX_ALIGNMENT, DOT_ALIGNOF(T)), false)
 

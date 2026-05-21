@@ -735,7 +735,7 @@ vk_alloc(void* data, usize size, usize alignment, VkSystemAllocationScope scope)
     DOT_PRINT("VK Alloc: size=%M; scope=\n", size, string_VkSystemAllocationScope(scope));
 
     Arena* arena = cast(Arena*)data;
-    void* mem = arena_push(arena, size, alignment, true, __FILE__, __LINE__);
+    void* mem = ARENA_PUSH(arena, size, alignment, true);
     arena_print_debug(arena);
     return mem;
 }
@@ -746,7 +746,7 @@ vk_realloc(void* data, void* old_mem, usize size, usize alignment, VkSystemAlloc
     DOT_UNUSED(data); DOT_UNUSED(size); DOT_UNUSED(alignment); DOT_UNUSED(scope); DOT_UNUSED(old_mem);
     DOT_PRINT("VK Realloc: size=%M; scope=%s", size, string_VkSystemAllocationScope(scope) );
     Arena* arena = cast(Arena*)data;
-    void* mem = arena_push(arena, size, alignment, true, __FILE__, __LINE__);
+    void* mem = ARENA_PUSH(arena, size, alignment, true);
     arena_print_debug(arena);
     return mem;
 }

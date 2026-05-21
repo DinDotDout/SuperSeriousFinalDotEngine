@@ -103,21 +103,22 @@ arena_create_from_os(ArenaInitParams *params){
 }
 
 internal void
-arena_reset(Arena *arena, char *file, u32 line){
-    DOT_ASSERT_FL(arena, file, line);
-    ASAN_POISON(arena->base + ARENA_HEADER_SIZE_B, arena->reserved - arena_size);
-    arena->used = ARENA_HEADER_SIZE_B;
+arena_reset(ArenaOpParams *op){
+    DOT_ASSERT_FL(op->arena, op->file, op->line);
+    ASAN_POISON(arena->base + ARENA_HEADER_SIZE_B, arena->reserved - ARENA_HEADER_SIZE_B);
+    op->arena->used = ARENA_HEADER_SIZE_B;
 }
 
 internal void
-arena_destroy(Arena *arena, char *file, u32 line){
+arena_destroy(ArenaOpParams *op){
+    Arena *arena = op->arena;
     u64 reserved = arena->reserved;
     void* base = arena->base;
     arena->used = 0;
     arena->reserved = 0;
     arena->commit_expand_size = 0;
     if(!DOT_BITS_MATCH(arena->flags, ArenaFlags_OwnsMemory)){
-        DOT_WARNING_FL(file, line,
+        DOT_WARNING_FL(op->file, op->line,
             "Trying to free sub-arena '%s' with parent '%s'!\nThis "
             "arena does not own the memory!",
             arena->name,
@@ -129,14 +130,15 @@ arena_destroy(Arena *arena, char *file, u32 line){
 }
 
 internal u8*
-arena_push(Arena *arena, usize alloc_size, usize alignment, b32 zero, char *file, u32 line){
-    DOT_ASSERT_FL(alloc_size > 0, file, line);
+arena_push(ArenaOpParams *op){
+    Arena *arena = op->arena;
+    DOT_ASSERT_FL(op->size > 0, op->file, op->line);
     uptr arena_base = cast(uptr)arena->base;
     uptr current_address =  arena_base + arena->used;
-    uptr aligned_address = ALIGN_POW2(current_address, alignment);
+    uptr aligned_address = ALIGN_POW2(current_address, op->alignment);
     u8 *mem_offset = cast(u8*) aligned_address;
-    DOT_ASSERT_FL((aligned_address % alignment) == 0, file, line, "Unaligned address");
-    usize required_padded = aligned_address - current_address + alloc_size;
+    DOT_ASSERT_FL((aligned_address % op->alignment) == 0, op->file, op->line, "Unaligned address");
+    usize required_padded = aligned_address - current_address + op->size;
     arena->used += required_padded;
 
     // NOTE: Fresh OS pages are zeroed, so we only need to zero the portion we already owned
@@ -158,7 +160,7 @@ arena_push(Arena *arena, usize alloc_size, usize alignment, b32 zero, char *file
         if(commit_size > arena_leftover_memory) commit_size = need_aligned;
         if(DOT_UNLIKELY(commit_size > arena_leftover_memory)){
             arena_print_debug(arena);
-            DOT_ERROR_FL(file, line, "Can't commit more memory total = %M, needed = %M; leftover = %M", arena->reserved, commit_size, arena_leftover_memory);
+            DOT_ERROR_FL(op->file, op->line, "Can't commit more memory total = %M, needed = %M; leftover = %M", arena->reserved, commit_size, arena_leftover_memory);
             return NULL;
         }
         uptr commit_pos = arena_base + arena->committed;
@@ -172,7 +174,7 @@ arena_push(Arena *arena, usize alloc_size, usize alignment, b32 zero, char *file
     ASAN_UNPOISON(mem_offset, required_padded);
     // if(zero && need_zero > 0){
         // MEMORY_ZERO(mem_offset, need_zero);
-    if(zero){
+    if(op->zero){
         MEMORY_ZERO(mem_offset, required_padded);
     }
     return mem_offset;
