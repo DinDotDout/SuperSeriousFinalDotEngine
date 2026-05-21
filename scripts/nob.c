@@ -48,7 +48,6 @@ typedef enum {
 }OptimizationLevelKind;
 
 typedef enum {
-    CompilerKind_None,
     CompilerKind_Clang,
     CompilerKind_Msvc,
     CompilerKind_Auto = AUTO_COMPILER,
@@ -211,24 +210,6 @@ static bool program_exists(const char *name) {
 
 // TODO: This prints where/which, which somehow ends up in my qf list and moves my cursor
 // disabling for now as CompilerKind_Auto is good enough
-static CompilerKind detect_compiler(void) {
-    CompilerKind kind = CompilerKind_None;
-    if(PlatformKind_Auto == PlatformKind_Windows){
-        if(program_exists("cl.exe")){
-            kind = CompilerKind_Msvc;
-        }
-    }
-    if(kind == CompilerKind_None){
-        if(program_exists("clang")){
-            kind = CompilerKind_Clang;
-        }
-    }
-    if(kind != CompilerKind_None){
-        return(kind);
-    }
-    nob_log(NOB_ERROR, "No supported compiler found (tried clang, cl.exe)");
-    exit(1);
-}
 
 typedef enum ExternalKind{
     ExternalKind_GitZip,
@@ -321,8 +302,6 @@ int main(int argc, char **argv)
 {
     NOB_GO_REBUILD_URSELF(argc, argv);
     mkdir_if_not_exists(OUTPUT_FOLDER);
-    // See detect_compiler
-    // flags.compiler = detect_compiler();
     for (int i = 1; i < argc; i++) {
         if(strcmp(argv[i], "--help") == 0){
             print_help(argv[0]);
@@ -357,28 +336,21 @@ int main(int argc, char **argv)
 
     const char *vulkan_sdk = getenv("VULKAN_SDK");
     if(flags.compiler == CompilerKind_Msvc){
+        if(flags.platform != PlatformKind_Windows){
+            nob_log(NOB_ERROR, "cl is only available on windows");
+            return 1;
+        }
         if (!vulkan_sdk){
-            nob_log(NOB_ERROR, "VULKAN_SDK environment variable not set");
+            nob_log(NOB_ERROR, "unix VULKAN_SDK environment variable not set");
             return 1;
         }
         nob_cmd_append(&cmd, nob_temp_sprintf("/I%s/Include", vulkan_sdk));
         nob_cmd_append(&cmd, "/I", "src/");
         nob_cmd_append(&cmd, nob_temp_sprintf("/link /LIBPATH:%s/Lib", vulkan_sdk));
         nob_cmd_append(&cmd, "vulkan-1.lib");
-    }else if(flags.platform == PlatformKind_Windows){
-        if (!vulkan_sdk){
-            nob_log(NOB_ERROR, "VULKAN_SDK environment variable not set");
-            return 1;
-        }
-        nob_cmd_append(&cmd, nob_temp_sprintf("-I%s/Include", vulkan_sdk));
-        nob_cmd_append(&cmd, nob_temp_sprintf("-L%s/Lib", vulkan_sdk));
-        nob_cmd_append(&cmd, "-I", "src/");
-        // libs already added via platform_cfg for Windows
     }else{
         nob_cmd_append(&cmd, "-lm", "-lvulkan",  "-lpthread");
         nob_cmd_append(&cmd, "-I", "src/");
-        // nob_cmd_append(&cmd, "-Wl,-T"LINKER_SCRIPTS_FOLDER"phdrs.ld");
-        // nob_cmd_append(&cmd, "-Wl,-T"LINKER_SCRIPTS_FOLDER"rodata.ld");
         nob_cmd_append(&cmd, "-Wl,-T"LINKER_SCRIPTS_FOLDER"plugins_section.ld");
 
 
