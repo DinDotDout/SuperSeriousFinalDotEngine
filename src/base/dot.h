@@ -164,8 +164,12 @@
 #define DOT_BITS_MATCH(flags, mask) (((flags) & (mask)) == (mask))
 #define DOT_BITS_ANY(flags, mask)   (((flags) & (mask)) != 0)
 
+// (jd) NOTE: Should probably use something for code gen but whatever
 #define DOT_X_ENUM_ARG(prefix, v) prefix##_##v,
 #define DOT_X_ENUM_STR(prefix, v) #v,
+#define DOT_ENUM_REFLECT(enum_name, x_list) \
+    typedef enum enum_name{x_list(DOT_X_ENUM_ARG) enum_name##_Count}enum_name; \
+    static const char *enum_name##_str[] = { x_list(DOT_X_ENUM_STR) };
 
 ////////////////////////////////////////////////////////////////
 //

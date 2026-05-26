@@ -41,7 +41,7 @@ struct DOT_TestSuites{
     (into).passed      += (from).passed; \
 } while(0)
 
-#if DOT_DEBUG
+// #if DOT_DEBUG
 #define DOT_TEST_SUITE(fn) \
 internal inline DOT_TestResults fn(void);\
 static const DOT_Test DOT_CONCAT(__DOT_Test_, fn) = (DOT_Test){ \
@@ -55,9 +55,9 @@ DOT_CONSTRUCTOR(dot_test_suite_register##fn)(void) \
     dot_test_suite_register(&DOT_CONCAT(__DOT_Test_, fn)); \
 } \
 internal inline DOT_TestResults fn()
-#else
-#define REGISTER_TEST(fn) internal inline DOT_TestResults fn()
-#endif
+// #else
+// #define DOT_TEST_SUITE(fn) internal inline DOT_TestResults fn()
+// #endif
 
 internal inline void
 dot_test_suite_register(const DOT_Test *test)

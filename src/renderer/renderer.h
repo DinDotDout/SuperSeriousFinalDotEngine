@@ -90,6 +90,7 @@ typedef struct RendererConfig{
     FN(DOT_ShaderModuleHandle, shader_load_from_data, (String8 fb)) \
     FN(void, shader_unload, (DOT_ShaderModuleHandle shader_module)) \
     FN(DOT_TextureHandle, texture_create, (const DOT_TextureDesc *desc, void *data, String8 debug_name)) \
+    FN(DOT_SamplerHandle, sampler_create, (const DOT_SamplerDesc *desc, String8 debug_name)) \
     FN(void, texture_destroy, (DOT_TextureHandle texture_handle)) \
     FN(void, overlay_init, (const void *font_pixels, int font_w, int font_h)) \
     FN(void, overlay_shutdown, (void)) \
@@ -135,6 +136,8 @@ internal RendererBackend*   renderer_backend_create(Arena *arena, RendererBacken
 
 internal DOT_TextureHandle  renderer_texture_create(DOT_Renderer *renderer, const DOT_TextureDesc *desc, void *data, String8 debug_name);
 internal void               renderer_texture_destroy(DOT_Renderer *renderer, DOT_TextureHandle handle);
+
+internal DOT_SamplerHandle  renderer_sampler_create(DOT_Renderer *renderer, const DOT_SamplerDesc *create_info, String8 debug_name);
 
 internal void               renderer_begin_frame(DOT_Renderer *renderer);
 internal void               renderer_end_frame(DOT_Renderer *renderer);

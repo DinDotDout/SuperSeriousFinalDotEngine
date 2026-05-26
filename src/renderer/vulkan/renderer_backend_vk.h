@@ -21,12 +21,15 @@ typedef struct RBVK_Buffer{
     DOT_DEBUG_NAME(name, DOT_DEBUG_NAME_LEN);
 }RBVK_Buffer;
 
+typedef PoolHandle RBVK_TextureHandle;
+typedef PoolHandle RBVK_BufferHandle;
+typedef PoolHandle RBVK_SamplerHandle;
 typedef struct RBVK_Sampler{
     VkSampler            vk_sampler;
 
     VkFilter             vk_min_filter; // = VK_FILTER_NEAREST
     VkFilter             vk_mag_filter; // = VK_FILTER_NEAREST
-    VkSamplerMipmapMode  vk_mip_filter; // = VK_SAMPLER_MIPMAP_MODE_NEAREST
+    VkSamplerMipmapMode  vk_mipmap_filter; // = VK_SAMPLER_MIPMAP_MODE_NEAREST
 
     VkSamplerAddressMode vk_address_mode_u; // = VK_SAMPLER_ADDRESS_MODE_REPEAT
     VkSamplerAddressMode vk_address_mode_v; // = VK_SAMPLER_ADDRESS_MODE_REPEAT
@@ -46,10 +49,9 @@ typedef struct RBVK_Texture{
     // Store layout here for transitioning from one the other and only provide target layout?
     VkMemory_Alloc alloc;
     u8 mip_levels;
-    u8 flags; // Needed?
+    // u8 flags; // Needed?
 
-    RBVK_Sampler *sampler;
-
+    RBVK_SamplerHandle sampler;
     DOT_DEBUG_NAME(name, DOT_DEBUG_NAME_LEN);
 }RBVK_Texture;
 
@@ -84,10 +86,7 @@ typedef struct RBVK_FrameData{
     u32             swapchain_image_idx; // Selected swpachain img for a given frame
 }RBVK_FrameData;
 
-typedef PoolHandle RBVK_TextureHandle;
-typedef PoolHandle RBVK_BufferHandle;
-typedef PoolHandle RBVK_SamplerHandle;
-
+// (jd) TODO: Move this to renderer and use DOT_TextureHandles and so on
 typedef struct RBVK_ResourceCleanupCtx RBVK_ResourceCleanupCtx;
 typedef TREE_POOL(RBVK_ResourceCleanupCtx) ResourceCleanupListTree;
 struct RBVK_ResourceCleanupCtx{
@@ -160,6 +159,8 @@ RENDERER_BACKEND_FN_LIST
 internal void               renderer_backend_vk_merge_render_settings(RendererBackendConfig *backend_config);
 internal RendererBackendVk* renderer_backend_vk_create(Arena *arena, RendererBackendConfig *backend_config);
 internal RendererBackendVk* renderer_backend_as_vk(RendererBackend *base);
+
+internal void renderer_backend_vk_resource_cleanup_list_push_rbvk_sampler(RBVK_SamplerHandle sampler_id);
 internal void renderer_backend_vk_resource_cleanup_list_push_rbvk_texture(PoolHandle texture_id);
 
 // (jd) NOTE: should we allow this and mem copy the resource list?
@@ -171,6 +172,8 @@ internal void renderer_backend_resource_cleanup_list_reparent_at(u32 idx); // re
 internal void               rbvk_frame_counters_advance();
 
 internal RBVK_TextureHandle rbvk_texture_create(const DOT_TextureDesc *desc, void *data, String8 debug_name);
+internal RBVK_SamplerHandle rbvk_sampler_create(const DOT_SamplerDesc *desc, String8 debug_name);
+
 internal void               rbvk_texture_destroy(RBVK_Texture *image);
 internal RBVK_Buffer        rbvk_buffer_create(VkDeviceSize size, VkMemory_PoolsKind pool_kind, String8 name);
 

@@ -1,11 +1,6 @@
 #ifndef DOT_MODEL_H
 #define DOT_MODEL_H
 
-#include "base/arena.h"
-#include "base/string.h"
-#include "base/thread_ctx.h"
-#include "dot_engine/dot_engine.h"
-#include "renderer/renderer.h"
 typedef struct DOT_Vec3Array{
     u32     count;
     vec3    *data;
@@ -31,11 +26,17 @@ typedef struct DOT_Mesh{
 }DOT_Mesh;
 
 typedef struct DOT_Model{
-    u32         mesh_count;
-    DOT_Mesh   *meshes;
+    u32                 mesh_count;
+    DOT_Mesh           *meshes;
 
-    u32 texture_count;
-    DOT_TextureAsset *textures;
+    u32                 sampler_count;
+    DOT_SamplerAsset   *samplers;
+
+    u32                 buffers_count;
+    DOT_BufferAsset    *buffers;
+
+    u32                 texture_count;
+    DOT_TextureAsset   *textures;
 }DOT_Model;
 
 internal void*
@@ -108,23 +109,27 @@ dot_extract_primitive(Arena *arena, DOT_Primitive *dst, cgltf_primitive *src)
                 dot_extract_vec2(arena, &dst->uvs, acc); break;
             default: break;
             }
-            DOT_RESTORE_PARTIAL_SWITCH
+            DOT_RESTORE_PARTIAL_SWITCH;
         }
         // add tangents, colors, joints, weights later
     }
 }
 
-internal void
-dot_model_from_cgltf(DOT_Renderer *renderer, const cgltf_data *data, String8 gltf_path, DOT_Model *out)
+internal DOT_Model
+dot_model_from_cgltf(DOT_Renderer *renderer, const cgltf_data *data, String8 gltf_path)
 {
+    DOT_Model model = {.texture_count = data->textures_count, .buffers_count = data->meshes_count};
+    model.textures = PUSH_ARRAY(renderer->transient_arena, DOT_TextureAsset, model.texture_count);
+    model.buffers = PUSH_ARRAY(renderer->transient_arena, DOT_BufferAsset, model.texture_count);
+
     TempArena temp = threadctx_get_temp(0,0);
     String8 folder = string8_chop_last_slash(gltf_path);
-    out->mesh_count = data->meshes_count;
-    out->meshes = PUSH_ARRAY(renderer->transient_arena, DOT_Mesh, out->mesh_count);
+    model.mesh_count = data->meshes_count;
+    model.meshes = PUSH_ARRAY(renderer->transient_arena, DOT_Mesh, model.mesh_count);
 
     for (usize mesh_idx = 0; mesh_idx < data->meshes_count; mesh_idx++) {
-        cgltf_mesh* src_mesh = &data->meshes[mesh_idx];
-        DOT_Mesh* dst_mesh = &out->meshes[mesh_idx];
+        cgltf_mesh *src_mesh = &data->meshes[mesh_idx];
+        DOT_Mesh *dst_mesh = &model.meshes[mesh_idx];
 
         dst_mesh->primitive_count = src_mesh->primitives_count;
         dst_mesh->primitives = PUSH_ARRAY(renderer->transient_arena, DOT_Primitive, dst_mesh->primitive_count);
@@ -136,7 +141,6 @@ dot_model_from_cgltf(DOT_Renderer *renderer, const cgltf_data *data, String8 glt
 
     // (jd) NOTE: For now we are going to assume that all images are on a separate path
     for(u64 i = 0; i < data->images_count; ++i){
-        TempArena local_temp = temp_arena_get(temp.arena);
         cgltf_image *image = &data->images[i];
         DOT_ASSERT(image);
         DOT_ASSERT(image->uri);
@@ -153,86 +157,130 @@ dot_model_from_cgltf(DOT_Renderer *renderer, const cgltf_data *data, String8 glt
 
         // String8 path = string8_from_cstring(image->uri);
         DOT_PRINT("image name: %S, image uri: %S", name, full_path);
-        renderer_texture_asset_create(
+        model.textures[i] = renderer_texture_asset_create(
             renderer,
             &(DOT_AssetCreateInfo){
                 .name = name,
                 .path = full_path,
             }, 0);
 
-        temp_arena_restore(local_temp);
     }
-    temp_arena_restore(temp);
-}
 
-unsigned char* dot_gltf_load_image(
-    String8 gltf_path,
-    const cgltf_options* options,
-    cgltf_image* image,
-    int* out_w,
-    int* out_h,
-    int* out_comp)
-{
-    TempArena temp = threadctx_get_temp(0,0);
-    u8* bytes = NULL;
-    usize size = 0;
-
-    if(image->buffer_view){
-        cgltf_buffer_view* view = image->buffer_view;
-        bytes = (u8*)view->buffer->data + view->offset;
-        size  = view->size;
-    }else if(image->uri && strncmp(image->uri, "data:", 5) == 0){
-
-        const char* comma = strchr(image->uri, ',');
-        const char* base64_data = comma + 1;
-
-        // decode base64 using cgltf's decoder
-        void* decoded = NULL;
-        cgltf_size decoded_size = strlen(base64_data) * 3 / 4; // safe upper bound
-
-        cgltf_result r = cgltf_load_buffer_base64(
-            options,
-            decoded_size,
-            base64_data,
-            &decoded
-        );
-
-        if (r != cgltf_result_success) {
-            return NULL;
+    for(u64 i = 0; i < data->samplers_count; ++i){
+        cgltf_sampler *sampler = &data->samplers[i];
+        DOT_ASSERT(sampler);
+        String8 name = String8Lit("Default");
+        if(sampler->name){
+            name = string8_from_cstring(sampler->name);
         }
 
-        bytes = (u8*)decoded;
-        size  = decoded_size;
-    }else if (image->uri){
-        String8 folder = string8_chop_last_slash(gltf_path);
-        String8 full_path = string8_format(
-            temp.arena,
-            "%S/%s",
-            folder,
-            image->uri
-        );
-
-        String8 buff = platform_read_entire_file(temp.arena, full_path);
-        if (buff.size == 0) return NULL;
-    }else{
-        // Invalid glTF image
-        return NULL;
+        model.samplers[i] = renderer_sampler_asset_create(
+            renderer,
+            &(DOT_AssetCreateInfo){
+                .name = name,
+                .path = gltf_path,
+            },
+            &(DOT_SamplerDesc){
+                .min_filter = sampler->min_filter == cgltf_filter_type_linear ? DOT_SamplerFilter_Linear : DOT_SamplerFilter_Nearest,
+                .mag_filter = sampler->mag_filter == cgltf_filter_type_linear ? DOT_SamplerFilter_Linear : DOT_SamplerFilter_Nearest,
+            });
     }
 
-    // Decode PNG/JPG/WebP/etc using stb_image
-    //
-    int w = 0, h = 0, comp = 0;
-    u8 *pixels = pixels;
-    if(bytes != NULL){
-        pixels = stbi_load_from_memory(bytes, (int)size, &w, &h, &comp, 4);
-    }
+    // (jd) NOTE: We already loaded buffers with cgltf_load_buffers, maybe do this ourselves?
+    for(u64 i = 0; i < data->buffer_views_count; ++i){
+    // for(u64 i = 0; i < data->buffers_count; ++i){
+        cgltf_buffer_view *buffer_view = &data->buffer_views[i];
+        DOT_ASSERT(buffer_view);
+        String8 name = String8Lit("Default");
+        if(buffer_view->name){
+            name = string8_from_cstring(buffer_view->name);
+        }
 
-    *out_w = w;
-    *out_h = h;
-    *out_comp = comp;
+        cgltf_buffer *buffer = &data->buffers[i];
+
+
+        model.buffers[i] = renderer_buffer_asset_create(
+            renderer,
+            &(DOT_AssetCreateInfo){
+                .name = name,
+                .path = gltf_path,
+            },
+            &(DOT_BufferDesc){
+                .min_filter = buffer->min_filter == cgltf_filter_type_linear ? DOT_BufferFilter_Linear : DOT_BufferFilter_Nearest,
+                .mag_filter = buffer->mag_filter == cgltf_filter_type_linear ? DOT_BufferFilter_Linear : DOT_BufferFilter_Nearest,
+            });
+    }
     temp_arena_restore(temp);
-    return pixels;
 }
+
+// unsigned char* dot_gltf_load_image(
+//     String8 gltf_path,
+//     const cgltf_options* options,
+//     cgltf_image* image,
+//     int* out_w,
+//     int* out_h,
+//     int* out_comp)
+// {
+//     TempArena temp = threadctx_get_temp(0,0);
+//     u8* bytes = NULL;
+//     usize size = 0;
+//
+//     if(image->buffer_view){
+//         cgltf_buffer_view* view = image->buffer_view;
+//         bytes = (u8*)view->buffer->data + view->offset;
+//         size  = view->size;
+//     }else if(image->uri && strncmp(image->uri, "data:", 5) == 0){
+//
+//         const char* comma = strchr(image->uri, ',');
+//         const char* base64_data = comma + 1;
+//
+//         // decode base64 using cgltf's decoder
+//         void* decoded = NULL;
+//         cgltf_size decoded_size = strlen(base64_data) * 3 / 4; // safe upper bound
+//
+//         cgltf_result r = cgltf_load_buffer_base64(
+//             options,
+//             decoded_size,
+//             base64_data,
+//             &decoded
+//         );
+//
+//         if (r != cgltf_result_success) {
+//             return NULL;
+//         }
+//
+//         bytes = (u8*)decoded;
+//         size  = decoded_size;
+//     }else if (image->uri){
+//         String8 folder = string8_chop_last_slash(gltf_path);
+//         String8 full_path = string8_format(
+//             temp.arena,
+//             "%S/%s",
+//             folder,
+//             image->uri
+//         );
+//
+//         String8 buff = platform_read_entire_file(temp.arena, full_path);
+//         if (buff.size == 0) return NULL;
+//     }else{
+//         // Invalid glTF image
+//         return NULL;
+//     }
+//
+//     // Decode PNG/JPG/WebP/etc using stb_image
+//     //
+//     int w = 0, h = 0, comp = 0;
+//     u8 *pixels = pixels;
+//     if(bytes != NULL){
+//         pixels = stbi_load_from_memory(bytes, (int)size, &w, &h, &comp, 4);
+//     }
+//
+//     *out_w = w;
+//     *out_h = h;
+//     *out_comp = comp;
+//     temp_arena_restore(temp);
+//     return(pixels);
+// }
 
 internal cgltf_data*
 dot_gltf_load_from_path(Arena *arena, String8 path)
@@ -269,10 +317,11 @@ internal DOT_Model
 dot_model_load_from_path(DOT_Renderer *renderer, String8 path)
 {
     TempArena temp = threadctx_get_temp(0,0);
-    DOT_Model model = {0};
     cgltf_data *gltf = dot_gltf_load_from_path(temp.arena, path);
+    DOT_Model model = {0};
     if(gltf){
-        dot_model_from_cgltf(renderer, gltf, path, &model);
+        model = dot_model_from_cgltf(renderer, gltf, path);
+        // cgltf_free(gltf);
     }
     temp_arena_restore(temp);
 	return(model);

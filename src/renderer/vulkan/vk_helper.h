@@ -73,8 +73,18 @@ internal b32 vk_helper_physical_device_swapchain_support(
 
 internal b32              vk_helper_physical_device_all_required_extensions(const RBVK_VulkanConfig *vk_config, VkPhysicalDevice device);
 internal b32              vk_helper_instance_all_required_extensions(const RBVK_VulkanConfig *vk_config);
-internal VkPresentModeKHR vk_helper_present_mode_kind_to_vk_present_mode_khr(RendererPresentModeKind present_mode);
-internal VkFormat         vk_helper_texture_format_to_vk_texture_format(DOT_TextureFormatKind present_mode);
+
+///////////////////////////////////////////
+///DOT to VK
+
+internal VkFilter               vk_helper_vk_filter_from_dot_sampler_filter(DOT_SamplerFilterKind sampler_filter);
+internal VkSamplerMipmapMode    vk_helper_vk_sampler_mipmap_mode_from_dot_sampler_mipmap_mode(DOT_SamplerMipmapFilterKind sample_mipmap_mode);
+internal VkSamplerAddressMode   vk_helper_vk_sampler_address_mode_from_dot_sampler_address_mode(DOT_SamplerAddressModeKind address_mode);
+
+internal VkImageType            vk_helper_texture_dimension_to_vk_image_type(DOT_TextureDimensionKind texture_dimension);
+internal VkImageViewType        vk_helper_texture_dimension_to_vk_image_view_type(DOT_TextureDimensionKind texture_dimension);
+internal VkFormat               vk_helper_texture_format_to_vk_texture_format(DOT_TextureFormatKind present_mode);
+internal VkPresentModeKHR       vk_helper_present_mode_kind_to_vk_present_mode_khr(RendererPresentModeKind present_mode);
 
 ///////////////////////////////////////////
 /// Vk misc helpers
@@ -102,8 +112,8 @@ internal VkImageSubresourceRange    vk_image_subresource_range(VkImageAspectFlag
 internal VkMemoryRequirements2      vk_buffer_memory_requirements(VkDevice vk_device, VkBuffer vk_buffer);
 
 #endif // !VK_HELPER_H
-#ifdef VK_HELPER_IMPLEMENTATION
 
+#ifdef VK_HELPER_IMPLEMENTATION
 ///////////////////////////////////////////
 /// Vk Support helpers
 ///
@@ -164,6 +174,37 @@ vk_helper_instance_all_required_extensions(const RBVK_VulkanConfig* vk_config)
     }
     temp_arena_restore(temp);
     return all_found;
+}
+
+internal VkFilter
+vk_helper_vk_filter_from_dot_sampler_filter(DOT_SamplerFilterKind sampler_filter)
+{
+    switch(sampler_filter){
+    case DOT_SamplerFilter_Nearest: return VK_FILTER_NEAREST;
+    case DOT_SamplerFilter_Linear:  return VK_FILTER_LINEAR;
+    case DOT_SamplerFilter_Cubic:   return VK_FILTER_CUBIC_IMG;
+    }
+}
+
+internal VkSamplerMipmapMode
+vk_helper_vk_sampler_mipmap_mode_from_dot_sampler_mipmap_mode(DOT_SamplerMipmapFilterKind sample_mipmap_mode)
+{
+    switch(sample_mipmap_mode){
+    case DOT_SamplerFilter_Nearest: return VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    case DOT_SamplerFilter_Linear:  return VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    }
+}
+
+internal VkSamplerAddressMode
+vk_helper_vk_sampler_address_mode_from_dot_sampler_address_mode(DOT_SamplerAddressModeKind address_mode)
+{
+    switch(address_mode){
+    case DOT_SamplerAdressMode_Repeat: return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    case DOT_SamplerAdressMode_Mirrored_repeat: return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+    case DOT_SamplerAdressMode_ClampToEdge: return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    case DOT_SamplerAdressMode_ClampToBorder: return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    case DOT_SamplerAdressMode_MirrorClampToEdge: return VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE;
+    }
 }
 
 internal VkPresentModeKHR

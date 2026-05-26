@@ -53,6 +53,7 @@ internal void
 renderer_shutdown(DOT_Renderer *renderer)
 {
     ShaderCache *shader_cache = &renderer->shader_cache;
+    // (jd) TODO: Maybe just also leave the cleanup to renderer?
     for(u32 i = 0; i < shader_cache->shader_modules_count; ++i){
         ShaderCacheNode *node = shader_cache->shader_modules[i];
         for EACH_NODE(it, ShaderCacheNode, node){
@@ -61,10 +62,8 @@ renderer_shutdown(DOT_Renderer *renderer)
         }
     }
     shader_cache_end(shader_cache);
-    renderer_texture_destroy(renderer, null_texture);
     RENDER_BACKEND_CALL(shutdown());
 }
-
 
 void
 renderer_texture_destroy(DOT_Renderer *renderer, DOT_TextureHandle handle)
@@ -100,6 +99,7 @@ renderer_texture_asset_create(DOT_Renderer *renderer, const DOT_AssetCreateInfo 
         data = stbi_load_from_memory(file_data.str, file_data.size, (int*)&width, (int*)&height, NULL, comp);
         size_bytes = 1;
     }
+    stbi_allocator_unset();
 
     if(mip_levels == 0){
         u32 mip_w = width;
@@ -111,32 +111,52 @@ renderer_texture_asset_create(DOT_Renderer *renderer, const DOT_AssetCreateInfo 
             mip_levels++;
         }
     }
-    String8 debug_name = string8_append_string8(renderer->transient_arena, String8Lit("render_backend_"), asset_info->name);
     DOT_TextureAsset asset = {
         .asset = {
             .kind = DOT_Asset_Texture,
             .name = string8_copy(renderer->transient_arena, asset_info->name),
-            .desc = asset_info->desc,
-            .path = asset_info->path,
+            .desc = string8_copy(renderer->transient_arena, asset_info->desc),
+            .path = string8_copy(renderer->transient_arena, asset_info->path),
         },
         .desc = {
-            .mip_levels = mip_levels,
             .dimension_kind = DOT_TextureDimension_2D,
             .format_kind = renderer_texture_format_from_info(comp, size_bytes, true),
+            .mip_levels = mip_levels,
             .width = width,
             .height = height,
             .depth = 1,
         },
     };
-    asset.handle = renderer_texture_create(renderer, &asset.desc, data, debug_name),
+    asset.handle = renderer_texture_create(renderer, &asset.desc, data, asset_info->name),
     temp_arena_restore(temp);
     return asset;
 }
 
-DOT_TextureHandle
+internal DOT_TextureHandle
 renderer_texture_create(DOT_Renderer *renderer, const DOT_TextureDesc *create_info, void *data, String8 debug_name)
 {
     return RENDER_BACKEND_CALL(texture_create(create_info, data, debug_name));
+}
+
+internal DOT_SamplerAsset
+renderer_sampler_asset_create(DOT_Renderer *renderer, const DOT_AssetCreateInfo *asset_info, const DOT_SamplerDesc *sampler_desc)
+{
+    DOT_SamplerAsset sampler_asset = {
+        .asset = {
+            .name = string8_copy(renderer->transient_arena, asset_info->name),
+            .desc = string8_copy(renderer->transient_arena, asset_info->desc),
+            .path = string8_copy(renderer->transient_arena, asset_info->path),
+        },
+        .desc = *sampler_desc,
+        .handle = renderer_sampler_create(renderer, sampler_desc, asset_info->name),
+    };
+    return sampler_asset;
+}
+
+internal DOT_SamplerHandle
+renderer_sampler_create(DOT_Renderer *renderer, const DOT_SamplerDesc *create_info, String8 debug_name)
+{
+    return RENDER_BACKEND_CALL(sampler_create(create_info, debug_name));
 }
 
 void

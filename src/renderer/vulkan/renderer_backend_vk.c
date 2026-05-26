@@ -52,6 +52,21 @@ renderer_backend_vk_debug_callback(
     return VK_FALSE;
 }
 
+internal inline VKAPI_ATTR void VKAPI_CALL
+rbvk_set_resource_name(VkObjectType type, u64 handle, const char *name)
+{
+    if(!VK_EXT_DEBUG_UTILS_ENABLE){
+        return;
+    }
+    vkSetDebugUtilsObjectNameEXT(g_vk_ctx->device.vk_device,
+        &(VkDebugUtilsObjectNameInfoEXT){
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+            .objectType = type,
+            .objectHandle = handle,
+            .pObjectName = name,
+        });
+}
+
 internal DOT_ShaderModuleHandle
 rbvk_dot_shader_module_from_vk_shader_module(VkShaderModule vk_sm)
 {
@@ -91,6 +106,57 @@ renderer_backend_vk_shader_unload(DOT_ShaderModuleHandle shader_module_handle)
     vkDestroyShaderModule(g_vk_ctx->device.vk_device, vk_sm, NULL);
 }
 
+internal DOT_SamplerHandle
+renderer_backend_vk_sampler_create(const DOT_SamplerDesc *desc, String8 debug_name)
+{
+    RBVK_SamplerHandle h = rbvk_sampler_create(desc, debug_name);
+    DOT_SamplerHandle dot_sampler_handle = {.handle[0] = pool_handle_pack(h),};
+    return dot_sampler_handle;
+}
+
+internal RBVK_SamplerHandle
+rbvk_sampler_create(const DOT_SamplerDesc *desc, String8 debug_name)
+{
+    if(desc == NULL){
+       RBVK_SamplerHandle sampler_h = POOL_NULL_HANDLE_GET(&g_vk_ctx->sampler_pool);
+       return sampler_h;
+    }
+    const RBVK_SamplerHandle sampler_h = POOL_ALLOC(&g_vk_ctx->texture_pool);
+    RBVK_Sampler *sampler = POOL_GET(&g_vk_ctx->sampler_pool, sampler_h);
+    sampler->vk_min_filter      = vk_helper_vk_filter_from_dot_sampler_filter(desc->min_filter),
+    sampler->vk_mag_filter      = vk_helper_vk_filter_from_dot_sampler_filter(desc->mag_filter),
+    sampler->vk_mipmap_filter   = vk_helper_vk_sampler_mipmap_mode_from_dot_sampler_mipmap_mode(desc->mipmap_filter),
+    sampler->vk_address_mode_u  = vk_helper_vk_sampler_address_mode_from_dot_sampler_address_mode(desc->address_mode_u),
+    sampler->vk_address_mode_v  = vk_helper_vk_sampler_address_mode_from_dot_sampler_address_mode(desc->address_mode_v),
+    sampler->vk_address_mode_w  = vk_helper_vk_sampler_address_mode_from_dot_sampler_address_mode(desc->address_mode_w),
+    DOT_DEBUG_NAME_SET(sampler->name, debug_name);
+    rbvk_set_resource_name(VK_OBJECT_TYPE_SAMPLER, cast(u64)sampler->vk_sampler, sampler->name);
+
+    vkCreateSampler(g_vk_ctx->device.vk_device,
+        &(VkSamplerCreateInfo){
+            .minFilter      = sampler->vk_min_filter,
+            .magFilter      = sampler->vk_mag_filter,
+            .mipmapMode     = sampler->vk_mipmap_filter,
+            .addressModeU   = sampler->vk_address_mode_u,
+            .addressModeV   = sampler->vk_address_mode_v,
+            .addressModeW   = sampler->vk_address_mode_w,
+            .anisotropyEnable = 0,
+            .compareEnable = 0,
+            .unnormalizedCoordinates = 0,
+            .borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE,
+            .minLod = 0,
+            .maxLod = 16,
+            // TODO:
+            /*float                   mipLodBias;
+            float                   maxAnisotropy;
+            VkCompareOp             compareOp;
+            VkBorderColor           borderColor;
+            VkBool32                unnormalizedCoordinates;*/
+        }, NULL, &sampler->vk_sampler);
+    renderer_backend_vk_resource_cleanup_list_push_rbvk_sampler(sampler_h);
+    return sampler_h;
+}
+
 internal DOT_TextureHandle
 renderer_backend_vk_texture_create(const DOT_TextureDesc *desc, void *data, String8 debug_name)
 {
@@ -112,9 +178,9 @@ rbvk_texture_create(const DOT_TextureDesc *desc, void *data, String8 debug_name)
     texture->vk_extent3d        = image_extent_3d;
     texture->mip_levels         = desc->mip_levels;
     texture->vk_format          = vk_helper_texture_format_to_vk_texture_format(desc->format_kind);
-    texture->sampler            = NULL;
     texture->vk_image_layout    = VK_IMAGE_LAYOUT_UNDEFINED;
     DOT_DEBUG_NAME_SET(texture->name, debug_name);
+    rbvk_set_resource_name(VK_OBJECT_TYPE_IMAGE, cast(u64)texture->vk_image, texture->name);
 
     const DOT_TextureFormatInfo format_info = renderer_texture_format_info_from_format(desc->format_kind);
     const b8 format_depth_bit   = DOT_BITS_MATCH(format_info.format_flags, DOT_TextureFormatFlags_Depth);
@@ -173,6 +239,7 @@ rbvk_texture_create(const DOT_TextureDesc *desc, void *data, String8 debug_name)
             },
             NULL,
             &texture->vk_image_view));
+        rbvk_set_resource_name(VK_OBJECT_TYPE_IMAGE_VIEW, cast(u64)texture->vk_image_view, texture->name);
     }
 
     if(data){
@@ -248,10 +315,17 @@ renderer_backend_vk_resource_cleanup_list_push_scope()
 // NOTE(JD): Will start to just make enclosing scopes
 // Should extend to be a graph
 internal void
-renderer_backend_vk_resource_cleanup_list_push_rbvk_texture(PoolHandle texture_id)
+renderer_backend_vk_resource_cleanup_list_push_rbvk_texture(RBVK_TextureHandle texture_id)
 {
     RBVK_ResourceCleanupCtx *root = TREE_GET_ROOT(&g_vk_ctx->resource_cleanup_list_tree);
     root->texture_ids[root->texture_id_count++] = texture_id;
+}
+
+internal void
+renderer_backend_vk_resource_cleanup_list_push_rbvk_sampler(RBVK_SamplerHandle sampler_id)
+{
+    RBVK_ResourceCleanupCtx *root = TREE_GET_ROOT(&g_vk_ctx->resource_cleanup_list_tree);
+    root->sampler_ids[root->texture_id_count++] = sampler_id;
 }
 
 // internal void
@@ -339,6 +413,8 @@ renderer_backend_vk_texture_destroy(DOT_TextureHandle handle)
 internal void
 rbvk_texture_destroy(RBVK_Texture *image){
     VkDevice device = g_vk_ctx->device.vk_device;
+    DOT_ASSERT(image->vk_image_view);
+    DOT_ASSERT(image->vk_image);
     vkDestroyImageView(device, image->vk_image_view, NULL);
     // vkUnmapMemory(device, image->alloc.vk_memory);
     vkDestroyImage(device, image->vk_image, NULL);
@@ -553,7 +629,7 @@ renderer_backend_vk_init(DOT_Window *window)
             &(DOT_TextureDesc){
                 .dimension_kind = DOT_TextureDimension_2D,
                 .format_kind = DOT_TextureFormat_RGBA16F,
-                .texture_usage_flags = DOT_TextureUsageFlags_RenderTarget,
+                .texture_usage_flags = DOT_TextureUsageFlags_RenderTarget | DOT_TextureUsageFlags_Compute,
                 .width = g_vk_ctx->draw_extent.width,
                 .height = g_vk_ctx->draw_extent.height,
                 .depth = 1,
@@ -801,7 +877,6 @@ renderer_create_postprocess_module(DOT_ShaderModuleHandle shader_module_h)
 	    vkUpdateDescriptorSets(g_vk_ctx->device.vk_device, 1, &drawImageWrite, 0, NULL);
 
 }
-
 
 internal void
 renderer_backend_vk_clear_bg(vec3 color)

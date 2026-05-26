@@ -8,8 +8,7 @@ enum
     SHADER_CACHE_SHADER_COUNT = 64,
 };
 
-DOT_STATIC_ASSERT(IS_POW2(SHADER_CACHE_SHADER_COUNT),
-                  "Calculations assume a power of 2 for performance reasons");
+DOT_STATIC_ASSERT(IS_POW2(SHADER_CACHE_SHADER_COUNT), "Calculations assume a power of 2 for performance reasons");
 
 typedef struct ShaderCacheConfig{
     u32 shader_modules_count;
