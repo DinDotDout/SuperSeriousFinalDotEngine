@@ -1,5 +1,6 @@
 internal TempArena
-temp_arena_get(Arena *arena){
+temp_arena_get(Arena *arena)
+{
     TempArena sa;
     sa.arena = arena;
     sa.prev_offset = arena->used;
@@ -7,12 +8,14 @@ temp_arena_get(Arena *arena){
 }
 
 internal void
-temp_arena_restore(TempArena temp){
+temp_arena_restore(TempArena temp)
+{
     temp.arena->used = temp.prev_offset;
 }
 
 internal Arena*
-arena_create_(ArenaInitParams *params){
+arena_create_(ArenaInitParams *params)
+{
     Arena *arena;
     if(params->buffer){
         // NOTE: Keeping this use case just in case. If we ever end up using it
@@ -27,8 +30,10 @@ arena_create_(ArenaInitParams *params){
     }
     return arena;
 }
+
 internal Arena*
-arena_create_from_memory(ArenaInitParams *params){
+arena_create_from_memory(ArenaInitParams *params)
+{
     DOT_ASSERT_FL(params->buffer != NULL, params->reserve_file, params->reserve_line, "Invalid memory provided");
     DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Allocating arena from buffer with %M", params->reserve_size);
     // NOTE: Since we don't own the memory it must be backed and we assume it is committed (reserve == commit)
@@ -54,7 +59,8 @@ arena_create_from_memory(ArenaInitParams *params){
 }
 
 internal Arena*
-arena_create_from_arena(ArenaInitParams *params){
+arena_create_from_arena(ArenaInitParams *params)
+{
     DOT_ASSERT_FL(params->parent != NULL, params->reserve_file, params->reserve_line, "Invalid memory provided");
     DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Allocating arena from parent:");
     arena_print_debug(params->parent);
@@ -66,7 +72,8 @@ arena_create_from_arena(ArenaInitParams *params){
 }
 
 internal Arena*
-arena_create_from_os(ArenaInitParams *params){
+arena_create_from_os(ArenaInitParams *params)
+{
     DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Allocating arena from os");
     DOT_ASSERT_FL(params->reserve_size > 0, params->reserve_file, params->reserve_line, "No reserve_size provided");
     DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Arena \"%s\": requested %M", params->name, params->reserve_size);
@@ -103,14 +110,16 @@ arena_create_from_os(ArenaInitParams *params){
 }
 
 internal void
-arena_reset(ArenaOpParams *op){
+arena_reset(ArenaOpParams *op)
+{
     DOT_ASSERT_FL(op->arena, op->file, op->line);
     ASAN_POISON(arena->base + ARENA_HEADER_SIZE_B, arena->reserved - ARENA_HEADER_SIZE_B);
     op->arena->used = ARENA_HEADER_SIZE_B;
 }
 
 internal void
-arena_destroy(ArenaOpParams *op){
+arena_destroy(ArenaOpParams *op)
+{
     Arena *arena = op->arena;
     u64 reserved = arena->reserved;
     void* base = arena->base;
@@ -130,7 +139,8 @@ arena_destroy(ArenaOpParams *op){
 }
 
 internal u8*
-arena_push(ArenaOpParams *op){
+arena_push(ArenaOpParams *op)
+{
     Arena *arena = op->arena;
     DOT_ASSERT_FL(op->size > 0, op->file, op->line);
     uptr arena_base = cast(uptr)arena->base;
@@ -178,6 +188,11 @@ arena_push(ArenaOpParams *op){
         MEMORY_ZERO(mem_offset, required_padded);
     }
     return mem_offset;
+}
+
+internal void
+arena_free()
+{
 }
 
 internal String8

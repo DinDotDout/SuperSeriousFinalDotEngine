@@ -46,28 +46,35 @@
 #define DOT_INT_SKIP // Already included ints by rgfw
 #include "base/base_include.h"
 
-void* malloc_debug(size_t sz, char *file, u32 line)
+void* malloc_debug(u64 sz, char *file, u32 line)
 {
-    DOT_PRINT("malloc debug", file, line);
-    return malloc(sz);
+    void *mem = malloc(sz);
+    DOT_PRINT("malloc debug %p %M", mem, sz, file, line);
+    return mem;
 }
 
-void* realloc_debug(void* ptr, size_t new_sz, char *file, u32 line)
+void* realloc_debug(void* ptr, u64 new_sz, char *file, u32 line)
 {
-    DOT_PRINT("realloc", file, line);
+    DOT_PRINT("realloc %M", new_sz, file, line);
     return realloc(ptr, new_sz);
 }
 
 void free_debug(void *ptr, char *file, u32 line)
 {
-    DOT_PRINT("free debug", file, line);
+    DOT_PRINT("free debug %p", ptr, file, line);
     free(ptr);
 }
 
+#define STBI_MALLOC(size) malloc_debug(size, __FILE__, __LINE__)
+#define STBI_REALLOC(size,new_sz) realloc_debug(size, new_sz, __FILE__, __LINE__)
+#define STBI_FREE(size) free_debug(size, __FILE__, __LINE__)
 #define STB_IMAGE_IMPLEMENTATION
 #include "third_party/stb/stb_image.h"
 
 #define CGLTF_MALLOC(size) malloc_debug(size, __FILE__, __LINE__)
+#define CGLTF_FREE(ptr) free_debug(ptr, __FILE__, __LINE__)
+#define CGLTF_IMPLEMENTATION
+
 #define CGLTF_FREE(ptr) free_debug(ptr, __FILE__, __LINE__)
 #define CGLTF_IMPLEMENTATION
 #include "third_party/cgltf/cgltf.h"

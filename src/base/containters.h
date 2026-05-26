@@ -6,8 +6,8 @@
 typedef struct PoolHandle{
     u32 idx;
     // u32 gen;
-    // _Atomic u16 *refcount_buffer;
 }PoolHandle;
+
 #define POOL_NULL_HANDLE (PoolHandle){0}
 
 internal inline u64
@@ -38,11 +38,11 @@ pool_handle_unpack(u64 pack)
 typedef struct Pool{
     u8  *raw_buffer; // elem_size * capacity
     u32 *idx_buffer; // count; maps handle -> raw_buffer index
-    // u32  head; // Make it a ring buffer when adding refcount to spread usage
-    // u32  tail;
     // _Atomic u16 *refcount_buffer;
     // _Atomic u16 *gen_buffer;
     u32  count;
+    // u32  head; // Make it a ring buffer when adding refcount to spread gen usage
+    // u32  tail;
     u32  capacity;
     u32  elem_size;
 }Pool;

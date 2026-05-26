@@ -76,6 +76,7 @@ internal Arena *arena_create_from_arena(ArenaInitParams *);
 internal Arena *arena_create_from_os(ArenaInitParams *);
 
 internal u8*    arena_push(ArenaOpParams *);
+internal void   arena_free();
 internal void   arena_reset(ArenaOpParams *);
 internal void   arena_destroy(ArenaOpParams *);
 

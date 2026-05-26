@@ -75,7 +75,8 @@ renderer_texture_destroy(DOT_Renderer *renderer, DOT_TextureHandle handle)
 DOT_TextureAsset
 renderer_texture_asset_create(DOT_Renderer *renderer, const DOT_AssetCreateInfo *asset_info, u8 mip_levels)
 {
-    TempArena temp = threadctx_get_temp(0,0);
+    DOT_WARNING("Creating texture with name %S", asset_info->name);
+    TempArena temp = temp_arena_get(renderer->transient_arena);
     String8 file_data = platform_read_entire_file(temp.arena, asset_info->path);
 
     void *data = NULL;
@@ -85,6 +86,8 @@ renderer_texture_asset_create(DOT_Renderer *renderer, const DOT_AssetCreateInfo 
     u32 width = 0;
     u32 height = 0;
     int comp = 0;
+    stbi_allocator alloc = {.stbi_alloc = arena_push, .stbi_free = arena_free, .arena = temp.arena};
+    stbi_allocator_set(&alloc);
     stbi_info_from_memory(file_data.str, file_data.size, (int*)&width, (int*)&height, &comp);
     comp = comp == 3 ? STBI_rgb_alpha : comp;
     if(is_hdr){

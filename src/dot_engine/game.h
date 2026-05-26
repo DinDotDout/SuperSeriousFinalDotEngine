@@ -47,8 +47,6 @@ struct DOT_GameVtable{
 
 
 DOT_GameVtable game_vtable;
-#else
-#include "renderer/renderer.h"
 #endif
 
 b32 dot_game_init(DOT_Game *game, DOT_Renderer *renderer,
