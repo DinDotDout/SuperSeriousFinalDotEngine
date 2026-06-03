@@ -87,7 +87,7 @@ read_only global RBVK_VulkanConfig g_rbvk_vk_config = {
         .engine_name         = String8Lit("dot_engine"),
         .engine_version      = VK_MAKE_VERSION(1,0,0),
         .api_version         = VK_API_VERSION_1_4,
-        .extensions = SLICE(String8, {
+        .extensions = SLICE_INIT(String8, {
             String8Lit(VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME),
             String8Lit(VK_KHR_SURFACE_EXTENSION_NAME),
 #ifdef VK_EXT_DEBUG_UTILS_ENABLE
@@ -97,14 +97,14 @@ read_only global RBVK_VulkanConfig g_rbvk_vk_config = {
         }),
     },
 
-    .validation_layers = SLICE(String8, {
+    .validation_layers = SLICE_INIT(String8, {
 #ifdef VALIDATION_LAYERS_ENABLE
         String8Lit("VK_LAYER_KHRONOS_validation"),
 #endif
     }),
 
     .device = {
-        .extensions = SLICE(String8, {
+        .extensions = SLICE_INIT(String8, {
             String8Lit(VK_KHR_SWAPCHAIN_EXTENSION_NAME),
             String8Lit(VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME),
             String8Lit(VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME),

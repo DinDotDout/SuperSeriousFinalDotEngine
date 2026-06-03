@@ -77,13 +77,15 @@ internal b32              vk_helper_instance_all_required_extensions(const RBVK_
 ///////////////////////////////////////////
 ///DOT to VK
 
-internal VkFilter               vk_helper_vk_filter_from_dot_sampler_filter(DOT_SamplerFilterKind sampler_filter);
-internal VkSamplerMipmapMode    vk_helper_vk_sampler_mipmap_mode_from_dot_sampler_mipmap_mode(DOT_SamplerMipmapFilterKind sample_mipmap_mode);
-internal VkSamplerAddressMode   vk_helper_vk_sampler_address_mode_from_dot_sampler_address_mode(DOT_SamplerAddressModeKind address_mode);
+internal VkFilter               vk_helper_vk_filter_render_types_sampler_filter(RenderTypes_SamplerFilterKind sampler_filter);
+internal VkBlendOp vk_helper_vk_blendop_from_render_types_blend_op_kind(RenderTypes_BlendOpKind op);
+internal VkSamplerMipmapMode    vk_helper_vk_sampler_mipmap_mode_render_types_sampler_mipmap_mode(RenderTypes_SamplerMipmapFilterKind sample_mipmap_mode);
+internal VkSamplerAddressMode   vk_helper_vk_sampler_address_mode_render_types_sampler_address_mode(RenderTypes_SamplerAddressModeKind address_mode);
+internal VkBufferUsageFlags     vk_helper_vk_buffer_usage_flags_from_dt_buffer_usage_flags(RenderTypes_BufferUsageFlags usage_flags);
 
-internal VkImageType            vk_helper_texture_dimension_to_vk_image_type(DOT_TextureDimensionKind texture_dimension);
-internal VkImageViewType        vk_helper_texture_dimension_to_vk_image_view_type(DOT_TextureDimensionKind texture_dimension);
-internal VkFormat               vk_helper_texture_format_to_vk_texture_format(DOT_TextureFormatKind present_mode);
+internal VkImageType            vk_helper_texture_dimension_to_vk_image_type(RenderTypes_TextureDimensionKind texture_dimension);
+internal VkImageViewType        vk_helper_texture_dimension_to_vk_image_view_type(RenderTypes_TextureDimensionKind texture_dimension);
+internal VkFormat               vk_helper_texture_format_to_vk_texture_format(RenderTypes_TextureFormatKind present_mode);
 internal VkPresentModeKHR       vk_helper_present_mode_kind_to_vk_present_mode_khr(RendererPresentModeKind present_mode);
 
 ///////////////////////////////////////////
@@ -176,34 +178,78 @@ vk_helper_instance_all_required_extensions(const RBVK_VulkanConfig* vk_config)
     return all_found;
 }
 
+internal VkBlendOp
+vk_helper_vk_blendop_from_render_types_blend_op_kind(RenderTypes_BlendOpKind blend_op)
+{
+    switch(blend_op){
+        default: DOT_ERROR("undefined op %u", blend_op);
+        case RenderTypes_BlendOpKind_Add:             return VK_BLEND_OP_ADD;
+        case RenderTypes_BlendOpKind_Subtract:        return VK_BLEND_OP_SUBTRACT;
+        case RenderTypes_BlendOpKind_ReverseSubtract: return VK_BLEND_OP_REVERSE_SUBTRACT;
+        case RenderTypes_BlendOpKind_Min:             return VK_BLEND_OP_MIN;
+        case RenderTypes_BlendOpKind_Max:             return VK_BLEND_OP_MAX;
+    }
+}
+
+internal VkBlendFactor
+vk_helper_vk_blend_factor_from_render_types_blend_factor_kind(RenderTypes_BlendFactorKind blend_factor)
+{
+    switch(blend_factor){
+    default: DOT_ERROR("undefined blend factor %u", blend_factor);
+    case RenderTypes_BlendFactorKind_Zero:                  return VK_BLEND_FACTOR_ZERO;
+    case RenderTypes_BlendFactorKind_One:                   return VK_BLEND_FACTOR_ONE;
+    case RenderTypes_BlendFactorKind_SrcColor:              return VK_BLEND_FACTOR_SRC_COLOR;
+    case RenderTypes_BlendFactorKind_OneMinusSrcColor:      return VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+    case RenderTypes_BlendFactorKind_DstColor:              return VK_BLEND_FACTOR_DST_COLOR;
+    case RenderTypes_BlendFactorKind_OneMinusDstColor:      return VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+    case RenderTypes_BlendFactorKind_SrcAlpha:              return VK_BLEND_FACTOR_SRC_ALPHA;
+    case RenderTypes_BlendFactorKind_OneMinusSrcAlpha:      return VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    case RenderTypes_BlendFactorKind_DstAlpha:              return VK_BLEND_FACTOR_DST_ALPHA;
+    case RenderTypes_BlendFactorKind_OneMinusDstAlpha:      return VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+    case RenderTypes_BlendFactorKind_ConstantColor:         return VK_BLEND_FACTOR_CONSTANT_COLOR;
+    case RenderTypes_BlendFactorKind_OneMinusConstantColor: return VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
+    case RenderTypes_BlendFactorKind_ConstantAlpha:         return VK_BLEND_FACTOR_CONSTANT_ALPHA;
+    case RenderTypes_BlendFactorKind_OneMinusConstantAlpha: return VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+    case RenderTypes_BlendFactorKind_SrcAlphaSaturate:      return VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;
+    case RenderTypes_BlendFactorKind_Src1Color:             return VK_BLEND_FACTOR_SRC1_COLOR;
+    case RenderTypes_BlendFactorKind_OneMinusSrc1Color:     return VK_BLEND_FACTOR_ONE_MINUS_SRC1_COLOR;
+    case RenderTypes_BlendFactorKind_Src1Alpha:             return VK_BLEND_FACTOR_SRC1_ALPHA;
+    case RenderTypes_BlendFactorKind_OneMinusSrc1Alpha:     return VK_BLEND_FACTOR_ONE_MINUS_SRC1_ALPHA;
+
+    }
+}
+
 internal VkFilter
-vk_helper_vk_filter_from_dot_sampler_filter(DOT_SamplerFilterKind sampler_filter)
+vk_helper_vk_filter_render_types_sampler_filter(RenderTypes_SamplerFilterKind sampler_filter)
 {
     switch(sampler_filter){
-    case DOT_SamplerFilter_Nearest: return VK_FILTER_NEAREST;
-    case DOT_SamplerFilter_Linear:  return VK_FILTER_LINEAR;
-    case DOT_SamplerFilter_Cubic:   return VK_FILTER_CUBIC_IMG;
+    default: DOT_ERROR("undefined sampler filter %u", sampler_filter);
+    case RenderTypes_SamplerFilterKind_Nearest: return VK_FILTER_NEAREST;
+    case RenderTypes_SamplerFilterKind_Linear:  return VK_FILTER_LINEAR;
+    case RenderTypes_SamplerFilterKind_Cubic:   return VK_FILTER_CUBIC_IMG;
     }
 }
 
 internal VkSamplerMipmapMode
-vk_helper_vk_sampler_mipmap_mode_from_dot_sampler_mipmap_mode(DOT_SamplerMipmapFilterKind sample_mipmap_mode)
+vk_helper_vk_sampler_mipmap_mode_render_types_sampler_mipmap_mode(RenderTypes_SamplerMipmapFilterKind sample_mipmap_mode)
 {
     switch(sample_mipmap_mode){
-    case DOT_SamplerFilter_Nearest: return VK_SAMPLER_MIPMAP_MODE_NEAREST;
-    case DOT_SamplerFilter_Linear:  return VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    default: DOT_ERROR("undefined mip map mode %u", sample_mipmap_mode);
+    case RenderTypes_SamplerFilterKind_Nearest: return VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    case RenderTypes_SamplerFilterKind_Linear:  return VK_SAMPLER_MIPMAP_MODE_LINEAR;
     }
 }
 
 internal VkSamplerAddressMode
-vk_helper_vk_sampler_address_mode_from_dot_sampler_address_mode(DOT_SamplerAddressModeKind address_mode)
+vk_helper_vk_sampler_address_mode_render_types_sampler_address_mode(RenderTypes_SamplerAddressModeKind address_mode)
 {
     switch(address_mode){
-    case DOT_SamplerAdressMode_Repeat: return VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    case DOT_SamplerAdressMode_Mirrored_repeat: return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
-    case DOT_SamplerAdressMode_ClampToEdge: return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    case DOT_SamplerAdressMode_ClampToBorder: return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-    case DOT_SamplerAdressMode_MirrorClampToEdge: return VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE;
+    default: DOT_ERROR("undefined address mode %u", address_mode);
+    case RenderTypes_SamplerAddressModeKind_Repeat:             return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    case RenderTypes_SamplerAddressModeKind_Mirrored_repeat:    return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+    case RenderTypes_SamplerAddressModeKind_ClampToEdge:        return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    case RenderTypes_SamplerAddressModeKind_ClampToBorder:      return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    case RenderTypes_SamplerAddressModeKind_MirrorClampToEdge:  return VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE;
     }
 }
 
@@ -216,76 +262,88 @@ vk_helper_present_mode_kind_to_vk_present_mode_khr(RendererPresentModeKind prese
     case RendererPresentModeKind_FIFO:         return VK_PRESENT_MODE_FIFO_KHR;
     case RendererPresentModeKind_FIFO_Relaxed: return VK_PRESENT_MODE_FIFO_RELAXED_KHR;
     // case RendererPresentModeKind_FIFO_Count:
-    default:
-      DOT_WARNING("Unsuported requested present mode %s, defaulting to "
-                  "VK_PRESENT_MODE_IMMEDIATE_KHR", renderer_present_mode_kind_str[present_mode]);
-      return VK_PRESENT_MODE_IMMEDIATE_KHR;
+    default: DOT_WARNING("Unsuported requested present mode %s, defaulting to "
+                  "VK_PRESENT_MODE_IMMEDIATE_KHR", string8_from_RendererPresentModeKind[present_mode]);
+        return VK_PRESENT_MODE_IMMEDIATE_KHR;
     }
 }
 
+internal VkBufferUsageFlags
+vk_helper_vk_buffer_usage_flags_from_dt_buffer_usage_flags(RenderTypes_BufferUsageFlags flags)
+{
+    VkBufferUsageFlags vk_usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    vk_usage |= DOT_BITS_ANY(flags, RenderTypes_BufferUsageBit_Vertex)   ? VK_BUFFER_USAGE_VERTEX_BUFFER_BIT : 0;
+    vk_usage |= DOT_BITS_ANY(flags, RenderTypes_BufferUsageBit_Index)    ? VK_BUFFER_USAGE_INDEX_BUFFER_BIT : 0;
+    vk_usage |= DOT_BITS_ANY(flags, RenderTypes_BufferUsageBit_Uniform)  ? VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT : 0;
+    vk_usage |= DOT_BITS_ANY(flags, RenderTypes_BufferUsageBit_Storage)  ? VK_BUFFER_USAGE_STORAGE_BUFFER_BIT : 0;
+    vk_usage |= DOT_BITS_ANY(flags, RenderTypes_BufferUsageBit_Indirect) ? VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT: 0;
+    vk_usage |= DOT_BITS_ANY(flags, RenderTypes_BufferUsageBit_DeviceAddress) ? VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT : 0;
+    return vk_usage;
+}
+
 internal VkImageType
-vk_helper_texture_dimension_to_vk_image_type(DOT_TextureDimensionKind texture_dimension)
+vk_helper_texture_dimension_to_vk_image_type(RenderTypes_TextureDimensionKind texture_dimension)
 {
     switch(texture_dimension){
-    case DOT_TextureDimension_1D: return VK_IMAGE_TYPE_1D;
-    case DOT_TextureDimension_2D: return VK_IMAGE_TYPE_2D;
-    case DOT_TextureDimension_3D: return VK_IMAGE_TYPE_3D;
-    case DOT_TextureDimension_Array1D: return VK_IMAGE_TYPE_1D;
-    case DOT_TextureDimension_Array2D: return VK_IMAGE_TYPE_2D;
-    case DOT_TextureDimension_Array3D: return VK_IMAGE_TYPE_3D;
+    case RenderTypes_TextureDimensionKind_1D: return VK_IMAGE_TYPE_1D;
+    case RenderTypes_TextureDimensionKind_2D: return VK_IMAGE_TYPE_2D;
+    case RenderTypes_TextureDimensionKind_3D: return VK_IMAGE_TYPE_3D;
+    case RenderTypes_TextureDimensionKind_Array1D: return VK_IMAGE_TYPE_1D;
+    case RenderTypes_TextureDimensionKind_Array2D: return VK_IMAGE_TYPE_2D;
+    case RenderTypes_TextureDimensionKind_Array3D: return VK_IMAGE_TYPE_3D;
     }
 }
 
 internal VkImageViewType
-vk_helper_texture_dimension_to_vk_image_view_type(DOT_TextureDimensionKind texture_dimension)
+vk_helper_texture_dimension_to_vk_image_view_type(RenderTypes_TextureDimensionKind texture_dimension)
 {
     switch(texture_dimension){
-    case DOT_TextureDimension_1D: return VK_IMAGE_VIEW_TYPE_1D;
-    case DOT_TextureDimension_2D: return VK_IMAGE_VIEW_TYPE_2D;
-    case DOT_TextureDimension_3D: return VK_IMAGE_VIEW_TYPE_3D;
-    case DOT_TextureDimension_Array1D: return VK_IMAGE_VIEW_TYPE_1D_ARRAY;
-    case DOT_TextureDimension_Array2D: return VK_IMAGE_VIEW_TYPE_2D_ARRAY;
-    case DOT_TextureDimension_Array3D: return VK_IMAGE_VIEW_TYPE_CUBE_ARRAY;
+    case RenderTypes_TextureDimensionKind_1D: return VK_IMAGE_VIEW_TYPE_1D;
+    case RenderTypes_TextureDimensionKind_2D: return VK_IMAGE_VIEW_TYPE_2D;
+    case RenderTypes_TextureDimensionKind_3D: return VK_IMAGE_VIEW_TYPE_3D;
+    case RenderTypes_TextureDimensionKind_Array1D: return VK_IMAGE_VIEW_TYPE_1D_ARRAY;
+    case RenderTypes_TextureDimensionKind_Array2D: return VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+    case RenderTypes_TextureDimensionKind_Array3D: return VK_IMAGE_VIEW_TYPE_CUBE_ARRAY;
     }
 }
 
 internal VkFormat
-vk_helper_texture_format_to_vk_texture_format(DOT_TextureFormatKind texture_format)
+vk_helper_texture_format_to_vk_texture_format(RenderTypes_TextureFormatKind texture_format)
 {
     switch(texture_format){
-    case DOT_TextureFormat_Invalid: return VK_FORMAT_UNDEFINED;
+    case RenderTypes_TextureFormatKind_Invalid: return VK_FORMAT_UNDEFINED;
     // 8‑bit formats
-    case DOT_TextureFormat_R8_UNORM: return VK_FORMAT_R8_UNORM;
-    case DOT_TextureFormat_R8_UINT: return VK_FORMAT_R8_UINT;
-    case DOT_TextureFormat_RG8_UNORM: return VK_FORMAT_R8G8_UNORM;
-    case DOT_TextureFormat_RGB8_UNORM: return VK_FORMAT_R8G8B8_UNORM;
-    case DOT_TextureFormat_RGB8_SRGB: return VK_FORMAT_R8G8B8_SRGB;
-    case DOT_TextureFormat_RGBA8_UNORM: return VK_FORMAT_R8G8B8A8_UNORM;
-    case DOT_TextureFormat_RGBA8_SRGB: return VK_FORMAT_R8G8B8A8_SRGB;
-    case DOT_TextureFormat_BGRA8_UNORM: return VK_FORMAT_B8G8R8A8_UNORM;
-    case DOT_TextureFormat_BGRA8_SRGB: return VK_FORMAT_B8G8R8A8_SRGB;
+    case RenderTypes_TextureFormatKind_R8_UNORM: return VK_FORMAT_R8_UNORM;
+    case RenderTypes_TextureFormatKind_R8_UINT: return VK_FORMAT_R8_UINT;
+    case RenderTypes_TextureFormatKind_RG8_UNORM: return VK_FORMAT_R8G8_UNORM;
+    case RenderTypes_TextureFormatKind_RGB8_UNORM: return VK_FORMAT_R8G8B8_UNORM;
+    case RenderTypes_TextureFormatKind_RGB8_SRGB: return VK_FORMAT_R8G8B8_SRGB;
+    case RenderTypes_TextureFormatKind_RGBA8_UNORM: return VK_FORMAT_R8G8B8A8_UNORM;
+    case RenderTypes_TextureFormatKind_RGBA8_SRGB: return VK_FORMAT_R8G8B8A8_SRGB;
+    case RenderTypes_TextureFormatKind_BGRA8_UNORM: return VK_FORMAT_B8G8R8A8_UNORM;
+    case RenderTypes_TextureFormatKind_BGRA8_SRGB: return VK_FORMAT_B8G8R8A8_SRGB;
     // HDR / Float formats
-    case DOT_TextureFormat_R16F: return VK_FORMAT_R16_SFLOAT;
-    case DOT_TextureFormat_RG16F: return VK_FORMAT_R16G16_SFLOAT;
-    case DOT_TextureFormat_RGBA16F: return VK_FORMAT_R16G16B16A16_SFLOAT;
-    case DOT_TextureFormat_R32F: return VK_FORMAT_R32_SFLOAT;
-    case DOT_TextureFormat_RG32F: return VK_FORMAT_R32G32_SFLOAT;
-    case DOT_TextureFormat_RGBA32F: return VK_FORMAT_R32G32B32A32_SFLOAT;
+    case RenderTypes_TextureFormatKind_R16F: return VK_FORMAT_R16_SFLOAT;
+    case RenderTypes_TextureFormatKind_RG16F: return VK_FORMAT_R16G16_SFLOAT;
+    case RenderTypes_TextureFormatKind_RGBA16F: return VK_FORMAT_R16G16B16A16_SFLOAT;
+    case RenderTypes_TextureFormatKind_R32F: return VK_FORMAT_R32_SFLOAT;
+    case RenderTypes_TextureFormatKind_RG32F: return VK_FORMAT_R32G32_SFLOAT;
+    case RenderTypes_TextureFormatKind_RGBA32F: return VK_FORMAT_R32G32B32A32_SFLOAT;
     // Depth / Stencil formats
-    case DOT_TextureFormat_D16: return VK_FORMAT_D16_UNORM;
-    case DOT_TextureFormat_D24S8: return VK_FORMAT_D24_UNORM_S8_UINT;
-    case DOT_TextureFormat_D32F: return VK_FORMAT_D32_SFLOAT;
-    case DOT_TextureFormat_D32FS8: return VK_FORMAT_D32_SFLOAT_S8_UINT;
+    case RenderTypes_TextureFormatKind_D16: return VK_FORMAT_D16_UNORM;
+    case RenderTypes_TextureFormatKind_D24S8: return VK_FORMAT_D24_UNORM_S8_UINT;
+    case RenderTypes_TextureFormatKind_D32F: return VK_FORMAT_D32_SFLOAT;
+    case RenderTypes_TextureFormatKind_D32FS8: return VK_FORMAT_D32_SFLOAT_S8_UINT;
     // Block‑compressed formats
-    case DOT_TextureFormat_BC1: return VK_FORMAT_BC1_RGBA_UNORM_BLOCK;
-    case DOT_TextureFormat_BC1_SRGB: return VK_FORMAT_BC1_RGBA_SRGB_BLOCK;
-    case DOT_TextureFormat_BC3: return VK_FORMAT_BC3_UNORM_BLOCK;
-    case DOT_TextureFormat_BC3_SRGB: return VK_FORMAT_BC3_SRGB_BLOCK;
-    case DOT_TextureFormat_BC7: return VK_FORMAT_BC7_UNORM_BLOCK;
-    case DOT_TextureFormat_BC7_SRGB: return VK_FORMAT_BC7_SRGB_BLOCK;
+    case RenderTypes_TextureFormatKind_BC1: return VK_FORMAT_BC1_RGBA_UNORM_BLOCK;
+    case RenderTypes_TextureFormatKind_BC1_SRGB: return VK_FORMAT_BC1_RGBA_SRGB_BLOCK;
+    case RenderTypes_TextureFormatKind_BC3: return VK_FORMAT_BC3_UNORM_BLOCK;
+    case RenderTypes_TextureFormatKind_BC3_SRGB: return VK_FORMAT_BC3_SRGB_BLOCK;
+    case RenderTypes_TextureFormatKind_BC7: return VK_FORMAT_BC7_UNORM_BLOCK;
+    case RenderTypes_TextureFormatKind_BC7_SRGB: return VK_FORMAT_BC7_SRGB_BLOCK;
     // ETC2 formats
-    case DOT_TextureFormat_ETC2_RGB8: return VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK;
-    case DOT_TextureFormat_ETC2_RGBA8: return VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK;
+    case RenderTypes_TextureFormatKind_ETC2_RGB8: return VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK;
+    case RenderTypes_TextureFormatKind_ETC2_RGBA8: return VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK;
     }
 }
 
@@ -448,8 +506,8 @@ vk_helper_pick_best_device(
         vkGetPhysicalDeviceQueueFamilyProperties(dev, &queue_count,
                                                  queue_properties);
 
-        int graphics_idx = -1;
-        int present_idx = -1;
+        u32 graphics_idx = U32_MAX;
+        u32 present_idx = U32_MAX;
         b32 shared_present_graphics_queues = false;
         for(u32 q = 0; q < queue_count; q++){
             b32 present_support = false;
@@ -474,7 +532,7 @@ vk_helper_pick_best_device(
                 }
             }
         }
-        if(graphics_idx < 0 || present_idx < 0){
+        if(graphics_idx == U32_MAX || present_idx == U32_MAX){
             continue;
         }
 
@@ -606,12 +664,12 @@ void vk_helper_copy_image_to_image(VkCommandBuffer cmd, VkImage source, VkImage 
 		.regionCount = 1,
 		.pRegions = &(VkImageBlit2){
 	        .sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2, 
-	        .srcOffsets[1].x = srcSize.width,
-	        .srcOffsets[1].y = srcSize.height,
+	        .srcOffsets[1].x = cast(i32) srcSize.width,
+	        .srcOffsets[1].y = cast(i32) srcSize.height,
 	        .srcOffsets[1].z = 1,
 
-	        .dstOffsets[1].x = dstSize.width,
-	        .dstOffsets[1].y = dstSize.height,
+	        .dstOffsets[1].x = cast(i32) dstSize.width,
+	        .dstOffsets[1].y = cast(i32) dstSize.height,
 	        .dstOffsets[1].z = 1,
 
 	        .srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,

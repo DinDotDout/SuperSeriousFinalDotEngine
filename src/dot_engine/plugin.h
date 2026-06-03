@@ -17,7 +17,7 @@ internal const PluginEndFn plugin_end_stub_pfn = plugin_end_stub;
 struct Plugin{
     const char *name;
     char *file;
-    int line;
+    u32 line;
     void *user_data;
     PluginInitFn init;
     PluginEndFn end;

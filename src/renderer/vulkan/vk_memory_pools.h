@@ -34,10 +34,11 @@ typedef struct RBVKMemory_Pools{
 
 }RBVKMemory_Pools;
 
+// (jd) NOTE: Maybe should just store ptr to memory pools and infer vkBuffer from pool_kind
 typedef struct VkMemory_Alloc{
     VkBuffer vk_buffer;
     VkMemory_PoolsKind pool_kind;
-    VkDeviceMemory vk_memory;
+    // VkDeviceMemory vk_memory;
     u64 pop_marker;
     u64 offset;
     u64 size;

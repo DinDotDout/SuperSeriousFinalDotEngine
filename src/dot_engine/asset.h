@@ -3,11 +3,12 @@
 // (jd) TODO: Move shader cache to be asset cache
 //
 #define DOT_ASSET_KINDS(X) \
-    X(DOT_Asset, Unknown) \
-    X(DOT_Asset, Texture) \
-    X(DOT_Asset, Sampler) \
-    X(DOT_Asset, Buffer) \
-    X(DOT_Asset, ShaderModule)
+    X(DOT_AssetKind, Unknown) \
+    X(DOT_AssetKind, Texture) \
+    X(DOT_AssetKind, Sampler) \
+    X(DOT_AssetKind, Buffer) \
+    X(DOT_AssetKind, ShaderModule) \
+    X(DOT_AssetKind, Count)
 
 DOT_ENUM_REFLECT(DOT_AssetKind, DOT_ASSET_KINDS);
 
@@ -16,6 +17,13 @@ typedef struct DOT_AssetCreateInfo{
     String8 name;
     String8 desc;
 }DOT_AssetCreateInfo;
+#define DOT_ASSET_CREATE_INFO(...) \
+    &(DOT_AssetCreateInfo){ \
+        .path = String8Lit(""), \
+        .name = String8Lit(""), \
+        .desc = String8Lit(""), \
+        __VA_ARGS__ \
+    }
 
 typedef u64 DOT_AssetHandle[1];
 typedef struct DOT_Asset{
@@ -28,7 +36,7 @@ typedef struct DOT_Asset{
 
 typedef struct AssetCacheNode AssetCacheNode;
 struct AssetCacheNode{
-    DOT_Asset *asset; // Upcast to any other asset type
+    DOT_AssetKind *asset; // Upcast to any other asset type
     AssetCacheNode  *next;
 };
 

@@ -26,16 +26,16 @@ typedef struct DOT_Mesh{
 }DOT_Mesh;
 
 typedef struct DOT_Model{
-    u32                 mesh_count;
+    u32                 meshes_count;
     DOT_Mesh           *meshes;
 
-    u32                 sampler_count;
+    u32                 samplers_count;
     DOT_SamplerAsset   *samplers;
 
     u32                 buffers_count;
     DOT_BufferAsset    *buffers;
 
-    u32                 texture_count;
+    u32                 textures_count;
     DOT_TextureAsset   *textures;
 }DOT_Model;
 
@@ -58,7 +58,8 @@ dot_cgltf_free(void *user, void* ptr)
 internal void
 dot_extract_vec2(Arena *arena, DOT_Vec2Array *out, cgltf_accessor *acc)
 {
-    out->count = acc->count;
+    DOT_ASSERT(acc->count <= U32_MAX);
+    out->count = cast(u32)acc->count;
     out->data = PUSH_ARRAY(arena, vec2, out->count);
     for (size_t i = 0; i < acc->count; i++) {
         float v[2];
@@ -70,7 +71,8 @@ dot_extract_vec2(Arena *arena, DOT_Vec2Array *out, cgltf_accessor *acc)
 internal void 
 dot_extract_vec3(Arena *arena, DOT_Vec3Array *out, cgltf_accessor *acc)
 {
-    out->count = acc->count;
+    DOT_ASSERT(acc->count <= U32_MAX);
+    out->count = cast(u32)acc->count;
     out->data = PUSH_ARRAY(arena, vec3, out->count);
 
     for(size_t i = 0; i < acc->count; i++){
@@ -85,7 +87,8 @@ dot_extract_primitive(Arena *arena, DOT_Primitive *dst, cgltf_primitive *src)
 {
     if(src->indices){
         cgltf_accessor* acc = src->indices;
-        size_t count = acc->count;
+        DOT_ASSERT(acc->count <= U32_MAX);
+        u32 count = cast(u32)acc->count;
         dst->index_count = count;
         dst->indices = PUSH_ARRAY(arena, u32, count);
 
@@ -118,20 +121,30 @@ dot_extract_primitive(Arena *arena, DOT_Primitive *dst, cgltf_primitive *src)
 internal DOT_Model
 dot_model_from_cgltf(DOT_Renderer *renderer, const cgltf_data *data, String8 gltf_path)
 {
-    DOT_Model model = {.texture_count = data->textures_count, .buffers_count = data->meshes_count};
-    model.textures = PUSH_ARRAY(renderer->transient_arena, DOT_TextureAsset, model.texture_count);
-    model.buffers = PUSH_ARRAY(renderer->transient_arena, DOT_BufferAsset, model.texture_count);
+    DOT_ASSERT(data->textures_count <= U32_MAX); DOT_ASSERT(data->meshes_count <= U32_MAX);
+    DOT_ASSERT(data->samplers_count <= U32_MAX); DOT_ASSERT(data->buffers_count <= U32_MAX);
+    DOT_Model model = {
+        .textures_count = cast(u32)data->textures_count,
+        .textures  = PUSH_ARRAY(renderer->transient_arena, DOT_TextureAsset, data->textures_count),
+
+        .buffers_count = cast(u32)data->meshes_count,
+        .buffers   = PUSH_ARRAY(renderer->transient_arena, DOT_BufferAsset, data->buffers_count),
+
+        .samplers_count = cast(u32)data->samplers_count,
+        .samplers  = PUSH_ARRAY(renderer->transient_arena, DOT_SamplerAsset, data->samplers_count),
+
+        .meshes_count = cast(u32)data->meshes_count,
+        .meshes    = PUSH_ARRAY(renderer->transient_arena, DOT_Mesh, data->meshes_count),
+    };
 
     TempArena temp = threadctx_get_temp(0,0);
     String8 folder = string8_chop_last_slash(gltf_path);
-    model.mesh_count = data->meshes_count;
-    model.meshes = PUSH_ARRAY(renderer->transient_arena, DOT_Mesh, model.mesh_count);
-
     for (usize mesh_idx = 0; mesh_idx < data->meshes_count; mesh_idx++) {
         cgltf_mesh *src_mesh = &data->meshes[mesh_idx];
         DOT_Mesh *dst_mesh = &model.meshes[mesh_idx];
 
-        dst_mesh->primitive_count = src_mesh->primitives_count;
+        DOT_ASSERT(src_mesh->primitives_count <= U32_MAX);
+        dst_mesh->primitive_count = cast(u32)src_mesh->primitives_count;
         dst_mesh->primitives = PUSH_ARRAY(renderer->transient_arena, DOT_Primitive, dst_mesh->primitive_count);
 
         for (usize primitive_idx = 0; primitive_idx < src_mesh->primitives_count; primitive_idx++) {
@@ -142,75 +155,49 @@ dot_model_from_cgltf(DOT_Renderer *renderer, const cgltf_data *data, String8 glt
     // (jd) NOTE: For now we are going to assume that all images are on a separate path
     for(u64 i = 0; i < data->images_count; ++i){
         cgltf_image *image = &data->images[i];
-        DOT_ASSERT(image);
-        DOT_ASSERT(image->uri);
-        String8 name = String8Lit("Default");
-        if(image->name){
-            name = string8_from_cstring(image->name);
-        }
+        String8 name = image->name ? string8_from_cstring(image->name) : String8Lit("Default");
         String8 full_path = string8_format(
             temp.arena,
             "%S/%s",
             folder,
-            image->uri
-            );
-
-        // String8 path = string8_from_cstring(image->uri);
-        DOT_PRINT("image name: %S, image uri: %S", name, full_path);
+            image->uri);
+        DOT_PRINT("name: %S, image uri: %S", name, full_path);
         model.textures[i] = renderer_texture_asset_create(
             renderer,
-            &(DOT_AssetCreateInfo){
-                .name = name,
-                .path = full_path,
-            }, 0);
+            DOT_ASSET_CREATE_INFO(.name = name, .path = full_path),
+            0);
 
     }
 
     for(u64 i = 0; i < data->samplers_count; ++i){
         cgltf_sampler *sampler = &data->samplers[i];
-        DOT_ASSERT(sampler);
-        String8 name = String8Lit("Default");
-        if(sampler->name){
-            name = string8_from_cstring(sampler->name);
-        }
-
+        String8 name = sampler->name ? string8_from_cstring(sampler->name) : String8Lit("Default");
         model.samplers[i] = renderer_sampler_asset_create(
             renderer,
-            &(DOT_AssetCreateInfo){
-                .name = name,
-                .path = gltf_path,
-            },
-            &(DOT_SamplerDesc){
-                .min_filter = sampler->min_filter == cgltf_filter_type_linear ? DOT_SamplerFilter_Linear : DOT_SamplerFilter_Nearest,
-                .mag_filter = sampler->mag_filter == cgltf_filter_type_linear ? DOT_SamplerFilter_Linear : DOT_SamplerFilter_Nearest,
-            });
+            DOT_ASSET_CREATE_INFO(.name = name, .path = gltf_path),
+            RENDER_TYPES_SAMPLER_DESC(
+                .min_filter = sampler->min_filter == cgltf_filter_type_linear ? RenderTypes_SamplerFilterKind_Linear : RenderTypes_SamplerFilterKind_Nearest,
+                .mag_filter = sampler->mag_filter == cgltf_filter_type_linear ? RenderTypes_SamplerFilterKind_Linear : RenderTypes_SamplerFilterKind_Nearest,
+            ));
     }
 
     // (jd) NOTE: We already loaded buffers with cgltf_load_buffers, maybe do this ourselves?
     for(u64 i = 0; i < data->buffer_views_count; ++i){
-    // for(u64 i = 0; i < data->buffers_count; ++i){
         cgltf_buffer_view *buffer_view = &data->buffer_views[i];
-        DOT_ASSERT(buffer_view);
-        String8 name = String8Lit("Default");
-        if(buffer_view->name){
-            name = string8_from_cstring(buffer_view->name);
-        }
-
-        cgltf_buffer *buffer = &data->buffers[i];
-
-
+        cgltf_buffer *buffer = buffer_view->buffer;
+        String8 name = buffer_view->name ? string8_from_cstring(buffer_view->name) : String8Lit("Default");
+        u8 *buffer_data = cast(u8*)buffer->data + buffer_view->offset;
         model.buffers[i] = renderer_buffer_asset_create(
             renderer,
-            &(DOT_AssetCreateInfo){
-                .name = name,
-                .path = gltf_path,
-            },
-            &(DOT_BufferDesc){
-                .min_filter = buffer->min_filter == cgltf_filter_type_linear ? DOT_BufferFilter_Linear : DOT_BufferFilter_Nearest,
-                .mag_filter = buffer->mag_filter == cgltf_filter_type_linear ? DOT_BufferFilter_Linear : DOT_BufferFilter_Nearest,
-            });
+            DOT_ASSET_CREATE_INFO(.name = name, .path = gltf_path),
+            RENDER_TYPES_BUFFER_DESC(.size = buffer_view->size,
+                .resource_usage = RenderTypes_ResourceUsageKind_GPUOnly,
+                .buffer_usage_flags = RenderTypes_BufferUsageBit_Vertex
+                                      | RenderTypes_BufferUsageBit_Index),
+            buffer_data);
     }
     temp_arena_restore(temp);
+    return(model);
 }
 
 // unsigned char* dot_gltf_load_image(

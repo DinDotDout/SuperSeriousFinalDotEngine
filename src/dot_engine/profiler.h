@@ -51,7 +51,7 @@ PluginRegister(Profiler, 0,
         dot_profile_block_end(&DOT_CONCAT(profile_block_,  __LINE__)))
 
 // This or something else to test we don't go over max profile anchors
-    #define PROFILER_END_OF_COMPILATION_UNIT DOT_STATIC_ASSERT(__COUNTER__ < ARRAY_COUNT(g_profiler.profiler_anchors))
+    #define PROFILER_END_OF_COMPILATION_UNIT DOT_STATIC_ASSERT(__COUNTER__ < DOT_ARRAY_COUNT(g_profiler.profiler_anchors))
 #else
     #define DOT_PROFILE_BLOCK(label) ((void)0)
 #endif
@@ -78,7 +78,7 @@ dot_profiler_print(){
     if(cpu_frequency){
         printf("\nTotal time: %0.4fms (CPU freq %lu)\n", 1000.0 * (f64)total_cpu_elapsed / (f64)cpu_frequency, cpu_frequency);
     }
-    for(u32 idx = 0; idx < ARRAY_COUNT(g_profiler.profiler_anchors); ++idx){
+    for(u32 idx = 0; idx < DOT_ARRAY_COUNT(g_profiler.profiler_anchors); ++idx){
         DOT_ProfileAnchor *anchor = g_profiler.profiler_anchors + idx;
         if(anchor->tsc_elapsed_inclusive) {
             dot_print_time_elapsed(total_cpu_elapsed, anchor);

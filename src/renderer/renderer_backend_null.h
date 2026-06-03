@@ -25,16 +25,22 @@ internal void renderer_backend_null_resource_cleanup_list_push(void){}
 internal void renderer_backend_null_resource_cleanup_list_pop_at(PoolHandle idx){}
 internal void renderer_backend_null_resource_cleanup_list_pop_last(void){}
 
+internal DOT_BufferHandle
+renderer_backend_null_buffer_create(const RenderTypes_BufferDesc *desc, u8 *data, String8 debug_name)
+{
+    DOT_UNUSED(desc); DOT_UNUSED(debug_name); 
+    return((DOT_BufferHandle){0});
+}
 
 internal DOT_SamplerHandle
-renderer_backend_null_sampler_create(const DOT_SamplerDesc *desc, String8 debug_name)
+renderer_backend_null_sampler_create(const RenderTypes_SamplerDesc *desc, String8 debug_name)
 {
     DOT_UNUSED(desc); DOT_UNUSED(debug_name); 
     return((DOT_SamplerHandle){0});
 }
 
 internal DOT_TextureHandle
-renderer_backend_null_texture_create(const DOT_TextureDesc *desc, void *data, String8 debug_name)
+renderer_backend_null_texture_create(const RenderTypes_TextureDesc *desc, void *data, String8 debug_name)
 {
     DOT_UNUSED(desc); DOT_UNUSED(data); DOT_UNUSED(debug_name); 
     return((DOT_TextureHandle){0});

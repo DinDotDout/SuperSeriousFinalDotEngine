@@ -35,13 +35,13 @@ renderer_init(Arena *arena, DOT_Renderer *renderer, DOT_Window *window, const Re
     RENDER_BACKEND_CALL(init(window));
     null_texture = renderer_texture_create(
         renderer,
-        &(DOT_TextureDesc) {
+        &(RenderTypes_TextureDesc) {
             .width = 1,
             .height = 1,
             .depth = 1,
             .mip_levels = 1,
-            .format_kind = DOT_TextureFormat_RGBA8_UNORM,
-            .dimension_kind = DOT_TextureDimension_2D,
+            .format_kind = RenderTypes_TextureFormatKind_RGBA8_UNORM,
+            .dimension_kind = RenderTypes_TextureDimensionKind_2D,
         },
         (u8[]){0,0,0,0},
         String8Lit("null_texture")
@@ -74,36 +74,36 @@ renderer_texture_destroy(DOT_Renderer *renderer, DOT_TextureHandle handle)
 DOT_TextureAsset
 renderer_texture_asset_create(DOT_Renderer *renderer, const DOT_AssetCreateInfo *asset_info, u8 mip_levels)
 {
-    DOT_WARNING("Creating texture with name %S", asset_info->name);
+    DOT_WARNING("Creating texture with name %S, from path: ", asset_info->name, asset_info->path);
     TempArena temp = temp_arena_get(renderer->transient_arena);
     String8 file_data = platform_read_entire_file(temp.arena, asset_info->path);
 
     void *data = NULL;
     u8 size_bytes = 0;
-    b32 is_hdr = stbi_is_hdr_from_memory(file_data.str, file_data.size);
-    b32 is_16_bit = is_hdr || stbi_is_16_bit_from_memory(file_data.str, file_data.size);
-    u32 width = 0;
-    u32 height = 0;
+    b32 is_hdr = cast(b32)stbi_is_hdr_from_memory(file_data.str, cast(int)file_data.size);
+    b32 is_16_bit = is_hdr || stbi_is_16_bit_from_memory(file_data.str, cast(int)file_data.size);
+    int width = 0;
+    int height = 0;
     int comp = 0;
     stbi_allocator alloc = {.stbi_alloc = arena_push, .stbi_free = arena_free, .arena = temp.arena};
     stbi_allocator_set(&alloc);
-    stbi_info_from_memory(file_data.str, file_data.size, (int*)&width, (int*)&height, &comp);
+    stbi_info_from_memory(file_data.str, cast(int)file_data.size, &width, &height, &comp);
     comp = comp == 3 ? STBI_rgb_alpha : comp;
     if(is_hdr){
-        data = stbi_loadf_from_memory(file_data.str, file_data.size, (int*)&width, (int*)&height, NULL, comp);
+        data = stbi_loadf_from_memory(file_data.str, cast(int)file_data.size, &width, (int*)&height, NULL, comp);
         size_bytes = 4;
     }else if(is_16_bit){
-        data = stbi_load_16_from_memory(file_data.str, file_data.size, (int*)&width, (int*)&height, NULL, comp);
+        data = stbi_load_16_from_memory(file_data.str, cast(int)file_data.size, &width, &height, NULL, comp);
         size_bytes = 2;
     }else{
-        data = stbi_load_from_memory(file_data.str, file_data.size, (int*)&width, (int*)&height, NULL, comp);
+        data = stbi_load_from_memory(file_data.str, cast(int)file_data.size, &width, &height, NULL, comp);
         size_bytes = 1;
     }
     stbi_allocator_unset();
 
     if(mip_levels == 0){
-        u32 mip_w = width;
-        u32 mip_h = height;
+        int mip_w = width;
+        int mip_h = height;
         mip_levels = 1;
         while(mip_w > 1 || mip_h > 1){
             mip_w = mip_w > 1 ? mip_w / 2 : 1;
@@ -112,18 +112,13 @@ renderer_texture_asset_create(DOT_Renderer *renderer, const DOT_AssetCreateInfo 
         }
     }
     DOT_TextureAsset asset = {
-        .asset = {
-            .kind = DOT_Asset_Texture,
-            .name = string8_copy(renderer->transient_arena, asset_info->name),
-            .desc = string8_copy(renderer->transient_arena, asset_info->desc),
-            .path = string8_copy(renderer->transient_arena, asset_info->path),
-        },
+        .asset = dot_asset_from_create_info(renderer, asset_info, DOT_AssetKind_Texture),
         .desc = {
-            .dimension_kind = DOT_TextureDimension_2D,
+            .dimension_kind = RenderTypes_TextureDimensionKind_2D,
             .format_kind = renderer_texture_format_from_info(comp, size_bytes, true),
             .mip_levels = mip_levels,
-            .width = width,
-            .height = height,
+            .width = cast(u16)width,
+            .height = cast(u16)height,
             .depth = 1,
         },
     };
@@ -133,30 +128,42 @@ renderer_texture_asset_create(DOT_Renderer *renderer, const DOT_AssetCreateInfo 
 }
 
 internal DOT_TextureHandle
-renderer_texture_create(DOT_Renderer *renderer, const DOT_TextureDesc *create_info, void *data, String8 debug_name)
+renderer_texture_create(DOT_Renderer *renderer, const RenderTypes_TextureDesc *texture_desc, void *data, String8 debug_name)
 {
-    return RENDER_BACKEND_CALL(texture_create(create_info, data, debug_name));
+    return RENDER_BACKEND_CALL(texture_create(texture_desc, data, debug_name));
 }
 
 internal DOT_SamplerAsset
-renderer_sampler_asset_create(DOT_Renderer *renderer, const DOT_AssetCreateInfo *asset_info, const DOT_SamplerDesc *sampler_desc)
+renderer_sampler_asset_create(DOT_Renderer *renderer, const DOT_AssetCreateInfo *asset_info, const RenderTypes_SamplerDesc *sampler_desc)
 {
     DOT_SamplerAsset sampler_asset = {
-        .asset = {
-            .name = string8_copy(renderer->transient_arena, asset_info->name),
-            .desc = string8_copy(renderer->transient_arena, asset_info->desc),
-            .path = string8_copy(renderer->transient_arena, asset_info->path),
-        },
+        .asset = dot_asset_from_create_info(renderer, asset_info, DOT_AssetKind_Sampler),
         .desc = *sampler_desc,
         .handle = renderer_sampler_create(renderer, sampler_desc, asset_info->name),
     };
     return sampler_asset;
 }
+internal DOT_BufferAsset
+renderer_buffer_asset_create(DOT_Renderer *renderer, const DOT_AssetCreateInfo *asset_info, const RenderTypes_BufferDesc *buffer_desc, u8 *data)
+{
+    DOT_BufferAsset buffer_asset = {
+        .asset = dot_asset_from_create_info(renderer, asset_info, DOT_AssetKind_Buffer),
+        .desc = *buffer_desc,
+    };
+    buffer_asset.handle = renderer_buffer_create(renderer, buffer_desc, data, asset_info->name);
+    return buffer_asset;
+}
+
+internal DOT_BufferHandle
+renderer_buffer_create(DOT_Renderer *renderer, const RenderTypes_BufferDesc *buffer_desc, u8 *data, String8 debug_name)
+{
+    return RENDER_BACKEND_CALL(buffer_create(buffer_desc, data, debug_name));
+}
 
 internal DOT_SamplerHandle
-renderer_sampler_create(DOT_Renderer *renderer, const DOT_SamplerDesc *create_info, String8 debug_name)
+renderer_sampler_create(DOT_Renderer *renderer, const RenderTypes_SamplerDesc *sampler_desc, String8 debug_name)
 {
-    return RENDER_BACKEND_CALL(sampler_create(create_info, debug_name));
+    return RENDER_BACKEND_CALL(sampler_create(sampler_desc, debug_name));
 }
 
 void

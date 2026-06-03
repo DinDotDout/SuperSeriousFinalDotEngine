@@ -7,6 +7,7 @@
 
 #define _GNU_SOURCE
 
+// #define DOT_USE_VOLK
 #ifdef DOT_USE_VOLK
     #define VK_NO_PROTOTYPES
     #define VK_USE_PLATFORM_WAYLAND_KHR
@@ -45,7 +46,6 @@
 
 #define DOT_INT_SKIP // Already included ints by rgfw
 #include "base/base_include.h"
-
 void* malloc_debug(u64 sz, char *file, u32 line)
 {
     void *mem = malloc(sz);
@@ -79,11 +79,16 @@ void free_debug(void *ptr, char *file, u32 line)
 #define CGLTF_IMPLEMENTATION
 #include "third_party/cgltf/cgltf.h"
 
+// (jd) TODO: base doesn't have those enabled for now
+// Compile all libs separately and only enable this for my code
 DOT_DIAGNOSTIC_PUSH
 #if DOT_COMPILER_CLANG || defined(__GNUC__)
     DOT_DIAGNOSTIC_ERROR("-Wimplicit-fallthrough")
     DOT_DIAGNOSTIC_ERROR("-Wswitch-enum")
     DOT_DIAGNOSTIC_ERROR("-Wvla")
+    DOT_DIAGNOSTIC_ERROR("-Wconversion")
+    DOT_DIAGNOSTIC_ERROR("-Wimplicit-int-conversion")
+    DOT_DIAGNOSTIC_ERROR("-Wsign-conversion")
 #elif defined(_MSC_VER)
 #endif
 

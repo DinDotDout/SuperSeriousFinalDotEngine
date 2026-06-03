@@ -87,7 +87,7 @@ nk_dot_clipboard_copy(nk_handle usr, const char *text, int len)
 {
     DOT_UNUSED(usr);
     if (!len) return;
-    RGFW_writeClipboard(text, len);
+    RGFW_writeClipboard(text, cast(u32)len);
 }
 
 /* ================================================================== */
@@ -216,7 +216,7 @@ nk_dot_new_frame(DOT_Window *window)
         }
 
         nk_input_button(ctx, NK_BUTTON_DOUBLE, (int)s->double_click_pos.x,
-                         (int)s->double_click_pos.y, s->is_double_click_down);
+                         (int)s->double_click_pos.y, cast(nk_bool)s->is_double_click_down);
         nk_input_button(ctx, NK_BUTTON_LEFT,   mx, my, RGFW_isMouseDown(RGFW_mouseLeft));
         nk_input_button(ctx, NK_BUTTON_MIDDLE, mx, my, RGFW_isMouseDown(RGFW_mouseMiddle));
         nk_input_button(ctx, NK_BUTTON_RIGHT,  mx, my, RGFW_isMouseDown(RGFW_mouseRight));
@@ -265,7 +265,7 @@ nk_dot_render(DOT_Renderer *renderer)
 {
     NkDot_State *s = &g_nk_dot;
     struct nk_context *ctx = &s->ctx;
-    DOT_TODO("fix frame");
+    DT_TODO("fix frame");
     u8 frame_idx = 0;
     // u8 frame_idx = renderer->current_frame % renderer->backend->frame_overlap;
 
