@@ -108,19 +108,18 @@ pool_free(Pool *p, PoolHandle h)
     p->idx_buffer[p->count] = h.idx;
 }
 
-internal void
+internal void*
 pool_init(Arena *arena, Pool *p, u32 capacity)
 {
     MEMORY_ZERO_STRUCT(p);
-
-    p->capacity = capacity;
-    p->count    = 1;
-
-    // *data_out   = PUSH_ARRAY_NO_ZERO(arena, u8, capacity * elem_size);
+    p->capacity   = capacity;
+    p->count      = 1;
     p->idx_buffer = PUSH_ARRAY_NO_ZERO(arena, u32, capacity);
-
-    for (u32 i = 0; i < capacity; i++)
+    for(u32 i = 0; i < capacity; i++){
         p->idx_buffer[i] = i;
+    }
+    void *data = PUSH_ARRAY_NO_ZERO_ALIGNED(arena, u8, capacity * elem_size, alignment);
+    return(data);
 }
 
 // internal void
