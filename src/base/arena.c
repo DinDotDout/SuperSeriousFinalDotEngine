@@ -142,7 +142,10 @@ internal u8*
 arena_push(ArenaOpParams *op)
 {
     Arena *arena = op->arena;
-    DOT_ASSERT_FL(op->size > 0, op->file, op->line);
+    if(op->size < 0){
+        // DOT_ASSERT_FL(op->size > 0, op->file, op->line, "Allocation should be bigger than 0");
+        return NULL;
+    }
     uptr arena_base = cast(uptr)arena->base;
     uptr current_address =  arena_base + arena->used;
     uptr aligned_address = ALIGN_POW2(current_address, op->alignment);
