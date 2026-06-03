@@ -164,6 +164,9 @@ static CompilerConfig compiler_cfg[] = {
             "-Wall", "-Wextra", "-Wno-override-init",
             "-Wdiv-by-zero", "-Wno-unused-function",
             "-Werror=vla",
+            // "-Wconversion",
+            // "-Wimplicit-int-conversion",
+            // "-Wsign-conversion",
             // "-Wno-unused-parameter",
             "-fvisibility=hidden",
             ),
@@ -172,8 +175,9 @@ static CompilerConfig compiler_cfg[] = {
                 ARG_LIST(
                     "-O0", 
                     "-g",
-                "-fsanitize=address,undefined",
-                "-fsanitize-recover=address,undefined",
+                // "-fsanitize=address,undefined",
+                // "-fsanitize-recover=address,undefined",
+                "-DDEBUG",
                 ),
             [OptimizationLevelKind_Release] =
                 ARG_LIST("-O2", "-g",
@@ -345,10 +349,12 @@ int main(int argc, char **argv)
             return 1;
         }
         nob_cmd_append(&cmd, nob_temp_sprintf("/I%s/Include", vulkan_sdk));
+        nob_cmd_append(&cmd, "/D", "DOT_USE_VOLK");
         nob_cmd_append(&cmd, "/I", "src/");
         nob_cmd_append(&cmd, nob_temp_sprintf("/link /LIBPATH:%s/Lib", vulkan_sdk));
         nob_cmd_append(&cmd, "vulkan-1.lib");
     }else{
+        nob_cmd_append(&cmd, "-DDOT_USE_VOLK");
         nob_cmd_append(&cmd, "-lm", "-lvulkan",  "-lpthread");
         nob_cmd_append(&cmd, "-I", "src/");
         nob_cmd_append(&cmd, "-Wl,-T"LINKER_SCRIPTS_FOLDER"plugins_section.ld");
