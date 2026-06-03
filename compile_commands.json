@@ -14,6 +14,7 @@
             "-Wno-unused-function",
             "-Werror=vla",
             "-DDEBUG",
+            "-DDOT_USE_VOLK",
             "-DNK_PRIVATE",
             "-DNK_IMPLEMENTATION",
             "-DNK_INCLUDE_FIXED_TYPES",

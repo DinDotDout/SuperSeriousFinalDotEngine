@@ -24,5 +24,4 @@
 #include "base/thread_ctx.c"
 #include "base/containters.c"
 
-
 #endif // !BASE_INC_H
