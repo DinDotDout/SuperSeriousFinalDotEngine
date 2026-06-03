@@ -109,13 +109,9 @@ typedef struct Pool{
     // u32  elem_size;
 }Pool;
 
-// internal void       pool_init(Arena *arena, Pool *p, u32 capacity, u32 elem_size, u32 alignment);
-
-// internal void       pool_init(Arena *arena, Pool *p, u32 capacity, u32 elem_size, void *data_out);
-internal void       pool_init(Arena *arena, Pool *p, u32 capacity);
+internal void*      pool_init(Arena *arena, Pool *p, u32 capacity, u32 elem_size, u32 alignment);
 internal PoolHandle pool_alloc(Pool *p, void *data, u32 elem_size);
-internal u32        pool_get(Pool *p, PoolHandle h);
-
+internal u32        pool_get_idx(Pool *p, PoolHandle h);
 
 // internal PoolHandle pool_alloc(Pool *p);
 internal void       pool_free(Pool *p, PoolHandle h);
@@ -129,14 +125,9 @@ internal PoolHandle pool_null_handle_get(Pool *p, u32 elem_size, void *data);
 // #define POOL_GET(tp, handle)            pool_get(&(tp)->pool, (handle))
 // #define POOL_INIT(arena, tp, cap)   pool_init((arena), &(tp)->pool, (cap), sizeof(*(tp)->data), &(tp)->data)
 
-#define POOL_INIT(arena, tp, cap) do{\
-    pool_init((arena), &(tp)->pool, (cap)); \
-    u32 _temp_size_##__COUNTER__ = sizeof(*(tp)->data); \
-    (tp)->data = (void*)PUSH_ARRAY_NO_ZERO_ALIGNED(arena, u8, (tp)->pool.capacity * _temp_size_##__COUNTER__, DOT_ALIGNOF(*(tp)->data)); \
-}while(0)
-
+#define POOL_INIT(arena, tp, cap)   (tp)->data = pool_init((arena), &(tp)->pool, (cap), sizeof(*(tp)->data), DOT_ALIGNOF(*(tp)->data)); 
 #define POOL_ALLOC(tp)              pool_alloc(&(tp)->pool, (tp)->data, sizeof(*(tp)->data))
-#define POOL_GET(tp, h)             ((tp)->data + pool_get(&(tp)->pool, (h)))
+#define POOL_GET(tp, h)             ((tp)->data + pool_get_idx(&(tp)->pool, (h)))
 
 // #define POOL_ELEM_INIT(tp, handle, ...) ((tp)->last_accessed = pool_get(&(tp)->pool, (handle)), (*(tp)->data) = __VA_ARGS__, (tp)->data)
 #define POOL_REF_COPY(tp, handle)       pool_ref_copy(&(tp)->pool, (handle))
