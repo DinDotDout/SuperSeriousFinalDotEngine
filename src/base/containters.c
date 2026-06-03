@@ -1,3 +1,12 @@
+internal u32
+array_bounds_check(u32 elem_idx, u32 capacity, char *file, int line)
+{
+    if(elem_idx >= capacity){
+        DOT_ERROR_FL(file, line, "Array idx out of bounds");
+    }
+    return elem_idx;
+}
+
 internal u8*
 raw_buffer_get(u8 raw_buffer[], i32 elem_idx, u32 elem_size)
 {
@@ -10,41 +19,82 @@ raw_buffer_get(u8 raw_buffer[], i32 elem_idx, u32 elem_size)
 /// Pool
 
 // Reserve 0 for default and zero every time we hand it?
-internal void*
-pool_get(Pool *p, PoolHandle h)
+internal u32
+pool_bounds_check(Pool *p, PoolHandle h, u32 elem_size)
 {
     DOT_ASSERT(p->capacity > 0, "Uninitialized pool");
     DOT_ASSERT(h.idx < p->capacity, "Invalid pool handle");
-    void *elem = raw_buffer_get(p->raw_buffer, h.idx, p->elem_size);
-    if(h.idx == 0){
-        MEMORY_ZERO(elem, p->elem_size);
+    if(p->capacity >= h.idx){
+        DOT_ERROR("Pool idx out of bounds");
     }
-    return(elem);
+    // void *elem = raw_buffer_get(p->raw_buffer, h.idx, elem_size);
+    // if(h.idx == 0){
+    //     MEMORY_ZERO(elem, p->elem_size);
+    // }
+    // return(elem);
+}
+
+// internal void*
+// pool_get(Pool *p, PoolHandle h)
+// {
+//     DOT_ASSERT(p->capacity > 0, "Uninitialized pool");
+//     DOT_ASSERT(h.idx < p->capacity, "Invalid pool handle");
+//     void *elem = raw_buffer_get(p->raw_buffer, h.idx, p->elem_size);
+//     if(h.idx == 0){
+//         MEMORY_ZERO(elem, p->elem_size);
+//     }
+//     return(elem);
+// }
+internal u32
+pool_get(Pool *p, PoolHandle h)
+{
+    // DOT_ASSERT(h.idx < p->capacity, "Invalid pool handle");
+    if(h.idx >= p->capacity){
+        DOT_WARNING("Pool capacity exceeded. Returning 0 handle");
+        return 0;
+    }
+    return h.idx;
 }
 
 internal PoolHandle
-pool_null_handle_get(Pool *p)
+pool_null_handle_get(Pool *p, u32 elem_size, void *data)
 {
     DOT_ASSERT(p->capacity > 0, "Uninitialized pool");
     PoolHandle h = POOL_NULL_HANDLE;
-    void *elem = raw_buffer_get(p->raw_buffer, h.idx, p->elem_size);
-    MEMORY_ZERO(elem, p->elem_size);
+    void *elem = raw_buffer_get(data, h.idx, elem_size);
+    MEMORY_ZERO(elem, elem_size);
     return(h);
 }
 
+// internal PoolHandle
+// pool_alloc(Pool *p)
+// {
+//     DOT_ASSERT(p->capacity > 0, "Uninitialized pool");
+//     if(DOT_UNLIKELY(p->count >= p->capacity)){
+//        DOT_WARNING("Pool capacity, exceeded, returning zero handle");
+//        return(pool_null_handle_get(p));
+//     }
+//     PoolHandle h = {.idx = p->idx_buffer[p->count]};
+//     p->count += 1;
+//     void *elem = raw_buffer_get(p->raw_buffer, h.idx, p->elem_size);
+//     MEMORY_ZERO(elem, p->elem_size);
+//     return(h);
+// }
 internal PoolHandle
-pool_alloc(Pool *p)
+pool_alloc(Pool *p, void *data, u32 elem_size)
 {
-    DOT_ASSERT(p->capacity > 0, "Uninitialized pool");
-    if(DOT_UNLIKELY(p->count >= p->capacity)){
-       DOT_WARNING("Pool capacity, exceeded, returning zero handle");
-       return(pool_null_handle_get(p));
+    if (DOT_UNLIKELY(p->count >= p->capacity)){
+        DOT_WARNING("Pool capacity exceeded, returning null handle");
+        return (PoolHandle){ .idx = 0 };
     }
-    PoolHandle h = {.idx = p->idx_buffer[p->count]};
-    p->count += 1;
-    void *elem = raw_buffer_get(p->raw_buffer, h.idx, p->elem_size);
-    MEMORY_ZERO(elem, p->elem_size);
-    return(h);
+
+    PoolHandle h = { .idx = p->idx_buffer[p->count] };
+    p->count++;
+
+    void *elem = raw_buffer_get(data, h.idx, elem_size);
+    // void *elem = cast(u8*)data + h.idx * elem_size;
+    MEMORY_ZERO(elem, elem_size);
+    return h;
 }
 
 internal void
@@ -59,28 +109,43 @@ pool_free(Pool *p, PoolHandle h)
 }
 
 internal void
-pool_init(Arena *arena, Pool *p, u32 capacity, u32 elem_size, u32 alignment)
+pool_init(Arena *arena, Pool *p, u32 capacity)
 {
     MEMORY_ZERO_STRUCT(p);
+
     p->capacity = capacity;
-    p->elem_size = elem_size;
-    p->raw_buffer = PUSH_ARRAY_NO_ZERO_ALIGNED(arena, u8, capacity * elem_size, alignment);
+    p->count    = 1;
+
+    // *data_out   = PUSH_ARRAY_NO_ZERO(arena, u8, capacity * elem_size);
     p->idx_buffer = PUSH_ARRAY_NO_ZERO(arena, u32, capacity);
-    p->count = 1;
-    for EACH_INDEX(i, capacity){
-       p->idx_buffer[i] = i;
-    }
+
+    for (u32 i = 0; i < capacity; i++)
+        p->idx_buffer[i] = i;
 }
+
+// internal void
+// pool_init(Arena *arena, Pool *p, u32 capacity, u32 elem_size, u32 alignment)
+// {
+//     MEMORY_ZERO_STRUCT(p);
+//     p->capacity = capacity;
+//     p->elem_size = elem_size;
+//     p->raw_buffer = PUSH_ARRAY_NO_ZERO_ALIGNED(arena, u8, capacity * elem_size, alignment);
+//     p->idx_buffer = PUSH_ARRAY_NO_ZERO(arena, u32, capacity);
+//     p->count = 1;
+//     for EACH_INDEX(i, capacity){
+//        p->idx_buffer[i] = i;
+//     }
+// }
 
 ////////////////////////////////////////////////////////////////
 ///
 /// Tree Pool
 
 internal TreeHeader*
-tree_header_(TreePool *tree_pool, PoolHandle idx)
+tree_header_(TreePool *tree_pool, PoolHandle idx, u8 *data)
 {
     Pool *pool = &tree_pool->pool;
-    u8 *elem = pool_get(pool, idx);
+    u8 *elem = data + pool_get(pool, idx);
     TreeHeader *header = cast(TreeHeader*)(cast(u8*)elem + tree_pool->offsetoff_header);
     return(header);
 }
