@@ -36,7 +36,7 @@ dot_print_debug_(const DOT_PrintDebugParams* params, const char *fmt, ...){
 void
 dot_debug_name_set(u32 capacity, char *ptr, String8 src)
 {
-    u32 src_size = src.size - 1;
+    u32 src_size = src.size;
     if(src_size > capacity) src_size = capacity - 1;
     MEMORY_COPY(ptr, src.str, src_size);
     ptr[src_size] = 0;

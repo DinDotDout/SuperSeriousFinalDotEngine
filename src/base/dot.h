@@ -165,11 +165,19 @@
 #define DOT_BITS_ANY(flags, mask)   (((flags) & (mask)) != 0)
 
 // (jd) NOTE: Should probably use something for code gen but whatever
-#define DOT_X_ENUM_ARG(prefix, v) prefix##_##v,
-#define DOT_X_ENUM_STR(prefix, v) #v,
+#define DOT_X_ENUM_ARG(prefix, v)           prefix##_##v,
+#define DOT_X_ENUM_STR(prefix, v)           String8Lit(#v),
+#define DOT_X_ENUM_STR_FROM_VAL(prefix, v)  if(string8_equal(string8_from_##prefix[prefix##_##v], str)) return prefix##_##v;
 #define DOT_ENUM_REFLECT(enum_name, x_list) \
-    typedef enum enum_name{x_list(DOT_X_ENUM_ARG) enum_name##_Count}enum_name; \
-    static const char *enum_name##_str[] = { x_list(DOT_X_ENUM_STR) };
+    typedef enum enum_name{x_list(DOT_X_ENUM_ARG) }enum_name; \
+    static const String8 string8_from_##enum_name[] = { x_list(DOT_X_ENUM_STR) }; \
+    static enum_name \
+    enum_name##_from_string8(String8 str) \
+    { \
+        x_list(DOT_X_ENUM_STR_FROM_VAL) \
+        DOT_ERROR("Invalid enum name"); \
+    }
+
 
 ////////////////////////////////////////////////////////////////
 //
@@ -231,19 +239,28 @@ typedef double f64;
 #define VA_ARG_COUNT_T(T, ...) (sizeof((T[])__VA_ARGS__) / sizeof(T))
 #define ARRAY_PARAM(T, ...) (T[])__VA_ARGS__, (u32) VA_ARG_COUNT_T(T, __VA_ARGS__)
 
-#define SLICE(T, ...) \
-    { .data = (T[])__VA_ARGS__, .count = VA_ARG_COUNT_T(T, __VA_ARGS__) }
+// #define SLICE_FIELDS(T, data_field_name, count_field_name, ...) \
+//     .data_field_name = (T[])__VA_ARGS__, \
+//     .count_field_name = VA_ARG_COUNT_T(T, __VA_ARGS__)
 
-#define SLICE_LIT(SLICE_T, T, ...) \
-    (SLICE_T){ .data = (T[])__VA_ARGS__, .count = VA_ARG_COUNT_T(T, __VA_ARGS__) }
+// #define SLICE_FIELDS(T, field, field_count, ...) \
+//     .field = { __VA_ARGS__ }, \
+//     .field_ount = sizeof((T[]){ __VA_ARGS__ }) / sizeof(T)
 
-#define SLICE_GET(s, i)s.data[i]
+// #define SLICE_LIT(SLICE_T, T, ...) \
+//     (SLICE_T){ .data = (T[])__VA_ARGS__, .count = VA_ARG_COUNT_T(T, __VA_ARGS__) }
+//
+// #define SLICE_GET(s, i)s.data[i]
 
 ////////////////////////////////////////////////////////////////
 //
 // Array
 
-#define ARRAY_COUNT(arr) sizeof(arr) / sizeof(arr[0])
+#define  DOT_ARRAY_COUNT(arr) sizeof(arr) / sizeof(arr[0])
+
+// #define ARRAY_FIELDS(T, field, field_count, ...) \
+//     .field = { __VA_ARGS__ }, \
+//     .field_count = sizeof((T[]){ __VA_ARGS__ }) / sizeof(T)
 
 // Some sugar to make some things a bit more evident
 // or to indicate
@@ -323,7 +340,7 @@ global const char *dot_log_level_kind_str[] = {
     [DOT_LogLevelKind_Assert]  = "Assertion failed",
     [DOT_LogLevelKind_Error]   = "Error",
 };
-DOT_STATIC_ASSERT(DOT_LogLevelKind_Count == ARRAY_COUNT(dot_log_level_kind_str));
+DOT_STATIC_ASSERT(DOT_LogLevelKind_Count == DOT_ARRAY_COUNT(dot_log_level_kind_str));
 
 typedef struct DOT_PrintDebugParams{
     DOT_LogLevelKind print_debug_kind;
@@ -357,7 +374,7 @@ do { \
 
 #define DOT_ERROR(...)          DOT_ERROR_IMPL(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error), __VA_ARGS__)
 #define DOT_ERROR_FL(f, l, ...) DOT_ERROR_IMPL(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error, .file = (f), .line = (l)), __VA_ARGS__)
-#define DOT_TODO(msg) \
+#define DT_TODO(msg) \
 do { \
     dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error), "TODO: %s", msg); \
     abort(); \
@@ -527,7 +544,7 @@ void dot_debug_name_set(u32 capacity, char *ptr, String8 src);
 // Useful it from raddebugger
 
 #define EACH_INDEX(it, count) (u64 it = 0; it < (count); ++it)
-#define EACH_ELEMENT(it, array) (u64 it = 0; it < ARRAY_COUNT(array); ++it)
+#define EACH_ELEMENT(it, array) (u64 it = 0; it < DOT_ARRAY_COUNT(array); ++it)
 #define EACH_ENUM_VAL(type, it) \
 (type it = (type)0; it < type##_Count; it = (type)(it + 1))
 #define EACH_NON_ZERO_ENUM_VAL(type, it) \

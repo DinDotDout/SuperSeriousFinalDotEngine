@@ -34,7 +34,7 @@ internal void
 os_print_stacktrace()
 {
     thread_local local_persist void* buffer[4096];
-    int nptrs = backtrace(buffer, ARRAY_COUNT(buffer));
+    int nptrs = backtrace(buffer, DOT_ARRAY_COUNT(buffer));
     backtrace_symbols_fd(buffer, nptrs, fileno(stderr));
 }
 

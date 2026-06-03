@@ -41,7 +41,7 @@ os_print_stacktrace()
 
 void os_print_stacktrace() {
     thread_local static void* buffer[4096];
-    USHORT frames = CaptureStackBackTrace(0, ARRAY_COUNT(buffer), buffer, NULL);
+    USHORT frames = CaptureStackBackTrace(0, DOT_ARRAY_COUNT(buffer), buffer, NULL);
 
     HANDLE process = GetCurrentProcess();
     SymInitialize(process, NULL, TRUE);
