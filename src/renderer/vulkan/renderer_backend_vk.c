@@ -418,14 +418,14 @@ internal void
 renderer_backend_vk_resource_cleanup_list_push_rbvk_sampler(RBVK_SamplerHandle sampler_id)
 {
     RBVK_ResourceCleanupCtx *root = TREE_GET_ROOT(&g_vk_ctx->resource_cleanup_list_tree);
-    root->sampler_ids[root->texture_id_count++] = sampler_id;
+    root->sampler_ids[root->sampler_id_count++] = sampler_id;
 }
 
 internal void
 renderer_backend_vk_resource_cleanup_list_push_rbvk_buffer(RBVK_BufferHandle buffer_id)
 {
     RBVK_ResourceCleanupCtx *root = TREE_GET_ROOT(&g_vk_ctx->resource_cleanup_list_tree);
-    root->buffer_ids[root->texture_id_count++] = buffer_id;
+    root->buffer_ids[root->buffer_id_count++] = buffer_id;
 }
 
 // internal void
@@ -1808,7 +1808,6 @@ renderer_backend_vk_shutdown()
     vkDestroyPipeline(device, g_vk_ctx->gradient_pipeline, NULL);
 
     renderer_backend_vk_resource_cleanup_list_pop_all();
-    // rbvk_texture_destroy(&g_vk_ctx->draw_image);
 
     vkDestroySwapchainKHR(device, g_vk_ctx->swapchain.swapchain, NULL);
     vk_memory_pools_destroy(&g_vk_ctx->device, &g_vk_ctx->memory_pools);

@@ -234,29 +234,11 @@ typedef double f64;
 
 ////////////////////////////////////////////////////////////////
 //
-// Array + size
-
-#define VA_ARG_COUNT_T(T, ...) (sizeof((T[])__VA_ARGS__) / sizeof(T))
-#define ARRAY_PARAM(T, ...) (T[])__VA_ARGS__, (u32) VA_ARG_COUNT_T(T, __VA_ARGS__)
-
-// #define SLICE_FIELDS(T, data_field_name, count_field_name, ...) \
-//     .data_field_name = (T[])__VA_ARGS__, \
-//     .count_field_name = VA_ARG_COUNT_T(T, __VA_ARGS__)
-
-// #define SLICE_FIELDS(T, field, field_count, ...) \
-//     .field = { __VA_ARGS__ }, \
-//     .field_ount = sizeof((T[]){ __VA_ARGS__ }) / sizeof(T)
-
-// #define SLICE_LIT(SLICE_T, T, ...) \
-//     (SLICE_T){ .data = (T[])__VA_ARGS__, .count = VA_ARG_COUNT_T(T, __VA_ARGS__) }
-//
-// #define SLICE_GET(s, i)s.data[i]
-
-////////////////////////////////////////////////////////////////
-//
 // Array
 
-#define  DOT_ARRAY_COUNT(arr) sizeof(arr) / sizeof(arr[0])
+#define DOT_ARRAY_COUNT(arr) sizeof(arr) / sizeof(arr[0])
+#define DOT_SLICE_ARGS(T, ...) (T[])__VA_ARGS__, (u32) (sizeof((T[])__VA_ARGS__) / sizeof(T))
+
 
 // #define ARRAY_FIELDS(T, field, field_count, ...) \
 //     .field = { __VA_ARGS__ }, \

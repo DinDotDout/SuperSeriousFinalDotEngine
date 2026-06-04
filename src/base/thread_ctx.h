@@ -15,7 +15,7 @@ internal thread_local struct ThreadCtx{
 internal void threadctx_init(Arena *arena, const ThreadCtxOptions *thread_ctx_opts, u8 thread_id);
 internal void threadctx_destroy();
 
-#define AVOID_LIST(...) ARRAY_PARAM(Arena*, __VA_ARGS__)
+#define AVOID_LIST(...) DOT_SLICE_ARGS(Arena*, __VA_ARGS__)
 ///
 //////////////////////////////////////////////////////////
 // This is supposed to be restored with temp_arena_restore before function exit.
