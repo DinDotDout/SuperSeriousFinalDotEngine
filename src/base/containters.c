@@ -19,20 +19,20 @@ raw_buffer_get(u8 raw_buffer[], i32 elem_idx, u32 elem_size)
 /// Pool
 
 // Reserve 0 for default and zero every time we hand it?
-internal u32
-pool_bounds_check(Pool *p, PoolHandle h, u32 elem_size)
-{
-    DOT_ASSERT(p->capacity > 0, "Uninitialized pool");
-    DOT_ASSERT(h.idx < p->capacity, "Invalid pool handle");
-    if(p->capacity >= h.idx){
-        DOT_ERROR("Pool idx out of bounds");
-    }
+// internal u32
+// pool_bounds_check(Pool *p, PoolHandle h, u32 elem_size)
+// {
+//     DOT_ASSERT(p->capacity > 0, "Uninitialized pool");
+//     DOT_ASSERT(h.idx < p->capacity, "Invalid pool handle");
+//     if(p->capacity >= h.idx){
+//         DOT_ERROR("Pool idx out of bounds");
+//     }
     // void *elem = raw_buffer_get(p->raw_buffer, h.idx, elem_size);
     // if(h.idx == 0){
     //     MEMORY_ZERO(elem, p->elem_size);
     // }
-    // return(elem);
-}
+//     return(h.idx);
+// }
 
 // internal void*
 // pool_get(Pool *p, PoolHandle h)
@@ -46,7 +46,7 @@ pool_bounds_check(Pool *p, PoolHandle h, u32 elem_size)
 //     return(elem);
 // }
 internal u32
-pool_get(Pool *p, PoolHandle h)
+pool_handle_to_pool_idx(Pool *p, PoolHandle h)
 {
     // DOT_ASSERT(h.idx < p->capacity, "Invalid pool handle");
     if(h.idx >= p->capacity){

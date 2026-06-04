@@ -15,9 +15,13 @@ struct{ \
     T *data; \
 }
 
+    // { .data = (T[])__VA_ARGS__, .count = VA_ARG_COUNT_T(T, __VA_ARGS__) }
 
 #define SLICE_INIT(T, capacity, ...) \
-    { .data = (T[])__VA_ARGS__, ..count = VA_ARG_COUNT_T(T, __VA_ARGS__) }
+{ \
+    .data = (T[])__VA_ARGS__, \
+    .count = (sizeof((T[])__VA_ARGS__) / sizeof(T)) \
+}
 
 ////////////////////////////////////////////////////////////////
 ///
@@ -29,20 +33,20 @@ struct{ \
     T data[capacity]; \
 }
 
-#define ARRAY_GET(arr, idx) (arr)->data[array_bounds_check((idx), DOT_ARRAY_COUNT((arr)->data), __FILE__, __LINE__)]
-#define ARRAY_PUSH(arr, elem) (arr)->data[array_bounds_check((arr)->count++, DOT_ARRAY_COUNT((arr)->data), __FILE__, __LINE__)] = (elem)
+#define ARRAY_GET(arr, idx)     ((arr)->data[array_bounds_check((idx), DOT_ARRAY_COUNT((arr)->data), __FILE__, __LINE__)])
+#define ARRAY_PUSH(arr, elem)   ((arr)->data[array_bounds_check((arr)->count++, DOT_ARRAY_COUNT((arr)->data), __FILE__, __LINE__)] = (elem))
 #define ARRAY_INIT(T, ...) \
-    { \
-       .data = { __VA_ARGS__ }, \
-       .count= sizeof((T[]){ __VA_ARGS__ }) / sizeof(T) \
-    }
+{ \
+    .data = { __VA_ARGS__ }, \
+    .count= sizeof((T[]){ __VA_ARGS__ }) / sizeof(T) \
+}
 
 DOT_TEST_SUITE(array_tests)
 {
     typedef ARRAY(int, 7) intArray7;
 
     DOT_TestResults test = {0};
-    ARRAY(int, 7) array = {0};
+    ARRAY(int, 7) array = ARRAY_INIT(int, 3, 4, 5, 9);
 
     int v = ARRAY_GET(&array, 6);
     bool valid = v == 0;
@@ -114,7 +118,7 @@ typedef struct Pool{
 // internal void       pool_init(Arena *arena, Pool *p, u32 capacity, u32 elem_size, void *data_out);
 internal void       pool_init(Arena *arena, Pool *p, u32 capacity);
 internal PoolHandle pool_alloc(Pool *p, void *data, u32 elem_size);
-internal u32        pool_get(Pool *p, PoolHandle h);
+internal u32        pool_handle_to_pool_idx(Pool *p, PoolHandle h);
 
 
 // internal PoolHandle pool_alloc(Pool *p);
@@ -136,7 +140,7 @@ internal PoolHandle pool_null_handle_get(Pool *p, u32 elem_size, void *data);
 }while(0)
 
 #define POOL_ALLOC(tp)              pool_alloc(&(tp)->pool, (tp)->data, sizeof(*(tp)->data))
-#define POOL_GET(tp, h)             ((tp)->data + pool_get(&(tp)->pool, (h)))
+#define POOL_GET(tp, h)             ((tp)->data + pool_handle_to_pool_idx(&(tp)->pool, (h)))
 
 // #define POOL_ELEM_INIT(tp, handle, ...) ((tp)->last_accessed = pool_get(&(tp)->pool, (handle)), (*(tp)->data) = __VA_ARGS__, (tp)->data)
 #define POOL_REF_COPY(tp, handle)       pool_ref_copy(&(tp)->pool, (handle))
@@ -180,17 +184,22 @@ internal TreeIterator   tree_iter_begin(Arena *arena, TreePool *tree_pool, PoolH
 internal PoolHandle     tree_iter_next(TreeIterator *it);
 
 // In case we already have a node and need a different name, we can specify it in TREE_INIT_NAME
-#define TREE_INIT_NAME(arena, ttp, T, field_name, capacity) tree_init((arena), &((ttp)->tree_pool), (capacity), sizeof(*((ttp)->last_accessed)), DOT_ALIGNOF(*((ttp)->last_accessed)), DOT_OFFSETOF(T, field_name))
-#define TREE_POOL(T) struct{TreePool tree_pool; T *data;}
-#define TREE_INIT(arena, T, ttp, capacity)  tree_init((arena), &((ttp)->tree_pool), (capacity), sizeof(*((ttp)->last_accessed)), DOT_ALIGNOF(*((ttp)->last_accessed)), DOT_OFFSETOF(T, node))
+#define TREE_POOL(T) \
+struct{ \
+    TreePool tree_pool; \
+    T *data; \
+}
+// #define TREE_INIT_NAME(arena, ttp, T, field_name, capacity) tree_init((arena), &((ttp)->tree_pool), (capacity), sizeof(*((ttp)->last_accessed)), DOT_ALIGNOF(*((ttp)->last_accessed)), DOT_OFFSETOF(T, field_name))
+#define TREE_INIT(arena, T, ttp, capacity)  tree_init((arena), &((ttp)->tree_pool), (capacity), sizeof(*((ttp)->data)), DOT_ALIGNOF(*((ttp)->data)), DOT_OFFSETOF(T, node))
 #define TREE_PUSH_FRONT(ttp, parent, new)   tree_push_front(&((ttp)->tree_pool), parent, new)
 #define TREE_PUSH_FRONT_NEW(ttp, parent)    tree_push_front_new(&((ttp)->tree_pool), parent)
 #define TREE_POP_FRONT(ttp, parent)         tree_pop_front(&((ttp)->tree_pool), parent)
 
 // (jd) WARN: Dot not edit by doing *TREE_GET(tp, h) = {0}
 // It will kill the intrusive data
-#define TREE_GET(ttp, h)                    ((ttp)->data + pool_get(&((ttp)->tree_pool.pool), h))
-#define TREE_GET_ROOT(ttp)                  ((ttp)->last_accessed = pool_get(&((ttp)->tree_pool.pool), ((ttp)->tree_pool.tree_root)))
+#define TREE_GET(ttp, h)                    ((ttp)->data + pool_handle_to_pool_idx(&((ttp)->tree_pool.pool), h))
+#define TREE_GET_ROOT(ttp)                  ((ttp)->data + pool_handle_to_pool_idx(&((ttp)->tree_pool.pool), ((ttp)->tree_pool.tree_root)))
+#define TREE_GET_ROOT_H(ttp)                ((ttp)->tree_pool.tree_root)
 
 #define TREE_ITER_BEGIN(a, ttp, node) tree_iter_begin(a, &(ttp)->tree_pool, node)
 #define EACH_TREE_NODE(h, it) (PoolHandle h; (h = tree_iter_next(it), h.idx);) 
@@ -268,8 +277,13 @@ DOT_TEST_SUITE(tree_tests)
     Arena *arena = ARENA_CREATE();
 
     TREE_POOL(SceneNode) tp;
-    PoolHandle root = TREE_INIT(arena, SceneNode, &tp, 32);
+    TREE_INIT(arena, SceneNode, &tp, 32);
+    PoolHandle root = TREE_GET_ROOT_H(&tp);
     SceneNode *root_n = TREE_GET(&tp, root);
+    SceneNode *root_n1 = TREE_GET_ROOT(&tp);
+
+    DOT_TEST_CHECK(test, "compare root", root_n == root_n1);
+
     root_n->name = "Root";
     root_n->mesh_id = -1;
 
