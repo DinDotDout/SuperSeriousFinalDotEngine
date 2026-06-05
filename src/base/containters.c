@@ -46,7 +46,6 @@ pool_handle_unpack(u64 pack)
 internal u32
 pool_handle_to_pool_idx(Pool *p, PoolHandle h)
 {
-    // DOT_ASSERT(h.idx < p->capacity, "Invalid pool handle");
     if(h.idx >= p->capacity){
         DOT_WARNING("Pool capacity exceeded. Returning 0 handle");
         return 0;

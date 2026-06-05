@@ -207,13 +207,9 @@ DOT_TEST_SUITE(pool_tests)
     DOT_TEST_CHECK(test, "POOL_ALLOC", h2.idx != 0);
     DOT_TEST_CHECK(test, "POOL_ALLOC", h3.idx != 0);
 
-    // Particle p1_init = { .x=1, .y=2, .z=3, .vx=0.1f, .vy=0.2f, .vz=0.3f, .alive=1 };
-    // Particle p2_init = { .x=4, .y=5, .z=6, .vx=0.4f, .vy=0.5f, .vz=0.6f, .alive=1 };
-    //
-    // Particle p = *POOL_GET(&pp, h1) = p1_init;
-    // (void)p;
-    // POOL_ELEM_INIT(&pp, h2, p2_init);
-    // POOL_ELEM_INIT(&pp, h3, ((Particle){.x=7, .y=8, .z=9, .vx=0.7f, .vy=0.8f, .vz=0.9f, .alive=1}));
+    Particle p1_init = { .x=1, .y=2, .z=3, .vx=0.1f, .vy=0.2f, .vz=0.3f, .alive=1 };
+    *POOL_GET(&pp, h1) = p1_init;
+    *POOL_GET(&pp, h3) = (Particle){ .x=4, .y=5, .z=6, .vx=0.4f, .vy=0.5f, .vz=0.6f, .alive=1 };
 
     DOT_TEST_CHECK(test, "POOL_GET", POOL_GET(&pp, h1)->vz == 0.3f);
     DOT_TEST_CHECK(test, "POOL_GET", POOL_GET(&pp, h2)->vx == 0.4f);
