@@ -113,6 +113,7 @@ internal PoolHandle pool_null_handle_get(Pool *p, u32 elem_size, u8 *data);
     Pool pool; \
     T *data; \
 }
+
 #define POOL_ELEM_(tp) (*(tp)->data)
 
 // (jd) The ref deref crazyness is just there to preserve the syntax of how you would call the functions

@@ -101,16 +101,12 @@ typedef struct RBVK_SwapchainImageData{
     VkSemaphore image_semaphore;
 }RBVK_SwapchainImageData;
 
-typedef struct RBVK_SwapchainImageDatas RBVK_SwapchainImageDatas;
 typedef struct RBVK_Swapchain{
     VkSwapchainKHR swapchain;
     VkExtent2D     extent;
     VkFormat       image_format;
 
-    struct RBVK_SwapchainImageDatas{
-        RBVK_SwapchainImageData *data;
-        u32 count;
-    }image_datas;
+    SLICE(RBVK_SwapchainImageData) image_datas;
 
     // array(RBVK_SwapchainImageData) image_datas;
     // u32 image_datas_count; // Shared between images, images views and semaphroe
