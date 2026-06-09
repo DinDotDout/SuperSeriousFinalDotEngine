@@ -16,12 +16,9 @@ temp_arena_restore(TempArena temp)
 internal Arena*
 arena_create_(ArenaInitParams *params)
 {
+    DOT_ASSERT_FL(params->reserve_size > ARENA_HEADER_SIZE_B, params->reserve_file, params->reserve_line, "Arena metadata cannot fit in reserved space");
     Arena *arena;
     if(params->buffer){
-        // NOTE: Keeping this use case just in case. If we ever end up using it
-        // we will have to add some check to not try to free the handed buffer as
-        // the arena will not really own it
-        // DOT_ERROR("Not sure we will ever use this directly?");
         arena = arena_create_from_memory(params);
     }else if(params->parent){
         arena = arena_create_from_arena(params);
@@ -34,14 +31,11 @@ arena_create_(ArenaInitParams *params)
 internal Arena*
 arena_create_from_memory(ArenaInitParams *params)
 {
-    DOT_ASSERT_FL(params->buffer != NULL, params->reserve_file, params->reserve_line, "Invalid memory provided");
     DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Allocating arena from buffer with %M", params->reserve_size);
-    // NOTE: Since we don't own the memory it must be backed and we assume it is committed (reserve == commit)
-
-    DOT_ASSERT_FL(params->buffer != NULL, params->reserve_file, params->reserve_line, "Invalid memory provided");
     uptr base = cast(uptr)params->buffer;
-    uptr align = ALIGN_POW2(base, DOT_ALIGNOF(Arena));
+    uptr align = ALIGN_POW2(base, ARENA_HEADER_ALIGN);
     iptr diff = align - base;
+    // NOTE: Since we don't own the memory it must be backed and we assume it is committed (reserve == commit)
     Arena *arena = cast(Arena*)align;
     *arena = (Arena){
         .base               = cast(u8*)align,
@@ -61,21 +55,18 @@ arena_create_from_memory(ArenaInitParams *params)
 internal Arena*
 arena_create_from_arena(ArenaInitParams *params)
 {
-    DOT_ASSERT_FL(params->parent != NULL, params->reserve_file, params->reserve_line, "Invalid memory provided");
     DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Allocating arena from parent:");
     arena_print_debug(params->parent);
     params->buffer = PUSH_SIZE_NO_ZERO(params->parent, params->reserve_size);
     Arena *arena = arena_create_from_memory(params);
-    printf("\n");
-    printf("\n");
     return arena;
 }
 
 internal Arena*
 arena_create_from_os(ArenaInitParams *params)
 {
-    DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Allocating arena from os");
     DOT_ASSERT_FL(params->reserve_size > 0, params->reserve_file, params->reserve_line, "No reserve_size provided");
+    DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Allocating arena from os");
     DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Arena \"%s\": requested %M", params->name, params->reserve_size);
 
     u64 page_size = params->large_pages ? PLATFORM_LARGE_PAGE_SIZE : PLATFORM_REGULAR_PAGE_SIZE;
@@ -91,15 +82,13 @@ arena_create_from_os(ArenaInitParams *params)
     }else{
         os_commit(memory, initial_commit);
     }
-    DOT_ASSERT_FL(memory, params->reserve_file, params->reserve_line, "Could not allocate");
     Arena* arena = cast(Arena*) memory;
     *arena = (Arena){
         .base               = memory,
         .reserved           = reserved,
         .committed          = initial_commit,
         .commit_expand_size = commit_expand_size,
-        .flags              = ArenaFlags_OwnsMemory |
-            (params->large_pages ? ArenaFlags_LargePages : 0),
+        .flags              = ArenaFlags_OwnsMemory | (params->large_pages ? ArenaFlags_LargePages : 0),
 #if DOT_DEBUG
         .name               = params->name,
         .parent             = params->parent,
@@ -112,7 +101,6 @@ arena_create_from_os(ArenaInitParams *params)
 internal void
 arena_reset(ArenaOpParams *op)
 {
-    DOT_ASSERT_FL(op->arena, op->file, op->line);
     ASAN_POISON(arena->base + ARENA_HEADER_SIZE_B, arena->reserved - ARENA_HEADER_SIZE_B);
     op->arena->used = ARENA_HEADER_SIZE_B;
 }
@@ -154,16 +142,9 @@ arena_push(ArenaOpParams *op)
     usize required_padded = aligned_address - current_address + op->size;
     arena->used += required_padded;
 
-    // NOTE: Fresh OS pages are zeroed, so we only need to zero the portion we already owned
-    // We could maybe make a non reset permanent owning arena type and have it never zero
-    // u64 need_zero = required_padded;
- 
-    // NOTE: Up to here we have calculated how much memory do we need exactly. We will now check
-    // if we need to further commit pages to back up our needs
     b32 need_more_pages = arena->used > arena->committed;
     if(need_more_pages){
         i64 needed_memory = arena->used - arena->committed;
-        // need_zero -= needed_memory;
 
         b32 large_pages = DOT_BITS_MATCH(arena->flags, ArenaFlags_LargePages);
         u64 page_size = large_pages ? PLATFORM_LARGE_PAGE_SIZE : PLATFORM_REGULAR_PAGE_SIZE;
@@ -185,8 +166,6 @@ arena_push(ArenaOpParams *op)
         arena->committed += commit_size;
     }
     ASAN_UNPOISON(mem_offset, required_padded);
-    // if(zero && need_zero > 0){
-        // MEMORY_ZERO(mem_offset, need_zero);
     if(op->zero){
         MEMORY_ZERO(mem_offset, required_padded);
     }

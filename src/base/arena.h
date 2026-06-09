@@ -9,8 +9,8 @@
 
 enum
 {
-    // (jd) NOTE: May help in avoid false sharing
     ARENA_HEADER_SIZE_B = PLATFORM_CACHE_LINE_SIZE,
+    ARENA_HEADER_ALIGN  = PLATFORM_CACHE_LINE_SIZE,
 
     ARENA_MAX_ALIGNMENT = 8,
     ARENA_MIN_CAPACITY  = DOT_KB(16),
@@ -21,6 +21,7 @@ typedef enum ArenaFlags{
     ArenaFlags_LargePages = DOT_BIT(1),
     // ArenaFlags_ChainArena = DOT_BIT(2),
 }ArenaFlags;
+
 typedef struct Arena Arena;
 struct Arena{
     u64 used;
@@ -37,8 +38,8 @@ struct Arena{
     char *name;
 #endif
 };
-
-DOT_STATIC_ASSERT(sizeof(Arena) <= ARENA_HEADER_SIZE_B, "Keep cache line sized");
+DOT_STATIC_ASSERT(ARENA_HEADER_SIZE_B <= PLATFORM_REGULAR_PAGE_SIZE, "Arena header doesn't fit min allocation granularity");
+DOT_STATIC_ASSERT(sizeof(Arena) <= ARENA_HEADER_SIZE_B, "Arena header should fit in a cache line to avoid false sharing on thread arenas");
 
 typedef struct ArenaInitParams{
     // These 2 will be used to alloc from if not empty, otherwise we will make a new os alloc
@@ -137,9 +138,6 @@ internal void   arena_print_debug(Arena *arena);
 // (jd) NOTE: Experiments. Clang seems to optimize the copy pretty well
 #define PUSH_COPY(arena, T, src)        MEMORY_COPY_STRUCT(PUSH_ARRAY_NO_ZERO(arena, T, 1), (src))
 #define PUSH_COPY_LIT(arena, T, src)    MEMORY_COPY_STRUCT(PUSH_ARRAY_NO_ZERO(arena, T, 1), &(T)src)
-
-#define PUSH_SLICE(arena, T, c) {.data = PUSH_ARRAY(arena, T, c), .count = (c)}
-#define PUSH_SLICE_LIT(arena, slice_type, T, c) (slice_type){.data = PUSH_ARRAY(arena, T, c), .count= (c)}
 
 //////////////////////////////////////////////////////////
 /// TempArena
