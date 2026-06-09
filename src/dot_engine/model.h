@@ -26,17 +26,10 @@ typedef struct DOT_Mesh{
 }DOT_Mesh;
 
 typedef struct DOT_Model{
-    u32                 meshes_count;
-    DOT_Mesh           *meshes;
-
-    u32                 samplers_count;
-    DOT_SamplerAsset   *samplers;
-
-    u32                 buffers_count;
-    DOT_BufferAsset    *buffers;
-
-    u32                 textures_count;
-    DOT_TextureAsset   *textures;
+    SLICE(DOT_Mesh) meshes;
+    SLICE(DOT_SamplerAsset) samplers;
+    SLICE(DOT_BufferAsset)  buffers;
+    SLICE(DOT_TextureAsset) textures;
 }DOT_Model;
 
 internal void*
@@ -124,24 +117,17 @@ dot_model_from_cgltf(DOT_Renderer *renderer, const cgltf_data *data, String8 glt
     DOT_ASSERT(data->textures_count <= U32_MAX); DOT_ASSERT(data->meshes_count <= U32_MAX);
     DOT_ASSERT(data->samplers_count <= U32_MAX); DOT_ASSERT(data->buffers_count <= U32_MAX);
     DOT_Model model = {
-        .textures_count = cast(u32)data->textures_count,
-        .textures  = PUSH_ARRAY(renderer->transient_arena, DOT_TextureAsset, data->textures_count),
-
-        .buffers_count = cast(u32)data->meshes_count,
-        .buffers   = PUSH_ARRAY(renderer->transient_arena, DOT_BufferAsset, data->buffers_count),
-
-        .samplers_count = cast(u32)data->samplers_count,
-        .samplers  = PUSH_ARRAY(renderer->transient_arena, DOT_SamplerAsset, data->samplers_count),
-
-        .meshes_count = cast(u32)data->meshes_count,
-        .meshes    = PUSH_ARRAY(renderer->transient_arena, DOT_Mesh, data->meshes_count),
+        .textures   = SLICE_CREATE_FROM_ARENA(renderer->transient_arena, DOT_TextureAsset, cast(u32)data->textures_count),
+        .buffers    = SLICE_CREATE_FROM_ARENA(renderer->transient_arena, DOT_BufferAsset, cast(u32)data->buffer_views_count),
+        .samplers   = SLICE_CREATE_FROM_ARENA(renderer->transient_arena, DOT_SamplerAsset, cast(u32)data->samplers_count),
+        .meshes     = SLICE_CREATE_FROM_ARENA(renderer->transient_arena, DOT_Mesh, cast(u32)data->meshes_count),
     };
 
-    TempArena temp = threadctx_get_temp(0,0);
+    TempArena temp = threadctx_get_temp(0);
     String8 folder = string8_chop_last_slash(gltf_path);
     for (usize mesh_idx = 0; mesh_idx < data->meshes_count; mesh_idx++) {
         cgltf_mesh *src_mesh = &data->meshes[mesh_idx];
-        DOT_Mesh *dst_mesh = &model.meshes[mesh_idx];
+        DOT_Mesh *dst_mesh = &SLICE_GET(model.meshes, mesh_idx);
 
         DOT_ASSERT(src_mesh->primitives_count <= U32_MAX);
         dst_mesh->primitive_count = cast(u32)src_mesh->primitives_count;
@@ -156,13 +142,9 @@ dot_model_from_cgltf(DOT_Renderer *renderer, const cgltf_data *data, String8 glt
     for(u64 i = 0; i < data->images_count; ++i){
         cgltf_image *image = &data->images[i];
         String8 name = image->name ? string8_from_cstring(image->name) : String8Lit("Default");
-        String8 full_path = string8_format(
-            temp.arena,
-            "%S/%s",
-            folder,
-            image->uri);
+        String8 full_path = string8_format(temp.arena, "%S/%s", folder, image->uri);
         DOT_PRINT("name: %S, image uri: %S", name, full_path);
-        model.textures[i] = renderer_texture_asset_create(
+        SLICE_GET(model.textures, i) = renderer_texture_asset_create(
             renderer,
             DOT_ASSET_CREATE_INFO(.name = name, .path = full_path),
             0);
@@ -172,7 +154,7 @@ dot_model_from_cgltf(DOT_Renderer *renderer, const cgltf_data *data, String8 glt
     for(u64 i = 0; i < data->samplers_count; ++i){
         cgltf_sampler *sampler = &data->samplers[i];
         String8 name = sampler->name ? string8_from_cstring(sampler->name) : String8Lit("Default");
-        model.samplers[i] = renderer_sampler_asset_create(
+        SLICE_GET(model.samplers, i) = renderer_sampler_asset_create(
             renderer,
             DOT_ASSET_CREATE_INFO(.name = name, .path = gltf_path),
             RENDER_TYPES_SAMPLER_DESC(
@@ -187,7 +169,7 @@ dot_model_from_cgltf(DOT_Renderer *renderer, const cgltf_data *data, String8 glt
         cgltf_buffer *buffer = buffer_view->buffer;
         String8 name = buffer_view->name ? string8_from_cstring(buffer_view->name) : String8Lit("Default");
         u8 *buffer_data = cast(u8*)buffer->data + buffer_view->offset;
-        model.buffers[i] = renderer_buffer_asset_create(
+        SLICE_GET(model.buffers, i) = renderer_buffer_asset_create(
             renderer,
             DOT_ASSET_CREATE_INFO(.name = name, .path = gltf_path),
             RENDER_TYPES_BUFFER_DESC(.size = buffer_view->size,
@@ -303,7 +285,7 @@ dot_gltf_load_from_path(Arena *arena, String8 path)
 internal DOT_Model
 dot_model_load_from_path(DOT_Renderer *renderer, String8 path)
 {
-    TempArena temp = threadctx_get_temp(0,0);
+    TempArena temp = threadctx_get_temp(0);
     cgltf_data *gltf = dot_gltf_load_from_path(temp.arena, path);
     DOT_Model model = {0};
     if(gltf){

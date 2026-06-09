@@ -265,7 +265,7 @@ nk_dot_render(DOT_Renderer *renderer)
 {
     NkDot_State *s = &g_nk_dot;
     struct nk_context *ctx = &s->ctx;
-    DT_TODO("fix frame");
+    DOT_TODO("fix frame");
     u8 frame_idx = 0;
     // u8 frame_idx = renderer->current_frame % renderer->backend->frame_overlap;
 

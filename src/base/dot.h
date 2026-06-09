@@ -237,7 +237,7 @@ typedef double f64;
 // Array
 
 #define DOT_ARRAY_COUNT(arr) sizeof(arr) / sizeof(arr[0])
-#define DOT_SLICE_ARGS(T, ...) (T[])__VA_ARGS__, (u32) (sizeof((T[])__VA_ARGS__) / sizeof(T))
+#define DOT_ARRAY_ARGS(T, ...) (T[])__VA_ARGS__, (u32) (sizeof((T[])__VA_ARGS__) / sizeof(T))
 
 
 // #define ARRAY_FIELDS(T, field, field_count, ...) \
@@ -356,7 +356,7 @@ do { \
 
 #define DOT_ERROR(...)          DOT_ERROR_IMPL(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error), __VA_ARGS__)
 #define DOT_ERROR_FL(f, l, ...) DOT_ERROR_IMPL(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error, .file = (f), .line = (l)), __VA_ARGS__)
-#define DT_TODO(msg) \
+#define DOT_TODO(msg) \
 do { \
     dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error), "TODO: %s", msg); \
     abort(); \

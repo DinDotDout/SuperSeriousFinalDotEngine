@@ -31,7 +31,7 @@ platform_os_read_timer()
 internal void
 os_print_stacktrace()
 {
-    thread_local static void* buffer[4096];
+    thread_local local_persist void* buffer[4096];
     USHORT frames = CaptureStackBackTrace(0, 64, stack, NULL);
     for(USHORT i = 0; i < frames; i++){
         printf("%p\n", stack[i]);
@@ -40,7 +40,7 @@ os_print_stacktrace()
 
 
 void os_print_stacktrace() {
-    thread_local static void* buffer[4096];
+    thread_local local_persist void* buffer[4096];
     USHORT frames = CaptureStackBackTrace(0, DOT_ARRAY_COUNT(buffer), buffer, NULL);
 
     HANDLE process = GetCurrentProcess();

@@ -1,30 +1,15 @@
 internal void
 threadctx_init(Arena *arena, const ThreadCtxOptions *thread_ctx_opts, u8 thread_id)
 {
-    DOT_ASSERT(thread_ctx_opts);
-    if(thread_ctx_opts->per_thread_temp_arena_count < 2){
-      DOT_WARNING("We probably need at least two temp_arenas to double buffer "
-        "through callstack");
-    }
-
-    u8 temp_arena_count = thread_ctx_opts->per_thread_temp_arena_count;
-
-    // NOTE: Storing space for the actual arena backing + extra page for arena metadata
-    u64 total_memory = thread_ctx_opts->per_thread_temp_arena_size * temp_arena_count
-        + DOT_MAX(sizeof(Arena) * temp_arena_count, PLATFORM_REGULAR_PAGE_SIZE);
-
+    DOT_ASSERT(t_thread_ctx.thread_id == 0, "Thread ctx was already initialized");
     u64 per_arena_memory = thread_ctx_opts->per_thread_temp_arena_size;
-
-    Arena *main_arena = ARENA_CREATE(.parent = arena, .reserve_size = total_memory, .name = "Thread Arena");
-    thread_ctx.thread_id        = thread_id;
-    thread_ctx.temp_arena_count = temp_arena_count;
-    thread_ctx.temp_arenas      = PUSH_ARRAY(main_arena, Arena*, temp_arena_count);
-
-    for(u8 i = 0; i < temp_arena_count; ++i){
-        thread_ctx.temp_arenas[i] = ARENA_CREATE(
-            .parent       = main_arena,
+    t_thread_ctx.thread_id = thread_id;
+    SLICE_INIT_FROM_ARENA(arena, &t_thread_ctx.temp_arenas, Arena*, thread_ctx_opts->per_thread_temp_arena_count);
+    for(u8 i = 0; i < t_thread_ctx.temp_arenas.count; ++i){
+        SLICE_GET(t_thread_ctx.temp_arenas, i) = ARENA_CREATE(
+            .parent       = arena,
             .reserve_size = per_arena_memory,
-            .name         = cstr_format(main_arena, "Thread SubArena %u", i),
+            .name         = cstr_format(arena, "Thread SubArena %u", i),
         );
     }
 }
@@ -32,27 +17,28 @@ threadctx_init(Arena *arena, const ThreadCtxOptions *thread_ctx_opts, u8 thread_
 internal void
 threadctx_shutdown()
 {
-    for(u8 i = 0; i < thread_ctx.temp_arena_count; ++i){
-        arena_print_debug(thread_ctx.temp_arenas[i]);
+    for(u8 i = 0; i < t_thread_ctx.temp_arenas.count; ++i){
+        arena_print_debug(SLICE_GET(t_thread_ctx.temp_arenas, i));
     }
 }
 
 internal TempArena
-threadctx_get_temp(Arena *avoid[], u32 avoid_count)
+threadctx_get_temp(SliceArena *avoid_arenas)
+// threadctx_get_temp(Arena *avoid[], u32 avoid_count)
 {
-    // Spread memory usage across arenas
+    u32 avoid_count = !avoid_arenas ? 0 : avoid_arenas->count;
+    // (jd) NOTE: Spread memory load
     local_persist thread_local u64 next = 0;
-    u32 arena_count = thread_ctx.temp_arena_count;
+    u32 arena_count = t_thread_ctx.temp_arenas.count;
     for(u8 tries = 0; tries < arena_count; ++tries){
         u8 idx = next;
         next = (next + 1) % arena_count;
 
-        Arena *candidate_temp = thread_ctx.temp_arenas[idx];
-        DOT_ASSERT(candidate_temp);
-
+        Arena *candidate_temp = SLICE_GET(t_thread_ctx.temp_arenas, idx);
         b32 collision = false;
         for(u32 i = 0; i < avoid_count; ++i){
-            if(candidate_temp == avoid[i]){
+            Arena *arena = SLICE_GET(*avoid_arenas, i);
+            if(candidate_temp == arena){
                 collision = true;
                 break;
             }
@@ -63,5 +49,5 @@ threadctx_get_temp(Arena *avoid[], u32 avoid_count)
         }
     }
 
-    DOT_ERROR("Could not find non-colliding TempArena. Try increasing temp_arena_count.");
+    DOT_ERROR("Could not find non-colliding TempArena. Try increasing temp_arena_count to match max number of arena parameters");
 }

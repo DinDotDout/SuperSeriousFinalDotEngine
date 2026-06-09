@@ -329,17 +329,21 @@ typedef struct RenderTypes_DepthStencilState{
     RenderTypes_StencilState front;
     RenderTypes_StencilState back;
     RenderTypes_CompareOp   depth_comparison;
-    b8 depth_enable : 1;
-    b8 depth_write_enable : 1;
-    b8 stencil_enable : 1;
-    // (jd) NOTE: This forces 0 init on the rest of the bits so we can serialize
-    // and add new fields if necessary without having random values for retro compat
-    b8 pad : 5;
+    union{
+        struct {
+            b8 depth_enable : 1;
+            b8 depth_write_enable : 1;
+            b8 stencil_enable : 1;
+        };
+        u8 depth_stencil_bits;
+    };
 }RenderTypes_DepthStencilState;
 
-enum {
+enum
+{
     RENDER_TYPES_IMAGE_OUTPUTS_MAX = 8, // Maximum number of images/render_targets/fbo attachments usable.
     RENDER_TYPES_DESCRIPTOR_SET_LAYOUT_MAX,
+    RENDER_TYPES_SHADER_STAGES_MAX,
 };
 
 typedef enum RenderTypes_BlendFactorKind{
@@ -402,8 +406,6 @@ typedef struct RenderTypes_BlendState{
 typedef struct RenderTypes_RenderPassOutput{
     RenderTypes_TextureFormatKind depth_stencil_format;
     ARRAY(RenderTypes_TextureFormatKind, RENDER_TYPES_IMAGE_OUTPUTS_MAX) color_formats;
-    // u32      color_formats_count;
-    // RenderTypes_TextureFormatKind color_formats[RENDER_TYPES_IMAGE_OUTPUTS_MAX];
 }RenderTypes_RenderPassOutput;
 
 typedef struct RenderTypes_Extent2D16{
@@ -425,31 +427,53 @@ typedef struct RenderTypes_ViewportState{
 
 }RenderTypes_ViewportState;
 
+typedef enum RenderTypes_ShaderStageKind{
+    RenderTypes_ShaderStageKind_Vertex,
+    RenderTypes_ShaderStageKind_Fragment,
+    RenderTypes_ShaderStageKind_Compute,
+    // RenderTypes_ShaderStageKind_AllGraphics,
+    // RenderTypes_ShaderStageKind_All,
+    RenderTypes_ShaderStageKind_RayGen,
+    RenderTypes_ShaderStageKind_RayHitAny,
+    RenderTypes_ShaderStageKind_RayHitClosest,
+    RenderTypes_ShaderStageKind_RayHitMiss,
+    RenderTypes_ShaderStageKind_RayHitIntersection,
+    RenderTypes_ShaderStageKind_Mesh,
+
+    RenderTypes_ShaderStageKind_TesselationControl,
+    RenderTypes_ShaderStageKind_TesselationEvaluation,
+    RenderTypes_ShaderStageKind_Geometry,
+}RenderTypes_ShaderStageKind;
+
+typedef enum RenderTypes_ShaderFormat{
+    RenderTypes_ShaderFormat_Source,
+    RenderTypes_ShaderFormat_Spirv,
+    RenderTypes_ShaderFormat_Dxil
+}RenderTypes_ShaderFormat;
+
+typedef struct RenderTypes_ShaderStage{
+    String8 code;
+    RenderTypes_ShaderStageKind stage;
+}RenderTypes_ShaderStage;
+
+typedef struct RenderTypes_ShaderState{
+    ARRAY(RenderTypes_ShaderStage, RENDER_TYPES_SHADER_STAGES_MAX) shader_stages;
+    RenderTypes_ShaderFormat format;
+    DOT_DEBUG_NAME(name, DOT_DEBUG_NAME_LEN);
+}RenderTypes_ShaderState;
+
 typedef struct RenderTypes_Pipeline{
-    RenderTypes_RasterState         raster_state;
-    RenderTypes_DepthStencilState   depth_stencil_state;
-
-    ARRAY(RenderTypes_BlendState, RENDER_TYPES_IMAGE_OUTPUTS_MAX) blend_state;
-
-    u32 active_blend_states;
-    RenderTypes_BlendState          blend_states[RENDER_TYPES_IMAGE_OUTPUTS_MAX];
-
-    RenderTypes_VertexInput         vertex_input;
-
-    const RenderTypes_ViewportState *viewport;
-
-    RenderTypes_RenderPassOutput render_pass;
-    u32 active_layouts;
-    DOT_DescriptorSetLayoutHandle descriptor_set_layout_h[RENDER_TYPES_DESCRIPTOR_SET_LAYOUT_MAX];
-
+    RenderTypes_RasterState             raster_state;
+    RenderTypes_DepthStencilState       depth_stencil_state;
+    RenderTypes_VertexInput             vertex_input;
+    const RenderTypes_ViewportState     *viewport;
+    RenderTypes_RenderPassOutput        render_pass;
+    RenderTypes_ShaderState             shader_state;
+    ARRAY(RenderTypes_BlendState, RENDER_TYPES_IMAGE_OUTPUTS_MAX) blend_states;
+    ARRAY(DOT_DescriptorSetLayoutHandle, RENDER_TYPES_DESCRIPTOR_SET_LAYOUT_MAX) descriptor_set_layouts;
     DOT_DEBUG_NAME(name, DOT_DEBUG_NAME_LEN);
 }RenderTypes_Pipeline;
 
-void rendertypes_pipeline_add_descriptor_set_layout(RenderTypes_Pipeline *pipeline, DOT_DescriptorSetLayoutHandle descriptor_set_layout)
-{
-    DOT_ASSERT(pipeline->active_layouts < RENDER_TYPES_DESCRIPTOR_SET_LAYOUT_MAX);
-    pipeline->descriptor_set_layout_h[pipeline->active_layouts++] = descriptor_set_layout;
-}
 
 internal RenderTypes_TextureFormatInfo renderer_texture_format_info_from_format(RenderTypes_TextureFormatKind fmt);
 internal RenderTypes_TextureFormatKind renderer_texture_format_from_info(int comp, u8 size_bytes, b32 srgb);

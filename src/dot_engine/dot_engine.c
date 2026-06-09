@@ -4,14 +4,13 @@ internal void
 dot_engine_init(DOT_Engine *engine, b8 tests_only)
 {
     engine->permanent_arena = ARENA_CREATE(.reserve_size = DOT_ENGINE_CONFIG.engine_memory_size, .name = "DOT_Engine Arena");
-    threadctx_init(engine->permanent_arena, DOT_ENGINE_CONFIG.thread_options, 0); // NOTE: Should make entry points per thread
+    threadctx_init(engine->permanent_arena, DOT_ENGINE_CONFIG.thread_options, 1);
     if(tests_only){
         return;
     }
     plugins_init();
     dot_window_init(&engine->window);
-    RendererConfig *renderer_config = DOT_ENGINE_CONFIG.renderer_config;
-    renderer_init(engine->permanent_arena, &engine->renderer, &engine->window, renderer_config);
+    renderer_init(engine->permanent_arena, &engine->renderer, &engine->window, DOT_ENGINE_CONFIG.renderer_config);
     // nk_dot_init(&engine->renderer, &engine->window);
 
     engine->game = PUSH_STRUCT(engine->permanent_arena, DOT_Game);

@@ -95,21 +95,20 @@ typedef struct RBVK_Texture{
     DOT_DEBUG_NAME(name, DOT_DEBUG_NAME_LEN);
 }RBVK_Texture;
 
-typedef struct RBVK_SwapchainImageData{
-    VkImage image;
-    VkImageView image_view;
+typedef struct RBVK_SwapchainTexture{
+    VkImage vk_image;
+    VkImageView vk_image_view;
     VkSemaphore image_semaphore;
-}RBVK_SwapchainImageData;
+}RBVK_SwapchainTexture;
 
 typedef struct RBVK_Swapchain{
     VkSwapchainKHR swapchain;
     VkExtent2D     extent;
     VkFormat       image_format;
 
-    SLICE(RBVK_SwapchainImageData) image_datas;
-
-    // array(RBVK_SwapchainImageData) image_datas;
-    // u32 image_datas_count; // Shared between images, images views and semaphroe
+    // ARRAY(RBVK_TextureHandle, RBVK_MAX_SWAPCHAIN_TEXTURES) image_datas;
+    // ARRAY(VkSemaphore, RBVK_MAX_SWAPCHAIN_TEXTURES) image_semaphores;
+    SLICE(RBVK_SwapchainTexture) image_datas;
 }RBVK_Swapchain;
 
 typedef struct RBVK_FrameData{
@@ -123,36 +122,56 @@ typedef struct RBVK_FrameData{
 }RBVK_FrameData;
 
 // (jd) TODO: Move this to renderer and use DOT_TextureHandles and so on
-typedef struct RBVK_ResourceCleanupCtx RBVK_ResourceCleanupCtx;
-typedef TREE_POOL(RBVK_ResourceCleanupCtx) ResourceCleanupListTree;
-struct RBVK_ResourceCleanupCtx{
+typedef struct RBVK_ResourceCleanupCtx{
     TreeHeader node;
+    ARRAY(RBVK_SamplerHandle, RBVK_RESOURCE_CLEANUP_CTX_TEXTURES)   texture_ids;
+    ARRAY(RBVK_SamplerHandle, RBVK_RESOURCE_CLEANUP_CTX_BUFFERS)    buffer_ids;
+    ARRAY(RBVK_SamplerHandle, RBVK_RESOURCE_CLEANUP_CTX_SAMPLERS)   sampler_ids;
+    SLICE(Arena *) temp_arenas;
+}RBVK_ResourceCleanupCtx;
+typedef TREE_POOL(RBVK_ResourceCleanupCtx) ResourceCleanupListTree;
 
-    u32 texture_id_count;
-    RBVK_SamplerHandle texture_ids[RBVK_RESOURCE_CLEANUP_CTX_TEXTURES]; // RBVK_Texture
+typedef struct RBVK_AttachmentOps {
+    VkImageLayout initial_layout;
+    VkImageLayout final_layout;
+    VkAttachmentLoadOp load_op;
+    VkAttachmentStoreOp store_op;
+    VkClearValue clear_value;
+}RBVK_AttachmentOps;
 
-    u32 buffer_id_count;
-    RBVK_BufferHandle buffer_ids[RBVK_RESOURCE_CLEANUP_CTX_BUFFERS]; // RBVK_Buffer
 
-    u32 sampler_id_count;
-    RBVK_SamplerHandle sampler_ids[RBVK_RESOURCE_CLEANUP_CTX_SAMPLERS]; // RBVK_Sampler
-};
+typedef struct RBVK_RenderingAttachments {
+    RBVK_TextureHandle color[RENDER_TYPES_IMAGE_OUTPUTS_MAX];
+    RBVK_TextureHandle depth_stencil;
+
+    u32 num_color;
+    u16 width, height;
+
+    f32 scale_x, scale_y;
+    u8 resize;
+
+    DOT_DEBUG_NAME(name, DOT_DEBUG_NAME_LEN);
+}RBVK_RenderingAttachments;
+
+typedef struct RBVK_RenderPassOutput{
+    VkFormat depth_stencil_format;
+    VkFormat color_formats[RENDER_TYPES_IMAGE_OUTPUTS_MAX];
+}RBVK_RenderPassOutput;
 
 typedef struct RendererBackendVk{
     RendererBackend base;
 
     RBVK_Device     device;
     RBVK_Swapchain  swapchain;
+    RBVK_RenderPassOutput swapchain_output;
     VkInstance      instance;
     VkSurfaceKHR    surface;
 
-    u8                    frame_data_count;
-    array(RBVK_FrameData) frame_datas;
+
     u32 current_frame;
     u32 previous_frame;
     u64 absolute_frame;
-
-    // RBVK_Texture      draw_image;
+    SLICE(RBVK_FrameData) frame_datas;
     RBVK_TextureHandle     draw_image;
 
     // NOTE: Splitting this from actual draw_image so that we can draw regions?
@@ -193,8 +212,8 @@ RENDERER_BACKEND_FN_LIST
 #undef FN
 
 internal void               renderer_backend_vk_merge_render_settings(RendererBackendConfig *backend_config);
-internal RendererBackendVk* renderer_backend_vk_create(Arena *arena, RendererBackendConfig *backend_config);
-internal RendererBackendVk* renderer_backend_as_vk(RendererBackend *base);
+internal RendererBackendVk *renderer_backend_vk_create(Arena *arena, RendererBackendConfig *backend_config);
+internal RendererBackendVk *renderer_backend_as_vk(RendererBackend *base);
 
 internal void renderer_backend_vk_resource_cleanup_list_push_rbvk_sampler(RBVK_SamplerHandle sampler_id);
 internal void renderer_backend_vk_resource_cleanup_list_push_rbvk_texture(PoolHandle texture_id);
@@ -214,6 +233,7 @@ internal RBVK_BufferHandle  rbvk_buffer_create(const RenderTypes_BufferDesc *cre
 
 internal void               rbvk_texture_destroy(RBVK_Texture *image);
 internal RBVK_Buffer        rbvk_buffer_create2(VkDeviceSize size, VkMemory_PoolsKind pool_kind, String8 name);
+internal RBVK_FrameData    *rbvk_frame_data_get_current();
 
 // Should these be also coming from a pool like RBVK_Resources?
 internal DOT_ShaderModuleHandle rbvk_dot_shader_module_from_vk_shader_module(VkShaderModule vk_sm);

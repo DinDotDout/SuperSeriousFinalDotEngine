@@ -23,8 +23,8 @@ renderer_init(Arena *arena, DOT_Renderer *renderer, DOT_Window *window, const Re
         .name         = "Application renderer transient");
 
     shader_cache_init(renderer->permanent_arena, &renderer->shader_cache, renderer_config->shader_cache_config);
-    renderer->backend = renderer_backend_create(renderer->permanent_arena, renderer_config->backend_config);
 
+    renderer->backend = renderer_backend_create(renderer->permanent_arena, renderer_config->backend_config);
     renderer->frame_data_count = renderer->backend->frame_overlap;
     renderer->frame_datas    = PUSH_ARRAY(renderer->permanent_arena, FrameData, renderer->frame_data_count);
     for(u8 i = 0; i < renderer->frame_data_count; ++i){
@@ -212,7 +212,7 @@ renderer_overlay_shutdown(DOT_Renderer *renderer)
 DOT_ShaderModule*
 renderer_shader_module_load_from_path(DOT_Renderer *renderer, String8 path)
 {
-    TempArena temp = threadctx_get_temp(0,0);
+    TempArena temp = threadctx_get_temp(0);
     String8 compiled_path = shader_cache_get_compiled_path(renderer->permanent_arena, path);
     b32 source_updated = platform_file_is_newer(path, compiled_path);
     b32 compilation_success = false;

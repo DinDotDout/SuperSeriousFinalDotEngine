@@ -7,7 +7,7 @@ shader_cache_get_compiled_path(Arena *arena, String8 path){
 internal b32
 shader_compile_from_path(String8 input_path, String8 output_path)
 {
-    TempArena temp = threadctx_get_temp(0,0);
+    TempArena temp = threadctx_get_temp(0);
     DOT_PRINT("Compiling with: slangc %s -target spirv -stage compute -o %s 2>&1 -entry main", input_path.str, output_path.str);
 
     String8 cmd = string8_format(

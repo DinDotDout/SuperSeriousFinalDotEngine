@@ -33,23 +33,52 @@ b32 dot_game_init(DOT_Game *game, DOT_Renderer *renderer,
     // String8 model_path = String8Lit(DOT_GAME_ASSET_PATH"glTF-Sample-Models/2.0/2CylinderEngine/glTF/2CylinderEngine.gltf");
     DOT_Model model = dot_model_load_from_path(g_game->renderer, model_path);
 
+    String8 code[2] = {
+        [RenderTypes_ShaderStageKind_Vertex] =
+        #include "../src/game/shaders/model.vert"
+        , [RenderTypes_ShaderStageKind_Fragment] =
+        #include "../src/game/shaders/model.frag"
+    };
     RenderTypes_Pipeline pipeline = {
         .vertex_input = {
-            .vertex_attributes = ARRAY_INIT(RenderTypes_VertexAttribute,
+            .vertex_attributes = ARRAY_LIT(RenderTypes_VertexAttribute,
                 { .location = 0, .binding = 0, .offset = 0, .vertex_component_kind = RenderTypes_VertexCommponentKind_F32x3 },
                 { .location = 1, .binding = 1, .offset = 0, .vertex_component_kind = RenderTypes_VertexCommponentKind_F32x4 },
                 { .location = 2, .binding = 2, .offset = 0, .vertex_component_kind = RenderTypes_VertexCommponentKind_F32x3 },
                 { .location = 3, .binding = 3, .offset = 0, .vertex_component_kind = RenderTypes_VertexCommponentKind_F32x2 },
             ),
-            .vertex_streams = ARRAY_INIT(RenderTypes_VertexStream,
+            .vertex_streams = ARRAY_LIT(RenderTypes_VertexStream,
                 { .binding = 0, .stride = 12, .input_rate = RenderTypes_VertexInputRateKind_PerVertex},
                 { .binding = 1, .stride = 16, .input_rate = RenderTypes_VertexInputRateKind_PerVertex},
                 { .binding = 2, .stride = 12, .input_rate = RenderTypes_VertexInputRateKind_PerVertex},
                 { .binding = 3, .stride = 8, .input_rate = RenderTypes_VertexInputRateKind_PerVertex},
             ),
         },
+        .depth_stencil_state = {
+            .depth_write_enable = true,
+            .depth_enable = true,
+            .depth_comparison = RenderTypes_CompareOp_LessOrEqual,
+        },
+        .shader_state = {
+            .shader_stages = ARRAY_LIT(RenderTypes_ShaderStage,
+                {.stage = RenderTypes_ShaderStageKind_Vertex,   .code = code[RenderTypes_ShaderStageKind_Vertex]},
+                {.stage = RenderTypes_ShaderStageKind_Fragment, .code = code[RenderTypes_ShaderStageKind_Fragment]}
+            ),
+        },
+        .render_pass = { },
     };
+    DOT_DEBUG_NAME_SET(pipeline.shader_state.name, String8Lit("cube")),
+
     (void) pipeline;
+    // const char *t = "src/game/" "shaders/" "model.frag";
+    // typedef struct PipelineStages{
+    // }PipelineStages;
+
+    // const char *code[2] = {
+
+    // pipeline_creation.shaders.set_name( "Cube" ).add_stage( vs_code, ( uint32_t )strlen( vs_code ), VK_SHADER_STAGE_VERTEX_BIT ).add_stage( fs_code, ( uint32_t )strlen( fs_code ), VK_SHADER_STAGE_FRAGMENT_BIT );
+    (void)code;
+
 
     // RenderTypes_Pipeline pipeline2 = {
     //     .vertex_input = {

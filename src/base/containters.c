@@ -1,5 +1,5 @@
-internal u32
-array_bounds_check(u32 elem_idx, u32 capacity, char *file, int line)
+internal u64
+array_bounds_check(u64 elem_idx, u64 capacity, char *file, int line)
 {
     if(elem_idx >= capacity){
         DOT_ERROR_FL(file, line, "Array idx out of bounds");
@@ -245,4 +245,200 @@ tree_iter_next(TreeIterator *it)
         next = tree_get_next_sibling(it->tree_pool, next, it->data);
     }
     return(curr);
+}
+
+DOT_TEST_SUITE(array_tests)
+{
+    typedef ARRAY(int, 7) intArray7;
+    intArray7 arr = ARRAY_LIT(int, 3, 4, 5, 9);
+    (void)arr;
+
+    DOT_TestResults test = {0};
+    ARRAY(int, 7) array = ARRAY_LIT(int, 3, 4, 5, 9);
+    int v = ARRAY_GET(array, 6);
+    DOT_TEST_CHECK(test, "Array zero init", v == 0);
+    ARRAY_GET(array, 6) = 5;
+    DOT_TEST_CHECK(test, "Array assign", v == 5);
+    ARRAY_PUSH(array, 7);
+    DOT_TEST_CHECK(test, "Array assign", v == 5);
+    return test;
+}
+
+DOT_TEST_SUITE(slice_test)
+{
+    typedef SLICE(int) IntSlice;
+
+    DOT_TestResults test = {0};
+    SLICE(int) slice = SLICE_LIT(int, 3, 4, 5, 9);
+
+    int v = SLICE_GET(slice, 6);
+    bool valid = v == 0;
+    SLICE_GET(slice, 6) = 5;
+
+    SLICE_GET(slice, 2) = 7;
+    valid = v == 5;
+    (void)valid;
+
+    IntSlice slice2 = {0};
+    int v2 = SLICE_GET(slice2, 6);
+    bool valid2 = v2 == 0;
+    SLICE_GET(slice2, 6) = 5;
+    (void) valid2;
+    return test;
+}
+
+DOT_TEST_SUITE(pool_tests)
+{
+    DOT_TestResults test = {0};
+    typedef struct Particle {
+        float x, y, z;
+        float vx, vy, vz;
+        int   alive;
+    } Particle;
+
+    Arena *arena = ARENA_CREATE();
+
+    POOL(Particle) pp;
+    POOL_INIT(arena, &pp, 16);
+
+    PoolHandle h1 = POOL_ALLOC(&pp);
+    PoolHandle h2 = POOL_ALLOC(&pp);
+    PoolHandle h3 = POOL_ALLOC(&pp);
+
+    DOT_TEST_CHECK(test, "POOL_ALLOC", h1.idx != 0);
+    DOT_TEST_CHECK(test, "POOL_ALLOC", h2.idx != 0);
+    DOT_TEST_CHECK(test, "POOL_ALLOC", h3.idx != 0);
+
+    Particle p1_init = { .x=1, .y=2, .z=3, .vx=0.1f, .vy=0.2f, .vz=0.3f, .alive=1 };
+    *POOL_GET(&pp, h1) = p1_init;
+    *POOL_GET(&pp, h3) = (Particle){ .x=4, .y=5, .z=6, .vx=0.4f, .vy=0.5f, .vz=0.6f, .alive=1 };
+
+    DOT_TEST_CHECK(test, "POOL_GET", POOL_GET(&pp, h1)->vz == 0.3f);
+    DOT_TEST_CHECK(test, "POOL_GET", POOL_GET(&pp, h2)->vx == 0.4f);
+    DOT_TEST_CHECK(test, "POOL_GET", POOL_GET(&pp, h3)->alive == 1);
+
+    u64 packed = pool_handle_pack(h2);
+    PoolHandle unpacked = pool_handle_unpack(packed);
+    DOT_TEST_CHECK(test, "Handle packing", unpacked.idx == h2.idx);
+
+    // (jd) NOTE: If this starts failing, it might be because I added generational counters
+    // and started distributing the selection to spread gen tag reuse
+    POOL_FREE(&pp, h2);
+    PoolHandle h4 = POOL_ALLOC(&pp);
+    DOT_TEST_CHECK(test, "Handle reuse", h4.idx == h2.idx);
+
+    *POOL_GET(&pp, h4) = (Particle){42,0,0,0,0,0,1};
+    DOT_TEST_CHECK(test, "Value assign", POOL_GET(&pp, h4)->x == 42);
+
+    // Out-of-capacity behavior
+    for(int i = 0; i < 12; i++){
+        PoolHandle h = POOL_ALLOC(&pp);
+        DOT_TEST_CHECK(test, "Stress test", h.idx != 0);
+    }
+    PoolHandle h = POOL_ALLOC(&pp);
+    DOT_TEST_CHECK(test, "Alloc fail test", h.idx == 0);
+    DOT_TEST_CHECK(test, "Reached total count", pp.pool.count == 16);
+
+    return test;
+}
+
+DOT_TEST_SUITE(tree_tests)
+{
+    TempArena temp = threadctx_get_temp(0);
+    DOT_TestResults test = {0};
+    typedef struct SceneNode{
+        const char *name;
+        float       local_xform[16];
+        int         mesh_id;
+        TreeHeader  node;
+    }SceneNode;
+
+    Arena *arena = ARENA_CREATE();
+
+    TREE_POOL(SceneNode) tp;
+    TREE_INIT(arena, SceneNode, &tp, 32);
+    PoolHandle root = TREE_GET_ROOT_H(&tp);
+    SceneNode *root_n = TREE_GET(&tp, root);
+    SceneNode *root_n1 = TREE_GET_ROOT(&tp);
+
+    DOT_TEST_CHECK(test, "compare root", root_n == root_n1);
+
+    root_n->name = "Root";
+    root_n->mesh_id = -1;
+    // PoolHandle new = TREE_ALLOC(&tp, root);
+    // TREE_PUSH_FRONT(&tp, root, new);
+
+    PoolHandle cam  = TREE_PUSH_FRONT_NEW(&tp, root);
+    PoolHandle car  = TREE_PUSH_FRONT_NEW(&tp, root);
+    PoolHandle lamp = TREE_PUSH_FRONT_NEW(&tp, root);
+
+    SceneNode *cam_n = TREE_GET(&tp, cam);
+    cam_n->name = "Camera";
+
+    SceneNode *car_n = TREE_GET(&tp, car);
+    car_n->name = "Car";
+    car_n->mesh_id = 12;
+
+    SceneNode *lamp_n = TREE_GET(&tp, lamp);
+    lamp_n->name = "Lamp";
+    lamp_n->mesh_id = 3;
+
+
+    PoolHandle wheel_fl = TREE_PUSH_FRONT_NEW(&tp, car);
+    SceneNode *wheel_fl_n = TREE_GET(&tp, wheel_fl);
+    wheel_fl_n->name = "Wheel_fl";
+    wheel_fl_n->mesh_id = 100;
+
+    PoolHandle wheel_fr = TREE_PUSH_FRONT_NEW(&tp, car);
+    SceneNode *wheel_fr_n = TREE_GET(&tp, wheel_fr);
+    wheel_fr_n->name = "Wheel_fr";
+    wheel_fr_n->mesh_id = 101;
+
+    TreeIterator it = TREE_ITER_BEGIN(temp.arena, &tp, root);
+    const char *seen[16] = {0};
+    int count = 0;
+
+    for EACH_TREE_NODE(h, &it){
+        seen[count++] = TREE_GET(&tp, h)->name;
+    }
+    temp_arena_restore(temp);
+
+    // Expected preorder visit
+    //
+    // Root
+    //   Camera
+    //   Car
+    //     Wheel_fl
+    //     Wheel_fr
+    //   Lamp
+
+    DOT_TEST_CHECK(test, "Test push count", count == 6);
+    DOT_TEST_CHECK(test, "Test tree layout", strcmp(seen[0], "Root")        == 0);
+    DOT_TEST_CHECK(test, "Test tree layout", strcmp(seen[1], "Camera")      == 0);
+    DOT_TEST_CHECK(test, "Test tree layout", strcmp(seen[2], "Car")         == 0);
+    DOT_TEST_CHECK(test, "Test tree layout", strcmp(seen[3], "Wheel_fl")    == 0);
+    DOT_TEST_CHECK(test, "Test tree layout", strcmp(seen[4], "Wheel_fr")    == 0);
+    DOT_TEST_CHECK(test, "Test tree layout", strcmp(seen[5], "Lamp")        == 0);
+
+    TREE_POP_FRONT(&tp, car); // pop wheel fl
+    it = TREE_ITER_BEGIN(temp.arena, &tp, root);
+    count = 0;
+    MEMORY_ZERO_ARRAY(seen);
+    for EACH_TREE_NODE(h, &it){
+        seen[count++] = TREE_GET(&tp, h)->name;
+    }
+    temp_arena_restore(temp);
+    DOT_TEST_CHECK(test, "Test tree layout", strcmp(seen[4], "wheel_fr") != 0);
+
+    TREE_POP_FRONT(&tp, root); // pop lamp
+    it = TREE_ITER_BEGIN(temp.arena, &tp, root);
+    count = 0;
+    MEMORY_ZERO_ARRAY(seen);
+    for EACH_TREE_NODE(h, &it){
+        seen[count++] = TREE_GET(&tp, h)->name;
+    }
+    temp_arena_restore(temp);
+    DOT_TEST_CHECK(test, "Test tree layout", strcmp(seen[3], "Lamp") != 0);
+
+    return test;
 }

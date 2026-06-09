@@ -22,6 +22,7 @@ enum
     RBVK_TEXURE_MAX = 512,
     RBVK_BUFFER_MAX = 4096,
     RBVK_SAMPLER_MAX = 128,
+    RBVK_MAX_SWAPCHAIN_TEXTURES = 3,
 
     RBVK_CTX_RESCOURCE_POOL = 128,
     RBVK_RESOURCE_CLEANUP_CTX_TEXTURES  = 24,
@@ -38,11 +39,7 @@ enum
 
 typedef struct RBVK_VulkanConfig{
     struct {
-        struct{
-            String8 *data;
-            usize    count;
-        }extensions;
-
+        SLICE(String8) extensions;
         String8 application_name;
         u32     application_version;
 
@@ -53,18 +50,11 @@ typedef struct RBVK_VulkanConfig{
     }instance;
 
     struct{
-        struct{
-            String8 *data;
-            usize    count;
-        }extensions;
-
+        SLICE(String8) extensions;
         const void *features; // pNext chain
     } device;
 
-    struct{
-        String8 *data;
-        usize    count;
-    }validation_layers;
+    SLICE(String8) validation_layers;
 
 }RBVK_VulkanConfig;
 
@@ -87,7 +77,7 @@ read_only global RBVK_VulkanConfig g_rbvk_vk_config = {
         .engine_name         = String8Lit("dot_engine"),
         .engine_version      = VK_MAKE_VERSION(1,0,0),
         .api_version         = VK_API_VERSION_1_4,
-        .extensions = SLICE_INIT(String8,
+        .extensions = SLICE_LIT(String8,
             String8Lit(VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME),
             String8Lit(VK_KHR_SURFACE_EXTENSION_NAME),
 #ifdef VK_EXT_DEBUG_UTILS_ENABLE
@@ -97,14 +87,14 @@ read_only global RBVK_VulkanConfig g_rbvk_vk_config = {
         ),
     },
 
-    .validation_layers = SLICE_INIT(String8,
+    .validation_layers = SLICE_LIT(String8,
 #ifdef VALIDATION_LAYERS_ENABLE
         String8Lit("VK_LAYER_KHRONOS_validation"),
 #endif
     ),
 
     .device = {
-        .extensions = SLICE_INIT(String8,
+        .extensions = SLICE_LIT(String8,
             String8Lit(VK_KHR_SWAPCHAIN_EXTENSION_NAME),
             String8Lit(VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME),
             String8Lit(VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME),
