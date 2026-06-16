@@ -1,6 +1,7 @@
 #ifndef RENDERER_INCLUDE_H
 #define RENDERER_INCLUDE_H
 
+#include "render_config.h"
 #include "shader.h"
 
 #include "render_types.h"

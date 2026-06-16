@@ -19,18 +19,17 @@ struct{ \
     .count = (sizeof((T[]){__VA_ARGS__}) / sizeof(T)) \
 }
 
-#define SLICE_CREATE_FROM_ARENA(arena, T, c) \
+#define SLICE_INIT(arena, slc, c)\
+do{ \
+    (slc)->count = c; \
+    (slc)->data = PUSH_ARRAY_UNTYPED((arena), (slc)->data[0], (c)); \
+}while(0)
+
+#define SLICE_CREATE(arena, T, c) \
 { \
     .count = c, \
     .data = PUSH_ARRAY(arena, T, c), \
 }
-
-#define SLICE_INIT_FROM_ARENA(arena, slc, T, c)\
-do{ \
-    (slc)->count = c; \
-    (slc)->data = PUSH_ARRAY(arena, T, c); \
-}while(0)
-
 
 #define SLICE_GET(arr, idx) ((arr).data[array_bounds_check((idx), (arr).count, __FILE__, __LINE__)])
 #define SLICE_LAST(arr)     ((arr).data[(arr).count])
@@ -71,10 +70,11 @@ typedef struct PoolHandle{
     // u32 gen;
 }PoolHandle;
 
-#define POOL_NULL_HANDLE (PoolHandle){0}
-internal u64 pool_handle_pack(PoolHandle h);
-internal b32 pool_handle_is_null(PoolHandle h);
+internal u64        pool_handle_pack(PoolHandle h);
+internal b32        pool_handle_is_null(PoolHandle h);
 internal PoolHandle pool_handle_unpack(u64 pack);
+
+#define POOL_NULL_HANDLE (PoolHandle){0}
 
 typedef struct Pool{
     u32 *idx_buffer; // count; maps handle -> raw_buffer index

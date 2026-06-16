@@ -117,10 +117,10 @@ dot_model_from_cgltf(DOT_Renderer *renderer, const cgltf_data *data, String8 glt
     DOT_ASSERT(data->textures_count <= U32_MAX); DOT_ASSERT(data->meshes_count <= U32_MAX);
     DOT_ASSERT(data->samplers_count <= U32_MAX); DOT_ASSERT(data->buffers_count <= U32_MAX);
     DOT_Model model = {
-        .textures   = SLICE_CREATE_FROM_ARENA(renderer->transient_arena, DOT_TextureAsset, cast(u32)data->textures_count),
-        .buffers    = SLICE_CREATE_FROM_ARENA(renderer->transient_arena, DOT_BufferAsset, cast(u32)data->buffer_views_count),
-        .samplers   = SLICE_CREATE_FROM_ARENA(renderer->transient_arena, DOT_SamplerAsset, cast(u32)data->samplers_count),
-        .meshes     = SLICE_CREATE_FROM_ARENA(renderer->transient_arena, DOT_Mesh, cast(u32)data->meshes_count),
+        .textures   = SLICE_CREATE(renderer->transient_arena, DOT_TextureAsset, cast(u32)data->textures_count),
+        .buffers    = SLICE_CREATE(renderer->transient_arena, DOT_BufferAsset, cast(u32)data->buffer_views_count),
+        .samplers   = SLICE_CREATE(renderer->transient_arena, DOT_SamplerAsset, cast(u32)data->samplers_count),
+        .meshes     = SLICE_CREATE(renderer->transient_arena, DOT_Mesh, cast(u32)data->meshes_count),
     };
 
     TempArena temp = threadctx_get_temp(0);

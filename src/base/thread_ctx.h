@@ -10,12 +10,13 @@ typedef SLICE(Arena*) SliceArena;
 #define SLICE_ARENA_LIT(...) (SliceArena)SLICE_LIT(Arena*, __VA_ARGS__)
 
 internal thread_local struct ThreadCtx{
-    u8      thread_id;
+    u32 thread_id;
     SliceArena temp_arenas;
 }t_thread_ctx = {0};
 
-internal void threadctx_init(Arena *arena, const ThreadCtxOptions *thread_ctx_opts, u8 thread_id);
+internal void threadctx_init(Arena *arena, const ThreadCtxOptions *thread_ctx_opts, u32 thread_id);
 internal void threadctx_destroy();
+internal u32 threadctx_id();
 
 //////////////////////////////////////////////////////////
 // This is supposed to be restored with temp_arena_restore before function exit.

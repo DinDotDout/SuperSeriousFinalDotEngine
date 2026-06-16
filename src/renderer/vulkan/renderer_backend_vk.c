@@ -88,14 +88,13 @@ rbvk_vk_shader_module_render_types_shader_module(DOT_ShaderModuleHandle dot_smh)
 internal DOT_ShaderModuleHandle
 renderer_backend_vk_shader_load_from_data(String8 data)
 {
-    VkShaderModuleCreateInfo create_info = {
-        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .pNext = NULL,
-        .codeSize = data.size,
-        .pCode = cast(u32*)data.str, // VK expects data like this
-    };
-
     VkShaderModule vk_shader_module = VK_NULL_HANDLE;
+    VkShaderModuleCreateInfo create_info = {
+        .sType      = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .pNext      = NULL,
+        .codeSize   = data.size,
+        .pCode      = cast(u32*)data.str,
+    };
     VK_CHECK(vkCreateShaderModule(g_vk_ctx->device.vk_device, &create_info, NULL, &vk_shader_module));
     DOT_ShaderModuleHandle dot_shader_module_handle = rbvk_dot_shader_module_from_vk_shader_module(vk_shader_module);
     return dot_shader_module_handle;
@@ -185,7 +184,7 @@ rbvk_texture_create(const RenderTypes_TextureDesc *desc, void *data, String8 deb
         return texture_h;
     }
     RBVK_Texture *texture = POOL_GET(&g_vk_ctx->texture_pool, texture_h);
-    VkExtent3D image_extent_3d        = {desc->width, desc->height, desc->depth};
+    VkExtent3D image_extent_3d  = {desc->width, desc->height, desc->depth};
     texture->vk_extent3d        = image_extent_3d;
     texture->mip_levels         = desc->mip_levels;
     texture->vk_format          = vk_helper_texture_format_to_vk_texture_format(desc->format_kind);
@@ -193,10 +192,11 @@ rbvk_texture_create(const RenderTypes_TextureDesc *desc, void *data, String8 deb
     DOT_DEBUG_NAME_SET(texture->name, debug_name);
 
     const RenderTypes_TextureFormatInfo format_info = renderer_texture_format_info_from_format(desc->format_kind);
-    const b8 format_depth_bit   = DOT_BITS_MATCH(format_info.format_flags, RenderTypes_TextureFormatBit_Depth);
-    const b8 format_stencil_bit = DOT_BITS_MATCH(format_info.format_flags, RenderTypes_TextureFormatBit_Stencil);
-    const b8 usage_compute_bit  = DOT_BITS_MATCH(desc->texture_usage_flags, RenderTypes_TextureUsageBit_Compute);
-    const b8 usage_render_target_bit = DOT_BITS_MATCH(desc->texture_usage_flags, RenderTypes_TextureUsageBit_RenderTarget);
+    const b8 format_depth_bit           = DOT_BITS_MATCH(format_info.format_flags, RenderTypes_TextureFormatBit_Depth);
+    const b8 format_stencil_bit         = DOT_BITS_MATCH(format_info.format_flags, RenderTypes_TextureFormatBit_Stencil);
+    const b8 usage_compute_bit          = DOT_BITS_MATCH(desc->texture_usage_flags, RenderTypes_TextureUsageBit_Compute);
+    const b8 usage_render_target_bit    = DOT_BITS_MATCH(desc->texture_usage_flags, RenderTypes_TextureUsageBit_RenderTarget);
+
     VkDevice vk_device = g_vk_ctx->device.vk_device;
     {
         VkImageUsageFlags image_usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT | (usage_compute_bit ? VK_IMAGE_USAGE_STORAGE_BIT : 0);
@@ -257,7 +257,10 @@ rbvk_texture_create(const RenderTypes_TextureDesc *desc, void *data, String8 deb
         u64 texture_size = format_info.block_size * image_extent_3d.height * image_extent_3d.width  * image_extent_3d.depth;
         VkMemory_Alloc mem_alloc = rbvk_memory_pools_staging_ring_buffer_push(&g_vk_ctx->memory_pools, texture_size, data);
 
-        VkCommandBuffer vk_command_buffer = SLICE_GET(g_vk_ctx->frame_datas, g_vk_ctx->current_frame).immediate_command_buffer;
+        RBVK_FrameData *frame_data  = rbvk_frame_data_get_current();
+        DOT_ASSERT(frame_data->vk_command_buffers_in_use == 0, "Missing generic upload buffers");
+	    VkCommandBuffer vk_command_buffer = frame_data->vk_command_buffers.data[1];
+
         vkBeginCommandBuffer(vk_command_buffer,
             &(VkCommandBufferBeginInfo){
                 .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -358,7 +361,9 @@ rbvk_buffer_create(const RenderTypes_BufferDesc *desc, u8 *data, String8 debug_n
 
     if(data){
         VkMemory_Alloc mem_alloc = rbvk_memory_pools_staging_ring_buffer_push(&g_vk_ctx->memory_pools, desc->size, data);
-        VkCommandBuffer vk_command_buffer = SLICE_GET(g_vk_ctx->frame_datas, g_vk_ctx->current_frame).immediate_command_buffer;
+        RBVK_FrameData *frame_data  = rbvk_frame_data_get_current();
+        DOT_ASSERT(frame_data->vk_command_buffers_in_use == 0, "Missing generic upload buffers");
+	    VkCommandBuffer vk_command_buffer = frame_data->vk_command_buffers.data[1];
         vkBeginCommandBuffer(vk_command_buffer,
             &(VkCommandBufferBeginInfo){
                 .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -522,20 +527,19 @@ rbvk_texture_destroy(RBVK_Texture *image){
     vkDestroyImage(device, image->vk_image, NULL);
 }
 
-
 internal void
 renderer_backend_vk_init(DOT_Window *window)
 {
     // (jd) This is all super messy and error prone. Cleanup
+    Arena *ctx_arena = g_vk_ctx->base.permanent_arena;
+    POOL_INIT(ctx_arena, &g_vk_ctx->texture_pool,   RENDER_TEXURE_MAX);
+    POOL_INIT(ctx_arena, &g_vk_ctx->buffer_pool,    RENDER_BUFFER_MAX);
+    POOL_INIT(ctx_arena, &g_vk_ctx->sampler_pool,   RENDER_SAMPLER_MAX);
+    TREE_INIT(ctx_arena, RBVK_ResourceCleanupCtx, &g_vk_ctx->resource_cleanup_list_tree, RENDER_CTX_RESCOURCE_POOL);
+
 #ifdef DOT_USE_VOLK
     volkInitialize();
 #endif
-    Arena *ctx_arena = g_vk_ctx->base.permanent_arena;
-    POOL_INIT(ctx_arena, &g_vk_ctx->texture_pool,   RBVK_TEXURE_MAX);
-    POOL_INIT(ctx_arena, &g_vk_ctx->buffer_pool,    RBVK_BUFFER_MAX);
-    POOL_INIT(ctx_arena, &g_vk_ctx->sampler_pool,   RBVK_SAMPLER_MAX);
-    TREE_INIT(ctx_arena, RBVK_ResourceCleanupCtx, &g_vk_ctx->resource_cleanup_list_tree, RBVK_CTX_RESCOURCE_POOL);
-
     // g_vk_ctx->vk_allocator = VkAllocatorParams(ctx_arena);
     TempArena temp = threadctx_get_temp(0);
     if(!vk_helper_all_layers(&g_rbvk_vk_config)){
@@ -717,24 +721,22 @@ renderer_backend_vk_init(DOT_Window *window)
         {
             //  --- Create Image Datas ---
             VkDevice device = g_vk_ctx->device.vk_device;
-            // u32 image_data_count = 0;
-            vkGetSwapchainImagesKHR(device, swapchain->swapchain, &swapchain->image_datas.count, NULL);
 
-            // ARRAY_INIT(swapchain->image_datas)
+            // (jd) NOTE: Since vk expects a VkImage array we need to temp alloc this and copy it over
+            u32 swapchain_image_count = 0;
+            vkGetSwapchainImagesKHR(device, swapchain->swapchain, &swapchain_image_count, NULL);
+            array(VkImage) swapchain_images = PUSH_ARRAY(temp.arena, VkImage, swapchain_image_count);
+            vkGetSwapchainImagesKHR(device, swapchain->swapchain, &swapchain_image_count, swapchain_images);
 
-            // vkGetSwapchainImagesKHR(device, swapchain->swapchain, &swapchain->image_datas.count, NULL);
-            array(VkImage) swapchain_images = PUSH_ARRAY(temp.arena, VkImage, swapchain->image_datas.count);
-            vkGetSwapchainImagesKHR(device, swapchain->swapchain, &swapchain->image_datas.count, swapchain_images);
+            SLICE_INIT(ctx_arena, &swapchain->swapchain_images, swapchain_image_count);
 
-            // swapchain->image_datas.data = PUSH_ARRAY(ctx_arena, RBVK_SwapchainTexture, swapchain->image_datas.count);
-
-            for(u32 i = 0; i < swapchain->image_datas.count; ++i){
-                RBVK_SwapchainTexture *framedata = &swapchain->image_datas.data[i];
-                // framedata->vk_image = swapchain_images[i];
+            for(u32 i = 0; i < swapchain->swapchain_images.count; ++i){
+                RBVK_SwapchainImage *swapchain_image = &swapchain->swapchain_images.data[i];
+                swapchain_image->vk_image = swapchain_images[i];
                 VK_CHECK(vkCreateImageView(device,
                     &(VkImageViewCreateInfo) {
                         .sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                        .image = framedata->vk_image,
+                        .image = swapchain_image->vk_image,
                         .viewType = VK_IMAGE_VIEW_TYPE_2D,
                         .format   = swapchain->image_format,
                         .components = {
@@ -750,14 +752,14 @@ renderer_backend_vk_init(DOT_Window *window)
                             .baseArrayLayer = 0,
                             .layerCount     = 1,
                         },
-                    }, NULL, &framedata->vk_image_view));
+                    }, NULL, &swapchain_image->vk_image_view));
 
                 VK_CHECK(vkCreateSemaphore(device,
                     &(VkSemaphoreCreateInfo) {
                         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
                         .flags = 0,
                         .pNext = NULL,
-                    }, NULL, &framedata->image_semaphore));
+                    }, NULL, &swapchain_image->semaphore_render_complete));
             }
         }
     }
@@ -766,28 +768,36 @@ renderer_backend_vk_init(DOT_Window *window)
         u8 frame_overlap = g_vk_ctx->base.frame_overlap;
         VkDevice device = g_vk_ctx->device.vk_device;
         // WARN: Any allocation that can be recreated may be need to be pushed onto its own arena alloc ctx to avoid leaking
-        SLICE_INIT_FROM_ARENA(ctx_arena, &g_vk_ctx->frame_datas, RBVK_FrameData, frame_overlap);
+        SLICE_INIT(ctx_arena, &g_vk_ctx->frame_datas, frame_overlap);
         {
-            for(u8 i = 0; i < frame_overlap; ++i){
+            for(u32 i = 0; i < frame_overlap; ++i){
                 RBVK_FrameData *frame_data = &SLICE_GET(g_vk_ctx->frame_datas, i);
+                for(u32 j = 0; j <  RENDER_THREAD_COUNT_MAX; ++j){
 
-                VK_CHECK(vkCreateCommandPool(device,
-                    &(VkCommandPoolCreateInfo){
-                        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-                        .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-                        .queueFamilyIndex = g_vk_ctx->device.graphics_queue_idx,
-                    },
-                    NULL, &frame_data->command_pool));
+                    VkCommandPoolCreateInfo cmd_create_info = {
+                        .sType               = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+                        .flags               = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+                        .queueFamilyIndex    = g_vk_ctx->device.graphics_queue_idx,
+                    };
 
-                VkCommandBufferAllocateInfo cmd_alloc_info = {
-                    .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-                    .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-                    .commandBufferCount = 1,
-                    .commandPool = frame_data->command_pool,
-                };
-                VK_CHECK(vkAllocateCommandBuffers(device, &cmd_alloc_info, &frame_data->frame_command_buffer));
-                VK_CHECK(vkAllocateCommandBuffers(device, &cmd_alloc_info, &frame_data->immediate_command_buffer));
-                frame_data->frame_arena = ARENA_CREATE(.parent = ctx_arena, .reserve_size = DOT_KB(32));
+                    VkCommandPool cmd_pool = ARRAY_GET(frame_data->vk_command_pools, j);
+                    VK_CHECK(vkCreateCommandPool(device, &cmd_create_info, NULL, &cmd_pool));
+
+                    for(u32 k = 0; k < RENDER_COMMAND_BUFFERS_PER_POOL; ++k){
+                        VkCommandBufferAllocateInfo cmd_alloc_info = {
+                            .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+                            .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+                            .commandBufferCount = 1,
+                            .commandPool = cmd_pool,
+                        };
+                        VK_CHECK(vkAllocateCommandBuffers(device, &cmd_alloc_info, &ARRAY_GET(frame_data->vk_command_buffers, k)));
+                    }
+
+                    // VK_CHECK(vkAllocateCommandBuffers(device, &cmd_alloc_info, &frame_data->frame_command_buffer));
+                    // VK_CHECK(vkAllocateCommandBuffers(device, &cmd_alloc_info, &frame_data->immediate_command_buffer));
+                    frame_data->frame_arena = ARENA_CREATE(.parent = ctx_arena, .reserve_size = DOT_KB(32));
+                }
+
             }
         }
         // --- Init Sync Structures ---
@@ -799,14 +809,14 @@ renderer_backend_vk_init(DOT_Window *window)
                         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
                         .flags = VK_FENCE_CREATE_SIGNALED_BIT,
                     },
-                    NULL, &frame_data->render_fence));
+                    NULL, &frame_data->render_complete_fence));
 
                 VK_CHECK(vkCreateSemaphore(device,
                     &(VkSemaphoreCreateInfo){
                         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
                         .flags = 0,
                     },
-                    NULL, &frame_data->acquire_semaphore));
+                    NULL, &frame_data->semaphore_image_acquired));
             }
         }
         // --- Create descriptors
@@ -966,11 +976,44 @@ rbvk_frame_data_get_current()
     return frame_data;
 }
 
+internal void rbvk_frame_data_reset()
+{
+    RBVK_FrameData *frame_data = rbvk_frame_data_get_current();
+    frame_data->vk_command_buffers_in_use = 0;
+    ARENA_RESET(frame_data->frame_arena);
+    for( u32 i = 0; i < frame_data->vk_command_pools.count; i++ ){
+        vkResetCommandPool(g_vk_ctx->device.vk_device, ARRAY_GET(frame_data->vk_command_pools, i), 0);
+    }
+
+}
+
+
+internal VkCommandPool
+rbvk_command_pool_get()
+{
+    RBVK_FrameData *frame_data = rbvk_frame_data_get_current();
+    VkCommandPool pool = ARRAY_GET(frame_data->vk_command_pools, threadctx_id());
+    return pool;
+}
+
+internal VkCommandBuffer
+rbvk_command_buffer_get()
+{
+    RBVK_FrameData *frame_data = rbvk_frame_data_get_current();
+    u32 cmd_idx = frame_data->vk_command_buffers_in_use * threadctx_id();
+    VkCommandBuffer vk_cmd_buffer = ARRAY_GET(frame_data->vk_command_buffers, cmd_idx);
+    frame_data->vk_command_buffers_in_use += 1;
+    return vk_cmd_buffer;
+}
+
 internal void
 renderer_backend_vk_clear_bg(vec3 color)
 {
     RBVK_FrameData *frame_data = rbvk_frame_data_get_current();
-	VkCommandBuffer cmd = frame_data->frame_command_buffer;
+
+	DOT_ASSERT(frame_data->vk_command_buffers_in_use == 0, "Multi command buffers per frame not implemented yet");
+	VkCommandBuffer cmd = frame_data->vk_command_buffers.data[0];
+
 	(void)color;
 	RBVK_Texture *draw_image = POOL_GET(&g_vk_ctx->texture_pool, g_vk_ctx->draw_image);
 	(void) draw_image;
@@ -992,49 +1035,55 @@ renderer_backend_vk_clear_bg(vec3 color)
 }
 
 internal void
-renderer_backend_vk_begin_frame()
+renderer_backend_vk_frame_begin()
 {
     RBVK_FrameData *frame_data = rbvk_frame_data_get_current();
-    ARENA_RESET(frame_data->frame_arena);
-
     VkDevice device = g_vk_ctx->device.vk_device;
-    VK_CHECK(vkWaitForFences(device, 1, &frame_data->render_fence, true, TO_NSEC(1)));
-    VK_CHECK(vkResetFences(device, 1, &frame_data->render_fence));
+    VK_CHECK(vkWaitForFences(device, 1, &frame_data->render_complete_fence, true, TO_NSEC(1)));
+    VK_CHECK(vkResetFences(device, 1, &frame_data->render_complete_fence));
+    rbvk_frame_data_reset();
 
-    VK_CHECK(vkAcquireNextImageKHR(device, g_vk_ctx->swapchain.swapchain,
-        TO_NSEC(1), frame_data->acquire_semaphore,
-        NULL, &frame_data->swapchain_image_idx));
+    VkResult res = vkAcquireNextImageKHR(device, g_vk_ctx->swapchain.swapchain, TO_NSEC(1), frame_data->semaphore_image_acquired, NULL, &frame_data->swapchain_image_idx);
+    if(res== VK_ERROR_OUT_OF_DATE_KHR ){
+        // TODO: Resize swapchain
+    }
 
-    VkCommandBuffer cmd = frame_data->frame_command_buffer;
+
+	DOT_ASSERT(frame_data->vk_command_buffers_in_use == 0, "Multi command buffers per frame not implemented yet");
+	VkCommandBuffer cmd = frame_data->vk_command_buffers.data[0];
+
     VK_CHECK(vkResetCommandBuffer(cmd, 0));
     VkCommandBufferBeginInfo cmd_begin_info = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
     };
     VK_CHECK(vkBeginCommandBuffer(cmd, &cmd_begin_info));
+    RBVK_SwapchainImage *swapchain_image = &SLICE_GET(g_vk_ctx->swapchain.swapchain_images, frame_data->swapchain_image_idx);
+    vk_helper_transition_image(cmd, swapchain_image->vk_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+
 	RBVK_Texture *draw_image = POOL_GET(&g_vk_ctx->texture_pool, g_vk_ctx->draw_image);
-    VkImage swapchain_image = g_vk_ctx->swapchain.image_datas.data[frame_data->swapchain_image_idx].vk_image;
-    vk_helper_transition_image(cmd, swapchain_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-    vk_helper_transition_image(cmd, draw_image->vk_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+    vk_helper_transition_image(cmd, draw_image->vk_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL); // (jd) TODO: use rbvk_texture helper
 }
 
 internal void
-renderer_backend_vk_end_frame()
+renderer_backend_vk_frame_end()
 {
     RBVK_FrameData *frame_data = rbvk_frame_data_get_current();
-    VkCommandBuffer cmd = frame_data->frame_command_buffer;
 
-	RBVK_Texture *draw_image = POOL_GET(&g_vk_ctx->texture_pool, g_vk_ctx->draw_image);
-    RBVK_SwapchainTexture *image_data = &g_vk_ctx->swapchain.image_datas.data[frame_data->swapchain_image_idx];
-    VkImage swapchain_image = image_data->vk_image;
-    VkSemaphore swapchain_semaphore = image_data->image_semaphore;
- 
+	DOT_ASSERT(frame_data->vk_command_buffers_in_use == 0, "Parallel end frame not implemented yet");
+	VkCommandBuffer cmd = frame_data->vk_command_buffers.data[0];
+
+    RBVK_SwapchainImage *swapchain_image = &SLICE_GET(g_vk_ctx->swapchain.swapchain_images, frame_data->swapchain_image_idx);
     // Copy draw image into swapchain
     {
+	    RBVK_Texture *draw_image = POOL_GET(&g_vk_ctx->texture_pool, g_vk_ctx->draw_image);
+
+        // vk_helper_rbvk_texture_transition(cmd, draw_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         vk_helper_transition_image(cmd, draw_image->vk_image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-        vk_helper_transition_image(cmd, swapchain_image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        vk_helper_copy_image_to_image(cmd, draw_image->vk_image, swapchain_image, g_vk_ctx->draw_extent, g_vk_ctx->swapchain.extent);
-        vk_helper_transition_image(cmd, swapchain_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        vk_helper_transition_image(cmd, swapchain_image->vk_image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        // vk_helper_rbvk_texture_transition(cmd, draw_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        vk_helper_copy_image_to_image(cmd, draw_image->vk_image, swapchain_image->vk_image, g_vk_ctx->draw_extent, g_vk_ctx->swapchain.extent);
+        vk_helper_transition_image(cmd, swapchain_image->vk_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     }
 
 	VK_CHECK(vkEndCommandBuffer(cmd));
@@ -1042,23 +1091,18 @@ renderer_backend_vk_end_frame()
 
     // Present image
     {
-        VkSemaphoreSubmitInfo wait_info = vk_semaphore_submit_info(
-            VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
-            frame_data->acquire_semaphore);
-        VkSemaphoreSubmitInfo signal_info = vk_semaphore_submit_info(
-            VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, 
-            swapchain_semaphore);
+        VkSemaphoreSubmitInfo wait_info   = vk_semaphore_submit_info(VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR, frame_data->semaphore_image_acquired);
+        VkSemaphoreSubmitInfo signal_info = vk_semaphore_submit_info(VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, swapchain_image->semaphore_render_complete);
 
         VkSubmitInfo2 submit = vk_submit_info(&cmd_info, &signal_info, &wait_info);
-        VK_CHECK(vkQueueSubmit2(g_vk_ctx->device.graphics_queue, 1, &submit,
-                                frame_data->render_fence));
+        VK_CHECK(vkQueueSubmit2(g_vk_ctx->device.graphics_queue, 1, &submit, frame_data->render_complete_fence));
 
         VkPresentInfoKHR presentInfo = {
 	        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 	        .pNext = NULL,
 	        .pSwapchains = &g_vk_ctx->swapchain.swapchain,
 	        .swapchainCount = 1,
-	        .pWaitSemaphores = &swapchain_semaphore,
+	        .pWaitSemaphores = &signal_info.semaphore,
 	        .waitSemaphoreCount = 1,
 	        .pImageIndices = &frame_data->swapchain_image_idx,
 	    };
@@ -1783,14 +1827,19 @@ renderer_backend_vk_shutdown()
     }
 
     for(u32 i = 0; i < g_vk_ctx->base.frame_overlap; ++i){
-        RBVK_FrameData* frame_data = &SLICE_GET(g_vk_ctx->frame_datas, i);
-        vkDestroyCommandPool(device, frame_data->command_pool, NULL);
-        vkDestroyFence(device, frame_data->render_fence, NULL);
-        vkDestroySemaphore(device, frame_data->acquire_semaphore, NULL);
+        RBVK_FrameData *frame_data = &SLICE_GET(g_vk_ctx->frame_datas, (i % RENDER_THREAD_COUNT_MAX));
+        for(u32 j = 0; j <  frame_data->vk_command_pools.count; ++j){
+            VkCommandPool cmd_pool = ARRAY_GET(frame_data->vk_command_pools, j);
+            vkDestroyCommandPool(device, cmd_pool, NULL);
+        }
+        vkDestroyFence(device, frame_data->render_complete_fence, NULL);
+        vkDestroySemaphore(device, frame_data->semaphore_image_acquired, NULL);
     }
-    for(u32 i = 0; i < g_vk_ctx->swapchain.image_datas.count; ++i){
-        vkDestroyImageView(device, g_vk_ctx->swapchain.image_datas.data[i].vk_image_view, NULL);
-        vkDestroySemaphore(device, g_vk_ctx->swapchain.image_datas.data[i].image_semaphore, NULL);
+
+    for(u32 i = 0; i < g_vk_ctx->swapchain.swapchain_images.count; ++i){
+        RBVK_SwapchainImage *swapchain_image = &SLICE_GET(g_vk_ctx->swapchain.swapchain_images, i);
+        vkDestroyImageView(device, swapchain_image->vk_image_view, NULL);
+        vkDestroySemaphore(device, swapchain_image->semaphore_render_complete, NULL);
     }
 
     vkDestroyPipelineLayout(device, g_vk_ctx->gradient_pipeline_layout, NULL);

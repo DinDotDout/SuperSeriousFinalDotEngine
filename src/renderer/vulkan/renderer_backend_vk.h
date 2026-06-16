@@ -95,38 +95,43 @@ typedef struct RBVK_Texture{
     DOT_DEBUG_NAME(name, DOT_DEBUG_NAME_LEN);
 }RBVK_Texture;
 
-typedef struct RBVK_SwapchainTexture{
-    VkImage vk_image;
+typedef struct RBVK_SwapchainImage{
+    VkImage     vk_image;
     VkImageView vk_image_view;
-    VkSemaphore image_semaphore;
-}RBVK_SwapchainTexture;
+    VkSemaphore semaphore_render_complete;
+}RBVK_SwapchainImage;
 
 typedef struct RBVK_Swapchain{
     VkSwapchainKHR swapchain;
     VkExtent2D     extent;
     VkFormat       image_format;
 
-    // ARRAY(RBVK_TextureHandle, RBVK_MAX_SWAPCHAIN_TEXTURES) image_datas;
-    // ARRAY(VkSemaphore, RBVK_MAX_SWAPCHAIN_TEXTURES) image_semaphores;
-    SLICE(RBVK_SwapchainTexture) image_datas;
+    SLICE(RBVK_SwapchainImage) swapchain_images;
+    // ARRAY(VkSemaphore,          RENDER_SWAPCHAIN_TEXTURES_MAX) render_complete_semaphores;
+    // SLICE(RBVK_SwapchainTexture) image_datas;
 }RBVK_Swapchain;
 
 typedef struct RBVK_FrameData{
     Arena          *frame_arena;
-    VkCommandPool   command_pool;
-    VkCommandBuffer frame_command_buffer; // (jd) NOTE: * parallel recordings in flight
-    VkCommandBuffer immediate_command_buffer;
-    VkSemaphore     acquire_semaphore;
-    VkFence         render_fence;
+
+    // VkCommandBuffer frame_command_buffer; // (jd) NOTE: * parallel recordings in flight
+    // VkCommandBuffer immediate_command_buffer;
+
+    // Sync
     u32             swapchain_image_idx; // Selected swpachain img for a given frame
+    VkSemaphore     semaphore_image_acquired;
+    VkFence         render_complete_fence;
+    ARRAY(VkCommandPool, RENDER_THREAD_COUNT_MAX) vk_command_pools;
+    ARRAY(VkCommandBuffer, RENDER_COMMAND_BUFFERS_PER_POOL) vk_command_buffers;
+    u32 vk_command_buffers_in_use;
 }RBVK_FrameData;
 
 // (jd) TODO: Move this to renderer and use DOT_TextureHandles and so on
 typedef struct RBVK_ResourceCleanupCtx{
     TreeHeader node;
-    ARRAY(RBVK_SamplerHandle, RBVK_RESOURCE_CLEANUP_CTX_TEXTURES)   texture_ids;
-    ARRAY(RBVK_SamplerHandle, RBVK_RESOURCE_CLEANUP_CTX_BUFFERS)    buffer_ids;
-    ARRAY(RBVK_SamplerHandle, RBVK_RESOURCE_CLEANUP_CTX_SAMPLERS)   sampler_ids;
+    ARRAY(RBVK_SamplerHandle, RENDER_RESOURCE_CLEANUP_CTX_TEXTURES)   texture_ids;
+    ARRAY(RBVK_SamplerHandle, RENDER_RESOURCE_CLEANUP_CTX_BUFFERS)    buffer_ids;
+    ARRAY(RBVK_SamplerHandle, RENDER_RESOURCE_CLEANUP_CTX_SAMPLERS)   sampler_ids;
     SLICE(Arena *) temp_arenas;
 }RBVK_ResourceCleanupCtx;
 typedef TREE_POOL(RBVK_ResourceCleanupCtx) ResourceCleanupListTree;
@@ -172,6 +177,7 @@ typedef struct RendererBackendVk{
     u32 previous_frame;
     u64 absolute_frame;
     SLICE(RBVK_FrameData) frame_datas;
+
     RBVK_TextureHandle     draw_image;
 
     // NOTE: Splitting this from actual draw_image so that we can draw regions?
@@ -202,10 +208,6 @@ typedef struct RendererBackendVk{
     VkAllocationCallbacks    vk_allocator;
     VkDebugUtilsMessengerEXT debug_messenger;
 }RendererBackendVk;
-
-// typedef struct RBVK_Pipeline{
-//     VkPipeline pipeline;
-// }RBVK_Pipeline;
 
 #define FN(ret, name, params) internal ret renderer_backend_vk_##name params;
 RENDERER_BACKEND_FN_LIST

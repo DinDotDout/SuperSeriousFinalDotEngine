@@ -5,19 +5,19 @@
 #define DOT_RENDER_BACKEND_ONLY_VK
 enum
 {
-    ENGINE_RENDER_FRAME_OVERLAP = 3,
-    ENGINE_RENDER_FRAME_ARENA_SIZE = DOT_KB(32),
-
+    // ENGINE_RENDER_FRAME_OVERLAP = 3,
+    // ENGINE_RENDER_FRAME_ARENA_SIZE = DOT_KB(32),
+    //
     ENGINE_RENDERER_BACKEND_TRANSIENT_MEM_SIZE  = DOT_KB(512),
-    ENGINE_RENDERER_BACKEND_MEM_SIZE            = DOT_KB(512)
-        + RENDER_BACKEND_ALLOC_SIZE
-        + ENGINE_RENDERER_BACKEND_TRANSIENT_MEM_SIZE,
+    // ENGINE_RENDERER_BACKEND_MEM_SIZE            = DOT_KB(512)
+    //     + RENDER_BACKEND_ALLOC_SIZE
+    //     + ENGINE_RENDERER_BACKEND_TRANSIENT_MEM_SIZE,
 
     ENGINE_RENDERER_TRANSIENT_MEM_SIZE = DOT_MB(80),
     ENGINE_RENDERER_PERMANENT_MEM_SIZE = DOT_MB(1) +
         ENGINE_RENDERER_TRANSIENT_MEM_SIZE +
-        ENGINE_RENDERER_BACKEND_MEM_SIZE +
-        (ENGINE_RENDER_FRAME_ARENA_SIZE * ENGINE_RENDER_FRAME_OVERLAP),
+        RENDERER_BACKEND_MEM_SIZE +
+        (RENDER_FRAME_ARENA_SIZE * RENDER_FRAME_OVERLAP),
 
 #if defined(DOT_RENDER_BACKEND_ONLY_DX12)
 #   if DOT_OS_POSIX
@@ -70,12 +70,12 @@ struct DOT_EngineConfig{
     .renderer_config = &(RendererConfig){
         .renderer_transient_memory_size = ENGINE_RENDERER_TRANSIENT_MEM_SIZE,
         .renderer_permanent_memory_size = ENGINE_RENDERER_PERMANENT_MEM_SIZE,
-        .frame_arena_size = ENGINE_RENDER_FRAME_ARENA_SIZE,
+        .frame_arena_size = RENDER_FRAME_ARENA_SIZE,
         .backend_config = &(RendererBackendConfig){
-            .backend_memory_size  = ENGINE_RENDERER_BACKEND_MEM_SIZE,
+            .backend_memory_size  = RENDERER_BACKEND_MEM_SIZE,
             .backend_transient_memory_size = ENGINE_RENDERER_BACKEND_TRANSIENT_MEM_SIZE,
             .backend_kind = ENGINE_RENDERER_BACKEND,
-            .frame_overlap = ENGINE_RENDER_FRAME_OVERLAP,
+            .frame_overlap = RENDER_FRAME_OVERLAP,
             .present_mode = RendererPresentModeKind_Mailbox,
             // .present_format = RGBA8,
             // .present_color_space = srgb non linear,

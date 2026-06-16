@@ -1,10 +1,10 @@
 internal void
-threadctx_init(Arena *arena, const ThreadCtxOptions *thread_ctx_opts, u8 thread_id)
+threadctx_init(Arena *arena, const ThreadCtxOptions *thread_ctx_opts, u32 thread_id)
 {
-    DOT_ASSERT(t_thread_ctx.thread_id == 0, "Thread ctx was already initialized");
+    DOT_ASSERT(t_thread_ctx.thread_id == 0, "Thread %u ctx was already initialized", thread_id);
     u64 per_arena_memory = thread_ctx_opts->per_thread_temp_arena_size;
     t_thread_ctx.thread_id = thread_id;
-    SLICE_INIT_FROM_ARENA(arena, &t_thread_ctx.temp_arenas, Arena*, thread_ctx_opts->per_thread_temp_arena_count);
+    SLICE_INIT(arena, &t_thread_ctx.temp_arenas, thread_ctx_opts->per_thread_temp_arena_count);
     for(u8 i = 0; i < t_thread_ctx.temp_arenas.count; ++i){
         SLICE_GET(t_thread_ctx.temp_arenas, i) = ARENA_CREATE(
             .parent       = arena,
@@ -20,6 +20,14 @@ threadctx_shutdown()
     for(u8 i = 0; i < t_thread_ctx.temp_arenas.count; ++i){
         arena_print_debug(SLICE_GET(t_thread_ctx.temp_arenas, i));
     }
+}
+
+// (jd) NOTE: Using 0 as unitialized state internally.
+// Externally it is still a valid idx
+internal u32
+threadctx_id()
+{
+    return t_thread_ctx.thread_id - 1;
 }
 
 internal TempArena

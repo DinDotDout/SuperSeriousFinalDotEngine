@@ -55,7 +55,6 @@ internal String8 shader_cache_get_compiled_path(Arena *arena, String8 path);
 internal void    shader_cache_end(ShaderCache *shader_cache);
 internal u64     shader_cache_hash(String8 shader_path);
 internal HashIdx shader_cache_hash_idx(ShaderCache *shader_cache, String8 shader_path);
-internal b32     shader_cache_is_null_shader(DOT_ShaderModule *shader_module);
 internal void    shader_cache_push(Arena *arena, ShaderCache *shader_cache, DOT_ShaderModule *shader_module);
 internal DOT_ShaderModule *shader_cache_get_or_create(
     Arena *arena,

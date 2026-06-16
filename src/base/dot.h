@@ -413,6 +413,9 @@ do { \
 #define DOT_MIN3(a, b, c) (DOT_MIN(DOT_MIN(a,b), c))
 
 #define DOT_CLAMP(x, bot, top) (((x) < (bot)) ? (bot) : ((x) > (top)) ? (top) : (x))
+#define DOT_CLAMP_BOT(a, b) DOT_MAX(a, b)
+#define DOT_CLAMP_TOP(a, b) DOT_MIN(a, b)
+
 #define DOT_CLAMP01(x) (DOT_CLAMP((x),0,1))
 
 #define DOT_ABS(x) ((x) < 0 ? -(x) : (x))

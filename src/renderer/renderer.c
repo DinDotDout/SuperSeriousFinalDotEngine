@@ -173,15 +173,15 @@ renderer_clear_background(DOT_Renderer *renderer, vec3 color)
 }
 
 internal void
-renderer_begin_frame(DOT_Renderer *renderer)
+renderer_frame_begin(DOT_Renderer *renderer)
 {
-    RENDER_BACKEND_CALL(begin_frame());
+    RENDER_BACKEND_CALL(frame_begin());
 }
 
 internal void
-renderer_end_frame(DOT_Renderer *renderer)
+renderer_frame_end(DOT_Renderer *renderer)
 {
-    RENDER_BACKEND_CALL(end_frame());
+    RENDER_BACKEND_CALL(frame_end());
 }
 
 /* ------------------------------------------------------------------ */
@@ -227,6 +227,8 @@ renderer_shader_module_load_from_path(DOT_Renderer *renderer, String8 path)
     DOT_ShaderModule *shader_module = shader_cache_get_or_create(renderer->permanent_arena, &renderer->shader_cache, path, compiled_path);
     b32 should_update_shader = (source_updated && compilation_success) || !shader_module_initialized(shader_module);
     if(should_update_shader){
+        shader_module->compiled_path = compiled_path;
+        shader_module->asset.path = path;
         String8 compiled_shader_content = platform_read_entire_file(temp.arena, compiled_path);
         if(compiled_shader_content.size > 0){
             shader_module->shader_module_handle = RENDER_BACKEND_CALL(shader_load_from_data(compiled_shader_content));

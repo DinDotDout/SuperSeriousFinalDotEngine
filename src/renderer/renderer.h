@@ -79,8 +79,8 @@ typedef struct RendererConfig{
 #define RENDERER_BACKEND_FN_LIST \
     FN(void, init, (DOT_Window *window)) \
     FN(void, shutdown, (void)) \
-    FN(void, begin_frame, (void)) \
-    FN(void, end_frame, (void)) \
+    FN(void, frame_begin, (void)) \
+    FN(void, frame_end, (void)) \
     FN(void, clear_bg, (vec3 color)) \
     FN(DOT_ShaderModuleHandle, shader_load_from_data, (String8 fb)) \
     FN(void, shader_unload, (DOT_ShaderModuleHandle shader_module)) \
@@ -138,8 +138,8 @@ internal DOT_SamplerHandle  renderer_sampler_create(DOT_Renderer *renderer, cons
 
 internal DOT_BufferHandle  renderer_buffer_create(DOT_Renderer *renderer, const RenderTypes_BufferDesc *desc, u8 *data, String8 debug_name);
 
-internal void               renderer_begin_frame(DOT_Renderer *renderer);
-internal void               renderer_end_frame(DOT_Renderer *renderer);
+internal void               renderer_frame_begin(DOT_Renderer *renderer);
+internal void               renderer_frame_end(DOT_Renderer *renderer);
 
 
 internal void               renderer_overlay_init(DOT_Renderer *renderer, const void *font_pixels, int font_w, int font_h);

@@ -983,7 +983,7 @@ static int stbi__err(const char *str)
 #endif
 
 typedef struct stbi_allocator{
-    u8 *(*stbi_alloc)(ArenaOpParams *);
+    u8 *(*stbi_alloc)(ArenaOpParams *, usize, usize, b32);
     void (*stbi_free)(); // (jd) NOTE: Do nothing on free
     Arena *arena;
 }stbi_allocator;
@@ -1004,9 +1004,9 @@ static void stbi_allocator_unset()
 
 static void *stbi__malloc(size_t size)
 {
-    ArenaOpParams params = {.arena = g_allocator->arena, .size = size, .alignment = ARENA_MAX_ALIGNMENT, .file = __FILE__, .line = __LINE__, .zero = true};
+    ArenaOpParams params = {.arena = g_allocator->arena, .file = __FILE__, .line = __LINE__};
     STBI_ASSERT(g_allocator);
-    void *alloc = g_allocator->stbi_alloc(&params);
+    void *alloc = g_allocator->stbi_alloc(&params, size, ARENA_MAX_ALIGNMENT, true);
     return alloc;
     // return STBI_MALLOC(size);
 }

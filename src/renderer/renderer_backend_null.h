@@ -17,8 +17,8 @@ DOT_DIAGNOSTIC_PUSH
 internal void renderer_backend_null_load(DOT_Window* window) { }
 internal void renderer_backend_null_init(DOT_Window* window) { }
 internal void renderer_backend_null_shutdown() { }
-internal void renderer_backend_null_begin_frame() { }
-internal void renderer_backend_null_end_frame() { }
+internal void renderer_backend_null_frame_begin() { }
+internal void renderer_backend_null_frame_end() { }
 internal void renderer_backend_null_clear_bg() { }
 internal void renderer_backend_null_shader_unload(DOT_ShaderModuleHandle sm) { }
 internal void renderer_backend_null_resource_cleanup_list_push(void){}

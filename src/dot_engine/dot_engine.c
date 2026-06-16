@@ -72,10 +72,10 @@ dot_engine_run(DOT_Engine *engine)
         // }
         // nk_end(ctx);
 
-        renderer_begin_frame(&engine->renderer);
+        renderer_frame_begin(&engine->renderer);
         dot_game_run(engine->game);
         // nk_dot_render(&engine->renderer);
-        renderer_end_frame(&engine->renderer);
+        renderer_frame_end(&engine->renderer);
     }
 }
 
