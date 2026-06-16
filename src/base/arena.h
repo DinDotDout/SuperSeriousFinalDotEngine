@@ -62,29 +62,27 @@ typedef struct ArenaInitParams{
 
 typedef struct ArenaOpParams{
     Arena *arena;
-    usize size;
-    usize alignment;
-    b32 zero;
 #ifdef DOT_DEBUG
     char *file;
     u32 line;
 #endif
 }ArenaOpParams;
 
-internal Arena *arena_create_(ArenaInitParams *params);
-internal Arena *arena_create_from_memory(ArenaInitParams *);
-internal Arena *arena_create_from_arena(ArenaInitParams *);
-internal Arena *arena_create_from_os(ArenaInitParams *);
-
-internal u8*    arena_push(ArenaOpParams *);
-internal void   arena_free();
-internal void   arena_reset(ArenaOpParams *);
+internal Arena  *arena_create_(ArenaInitParams *);
 internal void   arena_destroy(ArenaOpParams *);
 
-// internal u8*    arena_push(Arena *arena, usize size, usize alignment, b32 zero, char *file, u32 line);
-// internal void   arena_reset(Arena *arena, char *file, u32 line);
-// internal void   arena_destroy(Arena *arena, char *file, u32 line);
-internal void   arena_print_debug(Arena *arena);
+internal Arena  *arena_create_from_memory(ArenaInitParams *);
+internal Arena  *arena_create_from_arena(ArenaInitParams *);
+internal Arena  *arena_create_from_os(ArenaInitParams *);
+
+internal u8*    arena_push(ArenaOpParams *, usize alloc_size, usize alignment, b32 should_zero);
+internal void   arena_reset(ArenaOpParams *);
+internal void   arena_pop_to(ArenaOpParams *, usize pos);
+internal void   arena_free(); // (jd) NOTE: Stub to pass to generic allocators
+                              //
+internal void       arena_print_debug(Arena *arena);
+internal String8    arena_to_string(Arena *arena);
+
 
 #ifdef DOT_DEBUG
 #define ARENA_DEFAULT_PARAMS(...) \
@@ -123,7 +121,7 @@ internal void   arena_print_debug(Arena *arena);
 #define ARENA_CREATE(...)           arena_create_(ARENA_DEFAULT_PARAMS(__VA_ARGS__))
 #define ARENA_RESET(a)              arena_reset(ARENA_OP_PARAMS(.arena = (a)));
 #define ARENA_DESTROY(a)            arena_reset(ARENA_OP_PARAMS(.arena = (a)));
-#define ARENA_PUSH(a, sz, align, z) arena_push(ARENA_OP_PARAMS(.arena = (a), .size = (sz), .alignment = (align), .zero = (z)))
+#define ARENA_PUSH(a, sz, align, z) arena_push(ARENA_OP_PARAMS(.arena = (a)), (sz), (align), (z))
 
 #define PUSH_SIZE_NO_ZERO(arena, size)      ARENA_PUSH(arena, size, ARENA_MAX_ALIGNMENT, false)
 #define PUSH_SIZE(arena, size)              ARENA_PUSH(arena, size, ARENA_MAX_ALIGNMENT, true)
@@ -133,11 +131,10 @@ internal void   arena_print_debug(Arena *arena);
 #define PUSH_ARRAY(arena, T, count)                             (T*)ARENA_PUSH(arena, sizeof(T) * (count), DOT_MAX(ARENA_MAX_ALIGNMENT, DOT_ALIGNOF(T)), true)
 #define PUSH_ARRAY_NO_ZERO(arena, T, count)                     (T*)ARENA_PUSH(arena, sizeof(T) * (count), DOT_MAX(ARENA_MAX_ALIGNMENT, DOT_ALIGNOF(T)), false)
 
-#define PUSH_STRUCT(arena, T) (T*)PUSH_ARRAY(arena, T, 1)
+// (jd) NOTE: This is used to bypass type checking in certain cases we are sure the types will match
+#define PUSH_ARRAY_UNTYPED(arena, elem_0_t, count)              (void*) ARENA_PUSH(arena, sizeof(elem_0_t) * (count), DOT_MAX(ARENA_MAX_ALIGNMENT, DOT_ALIGNOF(elem_0_t)), true)
 
-// (jd) NOTE: Experiments. Clang seems to optimize the copy pretty well
-#define PUSH_COPY(arena, T, src)        MEMORY_COPY_STRUCT(PUSH_ARRAY_NO_ZERO(arena, T, 1), (src))
-#define PUSH_COPY_LIT(arena, T, src)    MEMORY_COPY_STRUCT(PUSH_ARRAY_NO_ZERO(arena, T, 1), &(T)src)
+#define PUSH_STRUCT(arena, T) (T*)PUSH_ARRAY(arena, T, 1)
 
 //////////////////////////////////////////////////////////
 /// TempArena

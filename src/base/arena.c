@@ -1,18 +1,3 @@
-internal TempArena
-temp_arena_get(Arena *arena)
-{
-    TempArena sa;
-    sa.arena = arena;
-    sa.prev_offset = arena->used;
-    return sa;
-}
-
-internal void
-temp_arena_restore(TempArena temp)
-{
-    temp.arena->used = temp.prev_offset;
-}
-
 internal Arena*
 arena_create_(ArenaInitParams *params)
 {
@@ -99,21 +84,30 @@ arena_create_from_os(ArenaInitParams *params)
 }
 
 internal void
+arena_pop_to(ArenaOpParams *op, usize pos)
+{
+    usize new_used = DOT_CLAMP_BOT(ARENA_HEADER_SIZE_B, pos);
+    ASAN_POISON(arena->base + new_used, arena->reserved - new_used);
+    op->arena->used = new_used;
+}
+
+internal void
 arena_reset(ArenaOpParams *op)
 {
-    ASAN_POISON(arena->base + ARENA_HEADER_SIZE_B, arena->reserved - ARENA_HEADER_SIZE_B);
-    op->arena->used = ARENA_HEADER_SIZE_B;
+    arena_pop_to(op, 0);
+    // ASAN_POISON(arena->base + ARENA_HEADER_SIZE_B, arena->reserved - ARENA_HEADER_SIZE_B);
+    // op->arena->used = ARENA_HEADER_SIZE_B;
 }
 
 internal void
 arena_destroy(ArenaOpParams *op)
 {
-    Arena *arena = op->arena;
-    u64 reserved = arena->reserved;
-    void* base = arena->base;
-    arena->used = 0;
-    arena->reserved = 0;
-    arena->commit_expand_size = 0;
+    Arena *arena    = op->arena;
+    u64 reserved    = arena->reserved;
+    void *base      = arena->base;
+    arena->used                 = 0;
+    arena->reserved             = 0;
+    arena->commit_expand_size   = 0;
     if(!DOT_BITS_MATCH(arena->flags, ArenaFlags_OwnsMemory)){
         DOT_WARNING_FL(op->file, op->line,
             "Trying to free sub-arena '%s' with parent '%s'!\nThis "
@@ -127,19 +121,19 @@ arena_destroy(ArenaOpParams *op)
 }
 
 internal u8*
-arena_push(ArenaOpParams *op)
+arena_push(ArenaOpParams *op, usize alloc_size, usize alignment, b32 should_zero)
 {
     Arena *arena = op->arena;
-    if(op->size < 0){
-        // DOT_ASSERT_FL(op->size > 0, op->file, op->line, "Allocation should be bigger than 0");
+    if(alloc_size < 0){
+        // DOT_ASSERT_FL(alloc_size > 0, op->file, op->line, "Allocation should be bigger than 0");
         return NULL;
     }
     uptr arena_base = cast(uptr)arena->base;
     uptr current_address =  arena_base + arena->used;
-    uptr aligned_address = ALIGN_POW2(current_address, op->alignment);
+    uptr aligned_address = ALIGN_POW2(current_address, alignment);
     u8 *mem_offset = cast(u8*) aligned_address;
-    DOT_ASSERT_FL((aligned_address % op->alignment) == 0, op->file, op->line, "Unaligned address");
-    usize required_padded = aligned_address - current_address + op->size;
+    DOT_ASSERT_FL((aligned_address % alignment) == 0, op->file, op->line, "Unaligned address");
+    usize required_padded = aligned_address - current_address + alloc_size;
     arena->used += required_padded;
 
     b32 need_more_pages = arena->used > arena->committed;
@@ -166,7 +160,7 @@ arena_push(ArenaOpParams *op)
         arena->committed += commit_size;
     }
     ASAN_UNPOISON(mem_offset, required_padded);
-    if(op->zero){
+    if(should_zero){
         MEMORY_ZERO(mem_offset, required_padded);
     }
     return mem_offset;
@@ -232,4 +226,19 @@ arena_print_debug(Arena* arena)
     DOT_PRINT("  Reserved:          %M (%llu pages)", arena->reserved,  reserved_pages);
     DOT_PRINT("  Page size:         %M (%s)", page_size, large_pages ? "large pages" : "regular pages");
     DOT_PRINT("  Commit expand:     %M\n", arena->commit_expand_size);
+}
+
+internal TempArena
+temp_arena_get(Arena *arena)
+{
+    TempArena sa;
+    sa.arena = arena;
+    sa.prev_offset = arena->used;
+    return sa;
+}
+
+internal void
+temp_arena_restore(TempArena temp)
+{
+    temp.arena->used = temp.prev_offset;
 }
