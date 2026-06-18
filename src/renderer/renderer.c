@@ -22,7 +22,7 @@ renderer_init(Arena *arena, DOT_Renderer *renderer, DOT_Window *window, const Re
         .reserve_size = renderer_config->renderer_transient_memory_size,
         .name         = "Application renderer transient");
 
-    shader_cache_init(renderer->permanent_arena, &renderer->shader_cache, renderer_config->shader_cache_config);
+    HashMap_DOT_ShaderModule_init(renderer->permanent_arena, &renderer->shader_cache, renderer_config->shader_cache_config->shader_modules_count);
 
     renderer->backend = renderer_backend_create(renderer->permanent_arena, renderer_config->backend_config);
     renderer->frame_data_count = renderer->backend->frame_overlap;
@@ -52,16 +52,15 @@ renderer_init(Arena *arena, DOT_Renderer *renderer, DOT_Window *window, const Re
 internal void
 renderer_shutdown(DOT_Renderer *renderer)
 {
-    ShaderCache *shader_cache = &renderer->shader_cache;
+    HashMap_DOT_ShaderModule *shader_cache = &renderer->shader_cache;
     // (jd) TODO: Maybe just also leave the cleanup to renderer?
-    for(u32 i = 0; i < shader_cache->shader_modules_count; ++i){
-        ShaderCacheNode *node = shader_cache->shader_modules[i];
-        for EACH_NODE(it, ShaderCacheNode, node){
-            DOT_ShaderModuleHandle h = it->shader_module->shader_module_handle;
+    HashMap_Iter it = {0};
+    DOT_ShaderModule *shader_module = NULL;
+    while((shader_module = HashMap_DOT_ShaderModule_iter_next(shader_cache, &it))){
+            DOT_ShaderModuleHandle h = shader_module->shader_module_handle;
             RENDER_BACKEND_CALL(shader_unload(h));
-        }
     }
-    shader_cache_end(shader_cache);
+    HashMap_DOT_ShaderModule_end(shader_cache);
     RENDER_BACKEND_CALL(shutdown());
 }
 
@@ -224,7 +223,7 @@ renderer_shader_module_load_from_path(DOT_Renderer *renderer, String8 path)
         }
     }
 
-    DOT_ShaderModule *shader_module = shader_cache_get_or_create(renderer->permanent_arena, &renderer->shader_cache, path, compiled_path);
+    DOT_ShaderModule *shader_module = HashMap_DOT_ShaderModule_get_or_create(renderer->permanent_arena, &renderer->shader_cache, path);
     b32 should_update_shader = (source_updated && compilation_success) || !shader_module_initialized(shader_module);
     if(should_update_shader){
         shader_module->compiled_path = compiled_path;

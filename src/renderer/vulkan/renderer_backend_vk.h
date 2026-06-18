@@ -129,8 +129,8 @@ typedef struct RBVK_FrameData{
 // (jd) TODO: Move this to renderer and use DOT_TextureHandles and so on
 typedef struct RBVK_ResourceCleanupCtx{
     TreeHeader node;
-    ARRAY(RBVK_SamplerHandle, RENDER_RESOURCE_CLEANUP_CTX_TEXTURES)   texture_ids;
-    ARRAY(RBVK_SamplerHandle, RENDER_RESOURCE_CLEANUP_CTX_BUFFERS)    buffer_ids;
+    ARRAY(RBVK_TextureHandle, RENDER_RESOURCE_CLEANUP_CTX_TEXTURES)   texture_ids;
+    ARRAY(RBVK_BufferHandle,  RENDER_RESOURCE_CLEANUP_CTX_BUFFERS)    buffer_ids;
     ARRAY(RBVK_SamplerHandle, RENDER_RESOURCE_CLEANUP_CTX_SAMPLERS)   sampler_ids;
     SLICE(Arena *) temp_arenas;
 }RBVK_ResourceCleanupCtx;

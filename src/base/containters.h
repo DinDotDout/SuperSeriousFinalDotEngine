@@ -125,22 +125,24 @@ typedef struct TreeHeader{
 }TreeHeader;
 
 typedef struct TreeIterator{
-    TreePool    *tree_pool;
-    PoolHandle  *stack;
-    u8          *data;
-    u32          stack_idx;
-    u32          stack_capacity;
+    TreePool   *tree_pool;
+    PoolHandle *stack;
+    u32         elem_size;
+    u8         *data;
+    u32         stack_idx;
+    u32         stack_capacity;
 }TreeIterator;
 
 // internal u8 *tree_push_front(Pool *p, TreeHeader *header, u32 elem_size, u32 header_offset);
 internal void*          tree_init(Arena *arena, TreePool *tp, u32 capacity, u32 elem_size, u32 alignment, u32 offsetoff_header);
 internal PoolHandle     tree_push_front_new(TreePool *tree_pool, PoolHandle parent, u32 elem_size, u8 *data);
-internal void           tree_push_front(TreePool *tree_pool, PoolHandle parent, PoolHandle new, u8 *data);
-internal void           tree_pop_front(TreePool *tree_pool, PoolHandle parent, u8 *data);
+internal void           tree_push_front(TreePool *tree_pool, PoolHandle parent, PoolHandle new, u32 elem_size, u8 *data);
+internal void           tree_pop_front(TreePool *tree_pool, PoolHandle parent, u32 elem_size, u8 *data);
+internal TreeHeader*    tree_header_(TreePool *tree_pool, PoolHandle h, u32 elem_size, u8 *data);
 
 // (jd) NOTE: We could define a iteration methods if needed and specify in on iter begin
 // Right to left, depth first, preorder
-internal TreeIterator   tree_iter_begin(Arena *arena, TreePool *tree_pool, u8 *data, PoolHandle iter_root);
+internal TreeIterator   tree_iter_begin(Arena *arena, TreePool *tree_pool, u32 elem_size, u8 *data, PoolHandle iter_root);
 internal PoolHandle     tree_iter_next(TreeIterator *it);
 
 #define TREE_POOL(T) \
@@ -158,12 +160,12 @@ struct{ \
 #define TREE_ALLOC(ttp, parent)             pool_alloc(&TREE_BASE_(ttp).pool, sizeof(POOL_ELEM_(ttp)), (ttp)->data)
 #define TREE_PUSH_FRONT(ttp, parent, new)   tree_push_front(&TREE_BASE_(ttp), (parent), (new))
 #define TREE_PUSH_FRONT_NEW(ttp, parent)    tree_push_front_new(&TREE_BASE_(ttp), (parent), sizeof(POOL_ELEM_(ttp)), (u8*)((ttp)->data))
-#define TREE_POP_FRONT(ttp, parent)         tree_pop_front(&TREE_BASE_(ttp), (parent), (u8*)(ttp)->data)
+#define TREE_POP_FRONT(ttp, parent)         tree_pop_front(&TREE_BASE_(ttp), (parent), sizeof(POOL_ELEM_(ttp)), (u8*)(ttp)->data)
 #define TREE_GET(ttp, h)                    ((ttp)->data + pool_handle_to_pool_idx(&TREE_BASE_(ttp).pool, h))
 #define TREE_GET_ROOT_H(ttp)                (TREE_BASE_(ttp).tree_root)
 #define TREE_GET_ROOT(ttp)                  TREE_GET(ttp, TREE_GET_ROOT_H(ttp))
 
-#define TREE_ITER_BEGIN(a, ttp, node)   tree_iter_begin(a, &TREE_BASE_(ttp), (u8*)&(ttp)->data, node)
+#define TREE_ITER_BEGIN(a, ttp, node)   tree_iter_begin(a, &TREE_BASE_(ttp), sizeof(POOL_ELEM_(ttp)), (u8*)(ttp)->data, node)
 #define EACH_TREE_NODE(h, it)           (PoolHandle h; (h = tree_iter_next(it), h.idx);) 
 
 #endif // !CONTAINERS_H

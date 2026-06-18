@@ -47,7 +47,7 @@ internal u32
 pool_handle_to_pool_idx(Pool *p, PoolHandle h)
 {
     if(h.idx >= p->capacity){
-        DOT_WARNING("Pool capacity exceeded. Returning 0 handle");
+        DOT_WARNING("Pool idx out of bounds. Returning 0 handle");
         return 0;
     }
     return h.idx;
@@ -58,7 +58,8 @@ pool_null_handle_get(Pool *p, u32 elem_size, u8 *data)
 {
     DOT_ASSERT(p->capacity > 0, "Uninitialized pool");
     PoolHandle h = POOL_NULL_HANDLE;
-    void *elem = raw_buffer_get(data, h.idx, elem_size);
+    u32 idx = pool_handle_to_pool_idx(p, h);
+    void *elem = raw_buffer_get(data, idx, elem_size);
     MEMORY_ZERO(elem, elem_size);
     return(h);
 }
@@ -75,7 +76,6 @@ pool_alloc(Pool *p, u32 elem_size, void *data)
     p->count++;
 
     void *elem = raw_buffer_get(data, h.idx, elem_size);
-    // void *elem = cast(u8*)data + h.idx * elem_size;
     MEMORY_ZERO(elem, elem_size);
     return h;
 }
@@ -102,20 +102,22 @@ pool_init(Arena *arena, Pool *p, u32 capacity, u32 elem_size, u32 alignment)
         p->idx_buffer[i] = i;
     }
     void *data = PUSH_ARRAY_NO_ZERO_ALIGNED(arena, u8, capacity * elem_size, alignment);
+    MEMORY_ZERO(data, elem_size); // Zero first element
     return(data);
 }
-
 
 ////////////////////////////////////////////////////////////////
 ///
 /// Tree Pool
 
 internal TreeHeader*
-tree_header_(TreePool *tree_pool, PoolHandle h, u8 *data)
+tree_header_(TreePool *tree_pool, PoolHandle h, u32 elem_size, u8 *data)
 {
     Pool *pool = &tree_pool->pool;
-    u8 *elem = data + pool_handle_to_pool_idx(pool, h);
-    TreeHeader *header = cast(TreeHeader*)(cast(u8*)elem + tree_pool->offsetoff_header);
+    u32 idx = pool_handle_to_pool_idx(pool, h);
+    void *elem = raw_buffer_get(data, idx, elem_size);
+    // u8 *elem = data + pool_handle_to_pool_idx(pool, h);
+    TreeHeader *header = cast(TreeHeader*)((cast(u8*)elem) + tree_pool->offsetoff_header);
     return(header);
 }
 
@@ -130,49 +132,49 @@ tree_init(Arena *arena, TreePool *tree_pool, u32 capacity, u32 elem_size, u32 al
 }
 
 internal PoolHandle
-tree_get_next_sibling(TreePool *tree_pool, PoolHandle node, u8 *data)
+tree_get_next_sibling(TreePool *tree_pool, PoolHandle node, u32 elem_size, u8 *data)
 {
-    TreeHeader *node_header = tree_header_(tree_pool, node, data);
+    TreeHeader *node_header = tree_header_(tree_pool, node, elem_size, data);
     PoolHandle sibling = node_header->sibling;
     return(sibling);
 }
 
 internal PoolHandle
-tree_get_last_child(TreePool *tree_pool, PoolHandle parent, u8 *data)
+tree_get_last_child(TreePool *tree_pool, PoolHandle parent, u32 elem_size, u8 *data)
 {
-    TreeHeader *parent_header = tree_header_(tree_pool, parent, data);
+    TreeHeader *parent_header = tree_header_(tree_pool, parent, elem_size ,data);
     PoolHandle last_child = parent_header->last_child;
     return(last_child);
 }
 
 internal PoolHandle
-tree_get_first_child(TreePool *tree_pool, PoolHandle parent, u8 *data)
+tree_get_first_child(TreePool *tree_pool, PoolHandle parent, u32 elem_size, u8 *data)
 {
-    PoolHandle last_child = tree_get_last_child(tree_pool, parent, data);
-    PoolHandle first_child = tree_get_next_sibling(tree_pool, last_child, data);
+    PoolHandle last_child = tree_get_last_child(tree_pool, parent, elem_size, data);
+    PoolHandle first_child = tree_get_next_sibling(tree_pool, last_child, elem_size, data);
     return(first_child);
 }
 
 internal void
-tree_push_sibling(TreePool *tree_pool, PoolHandle prev_h, PoolHandle new, u8 *data)
+tree_push_sibling(TreePool *tree_pool, PoolHandle prev_h, PoolHandle new, u32 elem_size, u8 *data)
 {
-    TreeHeader *prev_header = tree_header_(tree_pool, prev_h, data);
-    TreeHeader *new_header = tree_header_(tree_pool, new, data);
+    TreeHeader *prev_header = tree_header_(tree_pool, prev_h, elem_size, data);
+    TreeHeader *new_header = tree_header_(tree_pool, new, elem_size, data);
     new_header->sibling = prev_header->sibling;
     prev_header->sibling = new;
 }
 
 internal void
-tree_push_front(TreePool *tree_pool, PoolHandle parent, PoolHandle new, u8 *data)
+tree_push_front(TreePool *tree_pool, PoolHandle parent, PoolHandle new, u32 elem_size, u8 *data)
 {
     if(parent.idx != 0){
-        TreeHeader *parent_header = tree_header_(tree_pool, parent, data);
-        TreeHeader *new_header = tree_header_(tree_pool, new, data);
+        TreeHeader *parent_header = tree_header_(tree_pool, parent, elem_size, data);
+        TreeHeader *new_header = tree_header_(tree_pool, new, elem_size ,data);
         if(pool_handle_is_null(parent_header->last_child)){
             parent_header->last_child = new;
             new_header->sibling = new;
         }else{
-            tree_push_sibling(tree_pool, parent_header->last_child, new, data);
+            tree_push_sibling(tree_pool, parent_header->last_child, new, elem_size, data);
         }
     }
 }
@@ -181,26 +183,26 @@ internal PoolHandle
 tree_push_front_new(TreePool *tree_pool, PoolHandle parent, u32 elem_size, u8 *data)
 {
     PoolHandle new_elem = pool_alloc(&tree_pool->pool, elem_size, data);
-    tree_push_front(tree_pool, parent, new_elem, data);
+    tree_push_front(tree_pool, parent, new_elem, elem_size, data);
     return(new_elem);
 }
 
 internal PoolHandle
-tree_pop_sibling(TreePool *tree_pool, PoolHandle node, u8 *data)
+tree_pop_sibling(TreePool *tree_pool, PoolHandle node, u32 elem_size, u8 *data)
 {
-    TreeHeader *node_header = tree_header_(tree_pool, node, data);
+    TreeHeader *node_header = tree_header_(tree_pool, node, elem_size, data);
     PoolHandle old_sibling = node_header->sibling;
-    TreeHeader *old_header = tree_header_(tree_pool, old_sibling, data);
+    TreeHeader *old_header = tree_header_(tree_pool, old_sibling, elem_size, data);
     node_header->sibling = old_header->sibling;
     return(old_sibling);
 }
 
 internal void
-tree_pop_front(TreePool *tree_pool, PoolHandle parent, u8 *data)
+tree_pop_front(TreePool *tree_pool, PoolHandle parent, u32 elem_size, u8 *data)
 {
     if(parent.idx != 0){
-        TreeHeader *p = tree_header_(tree_pool, parent, data);
-        PoolHandle old_first_h = tree_pop_sibling(tree_pool, p->last_child, data);
+        TreeHeader *p = tree_header_(tree_pool, parent, elem_size, data);
+        PoolHandle old_first_h = tree_pop_sibling(tree_pool, p->last_child, elem_size, data);
         pool_free(&tree_pool->pool, old_first_h);
     }
 }
@@ -208,11 +210,12 @@ tree_pop_front(TreePool *tree_pool, PoolHandle parent, u8 *data)
 // (jd) NOTE: Should we always assume worst case of root containing all children
 // or pass in a capacity?
 internal TreeIterator
-tree_iter_begin(Arena *arena, TreePool *tree_pool, u8 *data, PoolHandle iter_root)
+tree_iter_begin(Arena *arena, TreePool *tree_pool, u32 elem_size, u8 *data, PoolHandle iter_root)
 {
-    u32 stack_capacity = tree_pool->pool.count;
+    u32 stack_capacity = tree_pool->pool.count - 1; // Zero is reserved, so we skip it
     TreeIterator it = {
         .tree_pool = tree_pool,
+        .elem_size = elem_size,
         .data = data,
         .stack_capacity = stack_capacity,
         .stack = PUSH_ARRAY_NO_ZERO(arena, PoolHandle, stack_capacity),
@@ -229,12 +232,12 @@ tree_iter_next(TreeIterator *it)
         return(POOL_IT_END);
     }
     PoolHandle curr = it->stack[--it->stack_idx];
-    PoolHandle first = tree_get_first_child(it->tree_pool, curr, it->data);
+    PoolHandle first = tree_get_first_child(it->tree_pool, curr, it->elem_size, it->data);
     if(first.idx == 0){
         return(curr);
     }
     it->stack[it->stack_idx++] = first;
-    PoolHandle next = tree_get_next_sibling(it->tree_pool, first, it->data);
+    PoolHandle next = tree_get_next_sibling(it->tree_pool, first, it->elem_size, it->data);
     while (next.idx != first.idx) {
         if (it->stack_idx >= it->stack_capacity) {
           DOT_ERROR("Tree iterator capacity exceeded, either the iterator is "
@@ -242,7 +245,7 @@ tree_iter_next(TreeIterator *it)
           return(POOL_IT_END);
         }
         it->stack[it->stack_idx++] = next;
-        next = tree_get_next_sibling(it->tree_pool, next, it->data);
+        next = tree_get_next_sibling(it->tree_pool, next, it->elem_size, it->data);
     }
     return(curr);
 }

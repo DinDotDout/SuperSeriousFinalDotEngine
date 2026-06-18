@@ -118,7 +118,8 @@ typedef struct DOT_Renderer{
     u32         frame_data_count;
     FrameData  *frame_datas;
 
-    ShaderCache shader_cache;
+    HashMap_DOT_ShaderModule shader_cache;
+    // ShaderCache shader_cache;
     RendererBackend *backend;
 }DOT_Renderer;
 

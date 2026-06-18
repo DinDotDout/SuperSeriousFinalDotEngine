@@ -84,9 +84,9 @@ arena_create_from_os(ArenaInitParams *params)
 }
 
 internal void
-arena_pop_to(ArenaOpParams *op, usize pos)
+arena_pop_to(ArenaOpParams *op, u64 pos)
 {
-    usize new_used = DOT_CLAMP_BOT(ARENA_HEADER_SIZE_B, pos);
+    u64 new_used = DOT_CLAMP_BOT(ARENA_HEADER_SIZE_B, pos);
     ASAN_POISON(arena->base + new_used, arena->reserved - new_used);
     op->arena->used = new_used;
 }
@@ -121,7 +121,7 @@ arena_destroy(ArenaOpParams *op)
 }
 
 internal u8*
-arena_push(ArenaOpParams *op, usize alloc_size, usize alignment, b32 should_zero)
+arena_push(ArenaOpParams *op, u64 alloc_size, u64 alignment, b32 should_zero)
 {
     Arena *arena = op->arena;
     if(alloc_size < 0){

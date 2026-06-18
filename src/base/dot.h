@@ -247,7 +247,6 @@ typedef double f64;
 // Some sugar to make some things a bit more evident
 // or to indicate
 #define array(T) T*
-#define hashmap(T) T*
 
 ////////////////////////////////////////////////////////////////
 //

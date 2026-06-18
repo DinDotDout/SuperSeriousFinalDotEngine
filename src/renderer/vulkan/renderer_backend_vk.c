@@ -347,8 +347,7 @@ rbvk_buffer_create(const RenderTypes_BufferDesc *desc, u8 *data, String8 debug_n
     //     buffer->alloc = rbvk_memory_gpu_buffer_alloc(&g_vk_ctx->memory_pools, buffer->vk_buffer);
     //     rbvk_vk_resource_set_name(VK_OBJECT_TYPE_BUFFER, cast(u64)buffer->vk_buffer, buffer->name);
     // }
-    VK_CHECK(vkCreateBuffer(
-        g_vk_ctx->device.vk_device,
+    VK_CHECK(vkCreateBuffer(g_vk_ctx->device.vk_device,
         &(VkBufferCreateInfo){
             .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
             .usage = buffer->vk_buffer_usage_flags,
@@ -536,7 +535,6 @@ renderer_backend_vk_init(DOT_Window *window)
     POOL_INIT(ctx_arena, &g_vk_ctx->buffer_pool,    RENDER_BUFFER_MAX);
     POOL_INIT(ctx_arena, &g_vk_ctx->sampler_pool,   RENDER_SAMPLER_MAX);
     TREE_INIT(ctx_arena, RBVK_ResourceCleanupCtx, &g_vk_ctx->resource_cleanup_list_tree, RENDER_CTX_RESCOURCE_POOL);
-
 #ifdef DOT_USE_VOLK
     volkInitialize();
 #endif
@@ -780,8 +778,9 @@ renderer_backend_vk_init(DOT_Window *window)
                         .queueFamilyIndex    = g_vk_ctx->device.graphics_queue_idx,
                     };
 
-                    VkCommandPool cmd_pool = ARRAY_GET(frame_data->vk_command_pools, j);
+                    VkCommandPool cmd_pool;
                     VK_CHECK(vkCreateCommandPool(device, &cmd_create_info, NULL, &cmd_pool));
+                    ARRAY_PUSH(frame_data->vk_command_pools, cmd_pool);
 
                     for(u32 k = 0; k < RENDER_COMMAND_BUFFERS_PER_POOL; ++k){
                         VkCommandBufferAllocateInfo cmd_alloc_info = {
@@ -986,7 +985,6 @@ internal void rbvk_frame_data_reset()
     }
 
 }
-
 
 internal VkCommandPool
 rbvk_command_pool_get()
@@ -1827,7 +1825,7 @@ renderer_backend_vk_shutdown()
     }
 
     for(u32 i = 0; i < g_vk_ctx->base.frame_overlap; ++i){
-        RBVK_FrameData *frame_data = &SLICE_GET(g_vk_ctx->frame_datas, (i % RENDER_THREAD_COUNT_MAX));
+        RBVK_FrameData *frame_data = &SLICE_GET(g_vk_ctx->frame_datas, i);
         for(u32 j = 0; j <  frame_data->vk_command_pools.count; ++j){
             VkCommandPool cmd_pool = ARRAY_GET(frame_data->vk_command_pools, j);
             vkDestroyCommandPool(device, cmd_pool, NULL);

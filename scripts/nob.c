@@ -173,11 +173,11 @@ static CompilerConfig compiler_cfg[] = {
         .opt = {
             [OptimizationLevelKind_Debug] =
                 ARG_LIST(
-                    "-O0", 
+                    "-O0",
                     "-g",
-                // "-fsanitize=address,undefined",
-                // "-fsanitize-recover=address,undefined",
-                "-DDEBUG",
+                    "-fsanitize=address,undefined",
+                    "-fsanitize-recover=address,undefined",
+                    "-DDEBUG",
                 ),
             [OptimizationLevelKind_Release] =
                 ARG_LIST("-O2", "-g",

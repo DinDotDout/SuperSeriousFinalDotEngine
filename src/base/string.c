@@ -132,9 +132,10 @@ cstr_format(Arena *arena, char *fmt, ...)
     return result;
 }
 
-internal u64 u64_hash_from_string8(String8 string, u64 seed)
+internal u64
+u64_hash_from_string8(String8 string, u64 seed)
 {
-    u64 result = seed != U16_MAX ? seed : 5381;
+    u64 result = seed != U64_MAX ? seed : 5381;
     for(u64 i = 0; i < string.size; ++i){
         result = ((result << 5) + result) + string.str[i];
     }

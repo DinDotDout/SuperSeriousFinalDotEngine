@@ -42,7 +42,7 @@ struct AssetCacheNode{
 
 typedef u64 HashIdx;
 typedef struct DOT_AssetCache{
-    hashmap(AssetCacheNode*) shader_modules[DOT_AssetKind_Count];
+    AssetCacheNode** shader_modules[DOT_AssetKind_Count];
     u32 shader_modules_count;
     u32 load_shader_modules;
 }DOT_AssetCache;
