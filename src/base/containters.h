@@ -41,7 +41,7 @@ do{ \
 #define ARRAY(T, capacity) \
 struct{ \
     u64 count; \
-    T data[(capacity)]; \
+    T data[capacity]; \
 }
 
 #define ARRAY_INIT(arr, T, ...) \
@@ -105,6 +105,47 @@ internal PoolHandle pool_null_handle_get(Pool *p, u32 elem_size, u8 *data);
 #define POOL_REF_COPY(tp, handle)   pool_ref_copy(&(tp)->pool, (handle))
 #define POOL_FREE(tp, handle)       pool_free(&(tp)->pool, (handle))
 #define POOL_IT_END                 POOL_NULL_HANDLE
+
+
+////////////////////////////////////////////////////////////////
+///
+/// MultiMemoryPool
+/// Go to definition for example usage:
+
+typedef struct MemoryPoolBlock MemoryPoolBlock;
+struct MemoryPoolBlock{
+    MemoryPoolBlock *next_block;
+#ifdef DOT_DEBUG
+    u64 tag;
+#endif
+    u8 memory[];
+};
+
+typedef struct MemoryPool{
+    u32             block_size_b;
+    MemoryPoolBlock *next_free_block;
+}MemoryPool;
+
+
+internal MemoryPool memory_pool_create(u32 block_size);
+internal u8        *memory_pool_alloc(Arena *arena, MemoryPool *memory_pool);
+internal void       memory_pool_free(MemoryPool *memory_pool, u8 *ptr);
+
+////////////////////////////////////////////////////////////////
+///
+/// MultiMemoryPool
+/// Go to definition for example usage:
+
+typedef SLICE(u32) MultiMemoryPoolBlockSizes;
+typedef struct MultiMemoryPool{
+    u32 pools_count;
+    MemoryPool *memoy_pools;
+}MultiMemoryPool;
+
+internal MultiMemoryPool multi_memory_pool_create(Arena *arena, MultiMemoryPoolBlockSizes create_info);
+internal u8              *multi_memory_pool_alloc(Arena *arena, MultiMemoryPool *multi_memory_pool, u32 size);
+
+#define MULTI_MEMORY_POOL_CREATE(a, ...) multi_memory_pool_create(a, (MultiMemoryPoolBlockSizes)SLICE_LIT(u32, __VA_ARGS__));
 
 ////////////////////////////////////////////////////////////////
 ///

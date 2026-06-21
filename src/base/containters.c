@@ -108,6 +108,98 @@ pool_init(Arena *arena, Pool *p, u32 capacity, u32 elem_size, u32 alignment)
 
 ////////////////////////////////////////////////////////////////
 ///
+/// memory pool
+
+internal MemoryPool
+memory_pool_create(u32 block_size)
+{
+    MemoryPool pool = {0};
+    pool.block_size_b   = block_size;
+    return(pool);
+}
+
+internal u8 *
+memory_pool_alloc(Arena *arena, MemoryPool *multi_memory_pool)
+{
+    MemoryPoolBlock *next_free = multi_memory_pool->next_free_block;
+    if(next_free){
+        multi_memory_pool->next_free_block = next_free->next_block;
+        return next_free->memory;
+    }
+    MemoryPoolBlock *new_block = (MemoryPoolBlock*)PUSH_SIZE(arena, sizeof(MemoryPoolBlock) + multi_memory_pool->block_size_b);
+#ifdef DOT_DEBUG
+    new_block->tag = 0xDEADBEEF + multi_memory_pool->block_size_b;
+#endif
+    return(new_block->memory);
+}
+
+internal void
+memory_pool_free(MemoryPool *multi_memory_pool, u8 *ptr)
+{
+    MemoryPoolBlock *block = DOT_CONTAINER_OF(ptr, MemoryPoolBlock, memory);
+#ifdef DOT_DEBUG
+    u64 tag = block->tag;
+    tag -= multi_memory_pool->block_size_b;
+    if(tag != 0xDEADBEEF){
+        DOT_ERROR("Tag corruption. Either you passed in memory not owned by this pool or the tag got corrupted");
+    }
+#endif
+    MemoryPoolBlock *free_block = multi_memory_pool->next_free_block;
+    multi_memory_pool->next_free_block = block;
+    block->next_block = free_block;
+}
+
+////////////////////////////////////////////////////////////////
+///
+///multi memory pool 
+
+#define QS_T MemoryPool
+#define QS_COMPARE(a,b) ((a.block_size_b < b.block_size_b) ? -1 : (a.block_size_b > b.block_size_b))
+#include "base/templates/sort.h"
+
+internal MultiMemoryPool
+multi_memory_pool_create(Arena *arena, MultiMemoryPoolBlockSizes create_info)
+{
+    MultiMemoryPool multi_pool = {0};
+    multi_pool.pools_count = create_info.count;
+    multi_pool.memoy_pools = PUSH_ARRAY(arena, MemoryPool, multi_pool.pools_count);
+
+    for(u32 i = 0; i < multi_pool.pools_count; ++i){
+        u32 block_size = SLICE_GET(create_info, i);
+        DOT_ASSERT(IS_POW2(block_size), "pool_size %m isn't a power of 2", block_size);
+        *multi_pool.memoy_pools = memory_pool_create(block_size);
+    }
+    quicksort_MemoryPool(multi_pool.memoy_pools, 0, multi_pool.pools_count - 1);
+    return(multi_pool);
+}
+
+internal u8 *
+multi_memory_pool_alloc(Arena *arena, MultiMemoryPool *multi_memory_pool, u32 size)
+{
+    MemoryPool *candidate_found = 0;
+    for(u32 i = 0; i < multi_memory_pool->pools_count; ++i){
+        MemoryPool *pool = &multi_memory_pool->memoy_pools[i];
+        if(size > pool->block_size_b){
+            candidate_found = pool;
+            break;
+        }
+    }
+    if(!candidate_found){
+        DOT_ERROR("Not pool could satisfy the memory requirement");
+    }
+    u8 *mem = memory_pool_alloc(arena, candidate_found);
+    return(mem);
+}
+
+void testsing()
+{
+    Arena *a = ARENA_CREATE();
+    MULTI_MEMORY_POOL_CREATE(a, 4, 8, 16);
+    multi_memory_pool_create(a, (MultiMemoryPoolBlockSizes) SLICE_LIT(u32, 4,8,16));
+}
+
+////////////////////////////////////////////////////////////////
+///
 /// Tree Pool
 
 internal TreeHeader*
@@ -116,7 +208,6 @@ tree_header_(TreePool *tree_pool, PoolHandle h, u32 elem_size, u8 *data)
     Pool *pool = &tree_pool->pool;
     u32 idx = pool_handle_to_pool_idx(pool, h);
     void *elem = raw_buffer_get(data, idx, elem_size);
-    // u8 *elem = data + pool_handle_to_pool_idx(pool, h);
     TreeHeader *header = cast(TreeHeader*)((cast(u8*)elem) + tree_pool->offsetoff_header);
     return(header);
 }
