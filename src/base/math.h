@@ -18,16 +18,15 @@ typedef union vec3{
         f32 x,y,z;
     };
     struct{
+        f32 r,g,b;
+    };
+    struct{
         vec2 xy;
         f32 _z;
     };
     struct{
         f32 _x;
         vec2 yz;
-    };
-
-    struct{
-        f32 r,g,b;
     };
     struct{
         vec2 rg;
@@ -52,14 +51,45 @@ typedef union vec3{
     f32 e[3];
 }vec3;
 
+typedef union vec4{
+    struct{
+        f32 x,y,z,w;
+    };
+    struct{
+        f32 r,g,b,a;
+    };
+    struct{
+        vec3 xyz;
+        f32 _w;
+    };
+    struct{
+        vec3 rgb;
+        f32 _a;
+    };
+    f32 e[4];
+}vec4;
+
+internal inline
+vec2 v2(f32 x, f32 y)
+{
+    vec2 res = {.x = x, .y = y};
+    return res;
+}
+
+internal inline
 vec3 v3(f32 x, f32 y, f32 z)
 {
     vec3 res = {.x = x, .y = y, .z = z};
     return res;
 }
 
-vec2 v2(f32 x, f32 y)
+internal inline
+vec4 v4(f32 x, f32 y, f32 z, f32 w)
 {
-    vec2 res = {.x = x, .y = y};
+    vec4 res = {.x = x, .y = y, .z = z, .w = w};
     return res;
 }
+
+#define VEC2(v, a,b) (vec2){.x = v.a, .y = v.b}
+#define VEC3(v, a,b,c) (vec3){.x = v.a, .y = v.b, .z = v.c}
+#define VEC4(v, a,b,c,d) (vec4){.x = v.a, .y = v.b, .z = v.c, .w = v.d}
