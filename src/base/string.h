@@ -48,5 +48,8 @@ internal String8 string8_chop_last_slash(String8 file_path);
 
 internal const char** cstr_array_from_string8_array(Arena* arena, usize size, const String8 src[]);
 
+// Sort
+internal i64 string8_compare(String8 a, String8 b);
+
 internal u64 u64_hash_from_string8(String8 string, u64 seed);
 #endif // !DOT_STRING_H

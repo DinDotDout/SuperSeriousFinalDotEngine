@@ -133,6 +133,22 @@ cstr_format(Arena *arena, char *fmt, ...)
     return result;
 }
 
+internal i64
+string8_compare(String8 a, String8 b)
+{
+    for(u32 i = 0; i < DOT_MIN(a.size, b.size); ++i){
+        u8 char_a = a.str[i];
+        u8 char_b = b.str[i];
+        if(char_a < char_b){
+            return -1;
+        }else if(char_a > char_b){
+            return 1;
+        }
+    }
+    return a.size == b.size ? 0 :
+        (a.size > b.size ? 1 : -1);
+}
+
 internal u64
 u64_hash_from_string8(String8 string, u64 seed)
 {

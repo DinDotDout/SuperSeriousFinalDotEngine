@@ -24,4 +24,8 @@
 #define QS_COMPARE QS_NUMERIC_COMPARE
 #include "sort.h"
 
+#define QS_T String8
+#define QS_COMPARE string8_compare
+#include "sort.h"
+
 #undef QS_NUMERIC_COMPARE
