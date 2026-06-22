@@ -178,6 +178,17 @@
         DOT_ERROR("Invalid enum name"); \
     }
 
+#define DOT_ENUM_REFLECT_TYPED(T, enum_name, x_list) \
+    typedef T enum_name; \
+    enum {x_list(DOT_X_ENUM_ARG) }; \
+    static const String8 string8_from_##enum_name[] = { x_list(DOT_X_ENUM_STR) }; \
+    static enum_name \
+    enum_name##_from_string8(String8 str) \
+    { \
+        x_list(DOT_X_ENUM_STR_FROM_VAL) \
+        DOT_ERROR("Invalid enum name"); \
+    }
+
 
 ////////////////////////////////////////////////////////////////
 //
@@ -452,6 +463,9 @@ do { \
 #   define DOT_OFFSETOF(T, member) ((usize)&(((T*)0)->member))
 #endif
 
+#define DOT_CONTAINER_OF(ptr, type, member) ((type *)((u8 *)(ptr) - offsetof(type, member)))
+
+
 #if defined(__clang__) || defined(__GNUC__)
     #define TYPEOF(x) __typeof__(x)
 #elif defined(_MSC_VER) && _MSC_VER >= 1939 && defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202000L
@@ -600,18 +614,17 @@ void dot_debug_name_set(u32 capacity, char *ptr, String8 src);
     #define SECTION_ITEM(name) __declspec(allocate(#name "$m"))
 #else
     #define DECLARE_SECTION(T, name) \
-        extern const T __start_##name[]; \
-        extern const T __stop_##name[];
+        extern T __start_##name[]; \
+        extern T __stop_##name[];
 
     #define SECTION_ITEM(name, priority) \
-        __attribute__((used, section("." #name "." #priority))) \
-        __attribute__((no_sanitize("address")))
+        __attribute__((no_sanitize("address"), used, section("." #name "." #priority)))
 #endif
 
 #define REGISTER_IN_SECTION(name, type, symbol, ...) \
     SECTION_ITEM(name) static const type symbol = (type){ __VA_ARGS__ }
 
-#define EACH_IN_SECTION(name, type, it) \
-    (const type *it = (const type *)&__start_##name; it != (const type *)&__stop_##name; ++it)
+#define EACH_IN_SECTION(section_name, T, it) \
+    (T *it = __start_##section_name; (it) < __stop_##section_name; (it)++)
 
 #endif // !DOT_H
