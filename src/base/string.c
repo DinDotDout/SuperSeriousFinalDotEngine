@@ -1,11 +1,12 @@
 internal String8
 string8_append_string8(Arena *arena, String8 a, String8 b)
 {
-    String8 new_str;
-    new_str.size = a.size+b.size;
-    new_str.str = PUSH_ARRAY_NO_ZERO(arena, u8, new_str.size + 1);
-    MEMORY_COPY_NO_ALIAS(new_str.str, a.str, a.size);
-    MEMORY_COPY_NO_ALIAS(new_str.str + a.size, b.str, b.size);
+    String8 new_str = {
+        .size = a.size+b.size,
+        .str = PUSH_ARRAY_NO_ZERO(arena, u8, new_str.size + 1)
+    };
+    MEMORY_COPY(new_str.str, a.str, a.size);
+    MEMORY_COPY(new_str.str + a.size, b.str, b.size);
     new_str.str[new_str.size] = 0;
     return(new_str);
 }
