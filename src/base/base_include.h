@@ -7,7 +7,6 @@
 #include "third_party/stb/stb_sprintf.h"
 #define DOT_INT_SKIP
 #include "base/dot.h"
-#include "base/templates/sort_include.h"
 #include "base/platform.h"
 #include "base/containters.h"
 #include "base/test_suite.h"
@@ -15,6 +14,7 @@
 #include "base/string.h"
 #include "base/math.h"
 #include "base/thread_ctx.h"
+#include "base/templates/sort_include.h"
 
 #define STB_SPRINTF_IMPLEMENTATION
 #include "third_party/stb/stb_sprintf.h"

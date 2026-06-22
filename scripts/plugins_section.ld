@@ -1,13 +1,13 @@
 SECTIONS
 {
-  .DOT_plugins : {
-    PROVIDE_HIDDEN(__start_DOT_plugins = .);
-    KEEP(*(SORT_BY_INIT_PRIORITY(.DOT_plugins.*)))
-    PROVIDE_HIDDEN(__stop_DOT_plugins = .);
+  .PluginsSection : {
+    PROVIDE_HIDDEN(__start_PluginsSection = .);
+    KEEP(*(SORT_BY_INIT_PRIORITY(.PluginsSection.*)))
+    PROVIDE_HIDDEN(__stop_PluginsSection = .);
   }
-  /* .DOT_tests : { */
-  /*   PROVIDE_HIDDEN(__start_DOT_tests = .); */
-  /*   KEEP(*(SORT_BY_INIT_PRIORITY(.DOT_tests.*))) */
-  /*   PROVIDE_HIDDEN(__stop_DOT_tests = .); */
-  /* } */
+  .SettingsSection : {
+    PROVIDE_HIDDEN(__start_SettingsSection = .);
+    KEEP(*(SORT_BY_INIT_PRIORITY(.SettingsSection.*)))
+    PROVIDE_HIDDEN(__stop_SettingsSection = .);
+  }
 } INSERT AFTER .data;
