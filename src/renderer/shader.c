@@ -1,6 +1,6 @@
 internal String8
 shader_cache_get_compiled_path(Arena *arena, String8 path){
-    u64 shader_hash = HashMap_DOT_ShaderModule_hash(path);
+    u64 shader_hash = hash_map_DOT_ShaderModule_hash(path);
     return string8_format(arena, DOT_COMPILED_SHADER_PATH"%u.spv", shader_hash);
 }
 

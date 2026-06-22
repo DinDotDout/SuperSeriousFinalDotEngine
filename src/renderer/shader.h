@@ -2,27 +2,19 @@
 #define DOT_SHADER_H
 
 #define DOT_COMPILED_SHADER_PATH "src/game/compiled_shaders/"
-#define DOT_RAW_TEXT(x) String8Lit(DOT_STR(x))
-
-#define HM_IMPL
-#define HM_T DOT_ShaderModule
-#include "base/templates/hashmap.h"
 
 internal read_only String8 g_shader_header = String8Lit(
 "#version 450\n"
 "#define PI 3.1415926538\n"
 );
 
-enum
-{
-    SHADER_CACHE_SHADER_COUNT = 64,
-};
-
-DOT_STATIC_ASSERT(IS_POW2(SHADER_CACHE_SHADER_COUNT), "Calculations assume a power of 2 for performance reasons");
-
-typedef struct ShaderCacheConfig{
-    u32 shader_modules_count;
-}ShaderCacheConfig;
+// (jd) NOTE: This allows embedding a text file. Tho it removes all line jumps
+// also doesn't allow #define, hence g_shader_header
+// This works for testing for now
+#define DOT_RAW_TEXT(x) String8Lit( \
+    "#version 450\n" \
+    "#define PI 3.1415926538\n" \
+    DOT_STR(x))
 
 typedef struct DOT_ShaderModuleHandle{
     DOT_AssetHandle handle;
@@ -34,6 +26,9 @@ typedef struct DOT_ShaderModule{
     String8 compiled_path;
 }DOT_ShaderModule;
 
+#define HM_IMPL
+#define HM_T DOT_ShaderModule
+#include "base/templates/hashmap.h"
 
 // NOTE: Since slang does not have a c interface, we will just call the binary for now
 // I don't want to have to deal with glslang either and have multiple shader compilation
