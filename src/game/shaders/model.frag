@@ -40,7 +40,7 @@ layout (location = 3) in vec4 vPosition;
 
 layout (location = 0) out vec4 frag_color;
 
-#define PI 3.1415926538
+\\#define PI 3.1415926538
 
 vec3 decode_srgb(vec3 c)
 {

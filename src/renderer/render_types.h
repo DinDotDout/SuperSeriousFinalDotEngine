@@ -1,82 +1,88 @@
-#ifndef RENDER_TYPES_H
-#define RENDER_TYPES_H
+#ifndef RN_H
+#define RN_H
+
+#define RN_PRESENT_MODE_KINDS(X) \
+    X(RN_PresentModeKind, Immediate) \
+    X(RN_PresentModeKind, Fifo) \
+    X(RN_PresentModeKind, FifoRelaxed) \
+    X(RN_PresentModeKind, Mailbox)
+DOT_ENUM_REFLECT(RN_PresentModeKind, RN_PRESENT_MODE_KINDS)
 
 ////////////////////////////////////////////////////////////////
-/// RenderTypes_TEXTURE
+/// RN_TEXTURE
 
-#define RENDER_TYPES_TEXTURE_DIMENSION_KINDS(X) \
-    X(RenderTypes_TextureDimensionKind, 2D) \
-    X(RenderTypes_TextureDimensionKind, 1D) \
-    X(RenderTypes_TextureDimensionKind, 3D) \
-    X(RenderTypes_TextureDimensionKind, Array1D) \
-    X(RenderTypes_TextureDimensionKind, Array2D) \
-    X(RenderTypes_TextureDimensionKind, Array3D) \
+#define RN_TEXTURE_DIMENSION_KINDS(X) \
+    X(RN_TextureDimensionKind, 2D) \
+    X(RN_TextureDimensionKind, 1D) \
+    X(RN_TextureDimensionKind, 3D) \
+    X(RN_TextureDimensionKind, Array1D) \
+    X(RN_TextureDimensionKind, Array2D) \
+    X(RN_TextureDimensionKind, Array3D)
+DOT_ENUM_REFLECT(RN_TextureDimensionKind, RN_TEXTURE_DIMENSION_KINDS)
 
-DOT_ENUM_REFLECT(RenderTypes_TextureDimensionKind, RENDER_TYPES_TEXTURE_DIMENSION_KINDS)
-
-#define RENDER_TYPES_TEXTURE_FORMAT_KINDS(X) \
-    X(RenderTypes_TextureFormatKind, Invalid) \
+#define RN_TEXTURE_FORMAT_KINDS(X) \
+    X(RN_TextureFormatKind, Invalid) \
     /* 8 BIT*/\
-    X(RenderTypes_TextureFormatKind, RGBA8_SRGB) \
-    X(RenderTypes_TextureFormatKind, R8_UNORM) \
-    X(RenderTypes_TextureFormatKind, R8_UINT) \
-    X(RenderTypes_TextureFormatKind, RG8_UNORM) \
-    X(RenderTypes_TextureFormatKind, RGB8_UNORM) \
-    X(RenderTypes_TextureFormatKind, RGB8_SRGB) \
-    X(RenderTypes_TextureFormatKind, RGBA8_UNORM) \
-    X(RenderTypes_TextureFormatKind, BGRA8_UNORM) \
-    X(RenderTypes_TextureFormatKind, BGRA8_SRGB) \
+    X(RN_TextureFormatKind, RGBA8_SRGB) \
+    X(RN_TextureFormatKind, R8_UNORM) \
+    X(RN_TextureFormatKind, R8_UINT) \
+    X(RN_TextureFormatKind, RG8_UNORM) \
+    X(RN_TextureFormatKind, RGB8_UNORM) \
+    X(RN_TextureFormatKind, RGB8_SRGB) \
+    X(RN_TextureFormatKind, RGBA8_UNORM) \
+    X(RN_TextureFormatKind, BGRA8_UNORM) \
+    X(RN_TextureFormatKind, BGRA8_SRGB) \
     /* HDR */\
-    X(RenderTypes_TextureFormatKind, R16F) \
-    X(RenderTypes_TextureFormatKind, RG16F) \
-    X(RenderTypes_TextureFormatKind, RGBA16F) \
-    X(RenderTypes_TextureFormatKind, R32F) \
-    X(RenderTypes_TextureFormatKind, RG32F) \
-    X(RenderTypes_TextureFormatKind, RGBA32F) \
+    X(RN_TextureFormatKind, R16F) \
+    X(RN_TextureFormatKind, RG16F) \
+    X(RN_TextureFormatKind, RGBA16F) \
+    X(RN_TextureFormatKind, R32F) \
+    X(RN_TextureFormatKind, RG32F) \
+    X(RN_TextureFormatKind, RGBA32F) \
     /* Depth stencil */\
-    X(RenderTypes_TextureFormatKind, D16) \
-    X(RenderTypes_TextureFormatKind, D24S8) \
-    X(RenderTypes_TextureFormatKind, D32F) \
-    X(RenderTypes_TextureFormatKind, D32FS8) \
+    X(RN_TextureFormatKind, D16) \
+    X(RN_TextureFormatKind, D24S8) \
+    X(RN_TextureFormatKind, D32F) \
+    X(RN_TextureFormatKind, D32FS8) \
     /* Block compressed */ \
-    X(RenderTypes_TextureFormatKind, BC1) \
-    X(RenderTypes_TextureFormatKind, BC1_SRGB) \
-    X(RenderTypes_TextureFormatKind, BC3) \
-    X(RenderTypes_TextureFormatKind, BC3_SRGB) \
-    X(RenderTypes_TextureFormatKind, BC7) \
-    X(RenderTypes_TextureFormatKind, BC7_SRGB) \
-    X(RenderTypes_TextureFormatKind, ETC2_RGB8) \
-    X(RenderTypes_TextureFormatKind, ETC2_RGBA8)
+    X(RN_TextureFormatKind, BC1) \
+    X(RN_TextureFormatKind, BC1_SRGB) \
+    X(RN_TextureFormatKind, BC3) \
+    X(RN_TextureFormatKind, BC3_SRGB) \
+    X(RN_TextureFormatKind, BC7) \
+    X(RN_TextureFormatKind, BC7_SRGB) \
+    X(RN_TextureFormatKind, ETC2_RGB8) \
+    X(RN_TextureFormatKind, ETC2_RGBA8)
 
-DOT_ENUM_REFLECT(RenderTypes_TextureFormatKind, RENDER_TYPES_TEXTURE_FORMAT_KINDS)
+DOT_ENUM_REFLECT(RN_TextureFormatKind, RN_TEXTURE_FORMAT_KINDS)
 
 // ----- Texture format flags -----
-typedef u8 RenderTypes_TextureFormatFlags;
+typedef u8 RN_TextureFormatFlags;
 enum{
-    RenderTypes_TextureFormatBit_None         = DOT_BIT(0),
-    RenderTypes_TextureFormatBit_Compressed   = DOT_BIT(1),
-    RenderTypes_TextureFormatBit_SRGB         = DOT_BIT(2),
-    RenderTypes_TextureFormatBit_Depth        = DOT_BIT(3),
-    RenderTypes_TextureFormatBit_Stencil      = DOT_BIT(4),
+    RN_TextureFormatBit_None         = DOT_BIT(0),
+    RN_TextureFormatBit_Compressed   = DOT_BIT(1),
+    RN_TextureFormatBit_SRGB         = DOT_BIT(2),
+    RN_TextureFormatBit_Depth        = DOT_BIT(3),
+    RN_TextureFormatBit_Stencil      = DOT_BIT(4),
 };
 
 // ----- Texture usage flags -----
-typedef u8 RenderTypes_TextureUsageFlags;
+typedef u8 RN_TextureUsageFlags;
 enum{
-    RenderTypes_TextureUsageBit_Default       = DOT_BIT(0),
-    RenderTypes_TextureUsageBit_RenderTarget  = DOT_BIT(1),
-    RenderTypes_TextureUsageBit_Compute       = DOT_BIT(2),
+    RN_TextureUsageBit_Default       = DOT_BIT(0),
+    RN_TextureUsageBit_RenderTarget  = DOT_BIT(1),
+    RN_TextureUsageBit_Compute       = DOT_BIT(2),
 };
 
-typedef struct RenderTypes_TextureFormatInfo{
+typedef struct RN_TextureFormatInfo{
     u8 channels;
     u8 bit_depth;
     u8 block_size;
 
     u8 block_width;
     u8 block_height;
-    RenderTypes_TextureFormatFlags format_flags;
-}RenderTypes_TextureFormatInfo;
+    RN_TextureFormatFlags format_flags;
+}RN_TextureFormatInfo;
 
 typedef struct DOT_DescriptorSetLayoutHandle{
     DOT_AssetHandle handle;
@@ -87,17 +93,17 @@ typedef struct DOT_TextureHandle{
 }DOT_TextureHandle;
 
 global DOT_TextureHandle null_texture = {0};
-typedef struct RenderTypes_TextureDesc{
-    RenderTypes_TextureDimensionKind dimension_kind;
-    RenderTypes_TextureFormatKind format_kind;
-    RenderTypes_TextureUsageFlags texture_usage_flags;
+typedef struct RN_TextureDesc{
+    RN_TextureDimensionKind dimension_kind;
+    RN_TextureFormatKind format_kind;
+    RN_TextureUsageFlags texture_usage_flags;
     u16 width; // = 1;
     u16 height; // = 1;
     u16 depth; // = 1;
     u8 mip_levels; // = 1; // 0 will auto generate
-}RenderTypes_TextureDesc;
-#define RENDER_TYPES_TEXTURE_DESC(...) \
-    &(RenderTypes_TextureDesc){ \
+}RN_TextureDesc;
+#define RN_TEXTURE_DESC(...) \
+    &(RN_TextureDesc){ \
         .width = 1, \
         .height = 1, \
         .depth = 1, \
@@ -105,230 +111,230 @@ typedef struct RenderTypes_TextureDesc{
         __VA_ARGS__ \
     }
 
-// typedef struct RenderTypes_TextureCreateInfo{
+// typedef struct RN_TextureCreateInfo{
 //     void *data;
 //     String8 debug_name;
-//     RenderTypes_TextureDesc texture_desc; // This filled in by the texture loaded
-// }RenderTypes_TextureCreateInfo;
+//     RN_TextureDesc texture_desc; // This filled in by the texture loaded
+// }RN_TextureCreateInfo;
 
 typedef struct DOT_TextureAsset{
     DOT_Asset asset;
     DOT_TextureHandle handle;
-    RenderTypes_TextureDesc desc;
+    RN_TextureDesc desc;
 }DOT_TextureAsset;
 
 ////////////////////////////////////////////////////////////////
-/// RenderTypes_BUFFER
+/// RN_BUFFER
 
 // ----- Buffer usage flags -----
-typedef u8 RenderTypes_ResourceUsageKind;
+typedef u8 RN_ResourceUsageKind;
 enum{
-    RenderTypes_ResourceUsageKind_Default,
-    RenderTypes_ResourceUsageKind_Dynamic,
-    RenderTypes_ResourceUsageKind_Readback,
-    RenderTypes_ResourceUsageKind_GPUOnly = RenderTypes_ResourceUsageKind_Default,
+    RN_ResourceUsageKind_Default,
+    RN_ResourceUsageKind_Dynamic,
+    RN_ResourceUsageKind_Readback,
+    RN_ResourceUsageKind_GPUOnly = RN_ResourceUsageKind_Default,
 };
 
-typedef u8 RenderTypes_BufferUsageFlags;
+typedef u8 RN_BufferUsageFlags;
 enum{
-    RenderTypes_BufferUsageBit_Vertex            = DOT_BIT(0),
-    RenderTypes_BufferUsageBit_Index             = DOT_BIT(1),
-    RenderTypes_BufferUsageBit_Uniform           = DOT_BIT(2),
-    RenderTypes_BufferUsageBit_Storage           = DOT_BIT(3),
-    RenderTypes_BufferUsageBit_Indirect          = DOT_BIT(4),
-    RenderTypes_BufferUsageBit_DeviceAddress     = DOT_BIT(5),
+    RN_BufferUsageBit_Vertex            = DOT_BIT(0),
+    RN_BufferUsageBit_Index             = DOT_BIT(1),
+    RN_BufferUsageBit_Uniform           = DOT_BIT(2),
+    RN_BufferUsageBit_Storage           = DOT_BIT(3),
+    RN_BufferUsageBit_Indirect          = DOT_BIT(4),
+    RN_BufferUsageBit_DeviceAddress     = DOT_BIT(5),
 };
 
 typedef struct DOT_BufferHandle{
     DOT_AssetHandle handle;
 }DOT_BufferHandle;
 
-typedef struct RenderTypes_BufferDesc{
+typedef struct RN_BufferDesc{
     u64 size;
-    RenderTypes_BufferUsageFlags     buffer_usage_flags;
-    RenderTypes_ResourceUsageKind    resource_usage;
-}RenderTypes_BufferDesc;
-#define RENDER_TYPES_BUFFER_DESC(...) \
-    &(RenderTypes_BufferDesc){__VA_ARGS__} \
+    RN_BufferUsageFlags     buffer_usage_flags;
+    RN_ResourceUsageKind    resource_usage;
+}RN_BufferDesc;
+#define RN_BUFFER_DESC(...) \
+    &(RN_BufferDesc){__VA_ARGS__} \
 
-// typedef struct RenderTypes_BufferCreateInfo{
-//     RenderTypes_AssetCreateInfo asset_info;
+// typedef struct RN_BufferCreateInfo{
+//     RN_AssetCreateInfo asset_info;
 //     void *data; // must fill in desc manually
 //                 //
 //     // b32 create_mips; // Enabling this will auto fill mip_levels if no mip_levels
 //
-//     RenderTypes_BufferDesc buffer_desc; // This is now filled in by the texture loaded
+//     RN_BufferDesc buffer_desc; // This is now filled in by the texture loaded
 //     // u8 flags; // = 0; // TextureFlags bitmasks
 //     // TextureHandle alias = k_invalid_texture;
-// }RenderTypes_BufferCreateInfo;
+// }RN_BufferCreateInfo;
 
 typedef struct DOT_BufferAsset{
     DOT_Asset asset;
     DOT_BufferHandle handle;
-    RenderTypes_BufferDesc desc;
+    RN_BufferDesc desc;
 }DOT_BufferAsset;
 
 ////////////////////////////////////////////////////////////////
-/// RenderTypes_SAMPLER
+/// RN_SAMPLER
 
-#define RENDER_TYPES_SAMPLER_FILTER_KINDS(X) \
-    X(RenderTypes_SamplerFilterKind, Nearest) \
-    X(RenderTypes_SamplerFilterKind, Linear) \
-    X(RenderTypes_SamplerFilterKind, Cubic)
+#define RN_SAMPLER_FILTER_KINDS(X) \
+    X(RN_SamplerFilterKind, Nearest) \
+    X(RN_SamplerFilterKind, Linear) \
+    X(RN_SamplerFilterKind, Cubic)
 
-DOT_ENUM_REFLECT(RenderTypes_SamplerFilterKind, RENDER_TYPES_SAMPLER_FILTER_KINDS);
+DOT_ENUM_REFLECT(RN_SamplerFilterKind, RN_SAMPLER_FILTER_KINDS);
 
-#define RENDER_TYPES_SAMPLER_MIP_MAP_MODE_KINDS(X) \
-    X(RenderTypes_SamplerMipmapFilterKind, Nearest) \
-    X(RenderTypes_SamplerMipmapFilterKind, Linear) \
+#define RN_SAMPLER_MIP_MAP_MODE_KINDS(X) \
+    X(RN_SamplerMipmapFilterKind, Nearest) \
+    X(RN_SamplerMipmapFilterKind, Linear) \
 
-DOT_ENUM_REFLECT(RenderTypes_SamplerMipmapFilterKind, RENDER_TYPES_SAMPLER_MIP_MAP_MODE_KINDS);
+DOT_ENUM_REFLECT(RN_SamplerMipmapFilterKind, RN_SAMPLER_MIP_MAP_MODE_KINDS);
 
-#define RENDER_TYPES_SAMPLER_ADDRESS_MODE_KINDS(X) \
-    X(RenderTypes_SamplerAddressModeKind, Repeat) \
-    X(RenderTypes_SamplerAddressModeKind, Mirrored_repeat) \
-    X(RenderTypes_SamplerAddressModeKind, ClampToEdge) \
-    X(RenderTypes_SamplerAddressModeKind, ClampToBorder) \
-    X(RenderTypes_SamplerAddressModeKind, MirrorClampToEdge)
-DOT_ENUM_REFLECT(RenderTypes_SamplerAddressModeKind, RENDER_TYPES_SAMPLER_ADDRESS_MODE_KINDS);
+#define RN_SAMPLER_ADDRESS_MODE_KINDS(X) \
+    X(RN_SamplerAddressModeKind, Repeat) \
+    X(RN_SamplerAddressModeKind, Mirrored_repeat) \
+    X(RN_SamplerAddressModeKind, ClampToEdge) \
+    X(RN_SamplerAddressModeKind, ClampToBorder) \
+    X(RN_SamplerAddressModeKind, MirrorClampToEdge)
+DOT_ENUM_REFLECT(RN_SamplerAddressModeKind, RN_SAMPLER_ADDRESS_MODE_KINDS);
 
 typedef struct DOT_SamplerHandle{
     DOT_AssetHandle handle;
 }DOT_SamplerHandle;
 
-typedef struct RenderTypes_SamplerDesc{
-    RenderTypes_SamplerFilterKind       min_filter;
-    RenderTypes_SamplerFilterKind       mag_filter;
-    RenderTypes_SamplerMipmapFilterKind mipmap_filter;
+typedef struct RN_SamplerDesc{
+    RN_SamplerFilterKind       min_filter;
+    RN_SamplerFilterKind       mag_filter;
+    RN_SamplerMipmapFilterKind mipmap_filter;
 
-    RenderTypes_SamplerAddressModeKind  address_mode_u;
-    RenderTypes_SamplerAddressModeKind  address_mode_v;
-    RenderTypes_SamplerAddressModeKind  address_mode_w;
-}RenderTypes_SamplerDesc;
-#define RENDER_TYPES_SAMPLER_DESC(...) \
-    &(RenderTypes_SamplerDesc){ \
+    RN_SamplerAddressModeKind  address_mode_u;
+    RN_SamplerAddressModeKind  address_mode_v;
+    RN_SamplerAddressModeKind  address_mode_w;
+}RN_SamplerDesc;
+#define RN_SAMPLER_DESC(...) \
+    &(RN_SamplerDesc){ \
         __VA_ARGS__ \
     }
 
 typedef struct DOT_SamplerAsset{
     DOT_Asset asset;
     DOT_SamplerHandle handle;
-    RenderTypes_SamplerDesc desc;
+    RN_SamplerDesc desc;
 }DOT_SamplerAsset;
 
-// typedef struct RenderTypes_Program{
-// }RenderTypes_Program;
+// typedef struct RN_Program{
+// }RN_Program;
 enum{
-    RENDER_TYPES_MAX_VERTEX_STREAMS = 16,
-    RENDER_TYPES_MAX_VERTEX_ATTRIBUTES = 16
+    RN_MAX_VERTEX_STREAMS = 16,
+    RN_MAX_VERTEX_ATTRIBUTES = 16
 };
-typedef enum RenderTypes_VertexInputRateKind{
-    RenderTypes_VertexInputRateKind_PerVertex,
-    RenderTypes_VertexInputRateKind_PerInstance,
-    RenderTypes_VertexInputRateKind_Count,
-}RenderTypes_VertexInputRateKind;
+typedef enum RN_VertexInputRateKind{
+    RN_VertexInputRateKind_PerVertex,
+    RN_VertexInputRateKind_PerInstance,
+    RN_VertexInputRateKind_Count,
+}RN_VertexInputRateKind;
 
-typedef struct RenderTypes_VertexStream{
+typedef struct RN_VertexStream{
     u16 binding;
     u16 stride;
-    RenderTypes_VertexInputRateKind input_rate;
-}RenderTypes_VertexStream;
+    RN_VertexInputRateKind input_rate;
+}RN_VertexStream;
 
-typedef enum RenderTypes_VertexCommponentKind{
-    RenderTypes_VertexCommponentKind_F32,
-    RenderTypes_VertexCommponentKind_F32x2,
-    RenderTypes_VertexCommponentKind_F32x3,
-    RenderTypes_VertexCommponentKind_F32x4,
-    RenderTypes_VertexCommponentKind_Mat4,
-    RenderTypes_VertexCommponentKind_I8,
-    RenderTypes_VertexCommponentKind_I8x4Norm,
-    RenderTypes_VertexCommponentKind_U8,
-    RenderTypes_VertexCommponentKind_U8x4Norm,
-    RenderTypes_VertexCommponentKind_U16x2,
-    RenderTypes_VertexCommponentKind_U16x2Norm,
-    RenderTypes_VertexCommponentKind_U16x4,
-    RenderTypes_VertexCommponentKind_U16x4Norm,
-    RenderTypes_VertexCommponentKind_U32,
-    RenderTypes_VertexCommponentKind_U32x2,
-    RenderTypes_VertexCommponentKind_U32x4,
-    RenderTypes_VertexCommponentKind_Count,
-}RenderTypes_VertexCommponentKind;
+typedef enum RN_VertexCommponentKind{
+    RN_VertexCommponentKind_F32,
+    RN_VertexCommponentKind_F32x2,
+    RN_VertexCommponentKind_F32x3,
+    RN_VertexCommponentKind_F32x4,
+    RN_VertexCommponentKind_Mat4,
+    RN_VertexCommponentKind_I8,
+    RN_VertexCommponentKind_I8x4Norm,
+    RN_VertexCommponentKind_U8,
+    RN_VertexCommponentKind_U8x4Norm,
+    RN_VertexCommponentKind_U16x2,
+    RN_VertexCommponentKind_U16x2Norm,
+    RN_VertexCommponentKind_U16x4,
+    RN_VertexCommponentKind_U16x4Norm,
+    RN_VertexCommponentKind_U32,
+    RN_VertexCommponentKind_U32x2,
+    RN_VertexCommponentKind_U32x4,
+    RN_VertexCommponentKind_Count,
+}RN_VertexCommponentKind;
 
-typedef struct RenderTypes_VertexAttribute{
+typedef struct RN_VertexAttribute{
     u16 location;
     u16 binding;
     u16 offset;
-    RenderTypes_VertexCommponentKind vertex_component_kind;
-}RenderTypes_VertexAttribute;
+    RN_VertexCommponentKind vertex_component_kind;
+}RN_VertexAttribute;
 
-typedef struct RenderTypes_VertexInput{
-    ARRAY(RenderTypes_VertexAttribute, RENDER_TYPES_MAX_VERTEX_ATTRIBUTES) vertex_attributes;
-    ARRAY(RenderTypes_VertexStream, RENDER_TYPES_MAX_VERTEX_STREAMS) vertex_streams;
-}RenderTypes_VertexInput;
+typedef struct RN_VertexInput{
+    ARRAY(RN_VertexAttribute, RN_MAX_VERTEX_ATTRIBUTES) vertex_attributes;
+    ARRAY(RN_VertexStream, RN_MAX_VERTEX_STREAMS) vertex_streams;
+}RN_VertexInput;
 
-typedef u8 RenderTypes_CullModeFlags;
+typedef u8 RN_CullModeFlags;
 enum{
-    RenderTypes_CullModeBit_Front   = DOT_BIT(0),
-    RenderTypes_CullModeBit_Back    = DOT_BIT(1),
-    RenderTypes_CullModeBit_FrontAndBack = RenderTypes_CullModeBit_Front | RenderTypes_CullModeBit_Back,
+    RN_CullModeBit_Front   = DOT_BIT(0),
+    RN_CullModeBit_Back    = DOT_BIT(1),
+    RN_CullModeBit_FrontAndBack = RN_CullModeBit_Front | RN_CullModeBit_Back,
 };
 
-typedef enum RenderTypes_FrontFaceSortModeKind{
-    RenderTypes_FrontFaceSortKind_CounterClockwise,
-    RenderTypes_FrontFaceSortKind_Clockwise,
-}RenderTypes_FrontFaceSortModeKind;
+typedef enum RN_FrontFaceSortModeKind{
+    RN_FrontFaceSortKind_CounterClockwise,
+    RN_FrontFaceSortKind_Clockwise,
+}RN_FrontFaceSortModeKind;
 
-typedef enum RenderTypes_FillModeKind{
-    RenderTypes_FillModeKind_Solid,
-    RenderTypes_FillModeKind_Wireframe,
-    RenderTypes_FillModeKind_Point,
-    RenderTypes_FillModeKind_Count,
-}RenderTypes_FillModeKind;
+typedef enum RN_FillModeKind{
+    RN_FillModeKind_Solid,
+    RN_FillModeKind_Wireframe,
+    RN_FillModeKind_Point,
+    RN_FillModeKind_Count,
+}RN_FillModeKind;
 
-typedef struct RenderTypes_RasterState{
-    RenderTypes_CullModeFlags cull_mode;
-    RenderTypes_FrontFaceSortModeKind front_face_sort_mode;
-    RenderTypes_FillModeKind fill_mode;
-}RenderTypes_RasterState;
+typedef struct RN_RasterState{
+    RN_CullModeFlags cull_mode;
+    RN_FrontFaceSortModeKind front_face_sort_mode;
+    RN_FillModeKind fill_mode;
+}RN_RasterState;
 
-typedef enum RenderTypes_CompareOp{
-    RenderTypes_CompareOp_Always,
-    RenderTypes_CompareOp_Never,
-    RenderTypes_CompareOp_Less,
-    RenderTypes_CompareOp_Equal,
-    RenderTypes_CompareOp_LessOrEqual,
-    RenderTypes_CompareOp_Greater,
-    RenderTypes_CompareOp_NotEqual,
-    RenderTypes_CompareOp_GreaterOrEqual,
-}RenderTypes_CompareOp;
+typedef enum RN_CompareOp{
+    RN_CompareOp_Always,
+    RN_CompareOp_Never,
+    RN_CompareOp_Less,
+    RN_CompareOp_Equal,
+    RN_CompareOp_LessOrEqual,
+    RN_CompareOp_Greater,
+    RN_CompareOp_NotEqual,
+    RN_CompareOp_GreaterOrEqual,
+}RN_CompareOp;
 
-typedef enum RenderTypes_StencilOp{
-    RenderTypes_StencilOp_Keep,
-    RenderTypes_StencilOp_Zero,
-    RenderTypes_StencilOp_Replace,
-    RenderTypes_StencilOp_IncrementAndClamp,
-    RenderTypes_StencilOp_DecrementAndClamp,
-    RenderTypes_StencilOp_Invert,
-    RenderTypes_StencilOp_IncrementAndWrap,
-    RenderTypes_StencilOp_DecrementAndWrap,
-}RenderTypes_StencilOp;
+typedef enum RN_StencilOp{
+    RN_StencilOp_Keep,
+    RN_StencilOp_Zero,
+    RN_StencilOp_Replace,
+    RN_StencilOp_IncrementAndClamp,
+    RN_StencilOp_DecrementAndClamp,
+    RN_StencilOp_Invert,
+    RN_StencilOp_IncrementAndWrap,
+    RN_StencilOp_DecrementAndWrap,
+}RN_StencilOp;
 
-typedef struct RenderTypes_StencilState{
-    RenderTypes_StencilOp fail;
-    RenderTypes_StencilOp pass;
-    RenderTypes_StencilOp depth_fail;
+typedef struct RN_StencilState{
+    RN_StencilOp fail;
+    RN_StencilOp pass;
+    RN_StencilOp depth_fail;
 
-    RenderTypes_CompareOp compare_op;
+    RN_CompareOp compare_op;
 
     u32 compare_mask;
     u32 write_mask;
     u32 reference_mask;
-}RenderTypes_StencilState;
+}RN_StencilState;
 
-typedef struct RenderTypes_DepthStencilState{
-    RenderTypes_StencilState front;
-    RenderTypes_StencilState back;
-    RenderTypes_CompareOp   depth_comparison;
+typedef struct RN_DepthStencilState{
+    RN_StencilState front;
+    RN_StencilState back;
+    RN_CompareOp   depth_comparison;
     union{
         struct {
             b8 depth_enable : 1;
@@ -337,145 +343,145 @@ typedef struct RenderTypes_DepthStencilState{
         };
         u8 depth_stencil_bits;
     };
-}RenderTypes_DepthStencilState;
+}RN_DepthStencilState;
 
 enum
 {
-    RENDER_TYPES_IMAGE_OUTPUTS_MAX = 8, // Maximum number of images/render_targets/fbo attachments usable.
-    RENDER_TYPES_DESCRIPTOR_SET_LAYOUT_MAX,
-    RENDER_TYPES_SHADER_STAGES_MAX,
+    RN_IMAGE_OUTPUTS_MAX = 8, // Maximum number of images/render_targets/fbo attachments usable.
+    RN_DESCRIPTOR_SET_LAYOUT_MAX,
+    RN_SHADER_STAGES_MAX,
 };
 
-typedef enum RenderTypes_BlendFactorKind{
-    RenderTypes_BlendFactorKind_Zero,
-    RenderTypes_BlendFactorKind_One,
-    RenderTypes_BlendFactorKind_SrcColor,
-    RenderTypes_BlendFactorKind_OneMinusSrcColor,
-    RenderTypes_BlendFactorKind_DstColor,
-    RenderTypes_BlendFactorKind_OneMinusDstColor,
-    RenderTypes_BlendFactorKind_SrcAlpha,
-    RenderTypes_BlendFactorKind_OneMinusSrcAlpha,
-    RenderTypes_BlendFactorKind_DstAlpha,
-    RenderTypes_BlendFactorKind_OneMinusDstAlpha,
-    RenderTypes_BlendFactorKind_ConstantColor,
-    RenderTypes_BlendFactorKind_OneMinusConstantColor,
-    RenderTypes_BlendFactorKind_ConstantAlpha,
-    RenderTypes_BlendFactorKind_OneMinusConstantAlpha,
-    RenderTypes_BlendFactorKind_SrcAlphaSaturate,
-    RenderTypes_BlendFactorKind_Src1Color,
-    RenderTypes_BlendFactorKind_OneMinusSrc1Color,
-    RenderTypes_BlendFactorKind_Src1Alpha,
-    RenderTypes_BlendFactorKind_OneMinusSrc1Alpha,
-}RenderTypes_BlendFactorKind;
+typedef enum RN_BlendFactorKind{
+    RN_BlendFactorKind_Zero,
+    RN_BlendFactorKind_One,
+    RN_BlendFactorKind_SrcColor,
+    RN_BlendFactorKind_OneMinusSrcColor,
+    RN_BlendFactorKind_DstColor,
+    RN_BlendFactorKind_OneMinusDstColor,
+    RN_BlendFactorKind_SrcAlpha,
+    RN_BlendFactorKind_OneMinusSrcAlpha,
+    RN_BlendFactorKind_DstAlpha,
+    RN_BlendFactorKind_OneMinusDstAlpha,
+    RN_BlendFactorKind_ConstantColor,
+    RN_BlendFactorKind_OneMinusConstantColor,
+    RN_BlendFactorKind_ConstantAlpha,
+    RN_BlendFactorKind_OneMinusConstantAlpha,
+    RN_BlendFactorKind_SrcAlphaSaturate,
+    RN_BlendFactorKind_Src1Color,
+    RN_BlendFactorKind_OneMinusSrc1Color,
+    RN_BlendFactorKind_Src1Alpha,
+    RN_BlendFactorKind_OneMinusSrc1Alpha,
+}RN_BlendFactorKind;
 
-typedef enum RenderTypes_BlendOpKind{
-    RenderTypes_BlendOpKind_Add,
-    RenderTypes_BlendOpKind_Subtract,
-    RenderTypes_BlendOpKind_ReverseSubtract,
-    RenderTypes_BlendOpKind_Min,
-    RenderTypes_BlendOpKind_Max,
-}RenderTypes_BlendOpKind;
+typedef enum RN_BlendOpKind{
+    RN_BlendOpKind_Add,
+    RN_BlendOpKind_Subtract,
+    RN_BlendOpKind_ReverseSubtract,
+    RN_BlendOpKind_Min,
+    RN_BlendOpKind_Max,
+}RN_BlendOpKind;
 
-typedef u8 RenderTypes_ColorWriteFlags;
+typedef u8 RN_ColorWriteFlags;
 enum{
-    RenderTypes_ColorWriteBit_Red   = DOT_BIT(0),
-    RenderTypes_ColorWriteBit_Green = DOT_BIT(1),
-    RenderTypes_ColorWriteBit_Blue  = DOT_BIT(2),
-    RenderTypes_ColorWriteBit_Alpha = DOT_BIT(3),
-    RenderTypes_ColorWriteBit_All = RenderTypes_ColorWriteBit_Red 
-        | RenderTypes_ColorWriteBit_Green
-        | RenderTypes_ColorWriteBit_Blue 
-        | RenderTypes_ColorWriteBit_Alpha
+    RN_ColorWriteBit_Red   = DOT_BIT(0),
+    RN_ColorWriteBit_Green = DOT_BIT(1),
+    RN_ColorWriteBit_Blue  = DOT_BIT(2),
+    RN_ColorWriteBit_Alpha = DOT_BIT(3),
+    RN_ColorWriteBit_All = RN_ColorWriteBit_Red 
+        | RN_ColorWriteBit_Green
+        | RN_ColorWriteBit_Blue 
+        | RN_ColorWriteBit_Alpha
 };
 
-typedef struct RenderTypes_BlendState{
-    RenderTypes_BlendFactorKind src_color;
-    RenderTypes_BlendFactorKind dest_color;
-    RenderTypes_BlendOpKind     blend_op;
+typedef struct RN_BlendState{
+    RN_BlendFactorKind src_color;
+    RN_BlendFactorKind dest_color;
+    RN_BlendOpKind     blend_op;
 
-    RenderTypes_BlendFactorKind src_alpha;
-    RenderTypes_BlendFactorKind dst_alpha;
-    RenderTypes_BlendOpKind     alpha_blend_op;
+    RN_BlendFactorKind src_alpha;
+    RN_BlendFactorKind dst_alpha;
+    RN_BlendOpKind     alpha_blend_op;
 
-    RenderTypes_ColorWriteFlags color_write_mask;
+    RN_ColorWriteFlags color_write_mask;
     b8 blend_enabled : 1;
     b8 separate_enabled : 1;
     b8 pad : 6;
-}RenderTypes_BlendState;
+}RN_BlendState;
 
-typedef struct RenderTypes_RenderPassOutput{
-    RenderTypes_TextureFormatKind depth_stencil_format;
-    ARRAY(RenderTypes_TextureFormatKind, RENDER_TYPES_IMAGE_OUTPUTS_MAX) color_formats;
-}RenderTypes_RenderPassOutput;
+typedef struct RN_RenderPassOutput{
+    RN_TextureFormatKind depth_stencil_format;
+    ARRAY(RN_TextureFormatKind, RN_IMAGE_OUTPUTS_MAX) color_formats;
+}RN_RenderPassOutput;
 
-typedef struct RenderTypes_Extent2D16{
+typedef struct RN_Extent2D16{
     i16 x, y;
     u16 w,h;
-}RenderTypes_Extent2D16;
+}RN_Extent2D16;
 
-typedef struct RenderTypes_Viewport{
-    RenderTypes_Extent2D16 viewport_rect;
+typedef struct RN_Viewport{
+    RN_Extent2D16 viewport_rect;
     f32 min_depth;
     f32 max_depth;
-}RenderTypes_Viewport;
+}RN_Viewport;
 
-typedef struct RenderTypes_ViewportState{
+typedef struct RN_ViewportState{
     u32 viewports_count;
     u32 scissors_count;
-    RenderTypes_Viewport    *viewport;
-    RenderTypes_Extent2D16  *scissors;
+    RN_Viewport    *viewport;
+    RN_Extent2D16  *scissors;
 
-}RenderTypes_ViewportState;
+}RN_ViewportState;
 
-typedef enum RenderTypes_ShaderStageKind{
-    RenderTypes_ShaderStageKind_Vertex,
-    RenderTypes_ShaderStageKind_Fragment,
-    RenderTypes_ShaderStageKind_Compute,
-    // RenderTypes_ShaderStageKind_AllGraphics,
-    // RenderTypes_ShaderStageKind_All,
-    RenderTypes_ShaderStageKind_RayGen,
-    RenderTypes_ShaderStageKind_RayHitAny,
-    RenderTypes_ShaderStageKind_RayHitClosest,
-    RenderTypes_ShaderStageKind_RayHitMiss,
-    RenderTypes_ShaderStageKind_RayHitIntersection,
-    RenderTypes_ShaderStageKind_Mesh,
+typedef enum RN_ShaderStageKind{
+    RN_ShaderStageKind_Vertex,
+    RN_ShaderStageKind_Fragment,
+    RN_ShaderStageKind_Compute,
+    // RN_ShaderStageKind_AllGraphics,
+    // RN_ShaderStageKind_All,
+    RN_ShaderStageKind_RayGen,
+    RN_ShaderStageKind_RayHitAny,
+    RN_ShaderStageKind_RayHitClosest,
+    RN_ShaderStageKind_RayHitMiss,
+    RN_ShaderStageKind_RayHitIntersection,
+    RN_ShaderStageKind_Mesh,
 
-    RenderTypes_ShaderStageKind_TesselationControl,
-    RenderTypes_ShaderStageKind_TesselationEvaluation,
-    RenderTypes_ShaderStageKind_Geometry,
-}RenderTypes_ShaderStageKind;
+    RN_ShaderStageKind_TesselationControl,
+    RN_ShaderStageKind_TesselationEvaluation,
+    RN_ShaderStageKind_Geometry,
+}RN_ShaderStageKind;
 
-typedef enum RenderTypes_ShaderFormat{
-    RenderTypes_ShaderFormat_Source,
-    RenderTypes_ShaderFormat_Spirv,
-    RenderTypes_ShaderFormat_Dxil
-}RenderTypes_ShaderFormat;
+typedef enum RN_ShaderFormat{
+    RN_ShaderFormat_Source,
+    RN_ShaderFormat_Spirv,
+    RN_ShaderFormat_Dxil
+}RN_ShaderFormat;
 
-typedef struct RenderTypes_ShaderStage{
+typedef struct RN_ShaderStage{
     String8 code;
-    RenderTypes_ShaderStageKind stage;
-}RenderTypes_ShaderStage;
+    RN_ShaderStageKind stage;
+}RN_ShaderStage;
 
-typedef struct RenderTypes_ShaderState{
-    ARRAY(RenderTypes_ShaderStage, RENDER_TYPES_SHADER_STAGES_MAX) shader_stages;
-    RenderTypes_ShaderFormat format;
+typedef struct RN_ShaderState{
+    ARRAY(RN_ShaderStage, RN_SHADER_STAGES_MAX) shader_stages;
+    RN_ShaderFormat format;
     DOT_DEBUG_NAME(name, DOT_DEBUG_NAME_LEN);
-}RenderTypes_ShaderState;
+}RN_ShaderState;
 
-typedef struct RenderTypes_Pipeline{
-    RenderTypes_RasterState             raster_state;
-    RenderTypes_DepthStencilState       depth_stencil_state;
-    RenderTypes_VertexInput             vertex_input;
-    const RenderTypes_ViewportState     *viewport;
-    RenderTypes_RenderPassOutput        render_pass;
-    RenderTypes_ShaderState             shader_state;
-    ARRAY(RenderTypes_BlendState, RENDER_TYPES_IMAGE_OUTPUTS_MAX) blend_states;
-    ARRAY(DOT_DescriptorSetLayoutHandle, RENDER_TYPES_DESCRIPTOR_SET_LAYOUT_MAX) descriptor_set_layouts;
+typedef struct RN_Pipeline{
+    RN_RasterState             raster_state;
+    RN_DepthStencilState       depth_stencil_state;
+    RN_VertexInput             vertex_input;
+    const RN_ViewportState     *viewport;
+    RN_RenderPassOutput        render_pass;
+    RN_ShaderState             shader_state;
+    ARRAY(RN_BlendState, RN_IMAGE_OUTPUTS_MAX) blend_states;
+    ARRAY(DOT_DescriptorSetLayoutHandle, RN_DESCRIPTOR_SET_LAYOUT_MAX) descriptor_set_layouts;
     DOT_DEBUG_NAME(name, DOT_DEBUG_NAME_LEN);
-}RenderTypes_Pipeline;
+}RN_Pipeline;
 
 
-internal RenderTypes_TextureFormatInfo renderer_texture_format_info_from_format(RenderTypes_TextureFormatKind fmt);
-internal RenderTypes_TextureFormatKind renderer_texture_format_from_info(int comp, u8 size_bytes, b32 srgb);
+internal RN_TextureFormatInfo rn_texture_format_info_from_format(RN_TextureFormatKind fmt);
+internal RN_TextureFormatKind rn_texture_format_from_info(int comp, u8 size_bytes, b32 srgb);
 
-#endif // !RENDER_TYPES_H
+#endif // !RN_H

@@ -17,7 +17,7 @@ typedef struct RenderResourcePool{
     u32 resource_idx[RenderResource_Count];
 }RenderResourcePool;
 
-DOT_CONST_INT_BLOCK {
+enum{
     RenderResource_Max_Texture = U32_MAX,
     RenderResource_Max_Samplers = U32_MAX,
     RenderResource_Max_Buffers = U32_MAX,

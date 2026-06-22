@@ -144,7 +144,7 @@ dot_model_from_cgltf(DOT_Renderer *renderer, const cgltf_data *data, String8 glt
         String8 name = image->name ? string8_from_cstring(image->name) : String8Lit("Default");
         String8 full_path = string8_format(temp.arena, "%S/%s", folder, image->uri);
         DOT_PRINT("name: %S, image uri: %S", name, full_path);
-        SLICE_GET(model.textures, i) = renderer_texture_asset_create(
+        SLICE_GET(model.textures, i) = rn_texture_asset_create(
             renderer,
             DOT_ASSET_CREATE_INFO(.name = name, .path = full_path),
             0);
@@ -154,12 +154,12 @@ dot_model_from_cgltf(DOT_Renderer *renderer, const cgltf_data *data, String8 glt
     for(u64 i = 0; i < data->samplers_count; ++i){
         cgltf_sampler *sampler = &data->samplers[i];
         String8 name = sampler->name ? string8_from_cstring(sampler->name) : String8Lit("Default");
-        SLICE_GET(model.samplers, i) = renderer_sampler_asset_create(
+        SLICE_GET(model.samplers, i) = rn_sampler_asset_create(
             renderer,
             DOT_ASSET_CREATE_INFO(.name = name, .path = gltf_path),
-            RENDER_TYPES_SAMPLER_DESC(
-                .min_filter = sampler->min_filter == cgltf_filter_type_linear ? RenderTypes_SamplerFilterKind_Linear : RenderTypes_SamplerFilterKind_Nearest,
-                .mag_filter = sampler->mag_filter == cgltf_filter_type_linear ? RenderTypes_SamplerFilterKind_Linear : RenderTypes_SamplerFilterKind_Nearest,
+            RN_SAMPLER_DESC(
+                .min_filter = sampler->min_filter == cgltf_filter_type_linear ? RN_SamplerFilterKind_Linear : RN_SamplerFilterKind_Nearest,
+                .mag_filter = sampler->mag_filter == cgltf_filter_type_linear ? RN_SamplerFilterKind_Linear : RN_SamplerFilterKind_Nearest,
             ));
     }
 
@@ -169,13 +169,13 @@ dot_model_from_cgltf(DOT_Renderer *renderer, const cgltf_data *data, String8 glt
         cgltf_buffer *buffer = buffer_view->buffer;
         String8 name = buffer_view->name ? string8_from_cstring(buffer_view->name) : String8Lit("Default");
         u8 *buffer_data = cast(u8*)buffer->data + buffer_view->offset;
-        SLICE_GET(model.buffers, i) = renderer_buffer_asset_create(
+        SLICE_GET(model.buffers, i) = rn_buffer_asset_create(
             renderer,
             DOT_ASSET_CREATE_INFO(.name = name, .path = gltf_path),
-            RENDER_TYPES_BUFFER_DESC(.size = buffer_view->size,
-                .resource_usage = RenderTypes_ResourceUsageKind_GPUOnly,
-                .buffer_usage_flags = RenderTypes_BufferUsageBit_Vertex
-                                      | RenderTypes_BufferUsageBit_Index),
+            RN_BUFFER_DESC(.size = buffer_view->size,
+                .resource_usage = RN_ResourceUsageKind_GPUOnly,
+                .buffer_usage_flags = RN_BufferUsageBit_Vertex
+                                      | RN_BufferUsageBit_Index),
             buffer_data);
     }
     temp_arena_restore(temp);

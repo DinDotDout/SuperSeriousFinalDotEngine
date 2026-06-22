@@ -1,26 +1,32 @@
 #include "dot_engine.h"
+DOT_SETTING_U32("Engine", g_engine_memory_size_b, DOT_MB(512));
+DOT_SETTING_U32("ThreadContext", g_per_thread_temp_arena_size_b, DOT_MB(40));
+DOT_SETTING_U32("ThreadContext", g_per_thread_temp_arena_count_b, 2);
+DOT_SETTING_U32("Game", g_game_permanent_memory_size_b, DOT_MB(20));
+DOT_SETTING_U32("Game", g_game_transient_memory_size_b, DOT_KB(32));
 
 internal void
 dot_engine_init(DOT_Engine *engine, b8 tests_only)
 {
-    engine->permanent_arena = ARENA_CREATE(.reserve_size = DOT_ENGINE_CONFIG.engine_memory_size, .name = "DOT_Engine Arena");
-    threadctx_init(engine->permanent_arena, DOT_ENGINE_CONFIG.thread_options, 1);
+    engine->permanent_arena = ARENA_CREATE(.reserve_size = g_engine_memory_size_b, .name = "DOT_Engine Arena");
+    threadctx_init(engine->permanent_arena, g_per_thread_temp_arena_count_b, g_per_thread_temp_arena_size_b, 1);
     if(tests_only){
         return;
     }
+    dot_settings_register_all(engine->permanent_arena);
     plugins_init();
     dot_window_init(&engine->window);
-    renderer_init(engine->permanent_arena, &engine->renderer, &engine->window, DOT_ENGINE_CONFIG.renderer_config);
+    rn_init(engine->permanent_arena, &engine->renderer, &engine->window);
     // nk_dot_init(&engine->renderer, &engine->window);
 
     engine->game = PUSH_STRUCT(engine->permanent_arena, DOT_Game);
-    u8 *permanent_memory = PUSH_SIZE(engine->permanent_arena, DOT_ENGINE_CONFIG.game_config->permanent_memory_size);
-    u8 *transient_memory = PUSH_SIZE(engine->permanent_arena, DOT_ENGINE_CONFIG.game_config->transient_memory_size);
+    u8 *permanent_memory = PUSH_SIZE(engine->permanent_arena, g_game_permanent_memory_size_b);
+    u8 *transient_memory = PUSH_SIZE(engine->permanent_arena, g_game_transient_memory_size_b);
     dot_game_init(
         engine->game,
         &engine->renderer,
-        permanent_memory, DOT_ENGINE_CONFIG.game_config->permanent_memory_size,
-        transient_memory, DOT_ENGINE_CONFIG.game_config->transient_memory_size);
+        permanent_memory, g_game_permanent_memory_size_b,
+        transient_memory, g_game_transient_memory_size_b);
 }
 
 internal void
@@ -72,10 +78,10 @@ dot_engine_run(DOT_Engine *engine)
         // }
         // nk_end(ctx);
 
-        renderer_frame_begin(&engine->renderer);
+        rn_frame_begin(&engine->renderer);
         dot_game_run(engine->game);
         // nk_dot_render(&engine->renderer);
-        renderer_frame_end(&engine->renderer);
+        rn_frame_end(&engine->renderer);
     }
 }
 
@@ -84,7 +90,7 @@ dot_engine_shutdown(DOT_Engine *engine)
 {
     dot_game_shutdown(engine->game);
     // nk_dot_shutdown(&engine->renderer);
-    renderer_shutdown(&engine->renderer);
+    rn_shutdown(&engine->renderer);
     dot_window_shutdown(&engine->window);
     plugins_shutdown();
     threadctx_shutdown();

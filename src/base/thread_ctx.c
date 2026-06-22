@@ -1,10 +1,10 @@
 internal void
-threadctx_init(Arena *arena, const ThreadCtxOptions *thread_ctx_opts, u32 thread_id)
+threadctx_init(Arena *arena, u32 arena_count, u32 arena_size, u32 thread_id)
 {
     DOT_ASSERT(t_thread_ctx.thread_id == 0, "Thread %u ctx was already initialized", thread_id);
-    u64 per_arena_memory = thread_ctx_opts->per_thread_temp_arena_size;
+    u64 per_arena_memory = arena_size;
     t_thread_ctx.thread_id = thread_id;
-    SLICE_INIT(arena, &t_thread_ctx.temp_arenas, thread_ctx_opts->per_thread_temp_arena_count);
+    SLICE_INIT(arena, &t_thread_ctx.temp_arenas, arena_count);
     for(u8 i = 0; i < t_thread_ctx.temp_arenas.count; ++i){
         SLICE_GET(t_thread_ctx.temp_arenas, i) = ARENA_CREATE(
             .parent       = arena,

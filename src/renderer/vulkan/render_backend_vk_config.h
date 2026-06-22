@@ -108,16 +108,4 @@ read_only global RBVK_VulkanConfig g_rbvk_vk_config = {
     },
 };
 
-// TODO: This should all come from general renderer settings, and be filled with those rather than providing them here
-RBVK_RenderSettings g_rbvk_render_settings = {
-    .swapchain = {
-        .preferred_format       = VK_FORMAT_B8G8R8A8_SRGB,
-        .preferred_colorspace   = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
-        .preferred_present_mode = VK_PRESENT_MODE_FIFO_KHR,
-    },
-    .frame = {
-        .frame_overlap = 3,
-    },
-};
-
 #endif // !RENDER_BACKEND_CONFING_H

@@ -4,7 +4,7 @@
  * Bridges RGFW windowing with the DOT_Renderer overlay API.
  *
  * This file contains NO graphics-API-specific code.  All GPU work is
- * delegated through the renderer frontend (renderer_overlay_*).
+ * delegated through the renderer frontend (rn_overlay_*).
  *
  * Provides:
  *   - nk_dot_init()        : Initialise NK context, bake font atlas, call backend
@@ -126,7 +126,7 @@ nk_dot_init(DOT_Renderer *renderer, DOT_Window *window)
     struct nk_font *font = nk_font_atlas_add_default(&s->font_atlas, 14.0f, NULL);
     atlas_data = nk_font_atlas_bake(&s->font_atlas, &atlas_w, &atlas_h, NK_FONT_ATLAS_RGBA32);
     /* Delegate GPU resource creation + font upload to the renderer */
-    renderer_overlay_init(renderer, atlas_data, atlas_w, atlas_h);
+    rn_overlay_init(renderer, atlas_data, atlas_w, atlas_h);
 
     /* Finish the atlas – use a dummy texture handle (backend owns the real one) */
     nk_font_atlas_end(&s->font_atlas, nk_handle_id(1), &s->tex_null);
@@ -258,7 +258,7 @@ nk_dot_handle_event(RGFW_event *event)
  * Render the Nuklear draw list.
  *
  * Converts NK draw commands into an OverlayDrawList and delegates all GPU
- * work through the renderer frontend (renderer_overlay_render).
+ * work through the renderer frontend (rn_overlay_render).
  */
 NK_API void
 nk_dot_render(DOT_Renderer *renderer)
@@ -323,7 +323,7 @@ nk_dot_render(DOT_Renderer *renderer)
         .width       = s->width,
         .height      = s->height,
     };
-    renderer_overlay_render(renderer, frame_idx, &draw_list);
+    rn_overlay_render(renderer, frame_idx, &draw_list);
 
     nk_clear(ctx);
     nk_buffer_clear(&s->cmds);
@@ -337,7 +337,7 @@ nk_dot_shutdown(DOT_Renderer *renderer)
 {
     NkDot_State *s = &g_nk_dot;
 
-    renderer_overlay_shutdown(renderer);
+    rn_overlay_shutdown(renderer);
 
     nk_font_atlas_clear(&s->font_atlas);
     nk_buffer_free(&s->cmds);

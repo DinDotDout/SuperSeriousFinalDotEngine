@@ -19,7 +19,7 @@ dot_window_create_surface(DOT_Window* window, struct RendererBackend* backend)
 {
     switch(backend->backend_kind){
     case RendererBackendKind_Vk:{
-        RendererBackendVk* vk_ctx = renderer_backend_as_vk(backend);
+        RendererBackendVk *vk_ctx = rn_as_vk(backend);
         VkResult res = RGFW_window_createSurface_Vulkan(window->window, vk_ctx->instance, &vk_ctx->surface);
         if(res != VK_SUCCESS){
             DOT_ERROR("Could not create vulkan surface");

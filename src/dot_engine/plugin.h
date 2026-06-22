@@ -22,9 +22,9 @@ struct Plugin{
     PluginInitFn init;
     PluginEndFn end;
 };
-DECLARE_SECTION(Plugin, DOT_plugins);
+DECLARE_SECTION(const Plugin, PluginsSection);
 
-#define PluginRegister(n, priority, ...) \
+#define PLUGIN_REGISTER(n, priority, ...) \
     SECTION_ITEM(DOT_plugins, priority) static const Plugin DOT_CONCAT(__DOT_Plugin_, n) = (Plugin){ \
         .name = #n, \
         .file = __FILE__, \
@@ -35,19 +35,14 @@ DECLARE_SECTION(Plugin, DOT_plugins);
     }
 
 void plugins_init(void) {
-    Plugin *begin = cast(Plugin*) &__start_DOT_plugins[0];
-    const Plugin *end = &__stop_DOT_plugins[0];
-    DOT_PRINT("Initializing %td Plugins", end - begin);
-    for (const Plugin* p = begin; p != end; ++p){
+    for EACH_IN_SECTION(PluginsSection, const Plugin, p){
         DOT_PRINT_FL(p->file, p->line, "PLUGIN: %s->Init()", p->name);
         p->init();
     }
 }
 
 internal inline void plugins_shutdown(){
-    const Plugin *begin = &__start_DOT_plugins[0];
-    const Plugin *end = &__stop_DOT_plugins[0];
-    for (const Plugin *p = begin; p != end; ++p){
+    for EACH_IN_SECTION(PluginsSection, const Plugin, p){
         DOT_PRINT_FL(p->file, p->line, "PLUGIN: %s->End()", p->name);
         p->end();
     }

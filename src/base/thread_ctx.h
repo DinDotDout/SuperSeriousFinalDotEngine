@@ -1,11 +1,6 @@
 #ifndef THREAD_CTX_H
 #define THREAD_CTX_H
 
-typedef struct ThreadCtxOptions{
-    usize per_thread_temp_arena_size;
-    u8    per_thread_temp_arena_count;
-}ThreadCtxOptions;
-
 typedef SLICE(Arena*) SliceArena;
 #define SLICE_ARENA_LIT(...) (SliceArena)SLICE_LIT(Arena*, __VA_ARGS__)
 
@@ -14,7 +9,7 @@ internal thread_local struct ThreadCtx{
     SliceArena temp_arenas;
 }t_thread_ctx = {0};
 
-internal void threadctx_init(Arena *arena, const ThreadCtxOptions *thread_ctx_opts, u32 thread_id);
+internal void threadctx_init(Arena *arena, u32 arena_count, u32 arena_size, u32 thread_id);
 internal void threadctx_destroy();
 internal u32 threadctx_id();
 

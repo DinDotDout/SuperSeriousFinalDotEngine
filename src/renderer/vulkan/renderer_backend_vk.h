@@ -1,5 +1,5 @@
-#ifndef RENDERER_BACKEND_VK_H
-#define RENDERER_BACKEND_VK_H
+#ifndef rn_vk_H
+#define rn_vk_H
 
 typedef struct RBVK_Device{
     VkDevice         vk_device;
@@ -25,14 +25,22 @@ typedef struct RBVK_Buffer{
 
     u32                 global_offset;    // Offset into global constant, if dynamic
     // RBVK_BufferHandle   parent_buffer;
-    RenderTypes_ResourceUsageKind resource_usage; // here for now;
+    RN_ResourceUsageKind resource_usage; // here for now;
     DOT_DEBUG_NAME(name, DOT_DEBUG_NAME_LEN);
 }RBVK_Buffer;
 
 enum { DOT_MAX_DESCRIPTOR_SET_LAYOUTS = 16 };
 
-struct DesciptorSetLayout {
+typedef struct RBVK_LayoutBinding{
+    VkDescriptorType type;
+    u16              start;
+    u16              count;
+    String8          name;
+}RBVK_LayoutBinding;
 
+struct DescriptorSetLayout {
+    ARRAY(RBVK_LayoutBinding, 7) bindings;
+       //
     VkDescriptorSetLayout           vk_descriptor_set_layout;
 
     // VkDescriptorSetLayoutBinding*   vk_binding      = nullptr;
@@ -111,22 +119,34 @@ typedef struct RBVK_Swapchain{
     // SLICE(RBVK_SwapchainTexture) image_datas;
 }RBVK_Swapchain;
 
+enum{
+    RENDER_BACKEND_MAX_COMMAND_POOLS = 4,
+    RENDER_BACKEND_MAX_COMMAND_BUFFERS_PER_POOL = 4,
+};
 typedef struct RBVK_FrameData{
     Arena          *frame_arena;
 
     // VkCommandBuffer frame_command_buffer; // (jd) NOTE: * parallel recordings in flight
     // VkCommandBuffer immediate_command_buffer;
 
+    RBVK_TextureHandle     draw_image;
+
     // Sync
     u32             swapchain_image_idx; // Selected swpachain img for a given frame
     VkSemaphore     semaphore_image_acquired;
     VkFence         render_complete_fence;
-    ARRAY(VkCommandPool, RENDER_THREAD_COUNT_MAX) vk_command_pools;
-    ARRAY(VkCommandBuffer, RENDER_COMMAND_BUFFERS_PER_POOL) vk_command_buffers;
+    ARRAY(VkCommandPool, RENDER_BACKEND_MAX_COMMAND_POOLS) vk_command_pools;
+    ARRAY(VkCommandBuffer, RENDER_BACKEND_MAX_COMMAND_BUFFERS_PER_POOL) vk_command_buffers;
     u32 vk_command_buffers_in_use;
 }RBVK_FrameData;
 
 // (jd) TODO: Move this to renderer and use DOT_TextureHandles and so on
+enum{
+    RENDER_RESOURCE_CLEANUP_CTX_TEXTURES  = 64,
+    RENDER_RESOURCE_CLEANUP_CTX_BUFFERS   = 64,
+    RENDER_RESOURCE_CLEANUP_CTX_SAMPLERS  = 64,
+};
+
 typedef struct RBVK_ResourceCleanupCtx{
     TreeHeader node;
     ARRAY(RBVK_TextureHandle, RENDER_RESOURCE_CLEANUP_CTX_TEXTURES)   texture_ids;
@@ -146,7 +166,7 @@ typedef struct RBVK_AttachmentOps {
 
 
 typedef struct RBVK_RenderingAttachments {
-    RBVK_TextureHandle color[RENDER_TYPES_IMAGE_OUTPUTS_MAX];
+    RBVK_TextureHandle color[RN_IMAGE_OUTPUTS_MAX];
     RBVK_TextureHandle depth_stencil;
 
     u32 num_color;
@@ -160,7 +180,8 @@ typedef struct RBVK_RenderingAttachments {
 
 typedef struct RBVK_RenderPassOutput{
     VkFormat depth_stencil_format;
-    VkFormat color_formats[RENDER_TYPES_IMAGE_OUTPUTS_MAX];
+    VkFormat color_formats[RN_IMAGE_OUTPUTS_MAX];
+    u32      color_formats_count;
 }RBVK_RenderPassOutput;
 
 typedef struct RendererBackendVk{
@@ -177,8 +198,6 @@ typedef struct RendererBackendVk{
     u32 previous_frame;
     u64 absolute_frame;
     SLICE(RBVK_FrameData) frame_datas;
-
-    RBVK_TextureHandle     draw_image;
 
     // NOTE: Splitting this from actual draw_image so that we can draw regions?
     VkExtent2D      draw_extent;
@@ -209,17 +228,16 @@ typedef struct RendererBackendVk{
     VkDebugUtilsMessengerEXT debug_messenger;
 }RendererBackendVk;
 
-#define FN(ret, name, params) internal ret renderer_backend_vk_##name params;
-RENDERER_BACKEND_FN_LIST
+#define FN(ret, name, params) internal ret rn_vk_##name params;
+RN_BACKEND_FN_LIST
 #undef FN
 
-internal void               renderer_backend_vk_merge_render_settings(RendererBackendConfig *backend_config);
-internal RendererBackendVk *renderer_backend_vk_create(Arena *arena, RendererBackendConfig *backend_config);
-internal RendererBackendVk *renderer_backend_as_vk(RendererBackend *base);
+internal RendererBackendVk *rn_vk_create(Arena *arena);
+internal RendererBackendVk *rn_as_vk(RendererBackend *base);
 
-internal void renderer_backend_vk_resource_cleanup_list_push_rbvk_sampler(RBVK_SamplerHandle sampler_id);
-internal void renderer_backend_vk_resource_cleanup_list_push_rbvk_texture(PoolHandle texture_id);
-internal void renderer_backend_vk_resource_cleanup_list_push_rbvk_buffer(RBVK_BufferHandle buffer_id);
+internal void rn_vk_resource_cleanup_list_push_rbvk_sampler(RBVK_SamplerHandle sampler_id);
+internal void rn_vk_resource_cleanup_list_push_rbvk_texture(PoolHandle texture_id);
+internal void rn_vk_resource_cleanup_list_push_rbvk_buffer(RBVK_BufferHandle buffer_id);
 
 // (jd) NOTE: should we allow this and mem copy the resource list?
 // If we already know the layout/size and we use a specific arena chunk we can maybe
@@ -229,9 +247,9 @@ internal void renderer_backend_resource_cleanup_list_reparent_at(u32 idx); // re
 // Internal API
 internal void               rbvk_frame_counters_advance();
 
-internal RBVK_TextureHandle rbvk_texture_create(const RenderTypes_TextureDesc *desc, void *data, String8 debug_name);
-internal RBVK_SamplerHandle rbvk_sampler_create(const RenderTypes_SamplerDesc *desc, String8 debug_name);
-internal RBVK_BufferHandle  rbvk_buffer_create(const RenderTypes_BufferDesc *create_info, u8 *data, String8 debug_name);
+internal RBVK_TextureHandle rbvk_texture_create(const RN_TextureDesc *desc, void *data, String8 debug_name);
+internal RBVK_SamplerHandle rbvk_sampler_create(const RN_SamplerDesc *desc, String8 debug_name);
+internal RBVK_BufferHandle  rbvk_buffer_create(const RN_BufferDesc *create_info, u8 *data, String8 debug_name);
 
 internal void               rbvk_texture_destroy(RBVK_Texture *image);
 internal RBVK_Buffer        rbvk_buffer_create2(VkDeviceSize size, VkMemory_PoolsKind pool_kind, String8 name);
@@ -239,6 +257,6 @@ internal RBVK_FrameData    *rbvk_frame_data_get_current();
 
 // Should these be also coming from a pool like RBVK_Resources?
 internal DOT_ShaderModuleHandle rbvk_dot_shader_module_from_vk_shader_module(VkShaderModule vk_sm);
-internal VkShaderModule         rbvk_vk_shader_module_render_types_shader_module(DOT_ShaderModuleHandle dot_smh);
+internal VkShaderModule         rbvk_vk_shader_module_from_rn_shader_module(DOT_ShaderModuleHandle dot_smh);
 
-#endif // !RENDERER_BACKEND_VK_H
+#endif // !rn_vk_H

@@ -95,6 +95,7 @@ DOT_DIAGNOSTIC_PUSH
 #include "dot_engine/window.h"
 #include "dot_engine/asset.h"
 
+#include "dot_engine/setting.h"
 #include "renderer/renderer_include.h"
 #include "dot_engine/plugin.h"
 #include "dot_engine/model.h"

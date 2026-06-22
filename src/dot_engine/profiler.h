@@ -37,7 +37,7 @@ internal inline DOT_ProfileBlock dot_profile_block_begin(char const *label, u32 
 internal inline void dot_profile_block_end(DOT_ProfileBlock* profile_block);
 
 #ifdef DOT_PROFILING_ENABLE
-PluginRegister(Profiler, 0,
+PLUGIN_REGISTER(Profiler, 0,
     .init = dot_profiler_init,
     .end = dot_profiler_end,
 );

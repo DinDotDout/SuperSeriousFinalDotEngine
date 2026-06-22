@@ -17,6 +17,7 @@
 
 #include "shader.c"
 #include "renderer.c"
+#include "vulkan/vk_include.c"
 #include "render_types.c"
 
 #include "nk_dot_window.h"
