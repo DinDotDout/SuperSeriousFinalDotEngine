@@ -84,15 +84,37 @@ typedef struct RN_TextureFormatInfo{
     RN_TextureFormatFlags format_flags;
 }RN_TextureFormatInfo;
 
+
+#define RN_SHADER_RESOURCE_LAYOUT_KINDS(X) \
+        X(RN_ShaderResourceKind, Sampler) \
+        X(RN_ShaderResourceKind, SampledTexture) /* SRV */ \
+        X(RN_ShaderResourceKind, StorageTexture) /* UAV */ \
+        X(RN_ShaderResourceKind, SamplerXTexture) /* ?? */ \
+        X(RN_ShaderResourceKind, UniformBuffer)  /* CBV */ \
+        X(RN_ShaderResourceKind, StorageBuffer)  /* SRV / UAV*/
+DOT_ENUM_REFLECT(RN_ShaderResourceKind, RN_SHADER_RESOURCE_LAYOUT_KINDS);
+
+enum{RN_SHADER_RESOURCE_BINDING_MAX = 10};
+typedef struct RN_ShaderResourceBinding{
+    RN_ShaderResourceKind resource_kind;
+    u16 start;
+    u16 count;
+    u16 set;
+    String8 name;
+}RN_ShaderResourceBinding;
+
+typedef struct RN_ShaderResourceLayout{
+    u16 binding_count;
+    RN_ShaderResourceBinding bindings[RN_SHADER_RESOURCE_BINDING_MAX];
+
+    u16 set_index;
+
+}RN_ShaderResourceLayout;
+
 typedef struct DOT_DescriptorSetLayoutHandle{
     DOT_AssetHandle handle;
 }DOT_DescriptorSetLayoutHandle;
 
-typedef struct DOT_TextureHandle{
-    DOT_AssetHandle handle;
-}DOT_TextureHandle;
-
-global DOT_TextureHandle null_texture = {0};
 typedef struct RN_TextureDesc{
     RN_TextureDimensionKind dimension_kind;
     RN_TextureFormatKind format_kind;
@@ -102,6 +124,7 @@ typedef struct RN_TextureDesc{
     u16 depth; // = 1;
     u8 mip_levels; // = 1; // 0 will auto generate
 }RN_TextureDesc;
+
 #define RN_TEXTURE_DESC(...) \
     &(RN_TextureDesc){ \
         .width = 1, \
@@ -117,6 +140,11 @@ typedef struct RN_TextureDesc{
 //     RN_TextureDesc texture_desc; // This filled in by the texture loaded
 // }RN_TextureCreateInfo;
 
+typedef struct DOT_TextureHandle{
+    DOT_AssetHandle handle;
+}DOT_TextureHandle;
+
+global DOT_TextureHandle null_texture = {0};
 typedef struct DOT_TextureAsset{
     DOT_Asset asset;
     DOT_TextureHandle handle;

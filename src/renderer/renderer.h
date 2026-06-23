@@ -130,7 +130,7 @@ internal void               rn_overlay_init(DOT_Renderer *renderer, const void *
 internal void               rn_overlay_render(DOT_Renderer *renderer, u8 frame_idx, OverlayDrawList *draw_list);
 internal void               rn_overlay_shutdown(DOT_Renderer *renderer);
 
-internal RN_RenderPassOutput render_swapchain_output();
+internal RN_RenderPassOutput rn_swapchain_output();
 
 // internal void rn_draw(DOT_Renderer *renderer);
 #endif // !RENDERER_H

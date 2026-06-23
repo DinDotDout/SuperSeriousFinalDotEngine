@@ -186,7 +186,7 @@ rn_buffer_asset_create(DOT_Renderer *renderer, const DOT_AssetCreateInfo *asset_
 }
 
 internal RN_RenderPassOutput
-render_swapchain_output()
+rn_swapchain_output()
 {
     RN_RenderPassOutput rpo = {0};
     rpo.depth_stencil_format = g_depth_stencil_format;

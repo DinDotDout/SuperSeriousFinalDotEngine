@@ -1,7 +1,7 @@
 #ifndef rn_vk_H
 #define rn_vk_H
 
-typedef struct RBVK_Device{
+typedef struct RN_VK_Device{
     VkDevice         vk_device;
     VkPhysicalDevice vk_gpu;
     b32              is_integrated_gpu;
@@ -11,37 +11,37 @@ typedef struct RBVK_Device{
 
     VkQueue present_queue;
     u32     present_queue_idx;
-}RBVK_Device;
+}RN_VK_Device;
 
-typedef PoolHandle RBVK_TextureHandle;
-typedef PoolHandle RBVK_BufferHandle;
-typedef PoolHandle RBVK_SamplerHandle;
+typedef PoolHandle RN_VK_TextureHandle;
+typedef PoolHandle RN_VK_BufferHandle;
+typedef PoolHandle RN_VK_SamplerHandle;
+typedef PoolHandle RN_VK_DescriptorSetLayoutHandle;
 
-typedef struct RBVK_Buffer{
+typedef struct RN_VK_Buffer{
     VkBuffer            vk_buffer;
     u64                 vk_size;
     VkBufferUsageFlags  vk_buffer_usage_flags;
-    VkMemory_Alloc      alloc;
+    RN_VK_MemoryAlloc      alloc;
 
     u32                 global_offset;    // Offset into global constant, if dynamic
-    // RBVK_BufferHandle   parent_buffer;
+    // RN_VK_BufferHandle   parent_buffer;
     RN_ResourceUsageKind resource_usage; // here for now;
     DOT_DEBUG_NAME(name, DOT_DEBUG_NAME_LEN);
-}RBVK_Buffer;
+}RN_VK_Buffer;
 
 enum { DOT_MAX_DESCRIPTOR_SET_LAYOUTS = 16 };
 
-typedef struct RBVK_LayoutBinding{
+typedef struct RN_VK_LayoutBinding{
     VkDescriptorType type;
     u16              start;
     u16              count;
     String8          name;
-}RBVK_LayoutBinding;
+}RN_VK_LayoutBinding;
 
-struct DescriptorSetLayout {
-    ARRAY(RBVK_LayoutBinding, 7) bindings;
-       //
-    VkDescriptorSetLayout           vk_descriptor_set_layout;
+struct RN_VK_DescriptorSetLayout {
+    VkDescriptorSetLayoutBinding    *vk_binding;
+    VkDescriptorSetLayout           *vk_descriptor_set_layout;
 
     // VkDescriptorSetLayoutBinding*   vk_binding      = nullptr;
     // DescriptorBinding*              bindings        = nullptr;
@@ -52,7 +52,7 @@ struct DescriptorSetLayout {
 
 }; // struct DesciptorSetLayoutVulkan
    //
-typedef struct RBVK_Pipeline{
+typedef struct RN_VK_Pipeline{
     VkPipeline                      vk_pipeline;
     VkPipelineLayout                vk_pipeline_layout;
 
@@ -70,9 +70,9 @@ typedef struct RBVK_Pipeline{
     //
     // PipelineHandle                  handle;
     // bool                            graphics_pipeline = true;
-}RBVK_Pipeline;
+}RN_VK_Pipeline;
 
-typedef struct RBVK_Sampler{
+typedef struct RN_VK_Sampler{
     VkSampler            vk_sampler;
 
     VkFilter             vk_min_filter; // = VK_FILTER_NEAREST
@@ -84,9 +84,9 @@ typedef struct RBVK_Sampler{
     VkSamplerAddressMode vk_address_mode_w; // = VK_SAMPLER_ADDRESS_MODE_REPEAT
 
     DOT_DEBUG_NAME(name, DOT_DEBUG_NAME_LEN);
-}RBVK_Sampler;
+}RN_VK_Sampler;
 
-typedef struct RBVK_Texture{
+typedef struct RN_VK_Texture{
     VkImage     vk_image;
     VkImageView vk_image_view;
     VkExtent3D  vk_extent3d;
@@ -95,41 +95,41 @@ typedef struct RBVK_Texture{
     VkImageLayout vk_image_layout;
 
     // Store layout here for transitioning from one the other and only provide target layout?
-    VkMemory_Alloc alloc;
+    RN_VK_MemoryAlloc alloc;
     u8 mip_levels;
     // u8 flags; // Needed?
 
-    RBVK_SamplerHandle sampler;
+    RN_VK_SamplerHandle sampler;
     DOT_DEBUG_NAME(name, DOT_DEBUG_NAME_LEN);
-}RBVK_Texture;
+}RN_VK_Texture;
 
-typedef struct RBVK_SwapchainImage{
+typedef struct RN_VK_SwapchainImage{
     VkImage     vk_image;
     VkImageView vk_image_view;
     VkSemaphore semaphore_render_complete;
-}RBVK_SwapchainImage;
+}RN_VK_SwapchainImage;
 
-typedef struct RBVK_Swapchain{
+typedef struct RN_VK_Swapchain{
     VkSwapchainKHR swapchain;
     VkExtent2D     extent;
     VkFormat       image_format;
 
-    SLICE(RBVK_SwapchainImage) swapchain_images;
+    SLICE(RN_VK_SwapchainImage) swapchain_images;
     // ARRAY(VkSemaphore,          RENDER_SWAPCHAIN_TEXTURES_MAX) render_complete_semaphores;
-    // SLICE(RBVK_SwapchainTexture) image_datas;
-}RBVK_Swapchain;
+    // SLICE(RN_VK_SwapchainTexture) image_datas;
+}RN_VK_Swapchain;
 
 enum{
     RENDER_BACKEND_MAX_COMMAND_POOLS = 4,
     RENDER_BACKEND_MAX_COMMAND_BUFFERS_PER_POOL = 4,
 };
-typedef struct RBVK_FrameData{
+typedef struct RN_VK_FrameData{
     Arena          *frame_arena;
 
     // VkCommandBuffer frame_command_buffer; // (jd) NOTE: * parallel recordings in flight
     // VkCommandBuffer immediate_command_buffer;
 
-    RBVK_TextureHandle     draw_image;
+    RN_VK_TextureHandle     draw_image;
 
     // Sync
     u32             swapchain_image_idx; // Selected swpachain img for a given frame
@@ -138,36 +138,38 @@ typedef struct RBVK_FrameData{
     ARRAY(VkCommandPool, RENDER_BACKEND_MAX_COMMAND_POOLS) vk_command_pools;
     ARRAY(VkCommandBuffer, RENDER_BACKEND_MAX_COMMAND_BUFFERS_PER_POOL) vk_command_buffers;
     u32 vk_command_buffers_in_use;
-}RBVK_FrameData;
+}RN_VK_FrameData;
 
 // (jd) TODO: Move this to renderer and use DOT_TextureHandles and so on
 enum{
     RENDER_RESOURCE_CLEANUP_CTX_TEXTURES  = 64,
     RENDER_RESOURCE_CLEANUP_CTX_BUFFERS   = 64,
     RENDER_RESOURCE_CLEANUP_CTX_SAMPLERS  = 64,
+    RENDER_RESOURCE_CLEANUP_CTX_DESCRIPTOR_SET_LAYOUTS= 64,
 };
 
-typedef struct RBVK_ResourceCleanupCtx{
+typedef struct RN_VK_ResourceCleanupCtx{
     TreeHeader node;
-    ARRAY(RBVK_TextureHandle, RENDER_RESOURCE_CLEANUP_CTX_TEXTURES)   texture_ids;
-    ARRAY(RBVK_BufferHandle,  RENDER_RESOURCE_CLEANUP_CTX_BUFFERS)    buffer_ids;
-    ARRAY(RBVK_SamplerHandle, RENDER_RESOURCE_CLEANUP_CTX_SAMPLERS)   sampler_ids;
+    ARRAY(RN_VK_TextureHandle, RENDER_RESOURCE_CLEANUP_CTX_TEXTURES)   texture_ids;
+    ARRAY(RN_VK_BufferHandle,  RENDER_RESOURCE_CLEANUP_CTX_BUFFERS)    buffer_ids;
+    ARRAY(RN_VK_SamplerHandle, RENDER_RESOURCE_CLEANUP_CTX_SAMPLERS)   sampler_ids;
+    ARRAY(RN_VK_DescriptorSetLayoutHandle, RENDER_RESOURCE_CLEANUP_CTX_DESCRIPTOR_SET_LAYOUTS)   descriptor_set_layotu_ids;
     SLICE(Arena *) temp_arenas;
-}RBVK_ResourceCleanupCtx;
-typedef TREE_POOL(RBVK_ResourceCleanupCtx) ResourceCleanupListTree;
+}RN_VK_ResourceCleanupCtx;
+typedef TREE_POOL(RN_VK_ResourceCleanupCtx) ResourceCleanupListTree;
 
-typedef struct RBVK_AttachmentOps {
+typedef struct RN_VK_AttachmentOps {
     VkImageLayout initial_layout;
     VkImageLayout final_layout;
     VkAttachmentLoadOp load_op;
     VkAttachmentStoreOp store_op;
     VkClearValue clear_value;
-}RBVK_AttachmentOps;
+}RN_VK_AttachmentOps;
 
 
-typedef struct RBVK_RenderingAttachments {
-    RBVK_TextureHandle color[RN_IMAGE_OUTPUTS_MAX];
-    RBVK_TextureHandle depth_stencil;
+typedef struct RN_VK_RenderingAttachments {
+    RN_VK_TextureHandle color[RN_IMAGE_OUTPUTS_MAX];
+    RN_VK_TextureHandle depth_stencil;
 
     u32 num_color;
     u16 width, height;
@@ -176,20 +178,20 @@ typedef struct RBVK_RenderingAttachments {
     u8 resize;
 
     DOT_DEBUG_NAME(name, DOT_DEBUG_NAME_LEN);
-}RBVK_RenderingAttachments;
+}RN_VK_RenderingAttachments;
 
-typedef struct RBVK_RenderPassOutput{
+typedef struct RN_VK_RenderPassOutput{
     VkFormat depth_stencil_format;
     VkFormat color_formats[RN_IMAGE_OUTPUTS_MAX];
     u32      color_formats_count;
-}RBVK_RenderPassOutput;
+}RN_VK_RenderPassOutput;
 
 typedef struct RendererBackendVk{
     RendererBackend base;
 
-    RBVK_Device     device;
-    RBVK_Swapchain  swapchain;
-    RBVK_RenderPassOutput swapchain_output;
+    RN_VK_Device     device;
+    RN_VK_Swapchain  swapchain;
+    RN_VK_RenderPassOutput swapchain_output;
     VkInstance      instance;
     VkSurfaceKHR    surface;
 
@@ -197,7 +199,7 @@ typedef struct RendererBackendVk{
     u32 current_frame;
     u32 previous_frame;
     u64 absolute_frame;
-    SLICE(RBVK_FrameData) frame_datas;
+    SLICE(RN_VK_FrameData) frame_datas;
 
     // NOTE: Splitting this from actual draw_image so that we can draw regions?
     VkExtent2D      draw_extent;
@@ -216,10 +218,10 @@ typedef struct RendererBackendVk{
     // VkDescriptorSet bindles_set;
     // VkDescriptorSet compute_set;
 
-    RBVKMemory_Pools memory_pools;
-    POOL(RBVK_Texture)  texture_pool;
-    POOL(RBVK_Buffer)   buffer_pool;
-    POOL(RBVK_Sampler)  sampler_pool;
+    RN_VK_MemoryPools memory_pools;
+    POOL(RN_VK_Texture)  texture_pool;
+    POOL(RN_VK_Buffer)   buffer_pool;
+    POOL(RN_VK_Sampler)  sampler_pool;
     ResourceCleanupListTree resource_cleanup_list_tree;
 
     // NOTE: vk expects a malloc like allocator, which I don't intend on make or using for now
@@ -235,9 +237,9 @@ RN_BACKEND_FN_LIST
 internal RendererBackendVk *rn_vk_create(Arena *arena);
 internal RendererBackendVk *rn_as_vk(RendererBackend *base);
 
-internal void rn_vk_resource_cleanup_list_push_rbvk_sampler(RBVK_SamplerHandle sampler_id);
-internal void rn_vk_resource_cleanup_list_push_rbvk_texture(PoolHandle texture_id);
-internal void rn_vk_resource_cleanup_list_push_rbvk_buffer(RBVK_BufferHandle buffer_id);
+internal void rn_vk_resource_cleanup_list_push_rn_vk_sampler(RN_VK_SamplerHandle sampler_id);
+internal void rn_vk_resource_cleanup_list_push_rn_vk_texture(PoolHandle texture_id);
+internal void rn_vk_resource_cleanup_list_push_rn_vk_buffer(RN_VK_BufferHandle buffer_id);
 
 // (jd) NOTE: should we allow this and mem copy the resource list?
 // If we already know the layout/size and we use a specific arena chunk we can maybe
@@ -245,18 +247,18 @@ internal void rn_vk_resource_cleanup_list_push_rbvk_buffer(RBVK_BufferHandle buf
 internal void renderer_backend_resource_cleanup_list_reparent_at(u32 idx); // reparents children
 
 // Internal API
-internal void               rbvk_frame_counters_advance();
+internal void               rn_vk_frame_counters_advance();
 
-internal RBVK_TextureHandle rbvk_texture_create(const RN_TextureDesc *desc, void *data, String8 debug_name);
-internal RBVK_SamplerHandle rbvk_sampler_create(const RN_SamplerDesc *desc, String8 debug_name);
-internal RBVK_BufferHandle  rbvk_buffer_create(const RN_BufferDesc *create_info, u8 *data, String8 debug_name);
+internal RN_VK_TextureHandle rn_vk_texture_create_(const RN_TextureDesc *desc, void *data, String8 debug_name);
+internal RN_VK_SamplerHandle rn_vk_sampler_create_(const RN_SamplerDesc *desc, String8 debug_name);
+internal RN_VK_BufferHandle  rn_vk_buffer_create_(const RN_BufferDesc *create_info, u8 *data, String8 debug_name);
 
-internal void               rbvk_texture_destroy(RBVK_Texture *image);
-internal RBVK_Buffer        rbvk_buffer_create2(VkDeviceSize size, VkMemory_PoolsKind pool_kind, String8 name);
-internal RBVK_FrameData    *rbvk_frame_data_get_current();
+internal void               rn_vk_texture_destroy_(RN_VK_Texture *image);
+internal RN_VK_Buffer       rn_vk_buffer_create2(VkDeviceSize size, RN_VK_MemoryPoolsKind pool_kind, String8 name);
+internal RN_VK_FrameData    *rn_vk_frame_data_get_current();
 
-// Should these be also coming from a pool like RBVK_Resources?
-internal DOT_ShaderModuleHandle rbvk_dot_shader_module_from_vk_shader_module(VkShaderModule vk_sm);
-internal VkShaderModule         rbvk_vk_shader_module_from_rn_shader_module(DOT_ShaderModuleHandle dot_smh);
+// Should these be also coming from a pool like RN_VK_Resources?
+internal DOT_ShaderModuleHandle rn_vk_dot_shader_module_from_vk_shader_module(VkShaderModule vk_sm);
+internal VkShaderModule         rn_vk_vk_shader_module_from_rn_shader_module(DOT_ShaderModuleHandle dot_smh);
 
 #endif // !rn_vk_H

@@ -1,12 +1,12 @@
 enum
 {
-    VK_MEMORY_POOLS_GPU_ONLY_SIZE = DOT_MB(512),
-    VK_MEMORY_POOLS_STAGING_SIZE  = DOT_MB(64),
-    VK_MEMORY_POOLS_READBACK_SIZE = DOT_MB(32),
+    RN_VK_MEMORY_POOLS_GPU_ONLY_SIZE = DOT_MB(512),
+    RN_VK_MEMORY_POOLS_STAGING_SIZE  = DOT_MB(64),
+    RN_VK_MEMORY_POOLS_READBACK_SIZE = DOT_MB(32),
 };
 
-internal VkMemory_Alloc
-rbvk_memory_ring_buffer_push(RBVKMemory_RingBuffer *ring_buffer, u64 size)
+internal RN_VK_MemoryAlloc
+rn_vk_memory_ring_buffer_push(RN_VK_Memory_RingBuffer *ring_buffer, u64 size)
 {
     u64 pop_marker = ring_buffer->head;
     u64 offset = ring_buffer->head;
@@ -21,9 +21,9 @@ rbvk_memory_ring_buffer_push(RBVKMemory_RingBuffer *ring_buffer, u64 size)
         DOT_ERROR("Out of Staging memory, consider increasing it!");
     }
  
-    VkMemory_Alloc alloc = {
+    RN_VK_MemoryAlloc alloc = {
         .vk_buffer = ring_buffer->vk_buffer,
-        .pool_kind = VkMemory_PoolsKind_Staging,
+        .pool_kind = RN_VK_MemoryPoolsKind_Staging,
         // .vk_memory = ring_buffer->vk_memory,
         .size = size,
         .offset = ring_buffer->head,
@@ -34,26 +34,26 @@ rbvk_memory_ring_buffer_push(RBVKMemory_RingBuffer *ring_buffer, u64 size)
 }
 
 internal void
-rbvk_memory_ring_buffer_pop(RBVKMemory_RingBuffer *ring_buffer, const VkMemory_Alloc *alloc)
+rn_vk_memory_ring_buffer_pop(RN_VK_Memory_RingBuffer *ring_buffer, const RN_VK_MemoryAlloc *alloc)
 {
     DOT_ASSERT(ring_buffer->tail == alloc->pop_marker, "Incorrect ring buffer pop order");
     ring_buffer->tail = alloc->offset + alloc->size;
 }
 
 internal void
-rbvk_memory_pools_staging_ring_buffer_pop(RBVKMemory_Pools *pools, const VkMemory_Alloc *alloc)
+rn_vk_memory_pools_staging_ring_buffer_pop(RN_VK_MemoryPools *pools, const RN_VK_MemoryAlloc *alloc)
 {
-    rbvk_memory_ring_buffer_pop(&pools->staging_buffer, alloc);
+    rn_vk_memory_ring_buffer_pop(&pools->staging_buffer, alloc);
 }
 
-internal VkMemory_Alloc
-rbvk_memory_pools_staging_ring_buffer_push(RBVKMemory_Pools *pools, u64 size, void *data)
+internal RN_VK_MemoryAlloc
+rn_vk_memory_pools_staging_ring_buffer_push(RN_VK_MemoryPools *pools, u64 size, void *data)
 {
-    RBVKMemory_RingBuffer *staging_buffer = &pools->staging_buffer;
-    VkMemory_Alloc alloc = rbvk_memory_ring_buffer_push(staging_buffer, size);
+    RN_VK_Memory_RingBuffer *staging_buffer = &pools->staging_buffer;
+    RN_VK_MemoryAlloc alloc = rn_vk_memory_ring_buffer_push(staging_buffer, size);
     void *destination_data;
     if(data){
-        VK_CHECK(vkMapMemory(pools->vk_device, staging_buffer->vk_memory, alloc.offset, alloc.size, 0, &destination_data));
+        RN_VK_CHECK(vkMapMemory(pools->vk_device, staging_buffer->vk_memory, alloc.offset, alloc.size, 0, &destination_data));
         DOT_PRINT("alloc size %M", alloc.size); 
         MEMORY_COPY_NO_ALIAS(destination_data, data, size);
         vkUnmapMemory(pools->vk_device, staging_buffer->vk_memory);
@@ -61,12 +61,12 @@ rbvk_memory_pools_staging_ring_buffer_push(RBVKMemory_Pools *pools, u64 size, vo
     return(alloc);
 }
 
-internal VkMemory_Alloc
-rbvk_memory_gpu_buffer_alloc(RBVKMemory_Pools *pools, VkBuffer vk_buffer)
+internal RN_VK_MemoryAlloc
+rn_vk_memory_gpu_buffer_alloc(RN_VK_MemoryPools *pools, VkBuffer vk_buffer)
 {
     VkMemoryRequirements2 reqs2 = vk_buffer_memory_requirements(pools->vk_device, vk_buffer);
     VkMemoryRequirements reqs = reqs2.memoryRequirements;
-    RBVKMemory_Pool *gpu_pool = &pools->gpu_pool;
+    RN_VK_Memory_Pool *gpu_pool = &pools->gpu_pool;
     if((reqs.memoryTypeBits & (1u << gpu_pool->vk_memory_type_idx)) == 0){
         DOT_ERROR("Invalid image memory type");
     }
@@ -79,22 +79,22 @@ rbvk_memory_gpu_buffer_alloc(RBVKMemory_Pools *pools, VkBuffer vk_buffer)
         // .vk_memory = gpu_pool->vk_memory
     VkDeviceMemory vk_memory = gpu_pool->vk_memory;
 
-    VkMemory_Alloc alloc = {
+    RN_VK_MemoryAlloc alloc = {
         .size = reqs.size,
-        .pool_kind = VkMemory_PoolsKind_GpuOnly,
+        .pool_kind = RN_VK_MemoryPoolsKind_GpuOnly,
         .offset = aligned_memory,
         // .vk_memory = gpu_pool->vk_memory
     };
-    VK_CHECK(vkBindBufferMemory(pools->vk_device, vk_buffer, vk_memory, alloc.offset));
+    RN_VK_CHECK(vkBindBufferMemory(pools->vk_device, vk_buffer, vk_memory, alloc.offset));
     return(alloc);
 }
 
-internal VkMemory_Alloc
-rbvk_memory_gpu_image_alloc(RBVKMemory_Pools *pools, VkImage vk_image)
+internal RN_VK_MemoryAlloc
+rn_vk_memory_gpu_image_alloc(RN_VK_MemoryPools *pools, VkImage vk_image)
 {
     VkMemoryRequirements2 reqs2 = vk_image_memory_requirements(pools->vk_device, vk_image);
     VkMemoryRequirements reqs = reqs2.memoryRequirements;
-    RBVKMemory_Pool *gpu_pool = &pools->gpu_pool;
+    RN_VK_Memory_Pool *gpu_pool = &pools->gpu_pool;
     if((reqs.memoryTypeBits & (1u << gpu_pool->vk_memory_type_idx)) == 0){
         DOT_ERROR("Invalid image memory type");
     }
@@ -105,22 +105,22 @@ rbvk_memory_gpu_image_alloc(RBVKMemory_Pools *pools, VkImage vk_image)
         DOT_ERROR("Out of GPU only memory, consider increasing it!. Current %M/%M, needed %M", gpu_pool->used, gpu_pool->size, needed);
     }
     DOT_PRINT("Total memory %M/%M, needed used %M", gpu_pool->used, gpu_pool->size, needed);
-    VkMemory_Alloc alloc = {
+    RN_VK_MemoryAlloc alloc = {
         .size = reqs.size,
-        .pool_kind = VkMemory_PoolsKind_GpuOnly,
+        .pool_kind = RN_VK_MemoryPoolsKind_GpuOnly,
         .offset = aligned_memory,
         // .vk_memory = gpu_pool->vk_memory
     };
-    VK_CHECK(vkBindImageMemory(pools->vk_device, vk_image, gpu_pool->vk_memory, alloc.offset));
+    RN_VK_CHECK(vkBindImageMemory(pools->vk_device, vk_image, gpu_pool->vk_memory, alloc.offset));
     return(alloc);
 }
 
-// internal VkMemory_Alloc
-// vk_memory_pools_bump(RBVKMemory_Pools *pools, VkMemoryRequirements reqs, VkMemory_PoolsKind memory_kind)
+// internal RN_VK_MemoryAlloc
+// vk_memory_pools_bump(RN_VK_MemoryPools *pools, VkMemoryRequirements reqs, RN_VK_MemoryPoolsKind memory_kind)
 // {
-//     VkMemory_Alloc alloc = { .size = reqs.size, .pool_kind = memory_kind };
+//     RN_VK_MemoryAlloc alloc = { .size = reqs.size, .pool_kind = memory_kind };
 //     switch(memory_kind){
-//         case VkMemory_PoolsKind_GpuOnly:
+//         case RN_VK_MemoryPoolsKind_GpuOnly:
 //             if(reqs.memoryTypeBits & (1u << pools->gpu_only_type)){
 //                 u64 aligned_memory = ALIGN_POW2(pools->gpu_only_used, reqs.alignment);
 //                 alloc.offset = aligned_memory;
@@ -131,8 +131,8 @@ rbvk_memory_gpu_image_alloc(RBVKMemory_Pools *pools, VkImage vk_image)
 //                 }
 //             }
 //         // break;
-//         // case VkMemory_PoolsKind_Staging:{
-//         //     RBVKMemory_RingBuffer *staging_buffer = &pools->staging_buffer;
+//         // case RN_VK_MemoryPoolsKind_Staging:{
+//         //     RN_VK_Memory_RingBuffer *staging_buffer = &pools->staging_buffer;
 //         //     // if(reqs.memoryTypeBits & DOT_BIT(pools->staging_type)){
 //         //         u64 aligned_memory = ALIGN_POW2(staging_buffer->head, reqs.alignment);
 //         //         staging_buffer->head += aligned_memory;
@@ -152,7 +152,7 @@ rbvk_memory_gpu_image_alloc(RBVKMemory_Pools *pools, VkImage vk_image)
 //         //         // alloc.vk_buffer = staging_buffer->vk_buffer;
 //         //     }
 //         // break;
-//         // case VkMemory_PoolsKind_Readback:{
+//         // case RN_VK_MemoryPoolsKind_Readback:{
 //         //     // if(reqs.memoryTypeBits & (1u << pools->readback_type)){
 //         //         u64 aligned_memory = ALIGN_POW2(pools->readback_used, reqs.alignment);
 //         //         pools->readback_used += aligned_memory;
@@ -164,7 +164,7 @@ rbvk_memory_gpu_image_alloc(RBVKMemory_Pools *pools, VkImage vk_image)
 //         //         // alloc.vk_buffer = pools->readback_buffer;
 //         //     }
 //         // break;
-//         // case VkMemory_PoolsKind_None:
+//         // case RN_VK_MemoryPoolsKind_None:
 //         default:
 //             alloc.size = 0;
 //             DOT_WARNING("Invalid memory type %u, returning 0", memory_kind);
@@ -174,7 +174,7 @@ rbvk_memory_gpu_image_alloc(RBVKMemory_Pools *pools, VkImage vk_image)
 // }
 
 internal u32
-vk_memory_pools_find_memory_type(
+rn_vk_memory_pools_find_memory_type(
     const VkPhysicalDeviceMemoryProperties *memory_properties,
     u32 type_bits,
     VkMemoryPropertyFlags required,
@@ -211,27 +211,27 @@ vk_memory_pools_find_memory_type(
 }
 
 // split this into create pool and create ring buffer
-internal RBVKMemory_Pools
-vk_memory_pools_create(RBVK_Device *device)
+internal RN_VK_MemoryPools
+rn_vk_memory_pools_create(RN_VK_Device *device)
 {
-    RBVKMemory_Pools pools = {.vk_device =  device->vk_device};
+    RN_VK_MemoryPools pools = {.vk_device =  device->vk_device};
     //     .vk_device = device->vk_device,
-    //     .gpu_only_size = VK_MEMORY_POOLS_GPU_ONLY_SIZE,
-    //     .staging_size  = VK_MEMORY_POOLS_STAGING_SIZE,
-    //     .readback_size = VK_MEMORY_POOLS_READBACK_SIZE,
+    //     .gpu_only_size = RN_VK_MEMORY_POOLS_GPU_ONLY_SIZE,
+    //     .staging_size  = RN_VK_MEMORY_POOLS_STAGING_SIZE,
+    //     .readback_size = RN_VK_MEMORY_POOLS_READBACK_SIZE,
     // };
     VkPhysicalDeviceMemoryProperties memory_properties;
     vkGetPhysicalDeviceMemoryProperties(device->vk_gpu, &memory_properties);
 
     {
-        RBVKMemory_Pool gpu_pool = {
-            .vk_memory_type_idx = vk_memory_pools_find_memory_type(
+        RN_VK_Memory_Pool gpu_pool = {
+            .vk_memory_type_idx = rn_vk_memory_pools_find_memory_type(
                 &memory_properties,
                 U32_MAX,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                 (device->is_integrated_gpu ? 0 : VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)),
-            .size = VK_MEMORY_POOLS_GPU_ONLY_SIZE,
+            .size = RN_VK_MEMORY_POOLS_GPU_ONLY_SIZE,
         };
         DOT_ASSERT(gpu_pool.vk_memory_type_idx != U32_MAX, "Could not find gpu memory type");
 
@@ -240,20 +240,20 @@ vk_memory_pools_create(RBVK_Device *device)
             .allocationSize  = gpu_pool.size,
             .memoryTypeIndex = gpu_pool.vk_memory_type_idx,
         };
-        VK_CHECK(vkAllocateMemory(device->vk_device, &alloc_info, NULL, &gpu_pool.vk_memory));
+        RN_VK_CHECK(vkAllocateMemory(device->vk_device, &alloc_info, NULL, &gpu_pool.vk_memory));
         pools.gpu_pool = gpu_pool;
     }
 
     // Upload: HOST_VISIBLE + HOST_COHERENT, prefer non-DEVICE_LOCAL on dGPU
     {
-        RBVKMemory_RingBuffer staging_buffer = {
-            .vk_memory_type_idx = vk_memory_pools_find_memory_type(
+        RN_VK_Memory_RingBuffer staging_buffer = {
+            .vk_memory_type_idx = rn_vk_memory_pools_find_memory_type(
                 &memory_properties,
                 U32_MAX,
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                 0,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
-            .size = VK_MEMORY_POOLS_STAGING_SIZE,
+            .size = RN_VK_MEMORY_POOLS_STAGING_SIZE,
 
         };
         DOT_ASSERT(staging_buffer.vk_memory_type_idx != U32_MAX, "Could not find staging memory type");
@@ -271,11 +271,11 @@ vk_memory_pools_create(RBVK_Device *device)
 
         VkMemoryRequirements memory_requirements; {
             VkBuffer temp_buff;
-            VK_CHECK(vkCreateBuffer(device->vk_device, &buff_info, NULL, &temp_buff));
+            RN_VK_CHECK(vkCreateBuffer(device->vk_device, &buff_info, NULL, &temp_buff));
             vkGetBufferMemoryRequirements(device->vk_device, temp_buff, &memory_requirements);
             vkDestroyBuffer(device->vk_device, temp_buff, NULL);
         }
-        VK_CHECK(vkAllocateMemory(
+        RN_VK_CHECK(vkAllocateMemory(
             device->vk_device,
             &(VkMemoryAllocateInfo){
                 .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
@@ -284,21 +284,21 @@ vk_memory_pools_create(RBVK_Device *device)
             },
             NULL,
             &staging_buffer.vk_memory));
-        VK_CHECK(vkCreateBuffer(device->vk_device, &buff_info, NULL, &staging_buffer.vk_buffer));
-        VK_CHECK(vkBindBufferMemory(device->vk_device, staging_buffer.vk_buffer, staging_buffer.vk_memory, 0));
+        RN_VK_CHECK(vkCreateBuffer(device->vk_device, &buff_info, NULL, &staging_buffer.vk_buffer));
+        RN_VK_CHECK(vkBindBufferMemory(device->vk_device, staging_buffer.vk_buffer, staging_buffer.vk_memory, 0));
         pools.staging_buffer = staging_buffer;
     }
 
     // Readback: HOST_VISIBLE + HOST_COHERENT + HOST_CACHED if possible
     {
-        RBVKMemory_RingBuffer readback_buffer = {
-            .vk_memory_type_idx = vk_memory_pools_find_memory_type(
+        RN_VK_Memory_RingBuffer readback_buffer = {
+            .vk_memory_type_idx = rn_vk_memory_pools_find_memory_type(
                 &memory_properties,
                 U32_MAX,
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT,
                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                 0),
-            .size = VK_MEMORY_POOLS_READBACK_SIZE,
+            .size = RN_VK_MEMORY_POOLS_READBACK_SIZE,
 
         };
 
@@ -317,11 +317,11 @@ vk_memory_pools_create(RBVK_Device *device)
 
         VkMemoryRequirements memory_requirements; {
             VkBuffer temp_buff;
-            VK_CHECK(vkCreateBuffer(device->vk_device, &buff_info, NULL, &temp_buff));
+            RN_VK_CHECK(vkCreateBuffer(device->vk_device, &buff_info, NULL, &temp_buff));
             vkGetBufferMemoryRequirements(device->vk_device, temp_buff, &memory_requirements);
             vkDestroyBuffer(device->vk_device, temp_buff, NULL);
         }
-        VK_CHECK(vkAllocateMemory(
+        RN_VK_CHECK(vkAllocateMemory(
             device->vk_device,
             &(VkMemoryAllocateInfo){
                 .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
@@ -330,15 +330,15 @@ vk_memory_pools_create(RBVK_Device *device)
             },
             NULL,
             &readback_buffer.vk_memory));
-        VK_CHECK(vkCreateBuffer(device->vk_device, &buff_info, NULL, &readback_buffer.vk_buffer));
-        VK_CHECK(vkBindBufferMemory(device->vk_device, readback_buffer.vk_buffer, readback_buffer.vk_memory, 0));
+        RN_VK_CHECK(vkCreateBuffer(device->vk_device, &buff_info, NULL, &readback_buffer.vk_buffer));
+        RN_VK_CHECK(vkBindBufferMemory(device->vk_device, readback_buffer.vk_buffer, readback_buffer.vk_memory, 0));
         pools.readback_buffer = readback_buffer;
     }
     return(pools);
 }
 
 internal void
-vk_memory_pools_destroy(RBVK_Device *device, RBVKMemory_Pools *pools)
+rn_vk_memory_pools_destroy(RN_VK_Device *device, RN_VK_MemoryPools *pools)
 {
     if(pools->staging_buffer.vk_buffer != VK_NULL_HANDLE)
         vkDestroyBuffer(device->vk_device, pools->staging_buffer.vk_buffer, NULL);

@@ -19,7 +19,7 @@
 // (jd) TODO: Make this dynamic. (json or something)
 //      Also these should really be renderer config
 
-typedef struct RBVK_VulkanConfig{
+typedef struct RN_VK_VulkanConfig{
     struct {
         SLICE(String8) extensions;
         String8 application_name;
@@ -38,9 +38,9 @@ typedef struct RBVK_VulkanConfig{
 
     SLICE(String8) validation_layers;
 
-}RBVK_VulkanConfig;
+}RN_VK_VulkanConfig;
 
-typedef struct RBVK_RenderSettings{
+typedef struct RN_VK_RenderSettings{
     struct {
         VkFormat        preferred_format;
         VkColorSpaceKHR preferred_colorspace;
@@ -50,9 +50,9 @@ typedef struct RBVK_RenderSettings{
     struct {
         u8 frame_overlap;
     } frame;
-}RBVK_RendererSettings;
+}RN_VK_RendererSettings;
 
-read_only global RBVK_VulkanConfig g_rbvk_vk_config = {
+read_only global RN_VK_VulkanConfig g_rn_vk_config = {
     .instance = {
         .application_name    = String8Lit("dot_engine"),
         .application_version = VK_MAKE_VERSION(1,0,0),

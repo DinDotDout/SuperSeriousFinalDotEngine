@@ -60,15 +60,17 @@ g_game->test_shader_module = rn_shader_module_load_from_path(game->renderer, Str
             .depth_comparison = RN_CompareOp_LessOrEqual,
         },
         .shader_state = {
+            .format = RN_ShaderFormat_Source,
             .shader_stages = ARRAY_LIT(RN_ShaderStage,
                 {.stage = RN_ShaderStageKind_Vertex,   .code = shader_stages[RN_ShaderStageKind_Vertex]},
                 {.stage = RN_ShaderStageKind_Fragment, .code = shader_stages[RN_ShaderStageKind_Fragment]}
             ),
         },
-        .render_pass = render_swapchain_output(),
+        .render_pass = rn_swapchain_output(),
     };
     // string8_append_string8(Arena *arena, String8 a, String8 b)
     DOT_DEBUG_NAME_SET(pipeline.shader_state.name, String8Lit("cube")),
+
 
     (void) pipeline;
     // const char *t = "src/game/" "shaders/" "model.frag";

@@ -27,9 +27,9 @@ typedef struct VkHelper_CandidateDeviceInfo{
 }VkHelper_CandidateDeviceInfo;
 
 #ifdef NDEBUG
-#define VK_CHECK(x) x
+#define RN_VK_CHECK(x) x
 #else
-#define VK_CHECK(x) \
+#define RN_VK_CHECK(x) \
     do { \
         VkResult err = x; \
         if(err < 0){ \
@@ -61,10 +61,10 @@ typedef struct VkHelper_CandidateDeviceInfo{
 /// Vk Support helpers
 ///
 
-typedef struct RBVK_VulkanConfig RBVK_VulkanConfig;
-internal b32 vk_helper_all_layers(const RBVK_VulkanConfig *vk_config);
+typedef struct RN_VK_VulkanConfig RN_VK_VulkanConfig;
+internal b32 vk_helper_all_layers(const RN_VK_VulkanConfig *vk_config);
 internal VkHelper_CandidateDeviceInfo vk_helper_pick_best_device(
-    const RBVK_VulkanConfig *vk_config,
+    const RN_VK_VulkanConfig *vk_config,
     VkInstance instance,
     VkSurfaceKHR surface);
 
@@ -73,8 +73,8 @@ internal b32 vk_helper_physical_device_swapchain_support(
     VkSurfaceKHR surface,
     VkHelper_SwapchainDetails *details);
 
-internal b32              vk_helper_physical_device_all_required_extensions(const RBVK_VulkanConfig *vk_config, VkPhysicalDevice device);
-internal b32              vk_helper_instance_all_required_extensions(const RBVK_VulkanConfig *vk_config);
+internal b32              vk_helper_physical_device_all_required_extensions(const RN_VK_VulkanConfig *vk_config, VkPhysicalDevice device);
+internal b32              vk_helper_instance_all_required_extensions(const RN_VK_VulkanConfig *vk_config);
 
 ///////////////////////////////////////////
 ///DOT to VK
@@ -125,7 +125,7 @@ internal VkMemoryRequirements2      vk_buffer_memory_requirements(VkDevice vk_de
 ///
 
 internal b32
-vk_helper_all_layers(const RBVK_VulkanConfig *vk_config)
+vk_helper_all_layers(const RN_VK_VulkanConfig *vk_config)
 {
     TempArena temp = threadctx_get_temp(0);
     u32 available_layer_count = 0;
@@ -153,7 +153,7 @@ vk_helper_all_layers(const RBVK_VulkanConfig *vk_config)
 }
 
 internal b32
-vk_helper_instance_all_required_extensions(const RBVK_VulkanConfig* vk_config)
+vk_helper_instance_all_required_extensions(const RN_VK_VulkanConfig* vk_config)
 {
     TempArena temp = threadctx_get_temp(0);
     u32 extension_count;
@@ -396,7 +396,7 @@ rn_texture_format_from_vk_format(VkFormat texture_format)
 
 internal b32
 vk_helper_physical_device_all_required_extensions(
-    const RBVK_VulkanConfig *vk_config,
+    const RN_VK_VulkanConfig *vk_config,
     VkPhysicalDevice device)
 {
     TempArena temp = threadctx_get_temp(0);
@@ -452,7 +452,7 @@ vk_helper_physical_device_swapchain_support(
     vkGetPhysicalDeviceSurfaceCapabilities2KHR(gpu, &surface_info, &swapchain_support_details.surface_capabilities);
  
     // --- Query Surface Formats ---
-    VK_CHECK(vkGetPhysicalDeviceSurfaceFormats2KHR(gpu, &surface_info, &swapchain_support_details.format_count, NULL));
+    RN_VK_CHECK(vkGetPhysicalDeviceSurfaceFormats2KHR(gpu, &surface_info, &swapchain_support_details.format_count, NULL));
     swapchain_support_details.surface_formats = PUSH_ARRAY(temp.arena, VkSurfaceFormat2KHR, swapchain_support_details.format_count);
     for(u32 it = 0; it < swapchain_support_details.format_count; ++it){
         swapchain_support_details.surface_formats[it] = VkSurfaceFormat2KHRParams();
@@ -507,7 +507,7 @@ vk_helper_physical_device_swapchain_support(
 
 internal VkHelper_CandidateDeviceInfo
 vk_helper_pick_best_device(
-    const RBVK_VulkanConfig *vk_config,
+    const RN_VK_VulkanConfig *vk_config,
     VkInstance instance,
     VkSurfaceKHR surface)
 {
@@ -626,9 +626,9 @@ vk_helper_extent2d_from_extent3d(VkExtent3D extent3d)
 }
 
 internal void
-vk_helper_rbvk_texture_transition(
+vk_helper_rn_vk_texture_transition(
     VkCommandBuffer cmd,
-    RBVK_Texture *tex,
+    RN_VK_Texture *tex,
     VkImageLayout new_layout)
 {
     VkImageAspectFlags aspect_mask = (new_layout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL)
