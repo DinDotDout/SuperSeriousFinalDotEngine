@@ -87,7 +87,7 @@ internal void
 arena_pop_to(ArenaOpParams *op, u64 pos)
 {
     u64 new_used = DOT_CLAMP_BOT(ARENA_HEADER_SIZE_B, pos);
-    ASAN_POISON(arena->base + new_used, arena->reserved - new_used);
+    ASAN_POISON(op->arena->base + new_used, op->arena->reserved - new_used);
     op->arena->used = new_used;
 }
 
@@ -95,8 +95,6 @@ internal void
 arena_reset(ArenaOpParams *op)
 {
     arena_pop_to(op, 0);
-    // ASAN_POISON(arena->base + ARENA_HEADER_SIZE_B, arena->reserved - ARENA_HEADER_SIZE_B);
-    // op->arena->used = ARENA_HEADER_SIZE_B;
 }
 
 internal void
@@ -124,7 +122,7 @@ internal u8*
 arena_push(ArenaOpParams *op, u64 alloc_size, u64 alignment, b32 should_zero)
 {
     Arena *arena = op->arena;
-    if(alloc_size < 0){
+    if(alloc_size <= 0){
         // DOT_ASSERT_FL(alloc_size > 0, op->file, op->line, "Allocation should be bigger than 0");
         return NULL;
     }
@@ -229,7 +227,7 @@ arena_print_debug(Arena* arena)
 }
 
 internal TempArena
-temp_arena_get(Arena *arena)
+temp_arena_start(Arena *arena)
 {
     TempArena sa;
     sa.arena = arena;

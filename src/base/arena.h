@@ -120,7 +120,7 @@ internal String8    arena_to_string(Arena *arena);
 
 #define ARENA_CREATE(...)           arena_create_(ARENA_DEFAULT_PARAMS(__VA_ARGS__))
 #define ARENA_RESET(a)              arena_reset(ARENA_OP_PARAMS(.arena = (a)));
-#define ARENA_DESTROY(a)            arena_reset(ARENA_OP_PARAMS(.arena = (a)));
+#define ARENA_DESTROY(a)            arena_destroy(ARENA_OP_PARAMS(.arena = (a)));
 #define ARENA_PUSH(a, sz, align, z) arena_push(ARENA_OP_PARAMS(.arena = (a)), (sz), (align), (z))
 
 #define PUSH_SIZE_NO_ZERO(arena, size)      ARENA_PUSH(arena, size, ARENA_MAX_ALIGNMENT, false)
@@ -145,7 +145,7 @@ typedef struct TempArena{
     Arena *arena;
 }TempArena;
 
-internal TempArena temp_arena_get(Arena *arena);
+internal TempArena temp_arena_start(Arena *arena);
 internal void      temp_arena_restore(TempArena temp);
 
 #endif // !ARENA_H
