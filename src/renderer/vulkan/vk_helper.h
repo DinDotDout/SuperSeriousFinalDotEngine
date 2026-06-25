@@ -127,7 +127,7 @@ internal VkMemoryRequirements2      vk_buffer_memory_requirements(VkDevice vk_de
 internal b32
 vk_helper_all_layers(const RN_VK_VulkanConfig *vk_config)
 {
-    TempArena temp = threadctx_get_temp(0);
+    TempArena temp = threadctx_temp_begin(0);
     u32 available_layer_count = 0;
     vkEnumerateInstanceLayerProperties(&available_layer_count, NULL);
     array(VkLayerProperties) available_layers = PUSH_ARRAY(temp.arena, VkLayerProperties, available_layer_count);
@@ -148,14 +148,14 @@ vk_helper_all_layers(const RN_VK_VulkanConfig *vk_config)
             DOT_WARNING("Requested layer %s not found", layer_name);
         }
     }
-    temp_arena_restore(temp);
+    threadctx_temp_end(temp);
     return all_found;
 }
 
 internal b32
 vk_helper_instance_all_required_extensions(const RN_VK_VulkanConfig* vk_config)
 {
-    TempArena temp = threadctx_get_temp(0);
+    TempArena temp = threadctx_temp_begin(0);
     u32 extension_count;
     vkEnumerateInstanceExtensionProperties(NULL, &extension_count, NULL);
     array(VkExtensionProperties) available_extensions = PUSH_ARRAY(temp.arena, VkExtensionProperties, extension_count);
@@ -178,7 +178,7 @@ vk_helper_instance_all_required_extensions(const RN_VK_VulkanConfig* vk_config)
             DOT_WARNING("Requested instance extension \"%s\" not found", instance_extension_name);
         }
     }
-    temp_arena_restore(temp);
+    threadctx_temp_end(temp);
     return all_found;
 }
 
@@ -399,7 +399,7 @@ vk_helper_physical_device_all_required_extensions(
     const RN_VK_VulkanConfig *vk_config,
     VkPhysicalDevice device)
 {
-    TempArena temp = threadctx_get_temp(0);
+    TempArena temp = threadctx_temp_begin(0);
     u32 extension_count;
     vkEnumerateDeviceExtensionProperties(device, NULL, &extension_count, NULL);
     array(VkExtensionProperties) available_extensions = PUSH_ARRAY(temp.arena, VkExtensionProperties, extension_count);
@@ -421,7 +421,7 @@ vk_helper_physical_device_all_required_extensions(
             DOT_WARNING("Requested extension %s not found", device_extension_name);
         }
     }
-    temp_arena_restore(temp);
+    threadctx_temp_end(temp);
     return all_found;
 }
 
@@ -431,7 +431,7 @@ vk_helper_physical_device_swapchain_support(
     VkSurfaceKHR surface,
     VkHelper_SwapchainDetails *details)
 {
-    TempArena temp = threadctx_get_temp(0);
+    TempArena temp = threadctx_temp_begin(0);
     typedef struct SwapchainSupportDetails{
         VkSurfaceCapabilities2KHR surface_capabilities;
 
@@ -501,7 +501,7 @@ vk_helper_physical_device_swapchain_support(
         }
         details->current_transform   = surface_capabilities.currentTransform;
     }
-    temp_arena_restore(temp);
+    threadctx_temp_end(temp);
     return has_support;
 }
 
@@ -511,7 +511,7 @@ vk_helper_pick_best_device(
     VkInstance instance,
     VkSurfaceKHR surface)
 {
-    TempArena temp = threadctx_get_temp(0);
+    TempArena temp = threadctx_temp_begin(0);
     u32 device_count = 0;
     vkEnumeratePhysicalDevices(instance, &device_count, NULL);
     if (device_count == 0) {
@@ -605,7 +605,7 @@ vk_helper_pick_best_device(
     DOT_PRINT("best_device  graphics family: %d; present family: %i; score: %i",
               best_device.graphics_family, best_device.present_family,
               best_device.score);
-    temp_arena_restore(temp);
+    threadctx_temp_end(temp);
     return best_device;
 }
 

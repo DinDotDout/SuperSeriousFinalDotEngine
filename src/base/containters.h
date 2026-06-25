@@ -143,7 +143,7 @@ typedef struct MultiMemoryPool{
 }MultiMemoryPool;
 
 internal MultiMemoryPool multi_memory_pool_create(Arena *arena, MultiMemoryPoolBlockSizes create_info);
-internal u8              *multi_memory_pool_alloc(Arena *arena, MultiMemoryPool *multi_memory_pool, u32 size);
+internal u8              *multi_memory_pool_alloc(Arena *arena, MultiMemoryPool *multi_memory_pool, u64 size);
 
 #define MULTI_MEMORY_POOL_CREATE(a, ...) multi_memory_pool_create(a, (MultiMemoryPoolBlockSizes)SLICE_LIT(u32, __VA_ARGS__));
 

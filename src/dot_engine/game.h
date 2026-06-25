@@ -19,12 +19,12 @@ typedef struct DOT_GameConfig{
 }DOT_GameConfig;
 
 typedef struct DOT_Game{
-    DOT_Renderer *renderer;
+    RN_Renderer *renderer;
 
     Arena *permanent_arena;
     Arena *transient_arena;
 
-    DOT_ShaderModule *test_shader_module;
+    RN_ShaderModule *test_shader_module;
     DOT_Model *test_model;
 }DOT_Game;
 
@@ -49,12 +49,12 @@ struct DOT_GameVtable{
 DOT_GameVtable game_vtable;
 #endif
 
-b32 dot_game_init(DOT_Game *game, DOT_Renderer *renderer,
+b32 dot_game_init(DOT_Game *game, RN_Renderer *renderer,
     u8 permanent_memory[], usize permanent_memory_size,
     u8 transient_memory[], usize transient_memory_size);
 
 void dot_game_shutdown(DOT_Game *game);
 void dot_game_run(DOT_Game *game);
 
-void dot_game_draw(DOT_Game *game, DOT_Renderer *renderer);
+void dot_game_draw(DOT_Game *game, RN_Renderer *renderer);
 #endif // !DOT_GAME_H

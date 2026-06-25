@@ -38,7 +38,7 @@ rn_vk_debug_callback(
     DOT_UNUSED(message_type); DOT_UNUSED(user_data);
     if(message_severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT){
         DOT_WARNING("MessageID: %s %i\nMessage: %s\n\n", callback_data->pMessageIdName, callback_data->messageIdNumber, callback_data->pMessage);
-        os_print_stacktrace();
+        // os_print_stacktrace();
     }
     return VK_FALSE;
 }
@@ -50,7 +50,7 @@ rn_vk_vk_resource_set_name(VkObjectType type, u64 handle, const char *name)
         return;
     }
 #ifndef DOT_USE_VOLK
-    error (jd) I havent't bothered to support some of this EXT ptrs without volk
+#    error (jd) I havent't bothered to support some of this EXT ptrs without volk
 #endif
     vkSetDebugUtilsObjectNameEXT(g_vk_ctx->device.vk_device,
         &(VkDebugUtilsObjectNameInfoEXT){
@@ -61,24 +61,24 @@ rn_vk_vk_resource_set_name(VkObjectType type, u64 handle, const char *name)
         });
 }
 
-internal DOT_ShaderModuleHandle
+internal RN_ShaderModuleHandle
 rn_vk_dot_shader_module_from_vk_shader_module(VkShaderModule vk_sm)
 {
-    DOT_ShaderModuleHandle dot_smh = {
+    RN_ShaderModuleHandle dot_smh = {
         .handle[0] = cast(u64) vk_sm,
     };
     return dot_smh;
 }
 
 internal VkShaderModule
-rn_vk_vk_shader_module_from_rn_shader_module(DOT_ShaderModuleHandle dot_smh)
+rn_vk_vk_shader_module_from_rn_shader_module(RN_ShaderModuleHandle dot_smh)
 {
     VkShaderModule vk_sm = cast(VkShaderModule)dot_smh.handle[0];
     return vk_sm;
 }
 
-internal DOT_ShaderModuleHandle
-rn_vk_shader_load_from_data(String8 data)
+internal RN_ShaderModuleHandle
+rn_vk_shader_create(String8 data)
 {
     VkShaderModule vk_shader_module = VK_NULL_HANDLE;
     VkShaderModuleCreateInfo create_info = {
@@ -88,22 +88,22 @@ rn_vk_shader_load_from_data(String8 data)
         .pCode      = cast(u32*)data.str,
     };
     RN_VK_CHECK(vkCreateShaderModule(g_vk_ctx->device.vk_device, &create_info, NULL, &vk_shader_module));
-    DOT_ShaderModuleHandle dot_shader_module_handle = rn_vk_dot_shader_module_from_vk_shader_module(vk_shader_module);
+    RN_ShaderModuleHandle dot_shader_module_handle = rn_vk_dot_shader_module_from_vk_shader_module(vk_shader_module);
     return dot_shader_module_handle;
 }
 
 internal void
-rn_vk_shader_unload(DOT_ShaderModuleHandle shader_module_handle)
+rn_vk_shader_unload(RN_ShaderModuleHandle shader_module_handle)
 {
     VkShaderModule vk_sm = rn_vk_vk_shader_module_from_rn_shader_module(shader_module_handle);
     vkDestroyShaderModule(g_vk_ctx->device.vk_device, vk_sm, NULL);
 }
 
-internal DOT_SamplerHandle
+internal RN_SamplerHandle
 rn_vk_sampler_create(const RN_SamplerDesc *desc, String8 debug_name)
 {
     RN_VK_SamplerHandle h = rn_vk_sampler_create_(desc, debug_name);
-    DOT_SamplerHandle dot_sampler_handle = {.handle[0] = pool_handle_pack(h),};
+    RN_SamplerHandle dot_sampler_handle = {.handle[0] = pool_handle_pack(h),};
     return dot_sampler_handle;
 }
 
@@ -151,15 +151,14 @@ rn_vk_sampler_create_(const RN_SamplerDesc *desc, String8 debug_name)
             VkBool32                unnormalizedCoordinates;*/
         }, NULL, &sampler->vk_sampler);
     rn_vk_vk_resource_set_name(VK_OBJECT_TYPE_SAMPLER, cast(u64)sampler->vk_sampler, sampler->name);
-    rn_vk_resource_cleanup_list_push_rn_vk_sampler(sampler_h);
     return sampler_h;
 }
 
-internal DOT_TextureHandle
+internal RN_TextureHandle
 rn_vk_texture_create(const RN_TextureDesc *desc, void *data, String8 debug_name)
 {
     RN_VK_TextureHandle h = rn_vk_texture_create_(desc, data, debug_name);
-    DOT_TextureHandle dot_texture_handle = {.handle[0] = pool_handle_pack(h),};
+    RN_TextureHandle dot_texture_handle = {.handle[0] = pool_handle_pack(h),};
     return dot_texture_handle;
 }
 
@@ -287,17 +286,16 @@ rn_vk_texture_create_(const RN_TextureDesc *desc, void *data, String8 debug_name
         rn_vk_memory_pools_staging_ring_buffer_pop(&g_vk_ctx->memory_pools, &mem_alloc);
         vkResetCommandBuffer(vk_command_buffer, VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
     }
-    rn_vk_resource_cleanup_list_push_rn_vk_texture(texture_h);
     return texture_h;
 }
 
-internal DOT_BufferHandle
+internal RN_BufferHandle
 rn_vk_buffer_create(const RN_BufferDesc *desc, u8 *data, String8 debug_name)
 {
     RN_VK_BufferHandle h = rn_vk_buffer_create_(desc, data, debug_name);
-    DOT_BufferHandle dot_buffer_handle = {.handle[0] = pool_handle_pack(h),};
+    RN_BufferHandle dot_buffer_handle = {.handle[0] = pool_handle_pack(h),};
     return dot_buffer_handle;
-    return (DOT_BufferHandle){0};
+    return (RN_BufferHandle){0};
 
 }
 
@@ -325,18 +323,18 @@ rn_vk_buffer_create_(const RN_BufferDesc *desc, u8 *data, String8 debug_name)
     DOT_DEBUG_NAME_SET(buffer->name, debug_name);
 
     // static const VkBufferUsageFlags k_dynamic_buffer_mask = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-    // const b8 use_global_buffer = DOT_BITS_ANY(k_dynamic_buffer_mask, buffer->vk_buffer_usage_flags);
-    // if(desc->resource_usage == DOT_ResourceUsageKind_Dynamic && use_global_buffer){
+    // const b8 use_global_buffer = BITS_ANY(k_dynamic_buffer_mask, buffer->vk_buffer_usage_flags);
+    // if(desc->resource_usage == ResourceUsageKind_Dynamic && use_global_buffer){
     //     buffer->alloc = rn_vk_memory_gpu_buffer_alloc(&g_vk_ctx->memory_pools, buffer->vk_buffer);
     //     rn_vk_vk_resource_set_name(VK_OBJECT_TYPE_BUFFER, cast(u64)buffer->vk_buffer, buffer->name);
     //     RN_VK_MemoryAlloc mem_alloc = rn_vk_memory_pools_staging_ring_buffer_push(&g_vk_ctx->memory_pools, desc->size, data);
     //     buffer->vk_buffer = buffer->alloc.vk_buffer;
     // }
-    // else if(desc->resource_usage == DOT_ResourceUsageKind_Readback){
-    //     DOT_TODO("Not implemented yet");
+    // else if(desc->resource_usage == ResourceUsageKind_Readback){
+    //     TODO("Not implemented yet");
     //     // rn_vk_memory_pools_readback_ring_buffer_push
     //     // buffer->vk_buffer = buffer->alloc.vk_buffer;
-    // }else if(desc->resource_usage == DOT_ResourceUsageKind_GPUOnly){
+    // }else if(desc->resource_usage == ResourceUsageKind_GPUOnly){
     //     RN_VK_CHECK(vkCreateBuffer(
     //         g_vk_ctx->device.vk_device,
     //         &(VkBufferCreateInfo){
@@ -391,83 +389,24 @@ rn_vk_buffer_create_(const RN_BufferDesc *desc, u8 *data, String8 debug_name)
         vkResetCommandBuffer(vk_command_buffer, VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
     }
 
-    rn_vk_resource_cleanup_list_push_rn_vk_buffer(buffer_h);
     return buffer_h;
 }
 
-internal void
-rn_vk_resource_cleanup_list_push_scope()
+internal RN_ShaderResourceLayoutHandle
+rn_vk_shader_resource_layout_create(RN_ShaderResourceLayout *resource_layout)
 {
+    RN_VK_TextureHandle h = rn_vk_shader_resource_layout_create_(resource_layout);
+    RN_ShaderResourceLayoutHandle dot_shader_resource_layout_handle = {.handle[0] = pool_handle_pack(h),};
+    return dot_shader_resource_layout_handle;
 }
 
-// NOTE(JD): Will start to just make enclosing scopes
-// Should extend to be a graph
-internal void
-rn_vk_resource_cleanup_list_push_rn_vk_texture(RN_VK_TextureHandle texture_id)
+internal RN_VK_ShaderResourceLayoutHandle
+rn_vk_shader_resource_layout_create_(RN_ShaderResourceLayout *resource_layout)
 {
-    RN_VK_ResourceCleanupCtx *root = TREE_GET_ROOT(&g_vk_ctx->resource_cleanup_list_tree);
-    ARRAY_PUSH(root->texture_ids, texture_id);
+    (void)resource_layout;
+    return (PoolHandle){0};
 }
 
-internal void
-rn_vk_resource_cleanup_list_push_rn_vk_sampler(RN_VK_SamplerHandle sampler_id)
-{
-    RN_VK_ResourceCleanupCtx *root = TREE_GET_ROOT(&g_vk_ctx->resource_cleanup_list_tree);
-    ARRAY_PUSH(root->sampler_ids, sampler_id);
-}
-
-internal void
-rn_vk_resource_cleanup_list_push_rn_vk_buffer(RN_VK_BufferHandle buffer_id)
-{
-    RN_VK_ResourceCleanupCtx *root = TREE_GET_ROOT(&g_vk_ctx->resource_cleanup_list_tree);
-    ARRAY_PUSH(root->buffer_ids, buffer_id);
-}
-
-// internal void
-// rn_resource_cleanup_list_push_child(RN_VK_ResourceCleanupCtx *parent, u32 idx){
-//     DOT_ASSERT(idx < g_vk_ctx->cleanup_list_idx, "Idx must be an active resource list!");
-//     // cleanup_list
-//     RN_VK_ResourceCleanupCtx *elems = &g_vk_ctx->cleanup_list[g_vk_ctx->cleanup_list_idx];
-//     elems.
-//     RN_VK_TEXURE_MAX
-//     g_vk_ctx->cleanup_list_idx += 1;
-// }
-
-internal void
-rn_vk_resource_cleanup_list_pop_last()
-{
-}
-
-internal void
-rn_vk_resource_cleanup_list_pop_at(PoolHandle pop_start)
-{
-    (void)pop_start;
-}
-
-internal void
-rn_vk_resource_cleanup_list_pop_all(){
-    TempArena t = threadctx_get_temp(0);
-    ResourceCleanupListTree *tree = &g_vk_ctx->resource_cleanup_list_tree;
-    TreeIterator it = TREE_ITER_BEGIN(t.arena, tree, tree->tree_pool.tree_root);
-    for EACH_TREE_NODE(node_h, &it){
-        RN_VK_ResourceCleanupCtx *cleanup_list = TREE_GET(tree, node_h);
-        for EACH_INDEX(i, cleanup_list->texture_ids.count){
-            RN_VK_TextureHandle tex_h = ARRAY_GET(cleanup_list->texture_ids, i);
-            RN_VK_Texture *tex = POOL_GET(&g_vk_ctx->texture_pool, tex_h);
-            rn_vk_texture_destroy_(tex);
-            POOL_FREE(&g_vk_ctx->texture_pool, tex_h);
-        }
-        for EACH_INDEX(i, cleanup_list->buffer_ids.count){
-            RN_VK_BufferHandle tex_h = ARRAY_GET(cleanup_list->buffer_ids, i);
-            POOL_FREE(&g_vk_ctx->buffer_pool, tex_h);
-        }
-        for EACH_INDEX(i, cleanup_list->sampler_ids.count){
-            RN_VK_SamplerHandle tex_h = ARRAY_GET(cleanup_list->sampler_ids, i);
-            POOL_FREE(&g_vk_ctx->sampler_pool, tex_h);
-        }
-    }
-    temp_arena_restore(t);
-}
 
 
 // internal RN_VK_Buffer
@@ -480,7 +419,7 @@ rn_vk_resource_cleanup_list_pop_all(){
 //     RN_VK_Buffer buf = {
 //         .vk_size = size,
 //     };
-//     DOT_DEBUG_NAME_SET(buf.name, name);
+//     DEBUG_NAME_SET(buf.name, name);
 //
 //     VkDevice device = g_vk_ctx->device.vk_device;
 //     VkBufferCreateInfo info = {
@@ -500,22 +439,73 @@ rn_vk_resource_cleanup_list_pop_all(){
 // }
 
 internal void
-rn_vk_texture_destroy(DOT_TextureHandle handle)
+rn_vk_texture_destroy_h(RN_VK_TextureHandle tex_h)
 {
-    const PoolHandle texture_h = pool_handle_unpack(handle.handle[0]);
-    RN_VK_Texture *tex = POOL_GET(&g_vk_ctx->texture_pool, texture_h);
-    rn_vk_texture_destroy_(tex);
-    POOL_FREE(&g_vk_ctx->texture_pool, texture_h);
+    RN_VK_Texture *texture = POOL_GET(&g_vk_ctx->texture_pool, tex_h);
+    // rn_vk_texture_destroy_(tex);
+    VkDevice device = g_vk_ctx->device.vk_device;
+    DOT_ASSERT(texture->vk_image_view);
+    DOT_ASSERT(texture->vk_image);
+    vkDestroyImageView(device, texture->vk_image_view, NULL);
+    vkDestroyImage(device, texture->vk_image, NULL);
+    POOL_FREE(&g_vk_ctx->texture_pool, tex_h);
+    // TODO: We still need to return the gpu memory
 }
 
 internal void
-rn_vk_texture_destroy_(RN_VK_Texture *image){
+rn_vk_texture_destroy(RN_TextureHandle handle)
+{
+    const RN_VK_TextureHandle texture_h = pool_handle_unpack(handle.handle[0]);
+    rn_vk_texture_destroy_h(texture_h);
+    // RN_VK_Texture *tex = POOL_GET(&g_vk_ctx->texture_pool, texture_h);
+    // rn_vk_texture_destroy_(tex);
+    // POOL_FREE(&g_vk_ctx->texture_pool, texture_h);
+}
+
+
+internal void
+rn_vk_texture_destroy_(RN_VK_Texture *texture)
+{
     VkDevice device = g_vk_ctx->device.vk_device;
-    DOT_ASSERT(image->vk_image_view);
-    DOT_ASSERT(image->vk_image);
-    vkDestroyImageView(device, image->vk_image_view, NULL);
-    // vkUnmapMemory(device, image->alloc.vk_memory);
-    vkDestroyImage(device, image->vk_image, NULL);
+    DOT_ASSERT(texture->vk_image_view);
+    DOT_ASSERT(texture->vk_image);
+    vkDestroyImageView(device, texture->vk_image_view, NULL);
+    vkDestroyImage(device, texture->vk_image, NULL);
+    // TODO: We still need to return the gpu memory
+}
+
+internal void
+rn_vk_buffer_destroy(RN_BufferHandle handle)
+{
+    const PoolHandle buffer_h = pool_handle_unpack(handle.handle[0]);
+    RN_VK_Buffer *buff = POOL_GET(&g_vk_ctx->buffer_pool, buffer_h);
+    rn_vk_buffer_destroy_(buff);
+    POOL_FREE(&g_vk_ctx->buffer_pool, buffer_h);
+}
+
+internal void
+rn_vk_buffer_destroy_(RN_VK_Buffer *buff){
+    VkDevice device = g_vk_ctx->device.vk_device;
+    DOT_ASSERT(buff->vk_buffer);
+    vkDestroyBuffer(device, buff->vk_buffer, NULL);
+    // TODO: We still need to return the gpu memory
+}
+
+internal void
+rn_vk_sampler_destroy(RN_SamplerHandle handle)
+{
+    const PoolHandle sampler_h = pool_handle_unpack(handle.handle[0]);
+    RN_VK_Sampler *buff = POOL_GET(&g_vk_ctx->sampler_pool, sampler_h);
+    rn_vk_sampler_destroy_(buff);
+    POOL_FREE(&g_vk_ctx->sampler_pool, sampler_h);
+}
+
+internal void
+rn_vk_sampler_destroy_(RN_VK_Sampler *buff){
+    VkDevice device = g_vk_ctx->device.vk_device;
+    DOT_ASSERT(buff->vk_sampler);
+    vkDestroySampler(device, buff->vk_sampler, NULL);
+    // TODO: We still need to return the gpu memory
 }
 
 internal void
@@ -526,12 +516,11 @@ rn_vk_init(DOT_Window *window)
     POOL_INIT(ctx_arena, &g_vk_ctx->texture_pool,   g_texture_count_max);
     POOL_INIT(ctx_arena, &g_vk_ctx->buffer_pool,    g_buffer_count_max);
     POOL_INIT(ctx_arena, &g_vk_ctx->sampler_pool,   g_sampler_count_max);
-    TREE_INIT(ctx_arena, RN_VK_ResourceCleanupCtx, &g_vk_ctx->resource_cleanup_list_tree, g_cleanup_resource_pool_max);
 #ifdef DOT_USE_VOLK
     volkInitialize();
 #endif
     // g_vk_ctx->vk_allocator = VkAllocatorParams(ctx_arena);
-    TempArena temp = threadctx_get_temp(0);
+    TempArena temp = threadctx_temp_begin(0);
     if(!vk_helper_all_layers(&g_rn_vk_config)){
         DOT_ERROR("Could not find all requested layers");
     }
@@ -587,8 +576,7 @@ rn_vk_init(DOT_Window *window)
 
         if(debug_utils_info_ptr){
 #ifndef DOT_USE_VOLK
-            PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT =
-                (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(g_vk_ctx->instance, "vkCreateDebugUtilsMessengerEXT");
+            PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT = cast(PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(g_vk_ctx->instance, "vkCreateDebugUtilsMessengerEXT");
 #endif
             if(vkCreateDebugUtilsMessengerEXT){
                 RN_VK_CHECK(vkCreateDebugUtilsMessengerEXT(g_vk_ctx->instance, debug_utils_info_ptr, NULL, &g_vk_ctx->debug_messenger));
@@ -909,11 +897,11 @@ rn_vk_init(DOT_Window *window)
     //
     //  RN_VK_CHECK(vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &compute_pipeline_create_info, NULL, &g_vk_ctx->gradient_pipeline));
     // }
-    temp_arena_restore(temp);
+    threadctx_temp_end(temp);
 }
 
 void
-rn_create_postprocess_module(DOT_ShaderModuleHandle shader_module_h)
+rn_create_postprocess_module(RN_ShaderModuleHandle shader_module_h)
 {
         VkDescriptorSetLayout layouts[] = {
             g_vk_ctx->compute_layout,
@@ -1424,7 +1412,7 @@ rn_vk_overlay_create_framebuffer(RN_VK_OverlayState *overlay_state)
 //     };
 //     VkDescriptorPoolCreateInfo pool_info = {
 //         .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-//         .poolSizeCount = DOT_ARRAY_COUNT(pool_sizes),
+//         .poolSizeCount = ARRAY_COUNT(pool_sizes),
 //         .pPoolSizes    = pool_sizes,
 //         .maxSets       = 2,
 //     };
@@ -1437,11 +1425,11 @@ rn_vk_overlay_create_framebuffer(RN_VK_OverlayState *overlay_state)
 //     VkDescriptorSetAllocateInfo dset_alloc = {
 //         .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
 //         .descriptorPool     = overlay_state->descriptor_pool,
-//         .descriptorSetCount = DOT_ARRAY_COUNT(layouts),
+//         .descriptorSetCount = ARRAY_COUNT(layouts),
 //         .pSetLayouts        = layouts,
 //     };
 //
-//     overlay_state->descriptor_set_count = DOT_ARRAY_COUNT(layouts);
+//     overlay_state->descriptor_set_count = ARRAY_COUNT(layouts);
 //     RN_VK_CHECK(vkAllocateDescriptorSets(device, &dset_alloc, overlay_state->descriptor_sets));
 //
 //     VkWriteDescriptorSet write = {
@@ -1839,6 +1827,7 @@ rn_vk_shutdown()
             VkCommandPool cmd_pool = ARRAY_GET(frame_data->vk_command_pools, j);
             vkDestroyCommandPool(device, cmd_pool, NULL);
         }
+        rn_vk_texture_destroy_h(frame_data->draw_image);
         vkDestroyFence(device, frame_data->render_complete_fence, NULL);
         vkDestroySemaphore(device, frame_data->semaphore_image_acquired, NULL);
     }
@@ -1852,16 +1841,13 @@ rn_vk_shutdown()
     vkDestroyPipelineLayout(device, g_vk_ctx->gradient_pipeline_layout, NULL);
     vkDestroyPipeline(device, g_vk_ctx->gradient_pipeline, NULL);
 
-    rn_vk_resource_cleanup_list_pop_all();
-
     vkDestroySwapchainKHR(device, g_vk_ctx->swapchain.swapchain, NULL);
     rn_vk_memory_pools_destroy(&g_vk_ctx->device, &g_vk_ctx->memory_pools);
     vkDestroySurfaceKHR(g_vk_ctx->instance, g_vk_ctx->surface, NULL);
     vkDestroyDevice(g_vk_ctx->device.vk_device, NULL);
     if(VK_EXT_DEBUG_UTILS_ENABLE){
 #ifndef DOT_USE_VOLK
-        PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT =
-            (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(g_vk_ctx->instance, "vkDestroyDebugUtilsMessengerEXT");
+        PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT = cast(PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(g_vk_ctx->instance, "vkDestroyDebugUtilsMessengerEXT");
 #endif
         if(vkDestroyDebugUtilsMessengerEXT){
             vkDestroyDebugUtilsMessengerEXT(g_vk_ctx->instance, g_vk_ctx->debug_messenger, NULL);

@@ -1,7 +1,7 @@
 /*
  * nk_dot_window.h - Nuklear compatibility layer for DOT Engine
  *
- * Bridges RGFW windowing with the DOT_Renderer overlay API.
+ * Bridges RGFW windowing with the RN_Renderer overlay API.
  *
  * This file contains NO graphics-API-specific code.  All GPU work is
  * delegated through the renderer frontend (rn_overlay_*).
@@ -44,7 +44,7 @@
 typedef struct NkDot_State {
     /* Windowing */
     DOT_Window *win;
-    DOT_Renderer *renderer;
+    RN_Renderer *renderer;
     u32 width, height;
 
     /* Nuklear core */
@@ -96,11 +96,11 @@ nk_dot_clipboard_copy(nk_handle usr, const char *text, int len)
 
 /*
  * Initialise the Nuklear bridge.
- *   renderer - the DOT_Renderer (must already be initialised)
+ *   renderer - the RN_Renderer (must already be initialised)
  *   window   - the DOT_Window (wrapping RGFW)
  */
 NK_API struct nk_context*
-nk_dot_init(DOT_Renderer *renderer, DOT_Window *window)
+nk_dot_init(RN_Renderer *renderer, DOT_Window *window)
 {
     MEMORY_ZERO_STRUCT(&g_nk_dot);
     NkDot_State *s = &g_nk_dot;
@@ -261,7 +261,7 @@ nk_dot_handle_event(RGFW_event *event)
  * work through the renderer frontend (rn_overlay_render).
  */
 NK_API void
-nk_dot_render(DOT_Renderer *renderer)
+nk_dot_render(RN_Renderer *renderer)
 {
     NkDot_State *s = &g_nk_dot;
     struct nk_context *ctx = &s->ctx;
@@ -333,7 +333,7 @@ nk_dot_render(DOT_Renderer *renderer)
  * Shutdown: clean up NK context and tell the renderer to free overlay resources.
  */
 NK_API void
-nk_dot_shutdown(DOT_Renderer *renderer)
+nk_dot_shutdown(RN_Renderer *renderer)
 {
     NkDot_State *s = &g_nk_dot;
 

@@ -627,4 +627,21 @@ void dot_debug_name_set(u32 capacity, char *ptr, String8 src);
 #define EACH_IN_SECTION(section_name, T, it) \
     (T *it = __start_##section_name; (it) < __stop_##section_name; (it)++)
 
+
+// NOTE: revisit atomics, also grabbed this from raddbg for the stracktrace thing
+#if DOT_COMPILER_MSVC
+# include <intrin.h>
+# if ARCH_X64
+#  define ins_atomic_u32_eval_cond_assign(x,k,c)  _InterlockedCompareExchange((long *)(x), (k), (c))
+# else
+#  error "Atomic intrinsics not defined for this compiler / architecture combination."
+# endif
+#elif DOT_COMPILER_CLANG || DOT_COMPILER_GCC
+#include <immintrin.h>
+#include <emmintrin.h>
+#  define ins_atomic_u32_eval_cond_assign(x,k,c)  ({ u32 _new = (c); __atomic_compare_exchange_n((u32 *)(x),&_new,(k),0,__ATOMIC_SEQ_CST,__ATOMIC_SEQ_CST); _new; })
+#else
+#  error "Atomic intrinsics not defined for this compiler / architecture."
+#endif
+
 #endif // !DOT_H

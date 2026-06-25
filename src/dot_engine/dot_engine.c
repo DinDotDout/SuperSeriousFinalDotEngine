@@ -100,6 +100,9 @@ dot_engine_shutdown(DOT_Engine *engine)
 int
 main(int argc, char *argv[])
 {
+    os_install_handlers();
+    Arena *a = ARENA_CREATE();
+    ARENA_RESET(a);
     DOT_Engine engine = {0};
     b8 tests_only = false;
     b8 tests_list_only = false;

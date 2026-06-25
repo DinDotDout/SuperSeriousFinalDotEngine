@@ -1,7 +1,7 @@
 global DOT_Game *g_game = NULL;
 
 #ifdef DOT_HOT_RELOAD
-void dot_game_init(DOT_Game *game, DOT_Renderer *renderer,
+void dot_game_init(DOT_Game *game, RN_Renderer *renderer,
     u8 permanent_memory[], usize permanent_memory_size,
     u8 transient_memory[], usize transient_memory_size) {
     g_game_api.init(game);
@@ -17,7 +17,7 @@ void dot_game_run(DOT_Game *game) {
 
 #else
 // NOTE: All this shouldn't we here but I am using this as a testbed for the render api for now
-b32 dot_game_init(DOT_Game *game, DOT_Renderer *renderer,
+b32 dot_game_init(DOT_Game *game, RN_Renderer *renderer,
     u8 permanent_memory[], usize permanent_memory_size,
     u8 transient_memory[], usize transient_memory_size)
 {
@@ -25,7 +25,7 @@ b32 dot_game_init(DOT_Game *game, DOT_Renderer *renderer,
     g_game->renderer = renderer;
     g_game->permanent_arena = ARENA_CREATE(.name = "engine permanent arena", .buffer = permanent_memory, .reserve_size = permanent_memory_size);
     g_game->transient_arena = ARENA_CREATE(.name = "engine transient arena", .buffer = transient_memory, .reserve_size = transient_memory_size);
-g_game->test_shader_module = rn_shader_module_load_from_path(game->renderer, String8Lit(DOT_GAME_SHADER_PATH"compute.glsl"));
+    g_game->test_shader_module = rn_shader_module_load_from_path(game->renderer, String8Lit(DOT_GAME_SHADER_PATH"compute.glsl"));
     rn_create_postprocess_module(g_game->test_shader_module->shader_module_handle);
 
     // String8 model_path = String8Lit(DOT_GAME_ASSET_PATH"glTF-Sample-Models/2.0/DamagedHelmet/glTF-Embedded/DamagedHelmet.gltf");
@@ -123,7 +123,7 @@ g_game->test_shader_module = rn_shader_module_load_from_path(game->renderer, Str
 
 void dot_game_run(DOT_Game *game)
 {
-    DOT_Renderer *renderer = game->renderer;
+    RN_Renderer *renderer = game->renderer;
     // f64 flash = fabs(sin(renderer->current_frame / 60.f));
     u32 current_frame = 0;
     f32 flash = cast(f32)((sin(cast(f32)current_frame / 1200.f)+1.f) / 2.0f);

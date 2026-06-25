@@ -1,6 +1,7 @@
 DOT_SETTING_U32("Render", g_rn_transient_memory_size_b, DOT_MB(80));
 DOT_SETTING_U32("Render", g_rn_permanent_memory_size_b, DOT_MB(80));
 DOT_SETTING_U32("Render", g_frame_arena_size_b, DOT_KB(32));
+DOT_SETTING_U32("Render", g_cleanup_resource_pool_max, 128);
 
 DOT_SETTING_U32("Render", g_frame_overlap, 3);
 DOT_SETTING_U32("Render", g_thread_count, 1);
@@ -15,7 +16,6 @@ DOT_SETTING_U32("RenderBackend", g_render_backend_permanent_memory_size_b, DOT_M
 DOT_SETTING_U32("RenderBackend", g_texture_count_max, 512);
 DOT_SETTING_U32("RenderBackend", g_buffer_count_max, 4096);
 DOT_SETTING_U32("RenderBackend", g_sampler_count_max, 128);
-DOT_SETTING_U32("RenderBackend", g_cleanup_resource_pool_max, 128);
 DOT_SETTING_U32("RenderBackend", g_command_buffers_per_thread, 4);
 
 DOT_SETTING_U32("ShaderCache", g_shader_cache_bucket_count, 64);
@@ -43,7 +43,7 @@ rn_backend_create(Arena *arena)
 }
 
 internal void
-rn_init(Arena *arena, DOT_Renderer *renderer, DOT_Window *window)
+rn_init(Arena *arena, RN_Renderer *renderer, DOT_Window *window)
 {
     renderer->permanent_arena = ARENA_CREATE(
         .parent       = arena,
@@ -55,7 +55,8 @@ rn_init(Arena *arena, DOT_Renderer *renderer, DOT_Window *window)
         .reserve_size = g_rn_transient_memory_size_b,
         .name         = "Application renderer transient");
 
-    hash_map_DOT_ShaderModule_init(renderer->permanent_arena, &renderer->shader_cache, g_shader_cache_bucket_count);
+    TREE_INIT(renderer->permanent_arena, RN_VK_ResourceCleanupCtx, &renderer->cleanup_tree, g_cleanup_resource_pool_max);
+    hash_map_RN_ShaderModule_init(renderer->permanent_arena, &renderer->shader_cache, g_shader_cache_bucket_count);
 
     renderer->backend = rn_backend_create(renderer->permanent_arena);
     renderer->frame_data_count = g_frame_overlap;
@@ -83,31 +84,33 @@ rn_init(Arena *arena, DOT_Renderer *renderer, DOT_Window *window)
 }
 
 internal void
-rn_shutdown(DOT_Renderer *renderer)
+rn_shutdown(RN_Renderer *renderer)
 {
-    HashMap_DOT_ShaderModule *shader_cache = &renderer->shader_cache;
+    HashMap_RN_ShaderModule *shader_cache = &renderer->shader_cache;
     HashMap_Iter it = hash_map_iter_init();
-    DOT_ShaderModule *shader_module = NULL;
-    while((shader_module = hash_map_DOT_ShaderModule_iter_next(shader_cache, &it))){
-            DOT_ShaderModuleHandle h = shader_module->shader_module_handle;
+    RN_ShaderModule *shader_module = NULL;
+    while((shader_module = hash_map_RN_ShaderModule_iter_next(shader_cache, &it))){
+            RN_ShaderModuleHandle h = shader_module->shader_module_handle;
             RENDER_BACKEND_CALL(shader_unload(h));
     }
-    hash_map_DOT_ShaderModule_end(shader_cache);
+    hash_map_RN_ShaderModule_end(shader_cache);
+    rn_resource_cleanup_list_pop_all(renderer);
     RENDER_BACKEND_CALL(shutdown());
 }
 
 void
-rn_texture_destroy(DOT_Renderer *renderer, DOT_TextureHandle handle)
+rn_texture_destroy(RN_Renderer *renderer, RN_TextureHandle handle)
 {
     RENDER_BACKEND_CALL(texture_destroy(handle));
 }
 
-DOT_TextureAsset
-rn_texture_asset_create(DOT_Renderer *renderer, const DOT_AssetCreateInfo *asset_info, u8 mip_levels)
+// (jd) NOTE: Renderer shouldn't be doing the loading
+RN_Texture
+rn_texture_load_from_path(RN_Renderer *renderer, String8 name, String8 path, u8 mip_levels)
 {
-    DOT_WARNING("Creating texture with name %S, from path: ", asset_info->name, asset_info->path);
-    TempArena temp = temp_arena_get(renderer->transient_arena);
-    String8 file_data = platform_read_entire_file(temp.arena, asset_info->path);
+    DOT_WARNING("Creating texture with name %S, from path: ", name, path);
+    TempArena temp = temp_arena_start(renderer->transient_arena);
+    String8 file_data = platform_read_entire_file(temp.arena, path);
 
     void *data = NULL;
     u8 size_bytes = 0;
@@ -142,8 +145,8 @@ rn_texture_asset_create(DOT_Renderer *renderer, const DOT_AssetCreateInfo *asset
             mip_levels++;
         }
     }
-    DOT_TextureAsset asset = {
-        .asset = dot_asset_from_create_info(renderer, asset_info, DOT_AssetKind_Texture),
+    RN_Texture asset = {
+        .resource.kind = RN_ResourceKind_Texture,
         .desc = {
             .dimension_kind = RN_TextureDimensionKind_2D,
             .format_kind = rn_texture_format_from_info(comp, size_bytes, true),
@@ -153,36 +156,46 @@ rn_texture_asset_create(DOT_Renderer *renderer, const DOT_AssetCreateInfo *asset
             .depth = 1,
         },
     };
-    asset.handle = rn_texture_create(renderer, &asset.desc, data, asset_info->name),
+    asset.handle = rn_texture_create(renderer, &asset.desc, data, name),
     temp_arena_restore(temp);
     return asset;
 }
 
-internal DOT_TextureHandle
-rn_texture_create(DOT_Renderer *renderer, const RN_TextureDesc *texture_desc, void *data, String8 debug_name)
+internal RN_TextureHandle
+rn_texture_create(RN_Renderer *renderer, const RN_TextureDesc *texture_desc, void *data, String8 debug_name)
 {
-    return RENDER_BACKEND_CALL(texture_create(texture_desc, data, debug_name));
+    RN_TextureHandle h = RENDER_BACKEND_CALL(texture_create(texture_desc, data, debug_name));
+    rn_resource_cleanup_list_push_texture(renderer, h);
+    return(h);
 }
 
-internal DOT_SamplerAsset
-rn_sampler_asset_create(DOT_Renderer *renderer, const DOT_AssetCreateInfo *asset_info, const RN_SamplerDesc *sampler_desc)
+internal RN_Sampler
+rn_sampler_asset_create(RN_Renderer *renderer, const DOT_AssetCreateInfo *asset_info, const RN_SamplerDesc *sampler_desc)
 {
-    DOT_SamplerAsset sampler_asset = {
-        .asset = dot_asset_from_create_info(renderer, asset_info, DOT_AssetKind_Sampler),
-        .desc = *sampler_desc,
+    RN_Sampler sampler_asset = {
+        // .asset = dot_asset_from_create_info(renderer, asset_info, RN_ResourceKind_Sampler), .desc = *sampler_desc,
         .handle = rn_sampler_create(renderer, sampler_desc, asset_info->name),
     };
     return sampler_asset;
 }
-internal DOT_BufferAsset
-rn_buffer_asset_create(DOT_Renderer *renderer, const DOT_AssetCreateInfo *asset_info, const RN_BufferDesc *buffer_desc, u8 *data)
+
+internal RN_Buffer
+rn_buffer_asset_create(RN_Renderer *renderer, const DOT_AssetCreateInfo *asset_info, const RN_BufferDesc *buffer_desc, u8 *data)
 {
-    DOT_BufferAsset buffer_asset = {
-        .asset = dot_asset_from_create_info(renderer, asset_info, DOT_AssetKind_Buffer),
+    RN_Buffer buffer_asset = {
         .desc = *buffer_desc,
+        .resource.kind = RN_ResourceKind_Buffer,
     };
     buffer_asset.handle = rn_buffer_create(renderer, buffer_desc, data, asset_info->name);
     return buffer_asset;
+}
+
+internal RN_ShaderResourceLayoutHandle
+rn_shader_resource_layout_create(RN_Renderer *renderer, RN_ShaderResourceLayout *resource_layout)
+{
+    RN_ShaderResourceLayoutHandle h = RENDER_BACKEND_CALL(shader_resource_layout_create(resource_layout));
+    // rn_resource_cleanup_list_push_buffer(renderer, h);
+    return(h);
 }
 
 internal RN_RenderPassOutput
@@ -195,88 +208,166 @@ rn_swapchain_output()
     return(rpo);
 }
 
-internal DOT_BufferHandle
-rn_buffer_create(DOT_Renderer *renderer, const RN_BufferDesc *buffer_desc, u8 *data, String8 debug_name)
+internal RN_BufferHandle
+rn_buffer_create(RN_Renderer *renderer, const RN_BufferDesc *buffer_desc, u8 *data, String8 debug_name)
 {
-    return RENDER_BACKEND_CALL(buffer_create(buffer_desc, data, debug_name));
+    RN_BufferHandle h = RENDER_BACKEND_CALL(buffer_create(buffer_desc, data, debug_name));
+    rn_resource_cleanup_list_push_buffer(renderer, h);
+    return(h);
 }
 
-internal DOT_SamplerHandle
-rn_sampler_create(DOT_Renderer *renderer, const RN_SamplerDesc *sampler_desc, String8 debug_name)
+internal RN_SamplerHandle
+rn_sampler_create(RN_Renderer *renderer, const RN_SamplerDesc *sampler_desc, String8 debug_name)
 {
-    return RENDER_BACKEND_CALL(sampler_create(sampler_desc, debug_name));
+    RN_SamplerHandle h = RENDER_BACKEND_CALL(sampler_create(sampler_desc, debug_name));
+    rn_resource_cleanup_list_push_sampler(renderer, h);
+    return(h);
 }
 
 void
-rn_clear_background(DOT_Renderer *renderer, vec3 color)
+rn_clear_background(RN_Renderer *renderer, vec3 color)
 {
     RENDER_BACKEND_CALL(clear_bg(color));
 }
 
 internal void
-rn_frame_begin(DOT_Renderer *renderer)
+rn_frame_begin(RN_Renderer *renderer)
 {
     RENDER_BACKEND_CALL(frame_begin());
 }
 
 internal void
-rn_frame_end(DOT_Renderer *renderer)
+rn_frame_end(RN_Renderer *renderer)
 {
     RENDER_BACKEND_CALL(frame_end());
 }
+
+internal void
+rn_vk_resource_cleanup_list_push_scope()
+{
+}
+
+// NOTE(JD): Will start to just make enclosing scopes
+// Should extend to be a graph
+internal void
+rn_resource_cleanup_list_push_texture(RN_Renderer *renderer, RN_TextureHandle texture_id)
+{
+    RN_ResourceCleanupCtx *root = TREE_GET_ROOT(&renderer->cleanup_tree);
+    ARRAY_PUSH(root->texture_ids, texture_id);
+}
+
+internal void
+rn_resource_cleanup_list_push_sampler(RN_Renderer *renderer, RN_SamplerHandle sampler_id)
+{
+    RN_ResourceCleanupCtx *root = TREE_GET_ROOT(&renderer->cleanup_tree);
+    ARRAY_PUSH(root->sampler_ids, sampler_id);
+}
+
+internal void
+rn_resource_cleanup_list_push_buffer(RN_Renderer *renderer, RN_BufferHandle buffer_id)
+{
+    RN_ResourceCleanupCtx *root = TREE_GET_ROOT(&renderer->cleanup_tree);
+    ARRAY_PUSH(root->buffer_ids, buffer_id);
+}
+
+// internal void
+// rn_resource_cleanup_list_push_child(RN_VK_ResourceCleanupCtx *parent, u32 idx){
+//     ASSERT(idx < g_vk_ctx->cleanup_list_idx, "Idx must be an active resource list!");
+//     // cleanup_list
+//     RN_VK_ResourceCleanupCtx *elems = &g_vk_ctx->cleanup_list[g_vk_ctx->cleanup_list_idx];
+//     elems.
+//     RN_VK_TEXURE_MAX
+//     g_vk_ctx->cleanup_list_idx += 1;
+// }
+
+internal void
+rn_resource_cleanup_list_pop_last()
+{
+}
+
+internal void
+rn_resource_cleanup_list_pop_at(PoolHandle pop_start)
+{
+    (void)pop_start;
+}
+
+internal void
+rn_resource_cleanup_list_pop_all(RN_Renderer *renderer)
+{
+    TempArena t = threadctx_temp_begin(0);
+    RN_ResourceCleanupTree *tree = &renderer->cleanup_tree;
+    TreeIterator it = TREE_ITER_BEGIN(t.arena, tree, tree->tree_pool.tree_root);
+    for EACH_TREE_NODE(node_h, &it){
+        RN_ResourceCleanupCtx *cleanup_list = TREE_GET(tree, node_h);
+        for EACH_INDEX(i, cleanup_list->texture_ids.count){
+            RN_TextureHandle tex_h = ARRAY_GET(cleanup_list->texture_ids, i);
+            RENDER_BACKEND_CALL(texture_destroy(tex_h));
+        }
+        for EACH_INDEX(i, cleanup_list->buffer_ids.count){
+            RN_BufferHandle buff_h = ARRAY_GET(cleanup_list->buffer_ids, i);
+            RENDER_BACKEND_CALL(buffer_destroy(buff_h));
+        }
+        for EACH_INDEX(i, cleanup_list->sampler_ids.count){
+            RN_SamplerHandle sampler_h = ARRAY_GET(cleanup_list->sampler_ids, i);
+            RENDER_BACKEND_CALL(sampler_destroy(sampler_h));
+        }
+    }
+    threadctx_temp_end(t);
+}
+
 
 /* ------------------------------------------------------------------ */
 /*  Overlay (backend-agnostic)                                        */
 /* ------------------------------------------------------------------ */
 
 internal void
-rn_overlay_init(DOT_Renderer *renderer, const void *font_pixels, int font_w, int font_h)
+rn_overlay_init(RN_Renderer *renderer, const void *font_pixels, int font_w, int font_h)
 {
     DOT_UNUSED(renderer);
     RENDER_BACKEND_CALL(overlay_init(font_pixels, font_w, font_h));
 }
 
 internal void
-rn_overlay_render(DOT_Renderer *renderer, u8 frame_idx, OverlayDrawList *draw_list)
+rn_overlay_render(RN_Renderer *renderer, u8 frame_idx, OverlayDrawList *draw_list)
 {
     DOT_UNUSED(renderer);
     rn_vk_overlay_render(frame_idx, draw_list);
 }
 
 internal void
-rn_overlay_shutdown(DOT_Renderer *renderer)
+rn_overlay_shutdown(RN_Renderer *renderer)
 {
     DOT_UNUSED(renderer);
     RENDER_BACKEND_CALL(overlay_shutdown());
 }
 
-DOT_ShaderModule*
-rn_shader_module_load_from_path(DOT_Renderer *renderer, String8 path)
+RN_ShaderModule*
+rn_shader_module_load_from_path(RN_Renderer *renderer, String8 path)
 {
-    TempArena temp = threadctx_get_temp(0);
-    String8 compiled_path = shader_cache_get_compiled_path(renderer->permanent_arena, path);
+    TempArena temp = threadctx_temp_begin(0);
+    String8 compiled_path = rn_shader_cache_get_compiled_path(renderer->permanent_arena, path);
     b32 source_updated = platform_file_is_newer(path, compiled_path);
     b32 compilation_success = false;
     if(source_updated){
         DOT_PRINT("Recompiling %S", path);
-        compilation_success = shader_compile_from_path(path, compiled_path);
+        compilation_success = rn_shader_compile_from_path(path, compiled_path);
         if(!compilation_success){
             DOT_WARNING("Failed to compile shader %S", path);
         }
     }
 
-    DOT_ShaderModule *shader_module = hash_map_DOT_ShaderModule_get_or_create(renderer->permanent_arena, &renderer->shader_cache, path);
-    b32 should_update_shader = (source_updated && compilation_success) || !shader_module_initialized(shader_module);
+    RN_ShaderModule *shader_module = hash_map_RN_ShaderModule_get_or_create(renderer->permanent_arena, &renderer->shader_cache, path);
+    b32 should_update_shader = (source_updated && compilation_success) || !rn_shader_module_is_initialized(shader_module);
     if(should_update_shader){
         shader_module->compiled_path = compiled_path;
-        shader_module->asset.path = path;
+        shader_module->path = path;
         String8 compiled_shader_content = platform_read_entire_file(temp.arena, compiled_path);
         if(compiled_shader_content.size > 0){
-            shader_module->shader_module_handle = RENDER_BACKEND_CALL(shader_load_from_data(compiled_shader_content));
+            shader_module->shader_module_handle = RENDER_BACKEND_CALL(shader_create(compiled_shader_content));
         }else{
             DOT_WARNING("Failed to read shader %S compilation %S", path, compiled_path);
         }
     }
-    temp_arena_restore(temp);
+    threadctx_temp_end(temp);
     return shader_module;
 }

@@ -1,6 +1,19 @@
 #ifndef RN_H
 #define RN_H
 
+#define RN_RESOURCE_KINDS(X) \
+    X(RN_ResourceKind, Unknown) \
+    X(RN_ResourceKind, Texture) \
+    X(RN_ResourceKind, Sampler) \
+    X(RN_ResourceKind, Buffer) \
+    X(RN_ResourceKind, ShaderModule) \
+    X(RN_ResourceKind, Count)
+DOT_ENUM_REFLECT(RN_ResourceKind, RN_RESOURCE_KINDS);
+
+typedef struct RN_Resource{
+    RN_ResourceKind kind;
+}RN_Resource;
+
 #define RN_PRESENT_MODE_KINDS(X) \
     X(RN_PresentModeKind, Immediate) \
     X(RN_PresentModeKind, Fifo) \
@@ -95,6 +108,25 @@ typedef struct RN_TextureFormatInfo{
 DOT_ENUM_REFLECT(RN_ShaderResourceKind, RN_SHADER_RESOURCE_LAYOUT_KINDS);
 
 enum{RN_SHADER_RESOURCE_BINDING_MAX = 10};
+
+typedef u64 RN_Handle[1];
+
+typedef struct RN_TextureHandle{
+    RN_Handle handle;
+}RN_TextureHandle;
+
+typedef struct RN_ShaderResourceLayoutHandle{
+    RN_Handle handle;
+}RN_ShaderResourceLayoutHandle;
+
+typedef struct RN_BufferHandle{
+    RN_Handle handle;
+}RN_BufferHandle;
+
+typedef struct RN_SamplerHandle{
+    RN_Handle handle;
+}RN_SamplerHandle;
+
 typedef struct RN_ShaderResourceBinding{
     RN_ShaderResourceKind resource_kind;
     u16 start;
@@ -111,10 +143,6 @@ typedef struct RN_ShaderResourceLayout{
 
 }RN_ShaderResourceLayout;
 
-typedef struct DOT_DescriptorSetLayoutHandle{
-    DOT_AssetHandle handle;
-}DOT_DescriptorSetLayoutHandle;
-
 typedef struct RN_TextureDesc{
     RN_TextureDimensionKind dimension_kind;
     RN_TextureFormatKind format_kind;
@@ -123,6 +151,7 @@ typedef struct RN_TextureDesc{
     u16 height; // = 1;
     u16 depth; // = 1;
     u8 mip_levels; // = 1; // 0 will auto generate
+    DOT_DEBUG_NAME(debug_name, DOT_DEBUG_NAME_LEN);
 }RN_TextureDesc;
 
 #define RN_TEXTURE_DESC(...) \
@@ -140,16 +169,13 @@ typedef struct RN_TextureDesc{
 //     RN_TextureDesc texture_desc; // This filled in by the texture loaded
 // }RN_TextureCreateInfo;
 
-typedef struct DOT_TextureHandle{
-    DOT_AssetHandle handle;
-}DOT_TextureHandle;
 
-global DOT_TextureHandle null_texture = {0};
-typedef struct DOT_TextureAsset{
-    DOT_Asset asset;
-    DOT_TextureHandle handle;
+global RN_TextureHandle null_texture = {0};
+typedef struct RN_Texture{
+    RN_Resource resource;
+    RN_TextureHandle handle;
     RN_TextureDesc desc;
-}DOT_TextureAsset;
+}RN_Texture;
 
 ////////////////////////////////////////////////////////////////
 /// RN_BUFFER
@@ -173,34 +199,21 @@ enum{
     RN_BufferUsageBit_DeviceAddress     = DOT_BIT(5),
 };
 
-typedef struct DOT_BufferHandle{
-    DOT_AssetHandle handle;
-}DOT_BufferHandle;
-
 typedef struct RN_BufferDesc{
     u64 size;
     RN_BufferUsageFlags     buffer_usage_flags;
     RN_ResourceUsageKind    resource_usage;
+    DOT_DEBUG_NAME(debug_name, DOT_DEBUG_NAME_LEN);
 }RN_BufferDesc;
+
 #define RN_BUFFER_DESC(...) \
     &(RN_BufferDesc){__VA_ARGS__} \
 
-// typedef struct RN_BufferCreateInfo{
-//     RN_AssetCreateInfo asset_info;
-//     void *data; // must fill in desc manually
-//                 //
-//     // b32 create_mips; // Enabling this will auto fill mip_levels if no mip_levels
-//
-//     RN_BufferDesc buffer_desc; // This is now filled in by the texture loaded
-//     // u8 flags; // = 0; // TextureFlags bitmasks
-//     // TextureHandle alias = k_invalid_texture;
-// }RN_BufferCreateInfo;
-
-typedef struct DOT_BufferAsset{
-    DOT_Asset asset;
-    DOT_BufferHandle handle;
+typedef struct RN_Buffer{
+    RN_Resource resource;
+    RN_BufferHandle handle;
     RN_BufferDesc desc;
-}DOT_BufferAsset;
+}RN_Buffer;
 
 ////////////////////////////////////////////////////////////////
 /// RN_SAMPLER
@@ -226,9 +239,6 @@ DOT_ENUM_REFLECT(RN_SamplerMipmapFilterKind, RN_SAMPLER_MIP_MAP_MODE_KINDS);
     X(RN_SamplerAddressModeKind, MirrorClampToEdge)
 DOT_ENUM_REFLECT(RN_SamplerAddressModeKind, RN_SAMPLER_ADDRESS_MODE_KINDS);
 
-typedef struct DOT_SamplerHandle{
-    DOT_AssetHandle handle;
-}DOT_SamplerHandle;
 
 typedef struct RN_SamplerDesc{
     RN_SamplerFilterKind       min_filter;
@@ -244,11 +254,11 @@ typedef struct RN_SamplerDesc{
         __VA_ARGS__ \
     }
 
-typedef struct DOT_SamplerAsset{
-    DOT_Asset asset;
-    DOT_SamplerHandle handle;
+typedef struct RN_Sampler{
+    RN_Resource resource;
+    RN_SamplerHandle handle;
     RN_SamplerDesc desc;
-}DOT_SamplerAsset;
+}RN_Sampler;
 
 // typedef struct RN_Program{
 // }RN_Program;
@@ -504,7 +514,7 @@ typedef struct RN_Pipeline{
     RN_RenderPassOutput        render_pass;
     RN_ShaderState             shader_state;
     ARRAY(RN_BlendState, RN_IMAGE_OUTPUTS_MAX) blend_states;
-    ARRAY(DOT_DescriptorSetLayoutHandle, RN_DESCRIPTOR_SET_LAYOUT_MAX) descriptor_set_layouts;
+    ARRAY(RN_ShaderResourceLayoutHandle, RN_DESCRIPTOR_SET_LAYOUT_MAX) descriptor_set_layouts;
     DOT_DEBUG_NAME(name, DOT_DEBUG_NAME_LEN);
 }RN_Pipeline;
 

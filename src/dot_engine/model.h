@@ -27,9 +27,9 @@ typedef struct DOT_Mesh{
 
 typedef struct DOT_Model{
     SLICE(DOT_Mesh) meshes;
-    SLICE(DOT_SamplerAsset) samplers;
-    SLICE(DOT_BufferAsset)  buffers;
-    SLICE(DOT_TextureAsset) textures;
+    SLICE(RN_Sampler) samplers;
+    SLICE(RN_Buffer)  buffers;
+    SLICE(RN_Texture) textures;
 }DOT_Model;
 
 internal void*
@@ -112,18 +112,18 @@ dot_extract_primitive(Arena *arena, DOT_Primitive *dst, cgltf_primitive *src)
 }
 
 internal DOT_Model
-dot_model_from_cgltf(DOT_Renderer *renderer, const cgltf_data *data, String8 gltf_path)
+dot_model_from_cgltf(RN_Renderer *renderer, const cgltf_data *data, String8 gltf_path)
 {
     DOT_ASSERT(data->textures_count <= U32_MAX); DOT_ASSERT(data->meshes_count <= U32_MAX);
     DOT_ASSERT(data->samplers_count <= U32_MAX); DOT_ASSERT(data->buffers_count <= U32_MAX);
     DOT_Model model = {
-        .textures   = SLICE_CREATE(renderer->transient_arena, DOT_TextureAsset, cast(u32)data->textures_count),
-        .buffers    = SLICE_CREATE(renderer->transient_arena, DOT_BufferAsset, cast(u32)data->buffer_views_count),
-        .samplers   = SLICE_CREATE(renderer->transient_arena, DOT_SamplerAsset, cast(u32)data->samplers_count),
+        .textures   = SLICE_CREATE(renderer->transient_arena, RN_Texture, cast(u32)data->textures_count),
+        .buffers    = SLICE_CREATE(renderer->transient_arena, RN_Buffer, cast(u32)data->buffer_views_count),
+        .samplers   = SLICE_CREATE(renderer->transient_arena, RN_Sampler, cast(u32)data->samplers_count),
         .meshes     = SLICE_CREATE(renderer->transient_arena, DOT_Mesh, cast(u32)data->meshes_count),
     };
 
-    TempArena temp = threadctx_get_temp(0);
+    TempArena temp = threadctx_temp_begin(0);
     String8 folder = string8_chop_last_slash(gltf_path);
     for (usize mesh_idx = 0; mesh_idx < data->meshes_count; mesh_idx++) {
         cgltf_mesh *src_mesh = &data->meshes[mesh_idx];
@@ -144,11 +144,7 @@ dot_model_from_cgltf(DOT_Renderer *renderer, const cgltf_data *data, String8 glt
         String8 name = image->name ? string8_from_cstring(image->name) : String8Lit("Default");
         String8 full_path = string8_format(temp.arena, "%S/%s", folder, image->uri);
         DOT_PRINT("name: %S, image uri: %S", name, full_path);
-        SLICE_GET(model.textures, i) = rn_texture_asset_create(
-            renderer,
-            DOT_ASSET_CREATE_INFO(.name = name, .path = full_path),
-            0);
-
+        SLICE_GET(model.textures, i) = rn_texture_load_from_path(renderer, name, full_path, 0);
     }
 
     for(u64 i = 0; i < data->samplers_count; ++i){
@@ -178,7 +174,7 @@ dot_model_from_cgltf(DOT_Renderer *renderer, const cgltf_data *data, String8 glt
                                       | RN_BufferUsageBit_Index),
             buffer_data);
     }
-    temp_arena_restore(temp);
+    threadctx_temp_end(temp);
     return(model);
 }
 
@@ -190,7 +186,7 @@ dot_model_from_cgltf(DOT_Renderer *renderer, const cgltf_data *data, String8 glt
 //     int* out_h,
 //     int* out_comp)
 // {
-//     TempArena temp = threadctx_get_temp(0,0);
+//     TempArena temp = threadctx_temp_begin(0,0);
 //     u8* bytes = NULL;
 //     usize size = 0;
 //
@@ -247,7 +243,7 @@ dot_model_from_cgltf(DOT_Renderer *renderer, const cgltf_data *data, String8 glt
 //     *out_w = w;
 //     *out_h = h;
 //     *out_comp = comp;
-//     temp_arena_restore(temp);
+//     threadctx_temp_end(temp);
 //     return(pixels);
 // }
 
@@ -283,16 +279,16 @@ dot_gltf_load_from_path(Arena *arena, String8 path)
 }
 
 internal DOT_Model
-dot_model_load_from_path(DOT_Renderer *renderer, String8 path)
+dot_model_load_from_path(RN_Renderer *renderer, String8 path)
 {
-    TempArena temp = threadctx_get_temp(0);
+    TempArena temp = threadctx_temp_begin(0);
     cgltf_data *gltf = dot_gltf_load_from_path(temp.arena, path);
     DOT_Model model = {0};
     if(gltf){
         model = dot_model_from_cgltf(renderer, gltf, path);
         // cgltf_free(gltf);
     }
-    temp_arena_restore(temp);
+    threadctx_temp_end(temp);
 	return(model);
 }
 

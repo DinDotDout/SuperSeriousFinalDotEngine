@@ -110,7 +110,7 @@ DOT_DIAGNOSTIC_PUSH
 #include "game/my_game.c"
 
 typedef struct DOT_Engine{
-    DOT_Renderer renderer;
+    RN_Renderer renderer;
     DOT_Window window;
     DOT_Game *game;
     // DOT_AssetDB *asset_db;

@@ -1,3 +1,9 @@
+internal b32
+char_is_slash(u8 c)
+{
+  return (c == '/' || c == '\\');
+}
+
 internal String8
 string8_append_string8(Arena *arena, String8 a, String8 b)
 {
@@ -12,19 +18,39 @@ string8_append_string8(Arena *arena, String8 a, String8 b)
 }
 
 internal String8
+string8_skip_last_slash(String8 string)
+{
+    if(string.size == 0){
+        return string;
+    }
+    u8 *ptr = string.str + string.size - 1;
+    for(;ptr >= string.str; ptr -= 1){
+        if(char_is_slash(*ptr)){
+            break;
+        }
+    }
+    if(ptr >= string.str){
+        ptr += 1;
+        string.size = (u64)(string.str + string.size - ptr);
+        string.str = ptr;
+    }
+    return string;
+}
+
+internal String8
 string8_chop_last_slash(String8 string)
 {
     if(string.size == 0){
         return string;
     }
-    u8 *last = string.str + string.size - 1;
-    for(;last >= string.str; --last){
-        if(*last == '/' || *last == '\\'){
+    u8 *ptr = string.str + string.size - 1;
+    for(;ptr >= string.str; --ptr){
+        if(char_is_slash(*ptr)){
             break;
         }
     }
-    if(last >= string.str){
-        string.size = cast(u64)(last - string.str);
+    if(ptr >= string.str){
+        string.size = cast(u64)(ptr - string.str);
     }else{
         string.size = 0;
     }
@@ -157,5 +183,20 @@ u64_hash_from_string8(String8 string, u64 seed)
         result = ((result << 5) + result) + string.str[i];
     }
     return result;
+}
+
+internal String8
+string8_cstring_capped(void *cstr, void *cap)
+{
+    u8 *start = cast(u8 *)cstr;
+    u8 *end   = cast(u8 *)cap;
+
+    u64 cap_size = cast(u64)(end - start);
+
+    // search for '\0' within the cap
+    u8 *nul = cast(u8 *)memchr(start, 0, cap_size);
+
+    u64 size = nul ? cast(u64)(nul - start) : cap_size;
+    return (String8){.str = start, .size = size};
 }
 

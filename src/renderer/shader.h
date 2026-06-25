@@ -16,25 +16,27 @@ internal read_only String8 g_shader_header = String8Lit(
     "#define PI 3.1415926538\n" \
     DOT_STR(x))
 
-typedef struct DOT_ShaderModuleHandle{
-    DOT_AssetHandle handle;
-}DOT_ShaderModuleHandle;
+typedef struct RN_ShaderModuleHandle{
+    RN_Handle handle;
+}RN_ShaderModuleHandle;
 
-typedef struct DOT_ShaderModule{
-    DOT_Asset asset;
-    DOT_ShaderModuleHandle shader_module_handle;
+typedef struct RN_ShaderModule{
+    RN_Resource resource;
+    RN_ShaderModuleHandle shader_module_handle;
     String8 compiled_path;
-}DOT_ShaderModule;
+    String8 path;
+    // u64     last_modified;
+}RN_ShaderModule;
 
 #define HM_IMPL
-#define HM_T DOT_ShaderModule
+#define HM_T RN_ShaderModule
 #include "base/templates/hashmap.h"
 
 // NOTE: Since slang does not have a c interface, we will just call the binary for now
 // I don't want to have to deal with glslang either and have multiple shader compilation
 // backends
-internal b32        shader_compile_from_path(String8 input_path, String8 output_path);
-internal String8    shader_cache_get_compiled_path(Arena *arena, String8 path);
-internal b32        shader_module_initialized(DOT_ShaderModule *shader_module);
+internal b32        rn_shader_compile_from_path(String8 input_path, String8 output_path);
+internal String8    rn_shader_cache_get_compiled_path(Arena *arena, String8 path);
+internal b32        rn_shader_module_is_initialized(RN_ShaderModule *shader_module);
 
 #endif // !DOT_SHADER_H

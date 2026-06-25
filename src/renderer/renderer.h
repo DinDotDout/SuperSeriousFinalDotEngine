@@ -41,15 +41,23 @@ typedef enum RendererBackendKind{
     RendererBackendKind_Count,
 }RendererBackendKind;
 
+enum{
+    RENDER_RESOURCE_CLEANUP_CTX_TEXTURES  = 64,
+    RENDER_RESOURCE_CLEANUP_CTX_BUFFERS   = 64,
+    RENDER_RESOURCE_CLEANUP_CTX_SAMPLERS  = 64,
+    RENDER_RESOURCE_CLEANUP_CTX_DESCRIPTOR_SET_LAYOUTS= 64,
+};
 
-typedef struct RendererBackendConfig{
-    RendererBackendKind backend_kind;
-    u32 backend_memory_size;
-    u32 backend_transient_memory_size;
+typedef struct RN_ResourceCleanupCtx{
+    TreeHeader node;
+    ARRAY(RN_TextureHandle, RENDER_RESOURCE_CLEANUP_CTX_TEXTURES)   texture_ids;
+    ARRAY(RN_BufferHandle,  RENDER_RESOURCE_CLEANUP_CTX_BUFFERS)    buffer_ids;
+    ARRAY(RN_SamplerHandle, RENDER_RESOURCE_CLEANUP_CTX_SAMPLERS)   sampler_ids;
+    ARRAY(RN_ShaderResourceLayoutHandle, RENDER_RESOURCE_CLEANUP_CTX_DESCRIPTOR_SET_LAYOUTS)   descriptor_set_layout_ids;
+    SLICE(Arena *) temp_arenas;
+}RN_ResourceCleanupCtx;
 
-    RN_PresentModeKind present_mode;
-    u8 frame_overlap;
-}RendererBackendConfig;
+typedef TREE_POOL(RN_ResourceCleanupCtx) RN_ResourceCleanupTree;
 
 // (jd) Backend functions called through this to allow swapping func signature
 #if defined(DOT_RENDER_BACKEND_ONLY_VK)
@@ -66,18 +74,18 @@ typedef struct RendererBackendConfig{
     FN(void, frame_begin, (void)) \
     FN(void, frame_end, (void)) \
     FN(void, clear_bg, (vec3 color)) \
-    FN(DOT_ShaderModuleHandle, shader_load_from_data, (String8 fb)) \
-    FN(void, shader_unload, (DOT_ShaderModuleHandle shader_module)) \
-    FN(DOT_TextureHandle, texture_create, (const RN_TextureDesc *desc, void *data, String8 debug_name)) \
-    FN(DOT_SamplerHandle, sampler_create, (const RN_SamplerDesc *desc, String8 debug_name)) \
-    FN(DOT_BufferHandle, buffer_create, (const RN_BufferDesc *desc, u8 *data, String8 debug_name)) \
-    FN(void, texture_destroy, (DOT_TextureHandle texture_handle)) \
+    FN(RN_ShaderModuleHandle,           shader_create,                  (String8 fb)) \
+    FN(RN_TextureHandle,                texture_create,                 (const RN_TextureDesc *desc, void *data, String8 debug_name)) \
+    FN(RN_SamplerHandle,                sampler_create,                 (const RN_SamplerDesc *desc, String8 debug_name)) \
+    FN(RN_BufferHandle,                 buffer_create,                  (const RN_BufferDesc *desc, u8 *data, String8 debug_name)) \
+    FN(RN_ShaderResourceLayoutHandle,   shader_resource_layout_create,  (RN_ShaderResourceLayout *resource_layout)) \
+    FN(void, shader_unload,     (RN_ShaderModuleHandle shader_module)) \
+    FN(void, texture_destroy,   (RN_TextureHandle texture_handle)) \
+    FN(void, buffer_destroy,    (RN_BufferHandle buffer_handle)) \
+    FN(void, sampler_destroy,   (RN_SamplerHandle sampler_handle)) \
     FN(void, overlay_init, (const void *font_pixels, int font_w, int font_h)) \
     FN(void, overlay_shutdown, (void)) \
     FN(void, overlay_render, (u8 frame_idx, OverlayDrawList *draw_list)) \
-    // FN(void, resource_cleanup_list_push, (void)) \
-    // FN(void, resource_cleanup_list_pop_at, (PoolHandle)) \
-    // FN(void, resource_cleanup_list_pop_last, (void))
 
 typedef struct RendererBackend{
     RendererBackendKind backend_kind;
@@ -95,42 +103,53 @@ typedef struct FrameData{
 
 // (jd) NOTE:Use permanent arena for all init stuff
 // use transient arena as a series of pop markers based on context?
-typedef struct DOT_Renderer{
-    Arena *permanent_arena;
-    Arena *transient_arena;
+typedef struct RN_Renderer{
+    Arena                   *permanent_arena;
+    Arena                   *transient_arena;
+    HashMap_RN_ShaderModule shader_cache; // This should be a general cache, and check there before loading assets
+    RN_ResourceCleanupTree  cleanup_tree;
+
     u32         frame_data_count;
     FrameData  *frame_datas;
 
-    HashMap_DOT_ShaderModule shader_cache;
     // ShaderCache shader_cache;
     RendererBackend *backend;
-}DOT_Renderer;
+}RN_Renderer;
 
-DOT_ENGINE_API void                 rn_clear_background(DOT_Renderer *renderer, vec3 color);
-DOT_ENGINE_API DOT_ShaderModule*    rn_shader_module_load_from_path(DOT_Renderer *renderer, String8 path);
-DOT_ENGINE_API DOT_TextureAsset     rn_texture_asset_create(DOT_Renderer *renderer, const DOT_AssetCreateInfo *asset_info, u8 mip_levels);
+DOT_ENGINE_API void                 rn_clear_background(RN_Renderer *renderer, vec3 color);
+DOT_ENGINE_API RN_ShaderModule      *rn_shader_module_load_from_path(RN_Renderer *renderer, String8 path);
 
-internal void               rn_init(Arena *arena, DOT_Renderer *renderer, DOT_Window *window);
-internal void               rn_shutdown(DOT_Renderer *renderer);
+// This should be an external loader and renderer should fill in the rest
+DOT_ENGINE_API RN_Texture           rn_texture_load_from_path(RN_Renderer *renderer, String8 name, String8 path, u8 mip_levels);
+
+internal void               rn_init(Arena *arena, RN_Renderer *renderer, DOT_Window *window);
+internal void               rn_shutdown(RN_Renderer *renderer);
 internal RendererBackend*   rn_backend_create(Arena *arena);
 
-internal DOT_Asset          dot_asset_from_create_info(DOT_Renderer *renderer, const DOT_AssetCreateInfo *asset_info, DOT_AssetKind kind);
-internal DOT_TextureHandle  rn_texture_create(DOT_Renderer *renderer, const RN_TextureDesc *desc, void *data, String8 debug_name);
-internal void               rn_texture_destroy(DOT_Renderer *renderer, DOT_TextureHandle handle);
+internal RN_TextureHandle   rn_texture_create(RN_Renderer *renderer, const RN_TextureDesc *desc, void *data, String8 debug_name);
+internal void               rn_texture_destroy(RN_Renderer *renderer, RN_TextureHandle handle);
 
-internal DOT_SamplerHandle  rn_sampler_create(DOT_Renderer *renderer, const RN_SamplerDesc *desc, String8 debug_name);
+internal RN_SamplerHandle   rn_sampler_create(RN_Renderer *renderer, const RN_SamplerDesc *desc, String8 debug_name);
 
-internal DOT_BufferHandle  rn_buffer_create(DOT_Renderer *renderer, const RN_BufferDesc *desc, u8 *data, String8 debug_name);
+internal RN_BufferHandle    rn_buffer_create(RN_Renderer *renderer, const RN_BufferDesc *desc, u8 *data, String8 debug_name);
 
-internal void               rn_frame_begin(DOT_Renderer *renderer);
-internal void               rn_frame_end(DOT_Renderer *renderer);
+internal void               rn_frame_begin(RN_Renderer *renderer);
+internal void               rn_frame_end(RN_Renderer *renderer);
 
 
-internal void               rn_overlay_init(DOT_Renderer *renderer, const void *font_pixels, int font_w, int font_h);
-internal void               rn_overlay_render(DOT_Renderer *renderer, u8 frame_idx, OverlayDrawList *draw_list);
-internal void               rn_overlay_shutdown(DOT_Renderer *renderer);
+internal void               rn_overlay_init(RN_Renderer *renderer, const void *font_pixels, int font_w, int font_h);
+internal void               rn_overlay_render(RN_Renderer *renderer, u8 frame_idx, OverlayDrawList *draw_list);
+internal void               rn_overlay_shutdown(RN_Renderer *renderer);
+
+internal void rn_resource_cleanup_list_pop_all(RN_Renderer *renderer);
+// internal void rn_resource_cleanup_list_pop_at(PoolHandle pop_start);
+// internal void rn_resource_cleanup_list_pop_last();
+internal void rn_resource_cleanup_list_push_buffer(RN_Renderer *renderer, RN_BufferHandle buffer_id);
+internal void rn_resource_cleanup_list_push_sampler(RN_Renderer *renderer, RN_SamplerHandle sampler_id);
+internal void rn_resource_cleanup_list_push_texture(RN_Renderer *renderer, RN_TextureHandle texture_id);
+// internal void rn_vk_resource_cleanup_list_push_scope();
 
 internal RN_RenderPassOutput rn_swapchain_output();
 
-// internal void rn_draw(DOT_Renderer *renderer);
+// internal void rn_draw(RN_Renderer *renderer);
 #endif // !RENDERER_H

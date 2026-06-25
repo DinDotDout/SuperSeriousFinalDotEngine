@@ -193,16 +193,3 @@ rn_texture_format_from_info(int comp, u8 size_bytes, b32 srgb)
     }
     return RN_TextureFormatKind_Invalid;
 }
-
-
-internal DOT_Asset
-dot_asset_from_create_info(DOT_Renderer *renderer, const DOT_AssetCreateInfo *asset_info, DOT_AssetKind kind)
-{
-    DOT_Asset asset = {
-        .kind = kind,
-        .name = string8_copy(renderer->transient_arena, asset_info->name),
-        .desc = string8_copy(renderer->transient_arena, asset_info->desc),
-        .path = string8_copy(renderer->transient_arena, asset_info->path),
-    };
-    return asset;
-}

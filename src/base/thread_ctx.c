@@ -31,8 +31,8 @@ threadctx_id()
 }
 
 internal TempArena
-threadctx_get_temp(SliceArena *avoid_arenas)
-// threadctx_get_temp(Arena *avoid[], u32 avoid_count)
+threadctx_temp_begin(SliceArena *avoid_arenas)
+// threadctx_temp_begin(Arena *avoid[], u32 avoid_count)
 {
     u32 avoid_count = !avoid_arenas ? 0 : avoid_arenas->count;
     // (jd) NOTE: Spread memory load
@@ -53,9 +53,15 @@ threadctx_get_temp(SliceArena *avoid_arenas)
         }
 
         if(!collision){
-            return temp_arena_get(candidate_temp);
+            return temp_arena_start(candidate_temp);
         }
     }
 
     DOT_ERROR("Could not find non-colliding TempArena. Try increasing temp_arena_count to match max number of arena parameters");
+}
+
+internal void
+threadctx_temp_end(TempArena temp)
+{
+    temp_arena_restore(temp);
 }

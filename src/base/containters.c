@@ -174,7 +174,7 @@ multi_memory_pool_create(Arena *arena, MultiMemoryPoolBlockSizes create_info)
 }
 
 internal u8 *
-multi_memory_pool_alloc(Arena *arena, MultiMemoryPool *multi_memory_pool, u32 size)
+multi_memory_pool_alloc(Arena *arena, MultiMemoryPool *multi_memory_pool, u64 size)
 {
     MemoryPool *candidate_found = 0;
     for(u32 i = 0; i < multi_memory_pool->pools_count; ++i){
@@ -438,7 +438,7 @@ DOT_TEST_SUITE(pool_tests)
 
 DOT_TEST_SUITE(tree_tests)
 {
-    TempArena temp = threadctx_get_temp(0);
+    TempArena temp = threadctx_temp_begin(0);
     DOT_TestResults test = {0};
     typedef struct SceneNode{
         const char *name;
@@ -495,7 +495,7 @@ DOT_TEST_SUITE(tree_tests)
     for EACH_TREE_NODE(h, &it){
         seen[count++] = TREE_GET(&tp, h)->name;
     }
-    temp_arena_restore(temp);
+    threadctx_temp_end(temp);
 
     // Expected preorder visit
     //
@@ -521,7 +521,7 @@ DOT_TEST_SUITE(tree_tests)
     for EACH_TREE_NODE(h, &it){
         seen[count++] = TREE_GET(&tp, h)->name;
     }
-    temp_arena_restore(temp);
+    threadctx_temp_end(temp);
     DOT_TEST_CHECK(test, "Test tree layout", strcmp(seen[4], "wheel_fr") != 0);
 
     TREE_POP_FRONT(&tp, root); // pop lamp
@@ -531,7 +531,7 @@ DOT_TEST_SUITE(tree_tests)
     for EACH_TREE_NODE(h, &it){
         seen[count++] = TREE_GET(&tp, h)->name;
     }
-    temp_arena_restore(temp);
+    threadctx_temp_end(temp);
     DOT_TEST_CHECK(test, "Test tree layout", strcmp(seen[3], "Lamp") != 0);
 
     return test;

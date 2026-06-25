@@ -32,6 +32,8 @@ typedef struct String8List{
 
 #define MEMORY_COPY_STRING8(dst, s) MEM_COPY(dst, (s).str, (s).size)
 
+internal b32 char_is_slash(u8 c);
+
 internal String8 string8_copy(Arena *arena, String8 string);
 internal String8 string8_append_string8(Arena *arena, String8 a, String8 b);
 internal String8 string8_from_cstring(char *c);
@@ -45,6 +47,8 @@ internal char* cstr_format_va(Arena *arena, char *fmt, va_list args);
 internal char* cstr_format(Arena *arena, char *fmt, ...);
 
 internal String8 string8_chop_last_slash(String8 file_path);
+internal String8 string8_skip_last_slash(String8 string);
+internal String8 string8_cstring_capped(void *cstr, void *cap);
 
 internal const char** cstr_array_from_string8_array(Arena* arena, usize size, const String8 src[]);
 

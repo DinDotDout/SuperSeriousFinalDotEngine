@@ -31,7 +31,6 @@ typedef struct RN_VK_MemoryPools{
     RN_VK_Memory_Pool         gpu_pool;
     RN_VK_Memory_RingBuffer   staging_buffer;
     RN_VK_Memory_RingBuffer   readback_buffer;
-
 }RN_VK_MemoryPools;
 
 // (jd) NOTE: Maybe should just store ptr to memory pools and infer vkBuffer from pool_kind

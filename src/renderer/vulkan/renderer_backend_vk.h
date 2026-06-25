@@ -16,7 +16,7 @@ typedef struct RN_VK_Device{
 typedef PoolHandle RN_VK_TextureHandle;
 typedef PoolHandle RN_VK_BufferHandle;
 typedef PoolHandle RN_VK_SamplerHandle;
-typedef PoolHandle RN_VK_DescriptorSetLayoutHandle;
+typedef PoolHandle RN_VK_ShaderResourceLayoutHandle;
 
 typedef struct RN_VK_Buffer{
     VkBuffer            vk_buffer;
@@ -39,7 +39,7 @@ typedef struct RN_VK_LayoutBinding{
     String8          name;
 }RN_VK_LayoutBinding;
 
-struct RN_VK_DescriptorSetLayout {
+typedef struct RN_VK_ShaderResourceLayout{
     VkDescriptorSetLayoutBinding    *vk_binding;
     VkDescriptorSetLayout           *vk_descriptor_set_layout;
 
@@ -50,7 +50,7 @@ struct RN_VK_DescriptorSetLayout {
     //
     // DescriptorSetLayoutHandle       handle;
 
-}; // struct DesciptorSetLayoutVulkan
+}RN_VK_ShaderResourceLayout;
    //
 typedef struct RN_VK_Pipeline{
     VkPipeline                      vk_pipeline;
@@ -58,7 +58,7 @@ typedef struct RN_VK_Pipeline{
 
     VkPipelineBindPoint             vk_bind_point;
 
-    DOT_ShaderModuleHandle          shader_state;
+    RN_ShaderModuleHandle          shader_state;
 
     // const DesciptorSetLayout*       descriptor_set_layout[DOT_MAX_DESCRIPTOR_SET_LAYOUTS];
     // DescriptorSetLayoutHandle       descriptor_set_layout_handle[DOT_MAX_DESCRIPTOR_SET_LAYOUTS];
@@ -141,19 +141,13 @@ typedef struct RN_VK_FrameData{
 }RN_VK_FrameData;
 
 // (jd) TODO: Move this to renderer and use DOT_TextureHandles and so on
-enum{
-    RENDER_RESOURCE_CLEANUP_CTX_TEXTURES  = 64,
-    RENDER_RESOURCE_CLEANUP_CTX_BUFFERS   = 64,
-    RENDER_RESOURCE_CLEANUP_CTX_SAMPLERS  = 64,
-    RENDER_RESOURCE_CLEANUP_CTX_DESCRIPTOR_SET_LAYOUTS= 64,
-};
 
 typedef struct RN_VK_ResourceCleanupCtx{
     TreeHeader node;
     ARRAY(RN_VK_TextureHandle, RENDER_RESOURCE_CLEANUP_CTX_TEXTURES)   texture_ids;
     ARRAY(RN_VK_BufferHandle,  RENDER_RESOURCE_CLEANUP_CTX_BUFFERS)    buffer_ids;
     ARRAY(RN_VK_SamplerHandle, RENDER_RESOURCE_CLEANUP_CTX_SAMPLERS)   sampler_ids;
-    ARRAY(RN_VK_DescriptorSetLayoutHandle, RENDER_RESOURCE_CLEANUP_CTX_DESCRIPTOR_SET_LAYOUTS)   descriptor_set_layotu_ids;
+    ARRAY(RN_VK_ShaderResourceLayoutHandle, RENDER_RESOURCE_CLEANUP_CTX_DESCRIPTOR_SET_LAYOUTS)   descriptor_set_layotu_ids;
     SLICE(Arena *) temp_arenas;
 }RN_VK_ResourceCleanupCtx;
 typedef TREE_POOL(RN_VK_ResourceCleanupCtx) ResourceCleanupListTree;
@@ -222,7 +216,7 @@ typedef struct RendererBackendVk{
     POOL(RN_VK_Texture)  texture_pool;
     POOL(RN_VK_Buffer)   buffer_pool;
     POOL(RN_VK_Sampler)  sampler_pool;
-    ResourceCleanupListTree resource_cleanup_list_tree;
+    // ResourceCleanupListTree resource_cleanup_list_tree;
 
     // NOTE: vk expects a malloc like allocator, which I don't intend on make or using for now
     // so our push arenas do not work for this :(
@@ -237,9 +231,6 @@ RN_BACKEND_FN_LIST
 internal RendererBackendVk *rn_vk_create(Arena *arena);
 internal RendererBackendVk *rn_as_vk(RendererBackend *base);
 
-internal void rn_vk_resource_cleanup_list_push_rn_vk_sampler(RN_VK_SamplerHandle sampler_id);
-internal void rn_vk_resource_cleanup_list_push_rn_vk_texture(PoolHandle texture_id);
-internal void rn_vk_resource_cleanup_list_push_rn_vk_buffer(RN_VK_BufferHandle buffer_id);
 
 // (jd) NOTE: should we allow this and mem copy the resource list?
 // If we already know the layout/size and we use a specific arena chunk we can maybe
@@ -247,18 +238,22 @@ internal void rn_vk_resource_cleanup_list_push_rn_vk_buffer(RN_VK_BufferHandle b
 internal void renderer_backend_resource_cleanup_list_reparent_at(u32 idx); // reparents children
 
 // Internal API
-internal void               rn_vk_frame_counters_advance();
+internal void rn_vk_frame_counters_advance();
 
-internal RN_VK_TextureHandle rn_vk_texture_create_(const RN_TextureDesc *desc, void *data, String8 debug_name);
-internal RN_VK_SamplerHandle rn_vk_sampler_create_(const RN_SamplerDesc *desc, String8 debug_name);
-internal RN_VK_BufferHandle  rn_vk_buffer_create_(const RN_BufferDesc *create_info, u8 *data, String8 debug_name);
+internal RN_VK_TextureHandle                rn_vk_texture_create_(const RN_TextureDesc *desc, void *data, String8 debug_name);
+internal RN_VK_SamplerHandle                rn_vk_sampler_create_(const RN_SamplerDesc *desc, String8 debug_name);
+internal RN_VK_BufferHandle                 rn_vk_buffer_create_(const RN_BufferDesc *create_info, u8 *data, String8 debug_name);
+internal RN_VK_ShaderResourceLayoutHandle   rn_vk_shader_resource_layout_create_(RN_ShaderResourceLayout *resource_layout);
 
-internal void               rn_vk_texture_destroy_(RN_VK_Texture *image);
-internal RN_VK_Buffer       rn_vk_buffer_create2(VkDeviceSize size, RN_VK_MemoryPoolsKind pool_kind, String8 name);
+internal void                               rn_vk_texture_destroy_h(RN_VK_TextureHandle tex_h);
+internal void                               rn_vk_texture_destroy_(RN_VK_Texture *image);
+internal void                               rn_vk_buffer_destroy_(RN_VK_Buffer *image);
+internal void                               rn_vk_sampler_destroy_(RN_VK_Sampler *buff);
+
 internal RN_VK_FrameData    *rn_vk_frame_data_get_current();
 
 // Should these be also coming from a pool like RN_VK_Resources?
-internal DOT_ShaderModuleHandle rn_vk_dot_shader_module_from_vk_shader_module(VkShaderModule vk_sm);
-internal VkShaderModule         rn_vk_vk_shader_module_from_rn_shader_module(DOT_ShaderModuleHandle dot_smh);
+internal RN_ShaderModuleHandle rn_vk_dot_shader_module_from_vk_shader_module(VkShaderModule vk_sm);
+internal VkShaderModule         rn_vk_vk_shader_module_from_rn_shader_module(RN_ShaderModuleHandle dot_smh);
 
 #endif // !rn_vk_H

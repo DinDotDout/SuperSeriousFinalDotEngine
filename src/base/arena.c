@@ -122,8 +122,11 @@ internal u8*
 arena_push(ArenaOpParams *op, u64 alloc_size, u64 alignment, b32 should_zero)
 {
     Arena *arena = op->arena;
+    // NOTE: zero size is valid so we can construct objects / arrays without
+    // spreading a bunch of if statements on user code if make a 0 size array
+    // (by error), then another array and try to write through first we will
+    // corrupt the memory
     if(alloc_size <= 0){
-        // DOT_ASSERT_FL(alloc_size > 0, op->file, op->line, "Allocation should be bigger than 0");
         return NULL;
     }
     uptr arena_base = cast(uptr)arena->base;

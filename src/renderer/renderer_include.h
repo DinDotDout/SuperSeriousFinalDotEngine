@@ -2,9 +2,9 @@
 #define RENDERER_INCLUDE_H
 
 #include "render_config.h"
-#include "shader.h"
 
 #include "render_types.h"
+#include "shader.h"
 #include "renderer.h"
 
 #include "renderer_backend_null.h"
