@@ -1,3 +1,8 @@
+#if defined(DOT_OS_POSIX)
+#   include "os/os_linux.c"
+#elif defined(DOT_OS_WINDOWS)
+#   include "os/os_windows.c"
+#endif
 // typedef DOT_ENUM(u8, FileModeKind){
 //     Platform_FileModeKind_R,
 //     Platform_FileModeKind_W,

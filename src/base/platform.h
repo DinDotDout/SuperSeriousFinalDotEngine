@@ -1,9 +1,20 @@
 // (joan) NOTE: split this per platform instead of keeping thing together
 #include <sys/stat.h>
 #if defined(DOT_OS_POSIX)
-#   include "os/os_linux.h"
+enum
+{
+    PLATFORM_REGULAR_PAGE_SIZE  = DOT_KB(4),
+    PLATFORM_LARGE_PAGE_SIZE    = DOT_MB(2),
+    PLATFORM_CACHE_LINE_SIZE    = 64,
+};
 #elif defined(DOT_OS_WINDOWS)
-#   include "os/os_windows.h"
+// NOTE: Windows reserve size is 64kb even though commit size is 4
+enum
+{
+    PLATFORM_REGULAR_PAGE_SIZE  = DOT_KB(64), // Comit
+    PLATFORM_LARGE_PAGE_SIZE    = DOT_MB(2),
+    PLATFORM_CACHE_LINE_SIZE    = 64,
+};
 #endif
 
 ////////////////////////////////////////////////////////////////
@@ -17,7 +28,7 @@
 #   else
 #       define NO_ASAN
 #   endif
-#elif DOT_COMPILER_GCC
+#elif DOT_COMPILER_GCC || DOT_COMPILER_CLANG
 #   if defined(__has_feature)
 #       if __has_feature(address_sanitizer) || defined(__SANITIZE_ADDRESS__)
 #           define DOT_ASAN_ENABLED
@@ -31,15 +42,6 @@
 #   define ASAN_POISON(addr, size)   __asan_poison_memory_region((addr), (size))
 #   define ASAN_UNPOISON(addr, size) __asan_unpoison_memory_region((addr), (size))
 #   define NO_ASAN __attribute__((no_sanitize("all")))
-
-// NOTE: Replaces OS functionality by regular malloc so that asan can track allocations
-#   define os_reserve(size) malloc((size))
-#   define os_release(ptr, size) \
-        do{ \
-            (void)(size); \
-            free((ptr)); \
-        }while (0)
-#   define os_commit(ptr, size) ((void)0)
 #else
 #   define ASAN_POISON(addr, size)   ((void)0)
 #   define ASAN_UNPOISON(addr, size) ((void)0)
