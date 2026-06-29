@@ -6,9 +6,11 @@
     X(RN_ResourceKind, Texture) \
     X(RN_ResourceKind, Sampler) \
     X(RN_ResourceKind, Buffer) \
+    X(RN_ResourceKind, Pipeline) \
+    X(RN_ResourceKind, ShaderResourceLayout) \
     X(RN_ResourceKind, ShaderModule) \
     X(RN_ResourceKind, Count)
-DOT_ENUM_REFLECT(RN_ResourceKind, RN_RESOURCE_KINDS);
+DOT_ENUM_REFLECT_TYPED(u8, RN_ResourceKind, RN_RESOURCE_KINDS);
 
 typedef struct RN_Resource{
     RN_ResourceKind kind;
@@ -99,17 +101,36 @@ typedef struct RN_TextureFormatInfo{
 
 
 #define RN_SHADER_RESOURCE_LAYOUT_KINDS(X) \
-        X(RN_ShaderResourceKind, Sampler) \
-        X(RN_ShaderResourceKind, SampledTexture) /* SRV */ \
-        X(RN_ShaderResourceKind, StorageTexture) /* UAV */ \
-        X(RN_ShaderResourceKind, SamplerXTexture) /* ?? */ \
-        X(RN_ShaderResourceKind, UniformBuffer)  /* CBV */ \
-        X(RN_ShaderResourceKind, StorageBuffer)  /* SRV / UAV*/
+    X(RN_ShaderResourceKind, Sampler) \
+    X(RN_ShaderResourceKind, SampledTexture) /* SRV */ \
+    X(RN_ShaderResourceKind, StorageTexture) /* UAV */ \
+    X(RN_ShaderResourceKind, SamplerXTexture) /* ?? */ \
+    X(RN_ShaderResourceKind, UniformBuffer)  /* CBV */ \
+    X(RN_ShaderResourceKind, UniformBufferDynamic)  /* CBV */ \
+    X(RN_ShaderResourceKind, StorageBuffer)  /* SRV / UAV*/
 DOT_ENUM_REFLECT(RN_ShaderResourceKind, RN_SHADER_RESOURCE_LAYOUT_KINDS);
 
 enum{RN_SHADER_RESOURCE_BINDING_MAX = 10};
 
 typedef u64 RN_Handle[1];
+
+internal inline u64
+rn_handle_pack(u32 index, RN_ResourceKind kind)
+{
+    return ((u64)kind << 32) | (u64)index;
+}
+
+internal inline
+u32 rn_handle_index(u64 h)
+{
+    return cast(u32)(h & 0xffffffffu);
+}
+
+internal inline
+RN_ResourceKind rn_handle_kind(u64 h)
+{
+    return cast(RN_ResourceKind)((h >> 32) & 0xffffu);
+}
 
 typedef struct RN_TextureHandle{
     RN_Handle handle;
@@ -127,20 +148,29 @@ typedef struct RN_SamplerHandle{
     RN_Handle handle;
 }RN_SamplerHandle;
 
+typedef struct RN_PipelineHandle{
+    RN_Handle handle;
+}RN_PipelineHandle;
+
 typedef struct RN_ShaderResourceBinding{
-    RN_ShaderResourceKind resource_kind;
+    RN_ShaderResourceKind kind;
     u16 start;
     u16 count;
-    u16 set;
     String8 name;
+    u16 set;
 }RN_ShaderResourceBinding;
 
-typedef struct RN_ShaderResourceLayout{
+typedef struct RN_ShaderResourceLayoutDesc{
     u16 binding_count;
     RN_ShaderResourceBinding bindings[RN_SHADER_RESOURCE_BINDING_MAX];
 
     u16 set_index;
+}RN_ShaderResourceLayoutDesc;
 
+typedef struct RN_ShaderResourceLayout{
+    RN_Resource resource;
+    RN_ShaderResourceLayoutHandle handle;
+    RN_ShaderResourceLayoutDesc desc;
 }RN_ShaderResourceLayout;
 
 typedef struct RN_TextureDesc{
@@ -162,13 +192,6 @@ typedef struct RN_TextureDesc{
         .mip_levels = 1, \
         __VA_ARGS__ \
     }
-
-// typedef struct RN_TextureCreateInfo{
-//     void *data;
-//     String8 debug_name;
-//     RN_TextureDesc texture_desc; // This filled in by the texture loaded
-// }RN_TextureCreateInfo;
-
 
 global RN_TextureHandle null_texture = {0};
 typedef struct RN_Texture{
@@ -300,12 +323,14 @@ typedef enum RN_VertexCommponentKind{
 
 typedef struct RN_VertexAttribute{
     u16 location;
-    u16 binding;
-    u16 offset;
+    u32 binding;
+    u64 offset;
     RN_VertexCommponentKind vertex_component_kind;
 }RN_VertexAttribute;
 
 typedef struct RN_VertexInput{
+    // u32 vertex_attribute_count;
+    // RN_VertexAttribute vertex_attributes[RN_MAX_VERTEX_ATTRIBUTES];
     ARRAY(RN_VertexAttribute, RN_MAX_VERTEX_ATTRIBUTES) vertex_attributes;
     ARRAY(RN_VertexStream, RN_MAX_VERTEX_STREAMS) vertex_streams;
 }RN_VertexInput;
@@ -496,8 +521,8 @@ typedef enum RN_ShaderFormat{
 }RN_ShaderFormat;
 
 typedef struct RN_ShaderStage{
-    String8 code;
     RN_ShaderStageKind stage;
+    String8 code;
 }RN_ShaderStage;
 
 typedef struct RN_ShaderState{
@@ -506,20 +531,51 @@ typedef struct RN_ShaderState{
     DOT_DEBUG_NAME(name, DOT_DEBUG_NAME_LEN);
 }RN_ShaderState;
 
-typedef struct RN_Pipeline{
-    RN_RasterState             raster_state;
-    RN_DepthStencilState       depth_stencil_state;
-    RN_VertexInput             vertex_input;
-    const RN_ViewportState     *viewport;
-    RN_RenderPassOutput        render_pass;
-    RN_ShaderState             shader_state;
+typedef struct RN_PipelineDesc{
+    RN_RasterState          raster_state;
+    RN_DepthStencilState    depth_stencil_state;
+    RN_VertexInput          vertex_input;
+    RN_ViewportState        *viewport;
+    RN_RenderPassOutput     render_pass;
+    RN_ShaderState          shader_state;
     ARRAY(RN_BlendState, RN_IMAGE_OUTPUTS_MAX) blend_states;
-    ARRAY(RN_ShaderResourceLayoutHandle, RN_DESCRIPTOR_SET_LAYOUT_MAX) descriptor_set_layouts;
+    u32 descriptor_set_layout_count;
+    RN_ShaderResourceLayoutHandle descriptor_set_layouts[RN_DESCRIPTOR_SET_LAYOUT_MAX];
+    // ARRAY(RN_ShaderResourceLayoutHandle, RN_DESCRIPTOR_SET_LAYOUT_MAX) descriptor_set_layouts;
     DOT_DEBUG_NAME(name, DOT_DEBUG_NAME_LEN);
-}RN_Pipeline;
+}RN_PipelineDesc;
 
+typedef struct RN_Pipeline{
+    RN_Resource resource;
+    RN_PipelineHandle handle;
+    RN_PipelineDesc desc;
+}RN_Pipeline;
 
 internal RN_TextureFormatInfo rn_texture_format_info_from_format(RN_TextureFormatKind fmt);
 internal RN_TextureFormatKind rn_texture_format_from_info(int comp, u8 size_bytes, b32 srgb);
+
+// ////////////////////////////////////////////////////////////////
+// RN_PipelineDesc
+
+internal RN_PipelineDesc rn_pipeline_begin();
+internal void rn_pipeline_set_vertex_attributes_(RN_PipelineDesc *pp, u32 count, RN_VertexAttribute *attr);
+internal void rn_pipeline_set_vertex_streams_(RN_PipelineDesc *pp, u32 count, RN_VertexStream *streams);
+internal void rn_pipeline_set_depth_stencil_state_(RN_PipelineDesc *pp, RN_DepthStencilState *depth_stencil);
+internal void rn_pipeline_set_shader_state_(RN_PipelineDesc *pp, RN_ShaderFormat format, String8 debug_name, u32 count, RN_ShaderStage *stages);
+internal void rn_pipeline_set_render_pass_ouput(RN_PipelineDesc *pp, RN_RenderPassOutput render_pass_output); // (jd) NOTE: full array copy but it's fine. Will probs move to slice anyway at some point
+
+#define rn_pipeline_set_vertex_attributes(pl, ...)      rn_pipeline_set_vertex_attributes_(pl, DOT_ARRAY_UNPACK_T(RN_VertexAttribute, __VA_ARGS__));
+#define rn_pipeline_set_vertex_streams(pl, ...)         rn_pipeline_set_vertex_streams_(pl, DOT_ARRAY_UNPACK_T(RN_VertexStream, __VA_ARGS__);
+#define rn_pipeline_set_depth_stencil_state(pl, ...)    rn_pipeline_set_depth_stencil_state_(pl, &(RN_DepthStencilState){__VA_ARGS__});
+#define rn_pipeline_set_shader_state(pl, fmt, name,...) rn_pipeline_set_shader_state_(pl, fmt, name, DOT_ARRAY_UNPACK_T(RN_ShaderStage, __VA_ARGS__)) ;
+
+// ////////////////////////////////////////////////////////////////
+// RN_ShaderResourceLayoutDesc
+
+internal RN_ShaderResourceLayoutDesc    rn_shader_resource_layout_begin();
+internal void                           rn_shader_resource_layout_set_bindings_(RN_ShaderResourceLayoutDesc *layout_desc, u16 binding_count, RN_ShaderResourceBinding *bindings);
+
+#define rn_shader_resource_layout_set_bindings(pl, ...) rn_shader_resource_layout_set_bindings_(pl, DOT_ARRAY_UNPACK_T(RN_ShaderResourceBinding, __VA_ARGS__));
+// internal void rn_pipeline_set_vertex_streams_(RN_ShaderResourceLayoutDesc *, u32 count, RN_VertexStream *streams);
 
 #endif // !RN_H

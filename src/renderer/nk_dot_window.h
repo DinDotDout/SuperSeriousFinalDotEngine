@@ -1,7 +1,7 @@
 /*
  * nk_dot_window.h - Nuklear compatibility layer for DOT Engine
  *
- * Bridges RGFW windowing with the RN_Renderer overlay API.
+ * Bridges RGFW windowing with the RN_RenderCtx overlay API.
  *
  * This file contains NO graphics-API-specific code.  All GPU work is
  * delegated through the renderer frontend (rn_overlay_*).
@@ -44,7 +44,7 @@
 typedef struct NkDot_State {
     /* Windowing */
     DOT_Window *win;
-    RN_Renderer *renderer;
+    RN_RenderCtx *renderer;
     u32 width, height;
 
     /* Nuklear core */
@@ -96,11 +96,11 @@ nk_dot_clipboard_copy(nk_handle usr, const char *text, int len)
 
 /*
  * Initialise the Nuklear bridge.
- *   renderer - the RN_Renderer (must already be initialised)
+ *   renderer - the RN_RenderCtx (must already be initialised)
  *   window   - the DOT_Window (wrapping RGFW)
  */
 NK_API struct nk_context*
-nk_dot_init(RN_Renderer *renderer, DOT_Window *window)
+nk_dot_init(RN_RenderCtx *renderer, DOT_Window *window)
 {
     MEMORY_ZERO_STRUCT(&g_nk_dot);
     NkDot_State *s = &g_nk_dot;
@@ -126,7 +126,8 @@ nk_dot_init(RN_Renderer *renderer, DOT_Window *window)
     struct nk_font *font = nk_font_atlas_add_default(&s->font_atlas, 14.0f, NULL);
     atlas_data = nk_font_atlas_bake(&s->font_atlas, &atlas_w, &atlas_h, NK_FONT_ATLAS_RGBA32);
     /* Delegate GPU resource creation + font upload to the renderer */
-    rn_overlay_init(renderer, atlas_data, atlas_w, atlas_h);
+    // rn_overlay_init(renderer, atlas_data, atlas_w, atlas_h);
+    (void) atlas_data;
 
     /* Finish the atlas – use a dummy texture handle (backend owns the real one) */
     nk_font_atlas_end(&s->font_atlas, nk_handle_id(1), &s->tex_null);
@@ -261,12 +262,14 @@ nk_dot_handle_event(RGFW_event *event)
  * work through the renderer frontend (rn_overlay_render).
  */
 NK_API void
-nk_dot_render(RN_Renderer *renderer)
+nk_dot_render(RN_RenderCtx *renderer)
 {
     NkDot_State *s = &g_nk_dot;
     struct nk_context *ctx = &s->ctx;
     DOT_TODO("fix frame");
     u8 frame_idx = 0;
+    (void)frame_idx;
+    (void)renderer;
     // u8 frame_idx = renderer->current_frame % renderer->backend->frame_overlap;
 
     /* Run nk_convert into CPU-side staging buffers */
@@ -323,7 +326,8 @@ nk_dot_render(RN_Renderer *renderer)
         .width       = s->width,
         .height      = s->height,
     };
-    rn_overlay_render(renderer, frame_idx, &draw_list);
+    (void)draw_list;
+    // rn_overlay_render(renderer, frame_idx, &draw_list);
 
     nk_clear(ctx);
     nk_buffer_clear(&s->cmds);
@@ -333,11 +337,12 @@ nk_dot_render(RN_Renderer *renderer)
  * Shutdown: clean up NK context and tell the renderer to free overlay resources.
  */
 NK_API void
-nk_dot_shutdown(RN_Renderer *renderer)
+nk_dot_shutdown(RN_RenderCtx *renderer)
 {
     NkDot_State *s = &g_nk_dot;
 
-    rn_overlay_shutdown(renderer);
+    (void)renderer;
+    // rn_overlay_shutdown(renderer);
 
     nk_font_atlas_clear(&s->font_atlas);
     nk_buffer_free(&s->cmds);

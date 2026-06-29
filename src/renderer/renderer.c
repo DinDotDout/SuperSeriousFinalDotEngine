@@ -13,9 +13,10 @@ DOT_SETTING_U32("Render", g_present_mode, RN_PresentModeKind_Mailbox);
 
 DOT_SETTING_U32("RenderBackend", g_render_backend_transient_memory_size_b, DOT_KB(512));
 DOT_SETTING_U32("RenderBackend", g_render_backend_permanent_memory_size_b, DOT_MB(4));
-DOT_SETTING_U32("RenderBackend", g_texture_count_max, 512);
-DOT_SETTING_U32("RenderBackend", g_buffer_count_max, 4096);
-DOT_SETTING_U32("RenderBackend", g_sampler_count_max, 128);
+DOT_SETTING_U32("RenderBackend", g_texture_max, 512);
+DOT_SETTING_U32("RenderBackend", g_buffer_max, 4096);
+DOT_SETTING_U32("RenderBackend", g_sampler_max, 128);
+DOT_SETTING_U32("RenderBackend", rn_vk_g_shader_resource_max, 128);
 DOT_SETTING_U32("RenderBackend", g_command_buffers_per_thread, 4);
 
 DOT_SETTING_U32("ShaderCache", g_shader_cache_bucket_count, 64);
@@ -24,26 +25,26 @@ DOT_SETTING_U32("ShaderCache", g_shader_cache_bucket_count, 64);
 #   if DOT_OS_POSIX
 #       error Unavaliable backend on linux!
 #   endif
-    DOT_SETTING_U32("RenderBackend", g_backend_kind, RendererBackendKind_Dx12);
+    DOT_SETTING_U32("RenderBackend", g_backend_kind, RN_BackendKind_Dx12);
 #elif defined(DOT_RENDER_BACKEND_ONLY_VK)
-    DOT_SETTING_U32("RenderBackend", g_backend_kind, RendererBackendKind_Vk);
+    DOT_SETTING_U32("RenderBackend", g_backend_kind, RN_BackendKind_Vk);
 #else
-    DOT_SETTING_U32("RenderBackend", g_backend_kind, RendererBackendKind_Auto);
+    DOT_SETTING_U32("RenderBackend", g_backend_kind, RN_BackendKind_Auto);
 #endif
 
-internal RendererBackend *
+internal RN_BackendCtx *
 rn_backend_create(Arena *arena)
 {
     switch(g_backend_kind){
-    case RendererBackendKind_Null: return cast(RendererBackend*) rn_null_create(arena);
-    case RendererBackendKind_Vk:   return cast(RendererBackend*) rn_vk_create(arena);
-    case RendererBackendKind_Dx12: //base = cast(RendererBackend*) rn_renderer_dx12_create(arena); break;
+    case RN_BackendKind_Null: return cast(RN_BackendCtx*) rn_null_create(arena);
+    case RN_BackendKind_Vk:   return cast(RN_BackendCtx*) rn_vk_create(arena);
+    case RN_BackendKind_Dx12: //base = cast(RN_BackendCtx*) rn_renderer_dx12_create(arena); break;
     default: DOT_ERROR("Unsupported render backend");
     }
 }
 
 internal void
-rn_init(Arena *arena, RN_Renderer *renderer, DOT_Window *window)
+rn_init(Arena *arena, RN_RenderCtx *renderer, DOT_Window *window)
 {
     renderer->permanent_arena = ARENA_CREATE(
         .parent       = arena,
@@ -55,7 +56,7 @@ rn_init(Arena *arena, RN_Renderer *renderer, DOT_Window *window)
         .reserve_size = g_rn_transient_memory_size_b,
         .name         = "Application renderer transient");
 
-    TREE_INIT(renderer->permanent_arena, RN_VK_ResourceCleanupCtx, &renderer->cleanup_tree, g_cleanup_resource_pool_max);
+    TREE_INIT(renderer->permanent_arena, RN_ResourceCleanupCtx, &renderer->cleanup_tree, g_cleanup_resource_pool_max);
     hash_map_RN_ShaderModule_init(renderer->permanent_arena, &renderer->shader_cache, g_shader_cache_bucket_count);
 
     renderer->backend = rn_backend_create(renderer->permanent_arena);
@@ -67,7 +68,7 @@ rn_init(Arena *arena, RN_Renderer *renderer, DOT_Window *window)
             .reserve_size = g_frame_arena_size_b);
     }
     RENDER_BACKEND_CALL(init(window));
-    null_texture = rn_texture_create(
+    null_texture = rn_texture_create_h(
         renderer,
         &(RN_TextureDesc) {
             .width = 1,
@@ -78,13 +79,13 @@ rn_init(Arena *arena, RN_Renderer *renderer, DOT_Window *window)
             .dimension_kind = RN_TextureDimensionKind_2D,
         },
         (u8[]){0,0,0,0},
-        String8Lit("null_texture")
+        string8_lit("null_texture")
     );
     (void)null_texture;
 }
 
 internal void
-rn_shutdown(RN_Renderer *renderer)
+rn_shutdown(RN_RenderCtx *renderer)
 {
     HashMap_RN_ShaderModule *shader_cache = &renderer->shader_cache;
     HashMap_Iter it = hash_map_iter_init();
@@ -99,14 +100,34 @@ rn_shutdown(RN_Renderer *renderer)
 }
 
 void
-rn_texture_destroy(RN_Renderer *renderer, RN_TextureHandle handle)
+rn_texture_destroy(RN_RenderCtx *renderer, RN_TextureHandle handle)
 {
     RENDER_BACKEND_CALL(texture_destroy(handle));
 }
 
+void
+rn_buffer_destroy(RN_RenderCtx *renderer, RN_BufferHandle handle)
+{
+    RENDER_BACKEND_CALL(buffer_destroy(handle));
+}
+
+void
+rn_sampler_destroy(RN_RenderCtx *renderer, RN_SamplerHandle handle)
+{
+    RENDER_BACKEND_CALL(sampler_destroy(handle));
+}
+
+internal RN_TextureHandle
+rn_texture_create_h(RN_RenderCtx *renderer, RN_TextureDesc *texture_desc, void *data, String8 debug_name)
+{
+    RN_TextureHandle h = RENDER_BACKEND_CALL(texture_create(texture_desc, data, debug_name));
+    rn_resource_cleanup_list_push_texture(renderer, h);
+    return(h);
+}
+
 // (jd) NOTE: Renderer shouldn't be doing the loading
 RN_Texture
-rn_texture_load_from_path(RN_Renderer *renderer, String8 name, String8 path, u8 mip_levels)
+rn_texture_load_from_path(RN_RenderCtx *renderer, String8 name, String8 path, u8 mip_levels)
 {
     DOT_WARNING("Creating texture with name %S, from path: ", name, path);
     TempArena temp = temp_arena_start(renderer->transient_arena);
@@ -133,7 +154,6 @@ rn_texture_load_from_path(RN_Renderer *renderer, String8 name, String8 path, u8 
         data = stbi_load_from_memory(file_data.str, cast(int)file_data.size, &width, &height, NULL, comp);
         size_bytes = 1;
     }
-    stbi_allocator_unset();
 
     if(mip_levels == 0){
         int mip_w = width;
@@ -145,7 +165,7 @@ rn_texture_load_from_path(RN_Renderer *renderer, String8 name, String8 path, u8 
             mip_levels++;
         }
     }
-    RN_Texture asset = {
+    RN_Texture res = {
         .resource.kind = RN_ResourceKind_Texture,
         .desc = {
             .dimension_kind = RN_TextureDimensionKind_2D,
@@ -156,44 +176,61 @@ rn_texture_load_from_path(RN_Renderer *renderer, String8 name, String8 path, u8 
             .depth = 1,
         },
     };
-    asset.handle = rn_texture_create(renderer, &asset.desc, data, name),
+    res.handle = rn_texture_create_h(renderer, &res.desc, data, name),
+    stbi_allocator_unset();
     temp_arena_restore(temp);
-    return asset;
+    return res;
 }
 
-internal RN_TextureHandle
-rn_texture_create(RN_Renderer *renderer, const RN_TextureDesc *texture_desc, void *data, String8 debug_name)
+internal RN_SamplerHandle
+rn_sampler_create_h(RN_RenderCtx *renderer, RN_SamplerDesc *sampler_desc, String8 debug_name)
 {
-    RN_TextureHandle h = RENDER_BACKEND_CALL(texture_create(texture_desc, data, debug_name));
-    rn_resource_cleanup_list_push_texture(renderer, h);
+    RN_SamplerHandle h = RENDER_BACKEND_CALL(sampler_create(sampler_desc, debug_name));
+    rn_resource_cleanup_list_push_sampler(renderer, h);
     return(h);
 }
 
 internal RN_Sampler
-rn_sampler_asset_create(RN_Renderer *renderer, const DOT_AssetCreateInfo *asset_info, const RN_SamplerDesc *sampler_desc)
+rn_sampler_create(RN_RenderCtx *renderer, RN_SamplerDesc *sampler_desc, String8 debug_name)
 {
-    RN_Sampler sampler_asset = {
+    RN_Sampler sampler = {
+        .resource.kind = RN_ResourceKind_Sampler,
         // .asset = dot_asset_from_create_info(renderer, asset_info, RN_ResourceKind_Sampler), .desc = *sampler_desc,
-        .handle = rn_sampler_create(renderer, sampler_desc, asset_info->name),
+        .handle = rn_sampler_create_h(renderer, sampler_desc, debug_name),
     };
-    return sampler_asset;
+    return sampler;
+}
+
+internal RN_BufferHandle
+rn_buffer_create_h(RN_RenderCtx *renderer, RN_BufferDesc *buffer_desc, u8 *data, String8 debug_name)
+{
+    RN_BufferHandle h = RENDER_BACKEND_CALL(buffer_create(buffer_desc, data, debug_name));
+    rn_resource_cleanup_list_push_buffer(renderer, h);
+    return(h);
 }
 
 internal RN_Buffer
-rn_buffer_asset_create(RN_Renderer *renderer, const DOT_AssetCreateInfo *asset_info, const RN_BufferDesc *buffer_desc, u8 *data)
+rn_buffer_create(RN_RenderCtx *renderer, RN_BufferDesc *buffer_desc, u8 *data, String8 debug_name)
 {
     RN_Buffer buffer_asset = {
-        .desc = *buffer_desc,
         .resource.kind = RN_ResourceKind_Buffer,
+        .desc = *buffer_desc,
     };
-    buffer_asset.handle = rn_buffer_create(renderer, buffer_desc, data, asset_info->name);
+    buffer_asset.handle = rn_buffer_create_h(renderer, buffer_desc, data, debug_name);
     return buffer_asset;
 }
 
-internal RN_ShaderResourceLayoutHandle
-rn_shader_resource_layout_create(RN_Renderer *renderer, RN_ShaderResourceLayout *resource_layout)
+internal RN_PipelineHandle
+rn_pipeline_create(RN_RenderCtx *renderer, RN_PipelineDesc *pipeline_desc)
 {
-    RN_ShaderResourceLayoutHandle h = RENDER_BACKEND_CALL(shader_resource_layout_create(resource_layout));
+    RN_PipelineHandle h = RENDER_BACKEND_CALL(pipeline_create(pipeline_desc));
+    return(h);
+}
+
+internal RN_ShaderResourceLayoutHandle
+rn_shader_resource_layout_create(RN_RenderCtx *renderer, RN_ShaderResourceLayoutDesc *desc)
+{
+    RN_ShaderResourceLayoutHandle h = RENDER_BACKEND_CALL(shader_resource_layout_create(desc));
     // rn_resource_cleanup_list_push_buffer(renderer, h);
     return(h);
 }
@@ -208,36 +245,21 @@ rn_swapchain_output()
     return(rpo);
 }
 
-internal RN_BufferHandle
-rn_buffer_create(RN_Renderer *renderer, const RN_BufferDesc *buffer_desc, u8 *data, String8 debug_name)
-{
-    RN_BufferHandle h = RENDER_BACKEND_CALL(buffer_create(buffer_desc, data, debug_name));
-    rn_resource_cleanup_list_push_buffer(renderer, h);
-    return(h);
-}
-
-internal RN_SamplerHandle
-rn_sampler_create(RN_Renderer *renderer, const RN_SamplerDesc *sampler_desc, String8 debug_name)
-{
-    RN_SamplerHandle h = RENDER_BACKEND_CALL(sampler_create(sampler_desc, debug_name));
-    rn_resource_cleanup_list_push_sampler(renderer, h);
-    return(h);
-}
 
 void
-rn_clear_background(RN_Renderer *renderer, vec3 color)
+rn_clear_background(RN_RenderCtx *renderer, vec3 color)
 {
     RENDER_BACKEND_CALL(clear_bg(color));
 }
 
 internal void
-rn_frame_begin(RN_Renderer *renderer)
+rn_frame_begin(RN_RenderCtx *renderer)
 {
     RENDER_BACKEND_CALL(frame_begin());
 }
 
 internal void
-rn_frame_end(RN_Renderer *renderer)
+rn_frame_end(RN_RenderCtx *renderer)
 {
     RENDER_BACKEND_CALL(frame_end());
 }
@@ -250,21 +272,21 @@ rn_vk_resource_cleanup_list_push_scope()
 // NOTE(JD): Will start to just make enclosing scopes
 // Should extend to be a graph
 internal void
-rn_resource_cleanup_list_push_texture(RN_Renderer *renderer, RN_TextureHandle texture_id)
+rn_resource_cleanup_list_push_texture(RN_RenderCtx *renderer, RN_TextureHandle texture_id)
 {
     RN_ResourceCleanupCtx *root = TREE_GET_ROOT(&renderer->cleanup_tree);
     ARRAY_PUSH(root->texture_ids, texture_id);
 }
 
 internal void
-rn_resource_cleanup_list_push_sampler(RN_Renderer *renderer, RN_SamplerHandle sampler_id)
+rn_resource_cleanup_list_push_sampler(RN_RenderCtx *renderer, RN_SamplerHandle sampler_id)
 {
     RN_ResourceCleanupCtx *root = TREE_GET_ROOT(&renderer->cleanup_tree);
     ARRAY_PUSH(root->sampler_ids, sampler_id);
 }
 
 internal void
-rn_resource_cleanup_list_push_buffer(RN_Renderer *renderer, RN_BufferHandle buffer_id)
+rn_resource_cleanup_list_push_buffer(RN_RenderCtx *renderer, RN_BufferHandle buffer_id)
 {
     RN_ResourceCleanupCtx *root = TREE_GET_ROOT(&renderer->cleanup_tree);
     ARRAY_PUSH(root->buffer_ids, buffer_id);
@@ -292,7 +314,7 @@ rn_resource_cleanup_list_pop_at(PoolHandle pop_start)
 }
 
 internal void
-rn_resource_cleanup_list_pop_all(RN_Renderer *renderer)
+rn_resource_cleanup_list_pop_all(RN_RenderCtx *renderer)
 {
     TempArena t = threadctx_temp_begin(0);
     RN_ResourceCleanupTree *tree = &renderer->cleanup_tree;
@@ -301,48 +323,22 @@ rn_resource_cleanup_list_pop_all(RN_Renderer *renderer)
         RN_ResourceCleanupCtx *cleanup_list = TREE_GET(tree, node_h);
         for EACH_INDEX(i, cleanup_list->texture_ids.count){
             RN_TextureHandle tex_h = ARRAY_GET(cleanup_list->texture_ids, i);
-            RENDER_BACKEND_CALL(texture_destroy(tex_h));
+            rn_texture_destroy(renderer, tex_h);
         }
         for EACH_INDEX(i, cleanup_list->buffer_ids.count){
             RN_BufferHandle buff_h = ARRAY_GET(cleanup_list->buffer_ids, i);
-            RENDER_BACKEND_CALL(buffer_destroy(buff_h));
+            rn_buffer_destroy(renderer, buff_h);
         }
         for EACH_INDEX(i, cleanup_list->sampler_ids.count){
             RN_SamplerHandle sampler_h = ARRAY_GET(cleanup_list->sampler_ids, i);
-            RENDER_BACKEND_CALL(sampler_destroy(sampler_h));
+            rn_sampler_destroy(renderer, sampler_h);
         }
     }
     threadctx_temp_end(t);
 }
 
-
-/* ------------------------------------------------------------------ */
-/*  Overlay (backend-agnostic)                                        */
-/* ------------------------------------------------------------------ */
-
-internal void
-rn_overlay_init(RN_Renderer *renderer, const void *font_pixels, int font_w, int font_h)
-{
-    DOT_UNUSED(renderer);
-    RENDER_BACKEND_CALL(overlay_init(font_pixels, font_w, font_h));
-}
-
-internal void
-rn_overlay_render(RN_Renderer *renderer, u8 frame_idx, OverlayDrawList *draw_list)
-{
-    DOT_UNUSED(renderer);
-    rn_vk_overlay_render(frame_idx, draw_list);
-}
-
-internal void
-rn_overlay_shutdown(RN_Renderer *renderer)
-{
-    DOT_UNUSED(renderer);
-    RENDER_BACKEND_CALL(overlay_shutdown());
-}
-
 RN_ShaderModule*
-rn_shader_module_load_from_path(RN_Renderer *renderer, String8 path)
+rn_shader_module_load_from_path(RN_RenderCtx *renderer, String8 path)
 {
     TempArena temp = threadctx_temp_begin(0);
     String8 compiled_path = rn_shader_cache_get_compiled_path(renderer->permanent_arena, path);

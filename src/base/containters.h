@@ -71,10 +71,10 @@ typedef struct PoolHandle{
 }PoolHandle;
 
 internal u64        pool_handle_pack(PoolHandle h);
-internal b32        pool_handle_is_null(PoolHandle h);
+internal b32        pool_handle_is_default(PoolHandle h);
 internal PoolHandle pool_handle_unpack(u64 pack);
 
-#define POOL_NULL_HANDLE (PoolHandle){0}
+#define POOL_DEFAULT_HANDLE (PoolHandle){0}
 
 typedef struct Pool{
     u32 *idx_buffer; // count; maps handle -> raw_buffer index
@@ -88,7 +88,8 @@ internal void*      pool_init(Arena *arena, Pool *p, u32 capacity, u32 elem_size
 internal PoolHandle pool_alloc(Pool *p, u32 elem_size, void *data);
 internal u32        pool_handle_to_pool_idx(Pool *p, PoolHandle h);
 internal void       pool_free(Pool *p, PoolHandle h);
-internal PoolHandle pool_null_handle_get(Pool *p, u32 elem_size, u8 *data);
+internal PoolHandle pool_handle_get_default(Pool *p);
+// internal PoolHandle pool_handle_get_default(Pool *p, u32 elem_size, u8 *data);
 
 #define POOL(T) struct{ \
     Pool pool; \
@@ -101,10 +102,10 @@ internal PoolHandle pool_null_handle_get(Pool *p, u32 elem_size, u8 *data);
 #define POOL_INIT(arena, tp, cap)   ((tp)->data = pool_init((arena), &(tp)->pool, (cap), sizeof(POOL_ELEM_(tp)), DOT_ALIGNOF(POOL_ELEM_(tp))))
 #define POOL_ALLOC(tp)              pool_alloc(&(tp)->pool, sizeof(POOL_ELEM_(tp)), (tp)->data)
 #define POOL_GET(tp, h)             ((tp)->data + pool_handle_to_pool_idx(&(tp)->pool, (h)))
-#define POOL_NULL_HANDLE_GET(tp)    pool_null_handle_get(&(tp)->pool, sizeof(POOL_ELEM_(tp)), (u8*)(tp)->data)
+// #define POOL_HANDLE_GET_DEFAULT(tp) pool_handle_get_default(&(tp)->pool, sizeof(POOL_ELEM_(tp)), (u8*)(tp)->data)
 #define POOL_REF_COPY(tp, handle)   pool_ref_copy(&(tp)->pool, (handle))
 #define POOL_FREE(tp, handle)       pool_free(&(tp)->pool, (handle))
-#define POOL_IT_END                 POOL_NULL_HANDLE
+#define POOL_IT_END                 POOL_DEFAULT_HANDLE
 
 
 ////////////////////////////////////////////////////////////////
@@ -136,7 +137,11 @@ internal void       memory_pool_free(MemoryPool *memory_pool, u8 *ptr);
 /// MultiMemoryPool
 /// Go to definition for example usage:
 
-typedef SLICE(u32) MultiMemoryPoolBlockSizes;
+typedef struct {
+  u32 count;
+  u32 *data;
+} MultiMemoryPoolBlockSizes;
+
 typedef struct MultiMemoryPool{
     u32 pools_count;
     MemoryPool *memoy_pools;

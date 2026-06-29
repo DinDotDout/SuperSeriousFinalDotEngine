@@ -6,10 +6,6 @@
 #include "../src/third_party/nob.h/nob.h"
 Nob_Log_Level nob_minimal_log_level = NOB_ERROR;
 
-#define VA_ARG_COUNT_T(T, ...) (sizeof((T[])__VA_ARGS__) / sizeof(T))
-#define SLICE(T, ...) \
-    .items = (T[])__VA_ARGS__, .count = VA_ARG_COUNT_T(T, __VA_ARGS__)
-
 #define ARG_LIST(...)                                               \
     (ArgList) {                                                     \
         .items = (const char *[]){__VA_ARGS__},                     \
@@ -215,13 +211,13 @@ static bool program_exists(const char *name) {
 // TODO: This prints where/which, which somehow ends up in my qf list and moves my cursor
 // disabling for now as CompilerKind_Auto is good enough
 
-typedef enum ExternalKind{
-    ExternalKind_GitZip,
-    ExternalKind_File,
-}ExternalKind;
+typedef enum ExternalAssetKind{
+    ExternalAssetKind_GitZip,
+    ExternalAssetKind_File,
+}ExternalAssetKind;
 
 typedef struct ExternalAsset{
-    ExternalKind kind;
+    ExternalAssetKind kind;
     union {
         struct{
             const char *URL;
@@ -233,17 +229,21 @@ typedef struct ExternalAsset{
     };
 }ExternalAsset;
 
-struct ExternalAssets{
+ExternalAsset assets_list[] = {
+        {.kind = ExternalAssetKind_GitZip, .git_asset = {"https://github.com/KhronosGroup/glTF-Sample-Models", "8e9a5a6ad1a2790e2333e3eb48a1ee39f9e0e31b"}},
+};
+
+typedef struct ExternalAssets{
     ExternalAsset *items;
     int count;
     const char* output_path;
-} static const assets = {
+}ExternalAssets;
+
+static const ExternalAssets assets = {
     .output_path = "assets",
-    SLICE(ExternalAsset, {
-        {.kind = ExternalKind_GitZip, .git_asset = {"https://github.com/KhronosGroup/glTF-Sample-Models", "8e9a5a6ad1a2790e2333e3eb48a1ee39f9e0e31b"}},
-        // {.kind = ExternalKind_GitZip, .git_asset = {"https://github.com/KhronosGroup/glTF-Sample-Models", "8e9a5a6ad1a2790e2333e3eb48a1ee39f9e0e31b"}},
-    }
-)};
+    .items = assets_list,
+    .count = ARRAY_LEN(assets_list),
+};
 
 void download_assets(void)
 {
@@ -254,14 +254,14 @@ void download_assets(void)
         char final_path[512];
         char download_path[512];
         char source_url[512];
-        if (asset->kind == ExternalKind_File) {
+        if (asset->kind == ExternalAssetKind_File) {
             const char *url = asset->asset.URL;
             const char *filename = strrchr(url, '/') ? strrchr(url, '/') + 1 : "asset.bin";
             snprintf(final_path, sizeof(final_path), "%s/%s", assets.output_path, filename);
             snprintf(download_path, sizeof(download_path), "%s/%s", assets.output_path, filename);
             snprintf(source_url, sizeof(source_url), "%s", url);
         }
-        else if (asset->kind == ExternalKind_GitZip) {
+        else if (asset->kind == ExternalAssetKind_GitZip) {
             const char *repo_url = asset->git_asset.URL;
             const char *repo = strrchr(repo_url, '/') ? strrchr(repo_url, '/') + 1 : "repo";
 
@@ -286,7 +286,7 @@ void download_assets(void)
         nob_cmd_append(&cmd, download_path);
         nob_cmd_append(&cmd, source_url);
         nob_cmd_run(&cmd);
-        if (asset->kind == ExternalKind_GitZip) {
+        if (asset->kind == ExternalAssetKind_GitZip) {
             Nob_Cmd unzip_cmd = {0};
             nob_cmd_append(&unzip_cmd, "unzip");
             nob_cmd_append(&unzip_cmd, download_path);

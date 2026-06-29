@@ -78,18 +78,20 @@
     #define DOT_FALLTHROUGH /* fallthrough */
 #endif
 
-#if defined(__clang__)
+#if DOT_COMPILER_CLANG
     #define DOT_ALLOW_PARTIAL_SWITCH \
         _Pragma("clang diagnostic push") \
         _Pragma("clang diagnostic ignored \"-Wswitch-enum\"")
+        // _Pragma("clang diagnostic ignored \"-Wswitch\"")
 
     #define DOT_RESTORE_PARTIAL_SWITCH \
         _Pragma("clang diagnostic pop")
 
-#elif defined(__GNUC__)
+#elif DOT_COMPILER_GCC
     #define DOT_DISABLE_SWITCH_ENUM \
         _Pragma("GCC diagnostic push") \
         _Pragma("GCC diagnostic ignored \"-Wswitch-enum\"")
+        // _Pragma("GCC diagnostic ignored \"-Wswitch\"")
 
     #define DOT_RESTORE_SWITCH_ENUM \
         _Pragma("GCC diagnostic pop")
@@ -166,7 +168,7 @@
 
 // (jd) NOTE: Should probably use something for code gen but whatever
 #define DOT_X_ENUM_ARG(prefix, v)           prefix##_##v,
-#define DOT_X_ENUM_STR(prefix, v)           String8Lit(#v),
+#define DOT_X_ENUM_STR(prefix, v)           string8_lit(#v),
 #define DOT_X_ENUM_STR_FROM_VAL(prefix, v)  if(string8_equal(string8_from_##prefix[prefix##_##v], str)) return prefix##_##v;
 #define DOT_ENUM_REFLECT(enum_name, x_list) \
     typedef enum enum_name{x_list(DOT_X_ENUM_ARG) }enum_name; \
@@ -248,8 +250,11 @@ typedef double f64;
 // Array
 
 #define DOT_ARRAY_COUNT(arr) sizeof(arr) / sizeof(arr[0])
-#define DOT_ARRAY_ARGS(T, ...) (T[])__VA_ARGS__, (u32) (sizeof((T[])__VA_ARGS__) / sizeof(T))
+#define DOT_ARRAY_COUNT_T(T, ...) (sizeof((T[]){__VA_ARGS__}) / sizeof(T))
+#define DOT_ARRAY_UNWRAP(T, ...) (T[])__VA_ARGS__, (u64) (sizeof((T[]){__VA_ARGS__}) / sizeof(T))
 
+// Unpacks a parameter list into into size and static array
+#define DOT_ARRAY_UNPACK_T(T, ...) (sizeof((T[]){__VA_ARGS__}) / sizeof(T)), (T[]){__VA_ARGS__}
 
 // #define ARRAY_FIELDS(T, field, field_count, ...) \
 //     .field = { __VA_ARGS__ }, \

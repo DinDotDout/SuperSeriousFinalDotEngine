@@ -9,10 +9,10 @@ typedef struct DOT_Window{
     RGFW_window *window;
 }DOT_Window;
 
-struct RendererBackend;
+struct RN_BackendCtx;
 internal void dot_window_init(DOT_Window *window);
 internal void dot_window_shutdown(DOT_Window *window);
-internal void dot_window_create_surface(DOT_Window* window, struct RendererBackend *backend);
+internal void dot_window_create_surface(DOT_Window* window, struct RN_BackendCtx *backend);
 internal void dot_window_poll_events(DOT_Window *window);
 internal b32  dot_window_should_close(DOT_Window *window);
 internal DOT_Extent2D dot_window_get_framebuffer_size(DOT_Window *window);

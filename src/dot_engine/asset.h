@@ -17,9 +17,9 @@ typedef struct DOT_AssetCreateInfo{
 }DOT_AssetCreateInfo;
 #define DOT_ASSET_CREATE_INFO(...) \
     &(DOT_AssetCreateInfo){ \
-        .path = String8Lit(""), \
-        .name = String8Lit(""), \
-        .desc = String8Lit(""), \
+        .path = string8_lit(""), \
+        .name = string8_lit(""), \
+        .desc = string8_lit(""), \
         __VA_ARGS__ \
     }
 

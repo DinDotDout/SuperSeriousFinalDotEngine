@@ -3,7 +3,7 @@
 
 #define DOT_COMPILED_SHADER_PATH "src/game/compiled_shaders/"
 
-internal read_only String8 g_shader_header = String8Lit(
+internal read_only String8 g_shader_header = string8_lit(
 "#version 450\n"
 "#define PI 3.1415926538\n"
 );
@@ -11,7 +11,7 @@ internal read_only String8 g_shader_header = String8Lit(
 // (jd) NOTE: This allows embedding a text file. Tho it removes all line jumps
 // also doesn't allow #define, hence g_shader_header
 // This works for testing for now
-#define DOT_RAW_TEXT(x) String8Lit( \
+#define DOT_RAW_TEXT(x) string8_lit( \
     "#version 450\n" \
     "#define PI 3.1415926538\n" \
     DOT_STR(x))

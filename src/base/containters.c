@@ -27,9 +27,9 @@ pool_handle_pack(PoolHandle h)
 }
 
 internal b32
-pool_handle_is_null(PoolHandle h)
+pool_handle_is_default(PoolHandle h)
 {
-    b32 res = h.idx == POOL_NULL_HANDLE.idx;
+    b32 res = h.idx == POOL_DEFAULT_HANDLE.idx;
     return res;
 }
 
@@ -47,20 +47,21 @@ internal u32
 pool_handle_to_pool_idx(Pool *p, PoolHandle h)
 {
     if(h.idx >= p->capacity){
-        DOT_WARNING("Pool idx out of bounds. Returning 0 handle");
+        DOT_WARNING("Pool idx out of bounds. Returning default");
         return 0;
     }
     return h.idx;
 }
 
 internal PoolHandle
-pool_null_handle_get(Pool *p, u32 elem_size, u8 *data)
+pool_handle_get_default(Pool *p)
+// pool_handle_get_default(Pool *p, u32 elem_size, u8 *data)
 {
     DOT_ASSERT(p->capacity > 0, "Uninitialized pool");
-    PoolHandle h = POOL_NULL_HANDLE;
-    u32 idx = pool_handle_to_pool_idx(p, h);
-    void *elem = raw_buffer_get(data, idx, elem_size);
-    MEMORY_ZERO(elem, elem_size);
+    PoolHandle h = POOL_DEFAULT_HANDLE;
+    // u32 idx = pool_handle_to_pool_idx(p, h);
+    // void *elem = raw_buffer_get(data, idx, elem_size);
+    // MEMORY_ZERO(elem, elem_size);
     return(h);
 }
 
@@ -68,8 +69,8 @@ internal PoolHandle
 pool_alloc(Pool *p, u32 elem_size, void *data)
 {
     if (DOT_UNLIKELY(p->count >= p->capacity)){
-        DOT_WARNING("Pool capacity exceeded, returning null handle");
-        return (PoolHandle){ .idx = 0 };
+        DOT_WARNING("Pool capacity exceeded, returning default handle");
+        return POOL_DEFAULT_HANDLE;
     }
 
     PoolHandle h = { .idx = p->idx_buffer[p->count] };
@@ -261,7 +262,7 @@ tree_push_front(TreePool *tree_pool, PoolHandle parent, PoolHandle new, u32 elem
     if(parent.idx != 0){
         TreeHeader *parent_header = tree_header_(tree_pool, parent, elem_size, data);
         TreeHeader *new_header = tree_header_(tree_pool, new, elem_size ,data);
-        if(pool_handle_is_null(parent_header->last_child)){
+        if(pool_handle_is_default(parent_header->last_child)){
             parent_header->last_child = new;
             new_header->sibling = new;
         }else{

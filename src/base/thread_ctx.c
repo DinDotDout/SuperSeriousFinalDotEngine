@@ -31,7 +31,7 @@ threadctx_id()
 }
 
 internal TempArena
-threadctx_temp_begin(SliceArena *avoid_arenas)
+threadctx_temp_begin(ArenaSlice *avoid_arenas)
 // threadctx_temp_begin(Arena *avoid[], u32 avoid_count)
 {
     u32 avoid_count = !avoid_arenas ? 0 : avoid_arenas->count;

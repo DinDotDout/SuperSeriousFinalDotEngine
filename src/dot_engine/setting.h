@@ -79,9 +79,9 @@ DECLARE_SECTION(DOT_Setting, SettingsSection);
 #define DOT_SETTING_TYPED(k, ctype, section, var, value, viz) \
     ctype var = (value); \
     SECTION_ITEM(SettingsSection, 0) static DOT_Setting DOT_CONCAT(__DOT_Setting_, var) = { \
-        .whole_name     = String8Lit(section DOT_STR("_"#var)), \
-        .scope_name     = String8Lit(section), \
-        .setting_name   = String8Lit(#var), \
+        .whole_name     = string8_lit(section DOT_STR("_"#var)), \
+        .scope_name     = string8_lit(section), \
+        .setting_name   = string8_lit(#var), \
         .kind           =  k, \
         .visualization  = (viz), \
         .ctype##_value  = &(var), \
@@ -96,7 +96,7 @@ DECLARE_SECTION(DOT_Setting, SettingsSection);
 #define DOT_SETTING_VEC2(section, var, value)      DOT_SETTING_TYPED(DOT_SettingKind_Vec2, vec2, section, var, value, DOT_SettingVisualizationKind_Default)
 #define DOT_SETTING_VEC3(section, var, value)      DOT_SETTING_TYPED(DOT_SettingKind_Vec3, vec3, section, var, value, DOT_SettingVisualizationKind_Default)
 #define DOT_SETTING_VEC4(section, var, value)      DOT_SETTING_TYPED(DOT_SettingKind_Vec4, vec4, section, var, value, DOT_SettingVisualizationKind_Default)
-#define DOT_SETTING_STRING8(section, var, value)   DOT_SETTING_TYPED(DOT_SettingKind_String8, String8, section, var, String8Lit(value), DOT_SettingVisualizationKind_Default)
+#define DOT_SETTING_STRING8(section, var, value)   DOT_SETTING_TYPED(DOT_SettingKind_String8, String8, section, var, string8_lit(value), DOT_SettingVisualizationKind_Default)
 #define DOT_SETTING_COLOR3(section, var, value)    DOT_SETTING_TYPED(DOT_SettingKind_Vec3, vec3, section, var, value, DOT_SettingVisualizationKind_ColorPicker)
 #define DOT_SETTING_COLOR4(section, var, value)    DOT_SETTING_TYPED(DOT_SettingKind_Vec4, vec4, section, var, value, DOT_SettingVisualizationKind_ColorPicker)
 
@@ -137,7 +137,7 @@ dot_setting_to_string8(Arena *a, DOT_Setting *setting)
                 setting->vec4_value->z, setting->vec4_value->w);
 
     case DOT_SettingKind_String8: return *setting->String8_value;
-    default: return String8Lit("<unknown>");
+    default: return string8_lit("<unknown>");
     }
 }
 

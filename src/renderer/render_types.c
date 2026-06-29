@@ -193,3 +193,20 @@ rn_texture_format_from_info(int comp, u8 size_bytes, b32 srgb)
     }
     return RN_TextureFormatKind_Invalid;
 }
+
+
+internal RN_ShaderResourceLayoutDesc
+rn_shader_resource_layout_begin()
+{
+    return (RN_ShaderResourceLayoutDesc){0};
+}
+
+internal void
+rn_shader_resource_layout_set_bindings_(RN_ShaderResourceLayoutDesc *layout_desc, u16 binding_count, RN_ShaderResourceBinding *bindings)
+{
+    DOT_ASSERT(binding_count < DOT_ARRAY_COUNT(layout_desc->bindings), "Passing in more bindings than RN_SHADER_RESOURCE_BINDING_MAX allows");
+    layout_desc->binding_count = binding_count;
+    for(u32 i = 0; i < binding_count; ++i){
+        layout_desc->bindings[i] = bindings[i];
+    }
+}

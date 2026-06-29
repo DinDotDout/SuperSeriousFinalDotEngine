@@ -26,9 +26,9 @@ typedef struct String8List{
     u32 *count;
 }StringBuilder;
 
-#define String8Lit(s)  (String8){.str = (u8*)(s), .size = sizeof(s) - 1}
-#define StrFmt "%.*s"
-#define StrArg(sv) (int)(sv).size, (sv).str
+#define string8_lit(s)  (String8){.str = (u8*)(s), .size = sizeof(s) - 1}
+#define str_fmt "%.*s"
+#define str_arg(sv) (int)(sv).size, (sv).str
 
 #define MEMORY_COPY_STRING8(dst, s) MEM_COPY(dst, (s).str, (s).size)
 

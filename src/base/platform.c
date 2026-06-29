@@ -14,10 +14,10 @@
 // platform_get_file_mode_from_kind(FileModeKind kind)
 // {
 //     switch(kind){
-//     case Platform_FileModeKind_R: return String8Lit("r");
-//     case Platform_FileModeKind_W: return String8Lit("w");
-//     case Platform_FileModeKind_RW: return String8Lit("w");
-//     case Platform_FileModeKind_A: return String8Lit("a");
+//     case Platform_FileModeKind_R: return string8_lit("r");
+//     case Platform_FileModeKind_W: return string8_lit("w");
+//     case Platform_FileModeKind_RW: return string8_lit("w");
+//     case Platform_FileModeKind_A: return string8_lit("a");
 //     }
 // }
 

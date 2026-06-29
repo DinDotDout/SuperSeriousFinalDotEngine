@@ -175,7 +175,7 @@ arena_free()
 internal String8
 arena_to_string(Arena *arena)
 {
-    String8 str = String8Lit("");
+    String8 str = string8_lit("");
     if(!arena){
         str = string8_format(arena, "Arena: <null>\n");
         return str;

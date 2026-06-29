@@ -110,14 +110,14 @@ DOT_DIAGNOSTIC_PUSH
 #include "game/my_game.c"
 
 typedef struct DOT_Engine{
-    RN_Renderer renderer;
+    RN_RenderCtx renderer;
     DOT_Window window;
     DOT_Game *game;
     // DOT_AssetDB *asset_db;
     Arena *permanent_arena;
 }DOT_Engine;
 
-internal void dot_engine_init(DOT_Engine *engine, b8 tests_only);
+internal void dot_engine_init(DOT_Engine *engine, b32 tests_only);
 internal void dot_engine_run(DOT_Engine *engine);
 internal void dot_engine_shutdown(DOT_Engine *engine);
 DOT_DIAGNOSTIC_POP

@@ -15,18 +15,18 @@ dot_window_shutdown(DOT_Window *window)
 }
 
 internal void
-dot_window_create_surface(DOT_Window* window, struct RendererBackend* backend)
+dot_window_create_surface(DOT_Window* window, struct RN_BackendCtx *backend)
 {
     switch(backend->backend_kind){
-    case RendererBackendKind_Vk:{
-        RendererBackendVk *vk_ctx = rn_as_vk(backend);
+    case RN_BackendKind_Vk:{
+        RN_VK_BackendCtx *vk_ctx = rn_as_vk(backend);
         VkResult res = RGFW_window_createSurface_Vulkan(window->window, vk_ctx->instance, &vk_ctx->surface);
         if(res != VK_SUCCESS){
             DOT_ERROR("Could not create vulkan surface");
         }
     break;}
-    case RendererBackendKind_Null: break;
-    case RendererBackendKind_Dx12: DOT_ERROR("Dx12 Backend not implemented"); break;
+    case RN_BackendKind_Null: break;
+    case RN_BackendKind_Dx12: DOT_ERROR("Dx12 Backend not implemented"); break;
     default: DOT_ERROR("Backend not set"); break;
     }
 }

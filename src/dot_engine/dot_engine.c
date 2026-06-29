@@ -6,7 +6,7 @@ DOT_SETTING_U32("Game", g_game_permanent_memory_size_b, DOT_MB(20));
 DOT_SETTING_U32("Game", g_game_transient_memory_size_b, DOT_KB(32));
 
 internal void
-dot_engine_init(DOT_Engine *engine, b8 tests_only)
+dot_engine_init(DOT_Engine *engine, b32 tests_only)
 {
     engine->permanent_arena = ARENA_CREATE(.reserve_size = g_engine_memory_size_b, .name = "DOT_Engine Arena");
     threadctx_init(engine->permanent_arena, g_per_thread_temp_arena_count_b, g_per_thread_temp_arena_size_b, 1);
@@ -104,13 +104,13 @@ main(int argc, char *argv[])
     Arena *a = ARENA_CREATE();
     ARENA_RESET(a);
     DOT_Engine engine = {0};
-    b8 tests_only = false;
-    b8 tests_list_only = false;
-    b8 any_arg = false;
+    b32 tests_only = false;
+    b32 tests_list_only = false;
+    b32 any_arg = false;
     if(argc > 1){
         String8 arg1 = string8_from_cstring(argv[1]);
-        String8 tests = String8Lit("-tests");
-        String8 tests_list = String8Lit("-tests_list");
+        String8 tests = string8_lit("-tests");
+        String8 tests_list = string8_lit("-tests_list");
         tests_only = string8_equal(arg1, tests);
         tests_list_only = string8_equal(arg1, tests_list);
         any_arg = tests_only || tests_list_only;

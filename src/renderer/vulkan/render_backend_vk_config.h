@@ -21,7 +21,10 @@
 
 typedef struct RN_VK_VulkanConfig{
     struct {
-        SLICE(String8) extensions;
+        // SLICE(String8) extensions;
+        u32     extension_count;
+        String8 *extensions;
+
         String8 application_name;
         u32     application_version;
 
@@ -32,11 +35,13 @@ typedef struct RN_VK_VulkanConfig{
     }instance;
 
     struct{
-        SLICE(String8) extensions;
+        u32 extension_count;
+        String8 *extensions;
         const void *features; // pNext chain
-    } device;
+    }device;
 
-    SLICE(String8) validation_layers;
+    u32     validation_layer_count;
+    String8 *validation_layers;
 
 }RN_VK_VulkanConfig;
 
@@ -50,38 +55,47 @@ typedef struct RN_VK_RenderSettings{
     struct {
         u8 frame_overlap;
     } frame;
-}RN_VK_RendererSettings;
+}RN_VK_RenderSettings;
+
+global String8 rn_vk_g_instance_extensions[] = {
+    string8_lit(VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME),
+    string8_lit(VK_KHR_SURFACE_EXTENSION_NAME),
+#ifdef VK_EXT_DEBUG_UTILS_ENABLE
+    string8_lit(VK_EXT_DEBUG_UTILS_EXTENSION_NAME),
+#endif
+    string8_lit(DOT_VK_SURFACE),
+};
+
+global String8 rn_vk_g_validation_layers[] = {
+#ifdef VALIDATION_LAYERS_ENABLE
+        string8_lit("VK_LAYER_KHRONOS_validation"),
+#endif
+};
+
+global String8 rn_vk_g_device_extensions[] = {
+            string8_lit(VK_KHR_SWAPCHAIN_EXTENSION_NAME),
+            string8_lit(VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME),
+            string8_lit(VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME),
+            string8_lit(VK_EXT_GRAPHICS_PIPELINE_LIBRARY_EXTENSION_NAME),
+            string8_lit(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME),
+};
 
 read_only global RN_VK_VulkanConfig g_rn_vk_config = {
     .instance = {
-        .application_name    = String8Lit("dot_engine"),
+        .application_name    = string8_lit("dot_engine"),
         .application_version = VK_MAKE_VERSION(1,0,0),
-        .engine_name         = String8Lit("dot_engine"),
+        .engine_name         = string8_lit("dot_engine"),
         .engine_version      = VK_MAKE_VERSION(1,0,0),
         .api_version         = VK_API_VERSION_1_4,
-        .extensions = SLICE_LIT(String8,
-            String8Lit(VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME),
-            String8Lit(VK_KHR_SURFACE_EXTENSION_NAME),
-#ifdef VK_EXT_DEBUG_UTILS_ENABLE
-            String8Lit(VK_EXT_DEBUG_UTILS_EXTENSION_NAME),
-#endif
-            String8Lit(DOT_VK_SURFACE),
-        ),
+
+        .extension_count     = DOT_ARRAY_COUNT(rn_vk_g_instance_extensions),
+        .extensions          = rn_vk_g_instance_extensions,
     },
-
-    .validation_layers = SLICE_LIT(String8,
-#ifdef VALIDATION_LAYERS_ENABLE
-        String8Lit("VK_LAYER_KHRONOS_validation"),
-#endif
-    ),
-
+    .validation_layer_count = DOT_ARRAY_COUNT(rn_vk_g_validation_layers),
+    .validation_layers      = rn_vk_g_validation_layers,
     .device = {
-        .extensions = SLICE_LIT(String8,
-            String8Lit(VK_KHR_SWAPCHAIN_EXTENSION_NAME),
-            String8Lit(VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME),
-            String8Lit(VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME),
-            String8Lit(VK_EXT_GRAPHICS_PIPELINE_LIBRARY_EXTENSION_NAME),
-            String8Lit(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME),),
+        .extension_count    = DOT_ARRAY_COUNT(rn_vk_g_device_extensions),
+        .extensions         = rn_vk_g_device_extensions,
 
         .features = &(VkPhysicalDeviceVulkan12Features){
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,

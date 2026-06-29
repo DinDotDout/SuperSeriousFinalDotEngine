@@ -46,8 +46,8 @@ os_print_stacktrace()
                 String8 file   = string8_skip_last_slash(string8_cstring_capped(file_name, file_name + sizeof(file_name)));
                 if(file.size > 0) file.size -= 1;
 
-                b32 no_func = string8_equal(func, String8Lit("??"));
-                b32 no_file = string8_equal(file, String8Lit("??"));
+                b32 no_func = string8_equal(func, string8_lit("??"));
+                b32 no_file = string8_equal(file, string8_lit("??"));
                 if(no_func) { func = (String8){0}; }
                 if(no_file) { file = (String8){0}; }
 

@@ -1,12 +1,16 @@
 #ifndef THREAD_CTX_H
 #define THREAD_CTX_H
 
-typedef SLICE(Arena*) SliceArena;
+typedef struct ArenaSlice{
+  u32 count;
+  Arena **data;
+}ArenaSlice;
+
 #define SLICE_ARENA_LIT(...) (SliceArena)SLICE_LIT(Arena*, __VA_ARGS__)
 
 internal thread_local struct ThreadCtx{
     u32 thread_id;
-    SliceArena temp_arenas;
+    ArenaSlice temp_arenas;
 }t_thread_ctx = {0};
 
 internal void   threadctx_init(Arena *arena, u32 arena_count, u32 arena_size, u32 thread_id);
@@ -21,7 +25,7 @@ internal u32    threadctx_id();
 // SLICE_ARENA_LIT has been added to just be able to do something like:
 // threadctx_temp_begin(SLICE_ARENA_LIT(a, a2, a3));
 // for the base cases of 0 we can just pass in NULL or 0 threadctx_temp_begin(0)
-internal TempArena  threadctx_temp_begin(SliceArena *avoid_arenas);
+internal TempArena  threadctx_temp_begin(ArenaSlice *avoid_arenas);
 internal void       threadctx_temp_end(TempArena temp);
 
 // TODO: Implement actual threading constructs

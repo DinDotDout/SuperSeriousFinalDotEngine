@@ -103,7 +103,7 @@ dot_extract_primitive(Arena *arena, DOT_Primitive *dst, cgltf_primitive *src)
                 dot_extract_vec3(arena, &dst->normals, acc); break;
             case cgltf_attribute_type_texcoord:
                 dot_extract_vec2(arena, &dst->uvs, acc); break;
-            default: break;
+            default: continue;
             }
             DOT_RESTORE_PARTIAL_SWITCH;
         }
@@ -112,7 +112,7 @@ dot_extract_primitive(Arena *arena, DOT_Primitive *dst, cgltf_primitive *src)
 }
 
 internal DOT_Model
-dot_model_from_cgltf(RN_Renderer *renderer, const cgltf_data *data, String8 gltf_path)
+dot_model_from_cgltf(RN_RenderCtx *renderer, const cgltf_data *data, String8 gltf_path)
 {
     DOT_ASSERT(data->textures_count <= U32_MAX); DOT_ASSERT(data->meshes_count <= U32_MAX);
     DOT_ASSERT(data->samplers_count <= U32_MAX); DOT_ASSERT(data->buffers_count <= U32_MAX);
@@ -141,7 +141,7 @@ dot_model_from_cgltf(RN_Renderer *renderer, const cgltf_data *data, String8 gltf
     // (jd) NOTE: For now we are going to assume that all images are on a separate path
     for(u64 i = 0; i < data->images_count; ++i){
         cgltf_image *image = &data->images[i];
-        String8 name = image->name ? string8_from_cstring(image->name) : String8Lit("Default");
+        String8 name = image->name ? string8_from_cstring(image->name) : string8_lit("Default");
         String8 full_path = string8_format(temp.arena, "%S/%s", folder, image->uri);
         DOT_PRINT("name: %S, image uri: %S", name, full_path);
         SLICE_GET(model.textures, i) = rn_texture_load_from_path(renderer, name, full_path, 0);
@@ -149,30 +149,28 @@ dot_model_from_cgltf(RN_Renderer *renderer, const cgltf_data *data, String8 gltf
 
     for(u64 i = 0; i < data->samplers_count; ++i){
         cgltf_sampler *sampler = &data->samplers[i];
-        String8 name = sampler->name ? string8_from_cstring(sampler->name) : String8Lit("Default");
-        SLICE_GET(model.samplers, i) = rn_sampler_asset_create(
+        String8 name = sampler->name ? string8_from_cstring(sampler->name) : string8_lit("Default");
+        SLICE_GET(model.samplers, i) = rn_sampler_create(
             renderer,
-            DOT_ASSET_CREATE_INFO(.name = name, .path = gltf_path),
             RN_SAMPLER_DESC(
                 .min_filter = sampler->min_filter == cgltf_filter_type_linear ? RN_SamplerFilterKind_Linear : RN_SamplerFilterKind_Nearest,
                 .mag_filter = sampler->mag_filter == cgltf_filter_type_linear ? RN_SamplerFilterKind_Linear : RN_SamplerFilterKind_Nearest,
-            ));
+            ), name);
     }
 
     // (jd) NOTE: We already loaded buffers with cgltf_load_buffers, maybe do this ourselves?
     for(u64 i = 0; i < data->buffer_views_count; ++i){
         cgltf_buffer_view *buffer_view = &data->buffer_views[i];
         cgltf_buffer *buffer = buffer_view->buffer;
-        String8 name = buffer_view->name ? string8_from_cstring(buffer_view->name) : String8Lit("Default");
+        String8 name = buffer_view->name ? string8_from_cstring(buffer_view->name) : string8_lit("Default");
         u8 *buffer_data = cast(u8*)buffer->data + buffer_view->offset;
-        SLICE_GET(model.buffers, i) = rn_buffer_asset_create(
+        SLICE_GET(model.buffers, i) = rn_buffer_create(
             renderer,
-            DOT_ASSET_CREATE_INFO(.name = name, .path = gltf_path),
             RN_BUFFER_DESC(.size = buffer_view->size,
                 .resource_usage = RN_ResourceUsageKind_GPUOnly,
                 .buffer_usage_flags = RN_BufferUsageBit_Vertex
                                       | RN_BufferUsageBit_Index),
-            buffer_data);
+            buffer_data, name);
     }
     threadctx_temp_end(temp);
     return(model);
@@ -279,7 +277,7 @@ dot_gltf_load_from_path(Arena *arena, String8 path)
 }
 
 internal DOT_Model
-dot_model_load_from_path(RN_Renderer *renderer, String8 path)
+dot_model_load_from_path(RN_RenderCtx *renderer, String8 path)
 {
     TempArena temp = threadctx_temp_begin(0);
     cgltf_data *gltf = dot_gltf_load_from_path(temp.arena, path);
