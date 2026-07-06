@@ -4,9 +4,10 @@ threadctx_init(Arena *arena, u32 arena_count, u32 arena_size, u32 thread_id)
     DOT_ASSERT(t_thread_ctx.thread_id == 0, "Thread %u ctx was already initialized", thread_id);
     u64 per_arena_memory = arena_size;
     t_thread_ctx.thread_id = thread_id;
-    SLICE_INIT(arena, &t_thread_ctx.temp_arenas, arena_count);
-    for(u8 i = 0; i < t_thread_ctx.temp_arenas.count; ++i){
-        SLICE_GET(t_thread_ctx.temp_arenas, i) = ARENA_CREATE(
+    t_thread_ctx.temp_arena_count = arena_count;
+    t_thread_ctx.temp_arenas = PUSH_ARRAY(arena, Arena*, arena_count);
+    for(u8 i = 0; i < t_thread_ctx.temp_arena_count; ++i){
+        t_thread_ctx.temp_arenas[i] = ARENA_CREATE(
             .parent       = arena,
             .reserve_size = per_arena_memory,
             .name         = cstr_format(arena, "Thread SubArena %u", i),
@@ -17,8 +18,8 @@ threadctx_init(Arena *arena, u32 arena_count, u32 arena_size, u32 thread_id)
 internal void
 threadctx_shutdown()
 {
-    for(u8 i = 0; i < t_thread_ctx.temp_arenas.count; ++i){
-        arena_print_debug(SLICE_GET(t_thread_ctx.temp_arenas, i));
+    for(u8 i = 0; i < t_thread_ctx.temp_arena_count; ++i){
+        arena_print_debug(t_thread_ctx.temp_arenas[i]);
     }
 }
 
@@ -31,21 +32,17 @@ threadctx_id()
 }
 
 internal TempArena
-threadctx_temp_begin(ArenaSlice *avoid_arenas)
-// threadctx_temp_begin(Arena *avoid[], u32 avoid_count)
+threadctx_temp_begin(u32 avoid_count, Arena *avoid_arenas[])
 {
-    u32 avoid_count = !avoid_arenas ? 0 : avoid_arenas->count;
     // (jd) NOTE: Spread memory load
-    local_persist thread_local u64 next = 0;
-    u32 arena_count = t_thread_ctx.temp_arenas.count;
-    for(u8 tries = 0; tries < arena_count; ++tries){
-        u8 idx = next;
-        next = (next + 1) % arena_count;
+    local_persist thread_local u32 next = 0;
+    for(u8 tries = 0; tries < t_thread_ctx.temp_arena_count; ++tries){
+        Arena *candidate_temp = t_thread_ctx.temp_arenas[next];
+        next = (next + 1) % t_thread_ctx.temp_arena_count;
 
-        Arena *candidate_temp = SLICE_GET(t_thread_ctx.temp_arenas, idx);
         b32 collision = false;
         for(u32 i = 0; i < avoid_count; ++i){
-            Arena *arena = SLICE_GET(*avoid_arenas, i);
+            Arena *arena = avoid_arenas[i];
             if(candidate_temp == arena){
                 collision = true;
                 break;

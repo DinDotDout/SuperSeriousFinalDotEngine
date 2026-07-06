@@ -45,7 +45,7 @@ enum{
     RENDER_RESOURCE_CLEANUP_CTX_TEXTURES  = 64,
     RENDER_RESOURCE_CLEANUP_CTX_BUFFERS   = 64,
     RENDER_RESOURCE_CLEANUP_CTX_SAMPLERS  = 64,
-    RENDER_RESOURCE_CLEANUP_CTX_DESCRIPTOR_SET_LAYOUTS = 64,
+    RENDER_RESOURCE_CLEANUP_CTX_SHADER_RESOURCE_LAYOUTS = 64,
 };
 
 typedef struct RN_ResourceCleanupCtx{
@@ -53,11 +53,12 @@ typedef struct RN_ResourceCleanupCtx{
     ARRAY(RN_TextureHandle, RENDER_RESOURCE_CLEANUP_CTX_TEXTURES)   texture_ids;
     ARRAY(RN_BufferHandle,  RENDER_RESOURCE_CLEANUP_CTX_BUFFERS)    buffer_ids;
     ARRAY(RN_SamplerHandle, RENDER_RESOURCE_CLEANUP_CTX_SAMPLERS)   sampler_ids;
-    ARRAY(RN_ShaderResourceLayoutHandle, RENDER_RESOURCE_CLEANUP_CTX_DESCRIPTOR_SET_LAYOUTS)   descriptor_set_layout_ids;
-    struct{
-      u32 count;
-      Arena **data;
+    ARRAY(RN_ShaderResourceLayoutHandle, RENDER_RESOURCE_CLEANUP_CTX_SHADER_RESOURCE_LAYOUTS) shader_resource_layout_ids;
+    struct{ // (jd) use this for a resource free list / pool source
+        u32 count;
+        Arena **data;
     }arenas;
+
 }RN_ResourceCleanupCtx;
 
 typedef TREE_POOL(RN_ResourceCleanupCtx) RN_ResourceCleanupTree;
@@ -77,13 +78,13 @@ FN(void, shutdown, (void)) \
 FN(void, frame_begin, (void)) \
 FN(void, frame_end, (void)) \
 FN(void, clear_bg, (vec3 color)) \
-FN(RN_ShaderModuleHandle,           shader_create,                  (String8 fb)) \
-FN(RN_TextureHandle,                texture_create,                 (RN_TextureDesc *desc, void *data, String8 debug_name)) \
-FN(RN_SamplerHandle,                sampler_create,                 (RN_SamplerDesc *desc, String8 debug_name)) \
-FN(RN_BufferHandle,                 buffer_create,                  (RN_BufferDesc *desc, u8 *data, String8 debug_name)) \
+FN(RN_ShaderStageHandle,           shader_create,                  (String8 fb)) \
+FN(RN_TextureHandle,                texture_create,                 (RN_TextureDesc *desc, void *data)) \
+FN(RN_SamplerHandle,                sampler_create,                 (RN_SamplerDesc *desc)) \
+FN(RN_BufferHandle,                 buffer_create,                  (RN_BufferDesc *desc, u8 *data)) \
 FN(RN_ShaderResourceLayoutHandle,   shader_resource_layout_create,  (RN_ShaderResourceLayoutDesc *desc)) \
 FN(RN_PipelineHandle,               pipeline_create,                (RN_PipelineDesc *desc)) \
-FN(void, shader_unload,     (RN_ShaderModuleHandle shader_module)) \
+FN(void, shader_unload,     (RN_ShaderStageHandle shader_module)) \
 FN(void, texture_destroy,   (RN_TextureHandle texture_handle)) \
 FN(void, buffer_destroy,    (RN_BufferHandle buffer_handle)) \
 FN(void, sampler_destroy,   (RN_SamplerHandle sampler_handle)) \
@@ -109,7 +110,7 @@ typedef struct FrameData{
 typedef struct RN_RenderCtx{
     Arena                   *permanent_arena;
     Arena                   *transient_arena;
-    HashMap_RN_ShaderModule shader_cache; // This should be a general cache, and check there before loading assets
+    HashMap_RN_ShaderCachedData shader_cache; // This should be a general cache, and check there before loading assets
     RN_ResourceCleanupTree  cleanup_tree;
 
     u32         frame_data_count;
@@ -119,19 +120,19 @@ typedef struct RN_RenderCtx{
     RN_BackendCtx *backend;
 }RN_RenderCtx;
 
-DOT_ENGINE_API void                 rn_clear_background(RN_RenderCtx *renderer, vec3 color);
-DOT_ENGINE_API RN_ShaderModule      *rn_shader_module_load_from_path(RN_RenderCtx *renderer, String8 path);
+DOT_ENGINE_API void      rn_clear_background(RN_RenderCtx *renderer, vec3 color);
 
+internal RN_ShaderStageHandle rn_shader_stage_handle_get_or_create(RN_RenderCtx *renderer, RN_ShaderStage *stage);
 // This should be an external loader and renderer should fill in the rest
-DOT_ENGINE_API RN_Texture           rn_texture_load_from_path(RN_RenderCtx *renderer, String8 name, String8 path, u8 mip_levels);
+DOT_ENGINE_API RN_Texture     rn_texture_load_from_path(RN_RenderCtx *renderer, String8 name, String8 path, u8 mip_levels);
 
 internal void               rn_init(Arena *arena, RN_RenderCtx *renderer, DOT_Window *window);
 internal void               rn_shutdown(RN_RenderCtx *renderer);
-internal RN_BackendCtx*   rn_backend_create(Arena *arena);
+internal RN_BackendCtx     *rn_backend_create(Arena *arena);
 
-internal RN_TextureHandle               rn_texture_create_h(RN_RenderCtx *renderer, RN_TextureDesc *desc, void *data, String8 debug_name);
-internal RN_SamplerHandle               rn_sampler_create_h(RN_RenderCtx *renderer, RN_SamplerDesc *desc, String8 debug_name);
-internal RN_BufferHandle                rn_buffer_create_h(RN_RenderCtx *renderer, RN_BufferDesc *desc, u8 *data, String8 debug_name);
+internal RN_TextureHandle               rn_texture_create_h(RN_RenderCtx *renderer, RN_TextureDesc *desc, void *data);
+internal RN_SamplerHandle               rn_sampler_create_h(RN_RenderCtx *renderer, RN_SamplerDesc *desc);
+internal RN_BufferHandle                rn_buffer_create_h(RN_RenderCtx *renderer, RN_BufferDesc *desc, u8 *data);
 internal RN_PipelineHandle              rn_pipeline_create_h(RN_RenderCtx *renderer, RN_PipelineDesc *desc);
 internal RN_ShaderResourceLayoutHandle  rn_shader_resource_layout_create_h(RN_RenderCtx *renderer, RN_ShaderResourceLayoutDesc *desc);
 

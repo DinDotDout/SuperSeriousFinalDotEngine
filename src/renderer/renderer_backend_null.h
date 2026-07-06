@@ -19,18 +19,18 @@ internal void rn_null_shutdown(){}
 internal void rn_null_frame_begin(){}
 internal void rn_null_frame_end(){}
 internal void rn_null_clear_bg(){}
-internal void rn_null_shader_unload(RN_ShaderModuleHandle sm){}
+internal void rn_null_shader_unload(RN_ShaderStageHandle sm){}
 internal void rn_null_resource_cleanup_list_push(void){}
 internal void rn_null_resource_cleanup_list_pop_at(PoolHandle idx){}
 internal void rn_null_resource_cleanup_list_pop_last(void){}
 
 // (jd) Empty handles
-internal RN_BufferHandle                rn_null_buffer_create(RN_BufferDesc *desc, u8 *data, String8 debug_name){ return((RN_BufferHandle){0}); }
-internal RN_SamplerHandle               rn_null_sampler_create(RN_SamplerDesc *desc, String8 debug_name){ return((RN_SamplerHandle){0}); }
-internal RN_TextureHandle               rn_null_texture_create(RN_TextureDesc *desc, void *data, String8 debug_name) { return((RN_TextureHandle){0}); }
+internal RN_BufferHandle                rn_null_buffer_create(RN_BufferDesc *desc, u8 *data){ return((RN_BufferHandle){0}); }
+internal RN_SamplerHandle               rn_null_sampler_create(RN_SamplerDesc *desc){ return((RN_SamplerHandle){0}); }
+internal RN_TextureHandle               rn_null_texture_create(RN_TextureDesc *desc, void *data) { return((RN_TextureHandle){0}); }
 internal RN_PipelineHandle              rn_null_pipeline_create(RN_PipelineDesc *desc) { return((RN_PipelineHandle){0}); }
 internal RN_ShaderResourceLayoutHandle  rn_null_shader_resource_layout_create(RN_ShaderResourceLayoutDesc *desc) { return((RN_ShaderResourceLayoutHandle){0}); }
-internal RN_ShaderModuleHandle          rn_null_shader_create(String8 shader_data) { return((RN_ShaderModuleHandle){0}); }
+internal RN_ShaderStageHandle          rn_null_shader_create(String8 shader_data) { return((RN_ShaderStageHandle){0}); }
 
 internal void rn_null_texture_destroy(RN_TextureHandle texture_handle){}
 internal void rn_null_buffer_destroy(RN_BufferHandle buffer_handle){}

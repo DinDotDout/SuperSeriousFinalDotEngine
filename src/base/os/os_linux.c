@@ -7,6 +7,7 @@
 #include <sys/time.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 
 internal u64
 platform_os_get_timer_freq()
@@ -63,7 +64,7 @@ os_print_stacktrace()
 internal void
 os_signal_handler(int sig, siginfo_t *_info, void *_arg)
 {
-    DOT_UNUSED(_info); DOT_UNUSED(_arg);
+    DOT_UNUSED(_info, _arg);
     local_persist volatile u32 first = 0;
     if(ins_atomic_u32_eval_cond_assign(&first, 1, 0) != 0){
         for(;;){
@@ -75,8 +76,10 @@ os_signal_handler(int sig, siginfo_t *_info, void *_arg)
     _exit(1);
 }
 
+
 internal void
-os_install_handlers(){
+os_install_handlers()
+{
     struct sigaction handler = { .sa_sigaction = os_signal_handler, .sa_flags = SA_SIGINFO, };
     sigfillset(&handler.sa_mask);
     sigaction(SIGILL, &handler, NULL);
@@ -86,6 +89,12 @@ os_install_handlers(){
     sigaction(SIGBUS, &handler, NULL);
     sigaction(SIGSEGV, &handler, NULL);
     sigaction(SIGQUIT, &handler, NULL);
+}
+
+internal void
+os_init()
+{
+    os_install_handlers();
 }
 
 ////////////////////////////////////////////////////////////////

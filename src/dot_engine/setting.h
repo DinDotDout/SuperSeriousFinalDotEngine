@@ -1,6 +1,11 @@
 #ifndef SETTING_H 
 #define SETTING_H
 
+#if DOT_COMPILER_MSVC
+#   pragma section(".SettingsSection", read)
+#   pragma comment(linker, "/merge:.SettingsSection=.data")
+#endif
+
 // (jd) NOTE: This isn't really a limit but performance will degrade and become a linear search if load
 // factor is high enough
 enum{ SETTINGS_SCOPE_BUCKETS_MAX = 32 };
@@ -106,7 +111,7 @@ internal inline String8 dot_setting_to_string8(Arena *arena, DOT_Setting *settin
 internal inline
 void dot_settings_register_all(Arena *arena)
 {
-    TempArena t = threadctx_temp_begin(0);
+    TempArena t = threadctx_temp_begin(0,0);
     hash_map_DOT_SettingScope_init(arena, &g_settings.setting_scopes, SETTINGS_SCOPE_BUCKETS_MAX);
     hash_map_DOT_SettingPtr_init(arena, &g_settings.settings, SETTINGS_BUCKETS_MAX);
     for EACH_IN_SECTION(SettingsSection, DOT_Setting, setting_it){

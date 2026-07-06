@@ -80,7 +80,7 @@ global String8 rn_vk_g_device_extensions[] = {
             string8_lit(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME),
 };
 
-read_only global RN_VK_VulkanConfig g_rn_vk_config = {
+read_only global RN_VK_VulkanConfig rn_vk_g_config = {
     .instance = {
         .application_name    = string8_lit("dot_engine"),
         .application_version = VK_MAKE_VERSION(1,0,0),

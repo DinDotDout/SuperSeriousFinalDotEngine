@@ -27,8 +27,8 @@ b32 dot_game_init(DOT_Game *game, RN_RenderCtx *renderer,
     g_game->transient_arena = ARENA_CREATE(.name = "engine transient arena", .buffer = transient_memory, .reserve_size = transient_memory_size);
 
     // Buncha tests
-    g_game->test_shader_module = rn_shader_module_load_from_path(game->renderer, string8_lit(DOT_GAME_SHADER_PATH"compute.glsl"));
-    rn_create_postprocess_module(g_game->test_shader_module->shader_module_handle);
+    // g_game->test_shader_module = rn_shader_module_load_from_path(game->renderer, string8_lit(DOT_GAME_SHADER_PATH"compute.glsl"));
+    // rn_create_postprocess_module(g_game->test_shader_module->shader_stage_handle);
 
     // String8 model_path = string8_lit(DOT_GAME_ASSET_PATH"glTF-Sample-Models/2.0/DamagedHelmet/glTF-Embedded/DamagedHelmet.gltf");
     // String8 model_path = string8_lit(DOT_GAME_ASSET_PATH"glTF-Sample-Models/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf");
@@ -36,45 +36,8 @@ b32 dot_game_init(DOT_Game *game, RN_RenderCtx *renderer,
     // String8 model_path = string8_lit(DOT_GAME_ASSET_PATH"glTF-Sample-Models/2.0/2CylinderEngine/glTF/2CylinderEngine.gltf");
     DOT_Model model = dot_model_load_from_path(g_game->renderer, model_path);
 
-    String8 shader_stages[2] = {
-        [RN_ShaderStageKind_Vertex] =
-        #include "../src/game/shaders/model.vert"
-        , [RN_ShaderStageKind_Fragment] =
-        #include "../src/game/shaders/model.frag"
-    };
-    RN_PipelineDesc pipeline = {
-        .vertex_input = {
-            // .vertex_attribute_count = DOT_ARRAY_COUNT(vertex_attributes),
-            // .vertex_attributes = vertex_attributes,
-            .vertex_attributes = ARRAY_LIT(RN_VertexAttribute,
-                { .location = 0, .binding = 0, .offset = 0, .vertex_component_kind = RN_VertexCommponentKind_F32x3 },
-                { .location = 1, .binding = 1, .offset = 0, .vertex_component_kind = RN_VertexCommponentKind_F32x4 },
-                { .location = 2, .binding = 2, .offset = 0, .vertex_component_kind = RN_VertexCommponentKind_F32x3 },
-                { .location = 3, .binding = 3, .offset = 0, .vertex_component_kind = RN_VertexCommponentKind_F32x2 },
-            ),
-            .vertex_streams = ARRAY_LIT(RN_VertexStream,
-                { .binding = 0, .stride = 12, .input_rate = RN_VertexInputRateKind_PerVertex},
-                { .binding = 1, .stride = 16, .input_rate = RN_VertexInputRateKind_PerVertex},
-                { .binding = 2, .stride = 12, .input_rate = RN_VertexInputRateKind_PerVertex},
-                { .binding = 3, .stride = 8, .input_rate = RN_VertexInputRateKind_PerVertex},
-            ),
-        },
-        .depth_stencil_state = {
-            .depth_write_enable = true,
-            .depth_enable = true,
-            .depth_comparison = RN_CompareOp_LessOrEqual,
-        },
-        .shader_state = {
-            .format = RN_ShaderFormat_Source,
-            .shader_stages = ARRAY_LIT(RN_ShaderStage,
-                {.stage = RN_ShaderStageKind_Vertex,   .code = shader_stages[RN_ShaderStageKind_Vertex]},
-                {.stage = RN_ShaderStageKind_Fragment, .code = shader_stages[RN_ShaderStageKind_Fragment]}
-            ),
-        },
-        .render_pass = rn_swapchain_output(),
-    };
-    RN_ShaderResourceLayoutDesc desc = rn_shader_resource_layout_begin();
-    rn_shader_resource_layout_set_bindings(&desc,
+    RN_ShaderResourceLayoutDesc resource_layout_desc = rn_shader_resource_layout_begin();
+    rn_shader_resource_layout_set_bindings(&resource_layout_desc,
         { RN_ShaderResourceKind_UniformBufferDynamic, 0, 1, string8_lit("LocalConstants"), 0 },
         { RN_ShaderResourceKind_UniformBufferDynamic, 1, 1, string8_lit("MaterialConstants"), 0 },
         { RN_ShaderResourceKind_SamplerXTexture, 2, 1, string8_lit("diffuseTexture"), 0 },
@@ -83,11 +46,52 @@ b32 dot_game_init(DOT_Game *game, RN_RenderCtx *renderer,
         { RN_ShaderResourceKind_SamplerXTexture, 5, 1, string8_lit("emissiveTexture"), 0 },
         { RN_ShaderResourceKind_SamplerXTexture, 6, 1, string8_lit("occlusionTexture"), 0 },
     );
-    RN_ShaderResourceLayoutHandle h = rn_shader_resource_layout_create(renderer, &desc);
-    pipeline.descriptor_set_layouts[0] = h;
-    ++pipeline.descriptor_set_layout_count;
+    RN_ShaderResourceLayoutHandle h = rn_shader_resource_layout_create(renderer, &resource_layout_desc);
 
-    RN_PipelineHandle cube_pipeline = rn_pipeline_create(renderer, &pipeline);
+    RN_PipelineDesc pipeline_desc = {0};
+    rn_pipeline_set_vertex_attributes(&pipeline_desc,
+        { .location = 0, .binding = 0, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x3 },
+        { .location = 1, .binding = 1, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x4 },
+        { .location = 2, .binding = 2, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x3 },
+        { .location = 3, .binding = 3, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x2 }
+    );
+    rn_pipeline_set_vertex_streams(&pipeline_desc,
+        { .binding = 0, .stride = 12, .input_rate = RN_VertexInputRateKind_PerVertex},
+        { .binding = 1, .stride = 16, .input_rate = RN_VertexInputRateKind_PerVertex},
+        { .binding = 2, .stride = 12, .input_rate = RN_VertexInputRateKind_PerVertex},
+        { .binding = 3, .stride = 8, .input_rate = RN_VertexInputRateKind_PerVertex},
+    );
+    rn_pipeline_set_depth_stencil_state(&pipeline_desc,
+        .depth_write_enable = true,
+        .depth_enable = true,
+        .depth_comparison = RN_CompareOpKind_LessOrEqual
+    );
+    rn_pipeline_set_shader_state(&pipeline_desc,
+        { .path = string8_lit(DOT_GAME_SHADER_PATH"model.vert") },
+        { .path = string8_lit(DOT_GAME_SHADER_PATH"model.frag") },
+    );
+    DOT_DebugNameSet(pipeline_desc.shader_state.debug_name, string8_lit("Cube"));
+
+    rn_pipeline_set_render_pass_output(&pipeline_desc, rn_swapchain_output());
+    rn_pipeline_push_shader_resource_layout(&pipeline_desc, h);
+
+    typedef struct UniformData {
+        mat4 m;
+        mat4 vp;
+        vec4 eye;
+        vec4 light;
+    }UniformData;
+
+    RN_BufferDesc bd = {0};
+    bd.resource_usage       = RN_ResourceUsageKind_Dynamic;
+    bd.buffer_usage_flags   = RN_BufferUsageBit_Uniform;
+    bd.size = sizeof(UniformData);
+    DOT_DebugNameSet(bd.debug_name, string8_lit("cube constant buffer"));
+
+    RN_BufferHandle bh = rn_buffer_create_h(renderer, &bd, NULL);
+    (void)bh;
+
+    RN_PipelineHandle cube_pipeline = rn_pipeline_create(renderer, &pipeline_desc);
     (void)cube_pipeline;
 
 
@@ -95,13 +99,13 @@ b32 dot_game_init(DOT_Game *game, RN_RenderCtx *renderer,
     // rn_pipeline_set_depth_stencil_state(&pipeline2,
     //     .depth_write_enable = true,
     //     .depth_enable = true,
-    //     .depth_comparison = RN_CompareOp_LessOrEqual
+    //     .depth_comparison = RN_CompareOpKind_LessOrEqual
     // );
     // rn_pipeline_set_vertex_attributes(&pipeline2,
-    //     { .location = 0, .binding = 0, .offset = 0, .vertex_component_kind = RN_VertexCommponentKind_F32x3 },
-    //     { .location = 1, .binding = 1, .offset = 0, .vertex_component_kind = RN_VertexCommponentKind_F32x4 },
-    //     { .location = 2, .binding = 2, .offset = 0, .vertex_component_kind = RN_VertexCommponentKind_F32x3 },
-    //     { .location = 3, .binding = 3, .offset = 0, .vertex_component_kind = RN_VertexCommponentKind_F32x2 },
+    //     { .location = 0, .binding = 0, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x3 },
+    //     { .location = 1, .binding = 1, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x4 },
+    //     { .location = 2, .binding = 2, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x3 },
+    //     { .location = 3, .binding = 3, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x2 },
     // );
     // rn_pipeline_set_vertex_streams(&pipeline2,
     //     { .binding = 0, .stride = 12, .input_rate = RN_VertexInputRateKind_PerVertex},
@@ -123,11 +127,11 @@ b32 dot_game_init(DOT_Game *game, RN_RenderCtx *renderer,
     // rn_pipeline_set_render_pass_ouput(&pipeline2, rn_swapchain_output());
 
     // string8_append_string8(Arena *arena, String8 a, String8 b)
-    // DOT_DEBUG_NAME_SET(pipeline.shader_state.name, string8_lit("cube")),
+    // DOT_DebugNameSet(pipeline.shader_state.name, string8_lit("cube")),
 
 
-    (void) pipeline;
-    rn_pipeline_create(renderer, &pipeline);
+    // (void) pipeline;
+    // rn_pipeline_create(renderer, &pipeline);
     // const char *t = "src/game/" "shaders/" "model.frag";
     // typedef struct PipelineStages{
     // }PipelineStages;
@@ -135,16 +139,16 @@ b32 dot_game_init(DOT_Game *game, RN_RenderCtx *renderer,
     // const char *code[2] = {
 
     // pipeline_creation.shaders.set_name( "Cube" ).add_stage( vs_code, ( uint32_t )strlen( vs_code ), VK_SHADER_STAGE_VERTEX_BIT ).add_stage( fs_code, ( uint32_t )strlen( fs_code ), VK_SHADER_STAGE_FRAGMENT_BIT );
-    (void)shader_stages;
+    // (void)shader_stages;
 
 
     // RN_PipelineDesc pipeline2 = {
     //     .vertex_input = {
     //         SLICE_FIELDS(RN_VertexAttribute, vertex_attributes, vertex_attribute_count,
-    //                 { .location = 0, .binding = 0, .offset = 0, .vertex_component_kind = RN_VertexCommponentKind_F32x3 },
-    //                 { .location = 1, .binding = 1, .offset = 0, .vertex_component_kind = RN_VertexCommponentKind_F32x4 },
-    //                 { .location = 2, .binding = 2, .offset = 0, .vertex_component_kind = RN_VertexCommponentKind_F32x3 },
-    //                 { .location = 3, .binding = 3, .offset = 0, .vertex_component_kind = RN_VertexCommponentKind_F32x2 },
+    //                 { .location = 0, .binding = 0, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x3 },
+    //                 { .location = 1, .binding = 1, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x4 },
+    //                 { .location = 2, .binding = 2, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x3 },
+    //                 { .location = 3, .binding = 3, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x2 },
     //         ),
     //         SLICE_FIELDS(RN_VertexStream, vertex_streams, vertex_stream_count,
     //             { 0, 12, RN_VertexInputRateKind_PerVertex},
@@ -159,10 +163,10 @@ b32 dot_game_init(DOT_Game *game, RN_RenderCtx *renderer,
     //         .vertex_attribute_count = 4,
     //         .vertex_stream_count = 4,
     //         .vertex_attributes = {
-    //             { .location = 0, .binding = 0, .offset = 0, .vertex_component_kind = RN_VertexCommponentKind_F32x3 }, // pos
-    //             { .location = 1, .binding = 1, .offset = 0, .vertex_component_kind = RN_VertexCommponentKind_F32x4 }, // tangent
-    //             { .location = 2, .binding = 2, .offset = 0, .vertex_component_kind = RN_VertexCommponentKind_F32x3 }, // normal
-    //             { .location = 3, .binding = 3, .offset = 0, .vertex_component_kind = RN_VertexCommponentKind_F32x2 }, // texcoord
+    //             { .location = 0, .binding = 0, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x3 }, // pos
+    //             { .location = 1, .binding = 1, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x4 }, // tangent
+    //             { .location = 2, .binding = 2, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x3 }, // normal
+    //             { .location = 3, .binding = 3, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x2 }, // texcoord
     //         },
     //         .vertex_streams = {
     //             { 0, 12, RN_VertexInputRateKind_PerVertex},

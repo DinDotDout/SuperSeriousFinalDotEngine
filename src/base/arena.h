@@ -121,6 +121,7 @@ internal String8    arena_to_string(Arena *arena);
 #define ARENA_CREATE(...)           arena_create_(ARENA_DEFAULT_PARAMS(__VA_ARGS__))
 #define ARENA_RESET(a)              arena_reset(ARENA_OP_PARAMS(.arena = (a)));
 #define ARENA_DESTROY(a)            arena_destroy(ARENA_OP_PARAMS(.arena = (a)));
+
 #define ARENA_PUSH(a, sz, align, z) arena_push(ARENA_OP_PARAMS(.arena = (a)), (sz), (align), (z))
 
 #define PUSH_SIZE_NO_ZERO(arena, size)      ARENA_PUSH(arena, size, ARENA_MAX_ALIGNMENT, false)
@@ -134,6 +135,7 @@ internal String8    arena_to_string(Arena *arena);
 // (jd) NOTE: This is used to bypass type checking in certain cases we are sure the types will match
 #define PUSH_ARRAY_UNTYPED(arena, elem_0_t, count)              (void*) ARENA_PUSH(arena, sizeof(elem_0_t) * (count), DOT_MAX(ARENA_MAX_ALIGNMENT, DOT_ALIGNOF(elem_0_t)), true)
 
+#define PUSH_STRUCT_NO_ZERO(arena, T) (T*)PUSH_ARRAY_NO_ZERO(arena, T, 1)
 #define PUSH_STRUCT(arena, T) (T*)PUSH_ARRAY(arena, T, 1)
 
 //////////////////////////////////////////////////////////

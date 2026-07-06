@@ -51,7 +51,7 @@ typedef union vec3{
     f32 e[3];
 }vec3;
 
-typedef union vec4{
+typedef union alignas(16) vec4{
     struct{
         f32 x,y,z,w;
     };
@@ -68,6 +68,22 @@ typedef union vec4{
     };
     f32 e[4];
 }vec4;
+
+// #ifdef __AVX__
+// #  define alignmat CGLM_ALIGN(32)
+// #else
+// #  define alignmat CGLM_ALIGN(16)
+// #endif
+
+typedef union alignas(16) mat4{
+    vec4 mat4[4];
+    struct {
+        f32 m00, m01, m02, m03;
+        f32 m10, m11, m12, m13;
+        f32 m20, m21, m22, m23;
+        f32 m30, m31, m32, m33;
+    };
+}mat4;
 
 internal inline
 vec2 v2(f32 x, f32 y)

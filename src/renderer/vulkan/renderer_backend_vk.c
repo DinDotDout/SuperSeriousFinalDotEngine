@@ -35,10 +35,10 @@ rn_vk_debug_callback(
     const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
     void* user_data)
 {
-    DOT_UNUSED(message_type); DOT_UNUSED(user_data);
+    DOT_UNUSED(message_type, user_data);
     if(message_severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT){
         DOT_WARNING("MessageID: %s %i\nMessage: %s\n\n", callback_data->pMessageIdName, callback_data->messageIdNumber, callback_data->pMessage);
-        // os_print_stacktrace();
+        os_print_stacktrace();
     }
     return VK_FALSE;
 }
@@ -52,63 +52,49 @@ rn_vk_vk_resource_set_name(VkObjectType type, u64 handle, const char *name)
 #ifndef DOT_USE_VOLK
 #    error (jd) I havent't bothered to support some of this EXT ptrs without volk
 #endif
-    vkSetDebugUtilsObjectNameEXT(rn_vk_ctx->device.vk_device,
-        &(VkDebugUtilsObjectNameInfoEXT){
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = type,
-            .objectHandle = handle,
-            .pObjectName = name,
-        });
+
+    VkDebugUtilsObjectNameInfoEXT debug_utils_info = {0};
+    debug_utils_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+    debug_utils_info.objectType = type;
+    debug_utils_info.objectHandle = handle;
+    debug_utils_info.pObjectName = name;
+
+    vkSetDebugUtilsObjectNameEXT(rn_vk_ctx->device.vk_device, &debug_utils_info);
 }
 
-internal RN_ShaderModuleHandle
-rn_vk_dot_shader_module_from_vk_shader_module(VkShaderModule vk_sm)
-{
-    RN_ShaderModuleHandle dot_smh = {
-        .handle[0] = cast(u64) vk_sm,
-    };
-    return dot_smh;
-}
-
-internal VkShaderModule
-rn_vk_vk_shader_module_from_rn_shader_module(RN_ShaderModuleHandle dot_smh)
-{
-    VkShaderModule vk_sm = cast(VkShaderModule)dot_smh.handle[0];
-    return vk_sm;
-}
-
-internal RN_ShaderModuleHandle
+internal RN_ShaderStageHandle
 rn_vk_shader_create(String8 data)
 {
+    VkShaderModuleCreateInfo create_info = {0};
+    create_info.sType       = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    create_info.pNext       = NULL;
+    create_info.codeSize    = data.size;
+    create_info.pCode       = cast(u32*)data.str;
+
     VkShaderModule vk_shader_module = VK_NULL_HANDLE;
-    VkShaderModuleCreateInfo create_info = {
-        .sType      = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .pNext      = NULL,
-        .codeSize   = data.size,
-        .pCode      = cast(u32*)data.str,
-    };
     RN_VK_CHECK(vkCreateShaderModule(rn_vk_ctx->device.vk_device, &create_info, NULL, &vk_shader_module));
-    RN_ShaderModuleHandle dot_shader_module_handle = rn_vk_dot_shader_module_from_vk_shader_module(vk_shader_module);
-    return dot_shader_module_handle;
+    rn_vk_vk_resource_set_name(VK_OBJECT_TYPE_SHADER_MODULE, cast(u64)vk_shader_module, "default");
+    RN_ShaderStageHandle rn_h = rn_vk_shader_stage_handle_from_vk_shader_module(vk_shader_module);
+    return rn_h;
 }
 
 internal void
-rn_vk_shader_unload(RN_ShaderModuleHandle shader_module_handle)
+rn_vk_shader_unload(RN_ShaderStageHandle shader_module_handle)
 {
-    VkShaderModule vk_sm = rn_vk_vk_shader_module_from_rn_shader_module(shader_module_handle);
+    VkShaderModule vk_sm = rn_vk_shader_module_from_shader_stage_handle(shader_module_handle);
     vkDestroyShaderModule(rn_vk_ctx->device.vk_device, vk_sm, NULL);
 }
 
 internal RN_SamplerHandle
-rn_vk_sampler_create(RN_SamplerDesc *desc, String8 debug_name)
+rn_vk_sampler_create(RN_SamplerDesc *desc)
 {
-    RN_VK_SamplerHandle h = rn_vk_sampler_create_(desc, debug_name);
-    RN_SamplerHandle dot_sampler_handle = {.handle[0] = pool_handle_pack(h),};
-    return(dot_sampler_handle);
+    RN_VK_SamplerHandle h = rn_vk_sampler_create_(desc);
+    RN_SamplerHandle rn_h = {.handle[0] = pool_handle_pack(h),};
+    return(rn_h);
 }
 
 internal RN_VK_SamplerHandle
-rn_vk_sampler_create_(RN_SamplerDesc *desc, String8 debug_name)
+rn_vk_sampler_create_(RN_SamplerDesc *desc)
 {
     DOT_ASSERT(desc, "Missing sampler desc");
     // if(desc == NULL){
@@ -128,7 +114,7 @@ rn_vk_sampler_create_(RN_SamplerDesc *desc, String8 debug_name)
     sampler->vk_address_mode_u  = rn_vk_sampler_address_mode_from_rn_sampler_address_mode(desc->address_mode_u),
     sampler->vk_address_mode_v  = rn_vk_sampler_address_mode_from_rn_sampler_address_mode(desc->address_mode_v),
     sampler->vk_address_mode_w  = rn_vk_sampler_address_mode_from_rn_sampler_address_mode(desc->address_mode_w),
-    DOT_DEBUG_NAME_SET(sampler->name, debug_name);
+    sampler->debug_name         = desc->debug_name;
 
     vkCreateSampler(rn_vk_ctx->device.vk_device,
         &(VkSamplerCreateInfo){
@@ -152,23 +138,55 @@ rn_vk_sampler_create_(RN_SamplerDesc *desc, String8 debug_name)
             VkBorderColor           borderColor;
             VkBool32                unnormalizedCoordinates;*/
         }, NULL, &sampler->vk_sampler);
-    rn_vk_vk_resource_set_name(VK_OBJECT_TYPE_SAMPLER, cast(u64)sampler->vk_sampler, sampler->name);
+    rn_vk_vk_resource_set_name(VK_OBJECT_TYPE_SAMPLER, cast(u64)sampler->vk_sampler, sampler->debug_name.buff);
     return sampler_h;
 }
 
-internal RN_TextureHandle
-rn_vk_texture_create(RN_TextureDesc *desc, void *data, String8 debug_name)
+internal RN_ShaderStateHandle
+rn_vk_shader_state_create(RN_ShaderState *desc)
 {
-    RN_VK_TextureHandle h = rn_vk_texture_create_(desc, data, debug_name);
-    RN_TextureHandle dot_texture_handle = {.handle[0] = pool_handle_pack(h),};
-    return dot_texture_handle;
+    DOT_ASSERT(desc, "Missing shader state desc");
+    RN_VK_ShaderStateHandle h = POOL_ALLOC(&rn_vk_ctx->shader_state_pool);
+ 
+    // Either free the resouce and return or provide a fallback
+    DOT_ASSERT(!pool_handle_is_default(h), "Not handling default case yet");
+    RN_ShaderStateHandle rn_h = {.handle[0] = pool_handle_pack(h),};
+
+    if(desc->shader_stage_count == 0){
+        DOT_WARNING("Empty shader stages");
+        return rn_h;
+    }
+
+    RN_VK_ShaderState *state = POOL_GET(&rn_vk_ctx->shader_state_pool, h);
+    state->is_graphics_pipeline = desc->is_graphics_pipeline;
+    state->shader_stage_info_count = desc->shader_stage_count;
+ 
+    for(u32 i = 0; i < desc->shader_stage_count; ++i){
+        RN_ShaderStage *shader_stage = &desc->shader_stages[i];
+
+        VkPipelineShaderStageCreateInfo *shader_stage_info = &state->shader_stage_info[i];
+        MEMORY_ZERO_STRUCT(shader_stage_info);
+        shader_stage_info->sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        shader_stage_info->pName = "main";
+        shader_stage_info->stage = rn_vk_shader_stage_flag_from_shader_stage_kind(shader_stage->stage_kind);
+        shader_stage_info->module = rn_vk_shader_module_from_shader_stage_handle(shader_stage->shader_stage_handle);
+    }
+    return(rn_h);
+}
+
+internal RN_TextureHandle
+rn_vk_texture_create(RN_TextureDesc *desc, void *data)
+{
+    RN_VK_TextureHandle h = rn_vk_texture_create_(desc, data);
+    RN_TextureHandle rn_h = {.handle[0] = pool_handle_pack(h),};
+    return rn_h;
 }
 
 internal RN_VK_TextureHandle
-rn_vk_texture_create_(RN_TextureDesc *desc, void *data, String8 debug_name)
+rn_vk_texture_create_(RN_TextureDesc *desc, void *data)
 {
     DOT_ASSERT(desc, "Missing texture desc");
-    TempArena t = threadctx_temp_begin(0);
+    TempArena t = threadctx_temp_begin(1, &rn_vk_ctx->base.permanent_arena);
     RN_VK_TextureHandle texture_h = POOL_ALLOC(&rn_vk_ctx->texture_pool);
     bool should_create_texture = !pool_handle_is_default(texture_h);
     if(!should_create_texture){
@@ -185,7 +203,7 @@ rn_vk_texture_create_(RN_TextureDesc *desc, void *data, String8 debug_name)
             desc->height = 1;
             desc->depth = 1;
             desc->mip_levels = 1;
-            DOT_DEBUG_NAME_SET(desc->debug_name, string8_lit("default"));
+            DOT_DebugNameSet(desc->debug_name, string8_lit("default"));
 
             data = PUSH_ARRAY(t.arena, u8, 4);
         }
@@ -195,9 +213,9 @@ rn_vk_texture_create_(RN_TextureDesc *desc, void *data, String8 debug_name)
         RN_VK_Texture *texture      = POOL_GET(&rn_vk_ctx->texture_pool, texture_h);
         texture->vk_extent3d        = image_extent_3d;
         texture->mip_levels         = desc->mip_levels;
-        texture->vk_format          = rn_vk_format_from_texture_format(desc->format_kind);
+        texture->vk_format          = rn_vk_vk_format_from_rn_texture_format_kind(desc->format_kind);
         texture->vk_image_layout    = VK_IMAGE_LAYOUT_UNDEFINED;
-        DOT_DEBUG_NAME_SET(texture->name, debug_name);
+        texture->debug_name         = desc->debug_name;
 
         const RN_TextureFormatInfo format_info = rn_texture_format_info_from_format(desc->format_kind);
         const b8 format_depth_bit           = DOT_BITS_MATCH(format_info.format_flags, RN_TextureFormatBit_Depth);
@@ -219,7 +237,7 @@ rn_vk_texture_create_(RN_TextureDesc *desc, void *data, String8 debug_name)
                 &(VkImageCreateInfo){
                     .sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
                     .imageType = rn_vk_image_type_from_texture_dimension(desc->dimension_kind),
-                    .format = rn_vk_format_from_texture_format(desc->format_kind),
+                    .format = rn_vk_vk_format_from_rn_texture_format_kind(desc->format_kind),
                     .extent = image_extent_3d,
                     .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
                     .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
@@ -232,7 +250,7 @@ rn_vk_texture_create_(RN_TextureDesc *desc, void *data, String8 debug_name)
                 },
                 NULL,
                 &texture->vk_image));
-            rn_vk_vk_resource_set_name(VK_OBJECT_TYPE_IMAGE, cast(u64)texture->vk_image, texture->name);
+            rn_vk_vk_resource_set_name(VK_OBJECT_TYPE_IMAGE, cast(u64)texture->vk_image, texture->debug_name.buff);
             texture->alloc = rn_vk_memory_gpu_image_alloc(rn_vk_ctx->base.permanent_arena, &rn_vk_ctx->memory_pools, texture->vk_image);
         }
         {
@@ -258,7 +276,7 @@ rn_vk_texture_create_(RN_TextureDesc *desc, void *data, String8 debug_name)
                 },
                 NULL,
                 &texture->vk_image_view));
-            rn_vk_vk_resource_set_name(VK_OBJECT_TYPE_IMAGE_VIEW, cast(u64)texture->vk_image_view, texture->name);
+            rn_vk_vk_resource_set_name(VK_OBJECT_TYPE_IMAGE_VIEW, cast(u64)texture->vk_image_view, desc->debug_name.buff);
         }
 
         if(data){
@@ -300,7 +318,7 @@ rn_vk_texture_create_(RN_TextureDesc *desc, void *data, String8 debug_name)
 
             // (jd) NOTE: We are synchronizing here explicitly, we will want to deferr checking all uploads till later on
             vkQueueWaitIdle(rn_vk_ctx->device.graphics_queue);
-            rn_vk_memory_pools_staging_ring_buffer_pop(&rn_vk_ctx->memory_pools, &mem_alloc);
+            rn_vk_memory_pools_staging_ring_buffer_pop(&mem_alloc);
             vkResetCommandBuffer(vk_command_buffer, VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
         }
     }
@@ -309,17 +327,15 @@ rn_vk_texture_create_(RN_TextureDesc *desc, void *data, String8 debug_name)
 }
 
 internal RN_BufferHandle
-rn_vk_buffer_create(RN_BufferDesc *desc, u8 *data, String8 debug_name)
+rn_vk_buffer_create(RN_BufferDesc *desc, u8 *data)
 {
-    RN_VK_BufferHandle h = rn_vk_buffer_create_(desc, data, debug_name);
-    RN_BufferHandle dot_buffer_handle = {.handle[0] = pool_handle_pack(h),};
-    return dot_buffer_handle;
-    return (RN_BufferHandle){0};
-
+    RN_VK_BufferHandle h = rn_vk_buffer_create_(desc, data);
+    RN_BufferHandle rn_h = {.handle[0] = pool_handle_pack(h),};
+    return rn_h;
 }
 
 internal RN_VK_BufferHandle
-rn_vk_buffer_create_(RN_BufferDesc *desc, u8 *data, String8 debug_name)
+rn_vk_buffer_create_(RN_BufferDesc *desc, u8 *data)
 {
     DOT_ASSERT(desc, "Missing buffer desc");
     // if(desc == NULL){
@@ -339,35 +355,10 @@ rn_vk_buffer_create_(RN_BufferDesc *desc, u8 *data, String8 debug_name)
     buffer->resource_usage = desc->resource_usage;
     buffer->vk_buffer_usage_flags = rn_vk_buffer_usage_flags_from_rn_buffer_usage_flags(desc->buffer_usage_flags);
     // buffer->handle = handle;
-    buffer->global_offset = 0;
+    buffer->offset = 0;
     // buffer->parent_buffer = POOL_DEFAULT_HANDLE;
-    DOT_DEBUG_NAME_SET(buffer->name, debug_name);
+    buffer->debug_name = desc->debug_name;
 
-    // static const VkBufferUsageFlags k_dynamic_buffer_mask = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-    // const b8 use_global_buffer = BITS_ANY(k_dynamic_buffer_mask, buffer->vk_buffer_usage_flags);
-    // if(desc->resource_usage == ResourceUsageKind_Dynamic && use_global_buffer){
-    //     buffer->alloc = rn_vk_memory_gpu_buffer_alloc(&rn_vk_ctx->memory_pools, buffer->vk_buffer);
-    //     rn_vk_vk_resource_set_name(VK_OBJECT_TYPE_BUFFER, cast(u64)buffer->vk_buffer, buffer->name);
-    //     RN_VK_GpuAlloc mem_alloc = rn_vk_memory_pools_staging_ring_buffer_push(&rn_vk_ctx->memory_pools, desc->size, data);
-    //     buffer->vk_buffer = buffer->alloc.vk_buffer;
-    // }
-    // else if(desc->resource_usage == ResourceUsageKind_Readback){
-    //     TODO("Not implemented yet");
-    //     // rn_vk_memory_pools_readback_ring_buffer_push
-    //     // buffer->vk_buffer = buffer->alloc.vk_buffer;
-    // }else if(desc->resource_usage == ResourceUsageKind_GPUOnly){
-    //     RN_VK_CHECK(vkCreateBuffer(
-    //         rn_vk_ctx->device.vk_device,
-    //         &(VkBufferCreateInfo){
-    //             .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-    //             .usage = buffer->vk_buffer_usage_flags,
-    //             .size = desc->size > 0 ? desc->size : 1,
-    //         },
-    //         NULL,
-    //         &buffer->vk_buffer));
-    //     buffer->alloc = rn_vk_memory_gpu_buffer_alloc(&rn_vk_ctx->memory_pools, buffer->vk_buffer);
-    //     rn_vk_vk_resource_set_name(VK_OBJECT_TYPE_BUFFER, cast(u64)buffer->vk_buffer, buffer->name);
-    // }
     RN_VK_CHECK(vkCreateBuffer(rn_vk_ctx->device.vk_device,
         &(VkBufferCreateInfo){
             .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -376,37 +367,40 @@ rn_vk_buffer_create_(RN_BufferDesc *desc, u8 *data, String8 debug_name)
         },
     NULL,
     &buffer->vk_buffer));
-    rn_vk_vk_resource_set_name(VK_OBJECT_TYPE_BUFFER, cast(u64)buffer->vk_buffer, buffer->name);
-    buffer->alloc = rn_vk_memory_gpu_buffer_alloc(rn_vk_ctx->base.permanent_arena, &rn_vk_ctx->memory_pools, buffer->vk_buffer);
-
+    rn_vk_vk_resource_set_name(VK_OBJECT_TYPE_BUFFER, cast(u64)buffer->vk_buffer, desc->debug_name.buff);
+    if(desc->resource_usage == RN_ResourceUsageKind_Readback){
+        DOT_TODO("Unimplemented");
+    }
+    buffer->alloc = rn_vk_memory_gpu_buffer_alloc(rn_vk_ctx->base.permanent_arena, &rn_vk_ctx->memory_pools, desc->resource_usage, buffer->vk_buffer);
     if(data){
         RN_VK_StagingAlloc mem_alloc = rn_vk_memory_pools_staging_ring_buffer_push(rn_vk_ctx->base.permanent_arena, &rn_vk_ctx->memory_pools, desc->size, data);
         RN_VK_FrameData *frame_data  = rn_vk_frame_data_get_current();
         DOT_ASSERT(frame_data->vk_command_buffers_in_use == 0, "Missing generic upload buffers");
 	    VkCommandBuffer vk_command_buffer = frame_data->vk_command_buffers.data[1];
-        vkBeginCommandBuffer(vk_command_buffer,
-            &(VkCommandBufferBeginInfo){
-                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-                .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-            });
+
+        VkCommandBufferBeginInfo cmd_info = {0};
+        cmd_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        cmd_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        vkBeginCommandBuffer(vk_command_buffer, &cmd_info);
+
         vkCmdCopyBuffer(vk_command_buffer, mem_alloc.vk_buffer, buffer->vk_buffer, 1,
             &(VkBufferCopy){
-                .srcOffset = mem_alloc.offset,
-                .dstOffset = 0,
-                .size = buffer->vk_size
+            .srcOffset = mem_alloc.offset,
+            .dstOffset = 0,
+            .size = buffer->vk_size
             }
         );
         vkEndCommandBuffer(vk_command_buffer);
         vkQueueSubmit(rn_vk_ctx->device.graphics_queue, 1,
             &(VkSubmitInfo){
-                VK_STRUCTURE_TYPE_SUBMIT_INFO,
-                .commandBufferCount = 1,
-                .pCommandBuffers = &vk_command_buffer,
+            VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .commandBufferCount = 1,
+            .pCommandBuffers = &vk_command_buffer,
             },
             VK_NULL_HANDLE);
         // (jd) NOTE: We are synchronizing here explicitly, we will want to deferr checking all uploads till later on
         vkQueueWaitIdle(rn_vk_ctx->device.graphics_queue);
-        rn_vk_memory_pools_staging_ring_buffer_pop(&rn_vk_ctx->memory_pools, &mem_alloc);
+        rn_vk_memory_pools_staging_ring_buffer_pop(&mem_alloc);
         vkResetCommandBuffer(vk_command_buffer, VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
     }
 
@@ -417,8 +411,8 @@ internal RN_ShaderResourceLayoutHandle
 rn_vk_shader_resource_layout_create(RN_ShaderResourceLayoutDesc *resource_layout)
 {
     RN_VK_TextureHandle h = rn_vk_shader_resource_layout_create_(resource_layout);
-    RN_ShaderResourceLayoutHandle dot_shader_resource_layout_handle = {.handle[0] = pool_handle_pack(h),};
-    return dot_shader_resource_layout_handle;
+    RN_ShaderResourceLayoutHandle rn_h = {.handle[0] = pool_handle_pack(h),};
+    return(rn_h);
 }
 
 internal RN_VK_ShaderResourceLayoutHandle
@@ -451,7 +445,7 @@ rn_vk_shader_resource_layout_create_(RN_ShaderResourceLayoutDesc *desc)
         // vk_binding->descriptorType   = vk_binding->descriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC : vk_binding->descriptorType;
         vk_binding->descriptorCount     = 1;
 
-        // TODO:
+        // TODO: set stage flags accordingly?
         vk_binding->stageFlags = VK_SHADER_STAGE_ALL;
         vk_binding->pImmutableSamplers = NULL;
 
@@ -470,15 +464,280 @@ rn_vk_shader_resource_layout_create_(RN_ShaderResourceLayoutDesc *desc)
 internal RN_PipelineHandle
 rn_vk_pipeline_create(RN_PipelineDesc *desc)
 {
-    (void)desc;
-    return(RN_PipelineHandle){0};
+    desc->shader_state.shader_state_handle = rn_vk_shader_state_create(&desc->shader_state);
+    RN_VK_PipelineHandle h = rn_vk_pipeline_create_(desc);
+    RN_PipelineHandle rn_h = {.handle[0] = pool_handle_pack(h),};
+    return(rn_h);
+}
+
+// VkRenderingAttachmentInfo color_attachment = {
+//     .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+//     .imageView = draw_image_view,
+//     .imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+//     .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+//     .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+//     .clearValue = { .color = { clear_r, clear_g, clear_b, clear_a } },
+// };
+//
+// VkRenderingInfo rendering_info = {
+//     .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+//     .renderArea = { {0,0}, {width,height} },
+//     .layerCount = 1,
+//     .colorAttachmentCount = 1,
+//     .pColorAttachments = &color_attachment,
+// };
+//
+// vkCmdBeginRendering(cmd, &rendering_info);
+// rn_texture_format_kind_has_stencil
+internal RN_VK_RenderPassOutput
+rn_vk_render_pass_output(RN_RenderPassOutput *rp)
+{
+    RN_VK_RenderPassOutput out  = {0};
+    out.color_formats_count     = rp->color_format_count;
+    out.depth_stencil_format    = rn_vk_vk_format_from_rn_texture_format_kind(rp->depth_stencil_format);
+
+    for (u32 i = 0; i < rp->color_format_count; ++i) {
+        out.color_formats[i] = rn_vk_vk_format_from_rn_texture_format_kind(rp->color_formats[i]);
+    }
+    return out;
 }
 
 internal RN_VK_PipelineHandle
 rn_vk_pipeline_create_(RN_PipelineDesc *desc)
 {
-    (void)desc;
-    return(RN_VK_PipelineHandle){0};
+    RN_VK_PipelineHandle p_h = POOL_ALLOC(&rn_vk_ctx->pipeline_pool);
+    if (pool_handle_is_default(p_h)) {
+        return (RN_VK_PipelineHandle){0};
+    }
+
+    RN_VK_Pipeline *pipeline = POOL_GET(&rn_vk_ctx->pipeline_pool, p_h);
+
+    // Shader state
+    RN_ShaderStateHandle ss_h = desc->shader_state.shader_state_handle;
+    RN_VK_ShaderStateHandle rn_vk_ss_h = pool_handle_unpack(ss_h.handle[0]);
+    pipeline->shader_state_handle = rn_vk_ss_h;
+
+    RN_VK_ShaderState *shader_state = POOL_GET(&rn_vk_ctx->shader_state_pool, rn_vk_ss_h);
+
+    // Descriptor set layouts → VkPipelineLayout
+    DOT_ASSERT(desc->shader_resource_layout_count < RN_SHADER_RESOURCE_LAYOUT_MAX);
+    VkDescriptorSetLayout vk_layouts[RN_SHADER_RESOURCE_LAYOUT_MAX];
+
+    pipeline->shader_resource_layout_count = desc->shader_resource_layout_count;
+    for(u32 l = 0; l < desc->shader_resource_layout_count; ++l){
+        RN_ShaderResourceLayoutHandle srl_h = desc->shader_resource_layouts[l];
+        RN_VK_ShaderResourceLayoutHandle rn_vk_srl_h = pool_handle_unpack(srl_h.handle[0]);
+        pipeline->shader_resource_layouts[l] = rn_vk_srl_h;
+
+        RN_VK_ShaderResourceLayout *rn_vk_srl =
+            POOL_GET(&rn_vk_ctx->shader_resource_layout_pool, rn_vk_srl_h);
+
+        vk_layouts[l] = rn_vk_srl->vk_descriptor_set_layout;
+    }
+
+    VkPipelineLayoutCreateInfo pipeline_layout_info = {0};
+    pipeline_layout_info.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipeline_layout_info.pNext          = NULL;
+    pipeline_layout_info.setLayoutCount = desc->shader_resource_layout_count;
+    pipeline_layout_info.pSetLayouts    = vk_layouts;
+    pipeline_layout_info.pushConstantRangeCount = 0;
+    pipeline_layout_info.pPushConstantRanges    = NULL;
+
+    VkPipelineLayout vk_pipeline_layout = VK_NULL_HANDLE;
+    RN_VK_CHECK(vkCreatePipelineLayout(rn_vk_ctx->device.vk_device, &pipeline_layout_info, NULL, &vk_pipeline_layout));
+
+    pipeline->vk_pipeline_layout = vk_pipeline_layout;
+    pipeline->renderpass_output = rn_vk_render_pass_output(&desc->render_pass);
+
+    // Graphics vs compute
+    if(shader_state->is_graphics_pipeline){
+        VkFormat depth_stencil_fmt = pipeline->renderpass_output.depth_stencil_format;
+        VkPipelineRenderingCreateInfo rendering_info = {0};
+        rendering_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+        rendering_info.colorAttachmentCount    = desc->render_pass.color_format_count;
+        rendering_info.pColorAttachmentFormats = pipeline->renderpass_output.color_formats;
+        rendering_info.depthAttachmentFormat   = depth_stencil_fmt;
+        rendering_info.stencilAttachmentFormat = rn_vk_vk_format_has_stencil(depth_stencil_fmt) ? depth_stencil_fmt : VK_FORMAT_UNDEFINED;
+
+        VkGraphicsPipelineCreateInfo pipeline_info = {0};
+        pipeline_info.sType     = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        pipeline_info.flags     = 0;
+        pipeline_info.stageCount= shader_state->shader_stage_info_count;
+        pipeline_info.pStages   = shader_state->shader_stage_info;
+        pipeline_info.layout    = vk_pipeline_layout;
+        pipeline_info.pNext     = &rendering_info;
+
+        // Vertex input
+        VkPipelineVertexInputStateCreateInfo vertex_input_info = {0};
+        vertex_input_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+        vertex_input_info.pNext                           = NULL;
+
+        VkVertexInputAttributeDescription vk_attributes[RN_VERTEX_ATTRIBUTES_MAX];
+        VkVertexInputBindingDescription   vk_bindings[RN_SHADER_RESOURCE_BINDING_MAX];
+
+        if(desc->vertex_input.vertex_attribute_count){
+            vertex_input_info.vertexAttributeDescriptionCount = desc->vertex_input.vertex_attribute_count;
+
+            for (u32 i = 0; i < desc->vertex_input.vertex_attribute_count; ++i) {
+                RN_VertexAttribute *attr = &desc->vertex_input.vertex_attributes[i];
+                vk_attributes[i].location = attr->location;
+                vk_attributes[i].binding  = attr->binding;
+                vk_attributes[i].format   = rn_vk_format_from_rn_format_kind(attr->vertex_component_kind);
+                vk_attributes[i].offset   = attr->offset;
+            }
+            vertex_input_info.pVertexAttributeDescriptions = vk_attributes;
+        }
+
+        if(desc->vertex_input.vertex_stream_count){
+            vertex_input_info.vertexBindingDescriptionCount = desc->vertex_input.vertex_stream_count;
+
+            for (u32 i = 0; i < desc->vertex_input.vertex_stream_count; ++i) {
+                RN_VertexStream *stream = &desc->vertex_input.vertex_streams[i];
+                VkVertexInputRate rate = (stream->input_rate == RN_VertexInputRateKind_PerVertex) ? VK_VERTEX_INPUT_RATE_VERTEX : VK_VERTEX_INPUT_RATE_INSTANCE;
+
+                vk_bindings[i].binding   = stream->binding;
+                vk_bindings[i].stride    = stream->stride;
+                vk_bindings[i].inputRate = rate;
+            }
+            vertex_input_info.pVertexBindingDescriptions = vk_bindings;
+        }
+
+        VkPipelineInputAssemblyStateCreateInfo input_assembly = {0};
+        input_assembly.sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        input_assembly.topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        input_assembly.primitiveRestartEnable = VK_FALSE;
+
+        VkPipelineRasterizationStateCreateInfo rasterizer = {0};
+        rasterizer.sType                   = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        rasterizer.depthClampEnable        = VK_FALSE;
+        rasterizer.rasterizerDiscardEnable = VK_FALSE;
+        rasterizer.polygonMode             = VK_POLYGON_MODE_FILL;
+        rasterizer.cullMode                = rn_vk_vk_cull_mode_flags_from_rn_cull_mode_flags(desc->raster_state.cull_mode);
+        rasterizer.frontFace               = rn_vk_vk_front_face_from_front_face_sort_mode_kind(desc->raster_state.front_face_sort_mode);
+        rasterizer.depthBiasEnable         = VK_FALSE;
+        rasterizer.lineWidth               = 1.0f;
+
+        VkPipelineMultisampleStateCreateInfo multisample = {0};
+        multisample.sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+        multisample.sampleShadingEnable  = VK_FALSE;
+
+        VkPipelineDepthStencilStateCreateInfo depth_stencil = {0};
+        depth_stencil.sType            = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        depth_stencil.depthTestEnable  = desc->depth_stencil_state.depth_enable;
+        depth_stencil.depthWriteEnable = desc->depth_stencil_state.depth_write_enable;
+        depth_stencil.depthCompareOp   = rn_vk_vk_compare_op_from_rn_compare_op(desc->depth_stencil_state.depth_comparison);
+        depth_stencil.stencilTestEnable = VK_FALSE;
+
+        pipeline_info.pVertexInputState     = &vertex_input_info;
+        pipeline_info.pInputAssemblyState   = &input_assembly;
+        pipeline_info.pRasterizationState   = &rasterizer;
+        pipeline_info.pMultisampleState     = &multisample;
+        pipeline_info.pDepthStencilState    = &depth_stencil;
+
+        // Color blend
+        VkPipelineColorBlendAttachmentState vk_blend_attachments[RN_IMAGE_OUTPUTS_MAX];
+        u32 active_blends = desc->blend_state_count;
+
+        if(active_blends == 0){
+            active_blends = 1;
+            MEMORY_ZERO_STRUCT(&vk_blend_attachments[0]);
+            vk_blend_attachments[0].blendEnable    = VK_FALSE;
+            vk_blend_attachments[0].colorWriteMask =
+                VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        }else{
+            for (u32 i = 0; i < active_blends; ++i) {
+                RN_BlendState *bs = &desc->blend_states[i];
+                VkPipelineColorBlendAttachmentState *att = &vk_blend_attachments[i];
+
+                att->colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT
+                    | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+                att->blendEnable = bs->blend_enabled ? VK_TRUE : VK_FALSE;
+                att->srcColorBlendFactor = rn_vk_blend_factor_from_rn_blend_factor_kind(bs->src_color);
+                att->dstColorBlendFactor = rn_vk_blend_factor_from_rn_blend_factor_kind(bs->dst_color);
+                att->colorBlendOp        = rn_vk_blendop_from_rn_blend_op_kind(bs->blend_op);
+
+                if(bs->separate_blend){
+                    att->srcAlphaBlendFactor = rn_vk_blend_factor_from_rn_blend_factor_kind(bs->src_alpha);
+                    att->dstAlphaBlendFactor = rn_vk_blend_factor_from_rn_blend_factor_kind(bs->dst_alpha);
+                    att->alphaBlendOp        = rn_vk_blendop_from_rn_blend_op_kind(bs->alpha_blend_op);
+                }else{
+                    att->srcAlphaBlendFactor = att->srcColorBlendFactor;
+                    att->dstAlphaBlendFactor = att->dstColorBlendFactor;
+                    att->alphaBlendOp        = att->colorBlendOp;
+                }
+            }
+        }
+
+        VkPipelineColorBlendStateCreateInfo color_blend = {0};
+        color_blend.sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        color_blend.logicOpEnable   = VK_FALSE;
+        color_blend.attachmentCount = active_blends;
+        color_blend.pAttachments    = vk_blend_attachments;
+
+        // (jd) NOTE: Viewport/scissor (static for now)
+        VkViewport viewport = {0};
+        viewport.x        = 0.0f;
+        viewport.y        = 0.0f;
+        viewport.width    = cast(f32)rn_vk_ctx->swapchain.extent.width;
+        viewport.height   = cast(f32)rn_vk_ctx->swapchain.extent.height;
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
+
+        VkRect2D scissor = {0};
+        scissor.offset = (VkOffset2D){0, 0};
+        scissor.extent = rn_vk_ctx->swapchain.extent;
+
+        VkPipelineViewportStateCreateInfo viewport_state = {0};
+        viewport_state.sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+        viewport_state.viewportCount = 1;
+        viewport_state.pViewports    = &viewport;
+        viewport_state.scissorCount  = 1;
+        viewport_state.pScissors     = &scissor;
+
+        pipeline_info.pViewportState = &viewport_state;
+        pipeline_info.pColorBlendState = &color_blend;
+
+        // Dynamic state (viewport/scissor)
+        VkDynamicState dyn_states[] = {
+            VK_DYNAMIC_STATE_VIEWPORT,
+            VK_DYNAMIC_STATE_SCISSOR,
+        };
+        VkPipelineDynamicStateCreateInfo dyn_state = {
+            .sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+            .dynamicStateCount = (u32)DOT_ARRAY_COUNT(dyn_states),
+            .pDynamicStates    = dyn_states,
+        };
+        pipeline_info.pDynamicState = &dyn_state;
+
+        RN_VK_CHECK(vkCreateGraphicsPipelines(rn_vk_ctx->device.vk_device,
+                VK_NULL_HANDLE,
+                1,
+                &pipeline_info,
+                NULL,
+                &pipeline->vk_pipeline));
+
+        pipeline->vk_bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    }else{
+        // Compute pipeline
+        VkComputePipelineCreateInfo pipeline_info = {0};
+        pipeline_info.sType  = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+        pipeline_info.stage  = shader_state->shader_stage_info[0];
+        pipeline_info.layout = vk_pipeline_layout;
+
+        RN_VK_CHECK(vkCreateComputePipelines(rn_vk_ctx->device.vk_device,
+                VK_NULL_HANDLE,
+                1,
+                &pipeline_info,
+                NULL,
+                &pipeline->vk_pipeline));
+
+        pipeline->vk_bind_point = VK_PIPELINE_BIND_POINT_COMPUTE;
+    }
+
+    return p_h;
 }
 
 internal void
@@ -561,20 +820,23 @@ rn_vk_init(DOT_Window *window)
 {
     // (jd) This is all super messy and error prone. Cleanup
     Arena *ctx_arena = rn_vk_ctx->base.permanent_arena;
-    POOL_INIT(ctx_arena, &rn_vk_ctx->texture_pool,   g_texture_max);
-    POOL_INIT(ctx_arena, &rn_vk_ctx->buffer_pool,    g_buffer_max);
-    POOL_INIT(ctx_arena, &rn_vk_ctx->sampler_pool,   g_sampler_max);
-    POOL_INIT(ctx_arena, &rn_vk_ctx->shader_resource_layout_pool,   rn_vk_g_shader_resource_max);
+    POOL_INIT(ctx_arena, &rn_vk_ctx->texture_pool,  rn_g_texture_max);
+    POOL_INIT(ctx_arena, &rn_vk_ctx->buffer_pool,   rn_g_buffer_max);
+    POOL_INIT(ctx_arena, &rn_vk_ctx->sampler_pool,  rn_g_sampler_max);
+    POOL_INIT(ctx_arena, &rn_vk_ctx->pipeline_pool, rn_g_pipeline_max);
+    POOL_INIT(ctx_arena, &rn_vk_ctx->shader_state_pool, rn_g_shader_state_resource_max);
+    POOL_INIT(ctx_arena, &rn_vk_ctx->shader_resource_layout_pool, rn_g_shader_resource_max);
+
 #ifdef DOT_USE_VOLK
     volkInitialize();
 #endif
     // rn_vk_ctx->vk_allocator = VkAllocatorParams(ctx_arena);
-    TempArena temp = threadctx_temp_begin(0);
-    if(!rn_vk_all_layers(&g_rn_vk_config)){
+    TempArena temp = threadctx_temp_begin(0,0);
+    if(!rn_vk_all_layers(&rn_vk_g_config)){
         DOT_ERROR("Could not find all requested layers");
     }
 
-    if(!rn_vk_instance_all_required_extensions(&g_rn_vk_config)){
+    if(!rn_vk_instance_all_required_extensions(&rn_vk_g_config)){
         DOT_ERROR("Could not find all requested instance extensions");
     }
 
@@ -601,21 +863,21 @@ rn_vk_init(DOT_Window *window)
                 .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
                 .ppEnabledLayerNames     = cstr_array_from_string8_array(
                     temp.arena,
-                    g_rn_vk_config.validation_layer_count,
-                    g_rn_vk_config.validation_layers),
-                .enabledLayerCount       = g_rn_vk_config.validation_layer_count,
+                    rn_vk_g_config.validation_layer_count,
+                    rn_vk_g_config.validation_layers),
+                .enabledLayerCount       = rn_vk_g_config.validation_layer_count,
                 .ppEnabledExtensionNames = cstr_array_from_string8_array(
                     temp.arena,
-                    g_rn_vk_config.instance.extension_count,
-                    g_rn_vk_config.instance.extensions),
-                .enabledExtensionCount = g_rn_vk_config.instance.extension_count,
+                    rn_vk_g_config.instance.extension_count,
+                    rn_vk_g_config.instance.extensions),
+                .enabledExtensionCount = rn_vk_g_config.instance.extension_count,
                 .pApplicationInfo = &(VkApplicationInfo){
                     .sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-                    .pApplicationName   = g_rn_vk_config.instance.application_name.cstr,
-                    .applicationVersion = g_rn_vk_config.instance.application_version,
-                    .pEngineName        = g_rn_vk_config.instance.engine_name.cstr,
-                    .engineVersion      = g_rn_vk_config.instance.engine_version,
-                    .apiVersion         = g_rn_vk_config.instance.api_version,
+                    .pApplicationName   = rn_vk_g_config.instance.application_name.cstr,
+                    .applicationVersion = rn_vk_g_config.instance.application_version,
+                    .pEngineName        = rn_vk_g_config.instance.engine_name.cstr,
+                    .engineVersion      = rn_vk_g_config.instance.engine_version,
+                    .apiVersion         = rn_vk_g_config.instance.api_version,
                 },
                 .pNext = debug_utils_info_ptr,
             }, NULL, &rn_vk_ctx->instance));
@@ -638,7 +900,7 @@ rn_vk_init(DOT_Window *window)
     // --- Create Device ---
     {
         RN_VK_Device *device = &rn_vk_ctx->device;
-        *device = rn_vk_pick_best_device(&g_rn_vk_config, rn_vk_ctx->instance, rn_vk_ctx->surface);
+        *device = rn_vk_pick_best_device(&rn_vk_g_config, rn_vk_ctx->instance, rn_vk_ctx->surface);
 
         VkPhysicalDeviceProperties properties;
         vkGetPhysicalDeviceProperties(device->vk_gpu, &properties);
@@ -672,10 +934,10 @@ rn_vk_init(DOT_Window *window)
             .pEnabledFeatures        = &(VkPhysicalDeviceFeatures){},
             .ppEnabledExtensionNames = cstr_array_from_string8_array(
                 temp.arena,
-                g_rn_vk_config.device.extension_count,
-                g_rn_vk_config.device.extensions),
-            .enabledExtensionCount   = g_rn_vk_config.device.extension_count,
-            .pNext = g_rn_vk_config.device.features,
+                rn_vk_g_config.device.extension_count,
+                rn_vk_g_config.device.extensions),
+            .enabledExtensionCount   = rn_vk_g_config.device.extension_count,
+            .pNext = rn_vk_g_config.device.features,
         };
 
         RN_VK_CHECK(vkCreateDevice(device->vk_gpu, &device_create_info, NULL, &device->vk_device));
@@ -787,17 +1049,16 @@ rn_vk_init(DOT_Window *window)
             for(u32 i = 0; i < g_frame_overlap; ++i){
                 RN_VK_FrameData *frame_data = &rn_vk_ctx->frame_datas[i];
                 for(u32 j = 0; j <  g_thread_count; ++j){
-                    frame_data->draw_image = rn_vk_texture_create_(
-                        RN_TEXTURE_DESC(
-                            .dimension_kind = RN_TextureDimensionKind_2D,
-                            .format_kind = RN_TextureFormatKind_RGBA16F,
-                            .texture_usage_flags = RN_TextureUsageBit_RenderTarget | RN_TextureUsageBit_Compute,
-                            .width = cast(u16)rn_vk_ctx->draw_extent.width,
-                            .height = cast(u16)rn_vk_ctx->draw_extent.height,
-                            .depth = 1,
-                            .mip_levels = 1
-                        ), NULL, string8_lit("Draw Image"));
-
+                    RN_TextureDesc desc = {0};
+                    desc.dimension_kind         = RN_TextureDimensionKind_2D;
+                    desc.format_kind            = RN_TextureFormatKind_RGBA16F;
+                    desc.texture_usage_flags    = RN_TextureUsageBit_RenderTarget | RN_TextureUsageBit_Compute;
+                    desc.width                  = cast(u16)rn_vk_ctx->draw_extent.width;
+                    desc.height                 = cast(u16)rn_vk_ctx->draw_extent.height;
+                    desc.depth                  = 1;
+                    desc.mip_levels             = 1;
+                    DOT_DebugNameSet(desc.debug_name, string8_lit("Draw Image"));
+                    frame_data->draw_image = rn_vk_texture_create_(&desc, NULL);
 
                     VkCommandPoolCreateInfo cmd_create_info = {
                         .sType               = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -913,39 +1174,11 @@ rn_vk_init(DOT_Window *window)
         }
     }
 
-    // {
-    //     VkDevice device = rn_vk_ctx->device.device;
-    //     VkPipelineLayoutCreateInfo pipeline_compute_layout = {
-    //      .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-    //      .pNext = NULL,
-    //      .pSetLayouts = &rn_vk_ctx->compute_layout,
-    //      .setLayoutCount = 1,
-    //     };
-    //
-    //  RN_VK_CHECK(vkCreatePipelineLayout(device, &pipeline_compute_layout, NULL, &rn_vk_ctx->gradient_pipeline_layout));
-    //     VkShaderModule compute_draw_shader = rn_vk_vk_shader_module_rn_shader_module(test_shader_module->shader_module_handle);
-    //  VkPipelineShaderStageCreateInfo stageinfo = {
-    //      .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-    //      .pNext = NULL,
-    //      .stage = VK_SHADER_STAGE_COMPUTE_BIT,
-    //      .module = compute_draw_shader,
-    //      .pName = "main",
-    //  };
-    //
-    //  VkComputePipelineCreateInfo compute_pipeline_create_info = {
-    //      .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
-    //      .pNext = NULL,
-    //      .layout = rn_vk_ctx->gradient_pipeline_layout,
-    //      .stage = stageinfo,
-    //  };
-    //
-    //  RN_VK_CHECK(vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &compute_pipeline_create_info, NULL, &rn_vk_ctx->gradient_pipeline));
-    // }
     threadctx_temp_end(temp);
 }
 
-void
-rn_create_postprocess_module(RN_ShaderModuleHandle shader_module_h)
+internal void
+rn_create_postprocess_module(RN_ShaderStageHandle shader_module_h)
 {
         VkDescriptorSetLayout layouts[] = {
             rn_vk_ctx->compute_layout,
@@ -959,7 +1192,7 @@ rn_create_postprocess_module(RN_ShaderModuleHandle shader_module_h)
         };
 
 	    RN_VK_CHECK(vkCreatePipelineLayout(device, &pipeline_compute_layout, NULL, &rn_vk_ctx->gradient_pipeline_layout));
-        VkShaderModule compute_draw_shader = rn_vk_vk_shader_module_from_rn_shader_module(shader_module_h);
+        VkShaderModule compute_draw_shader = rn_vk_shader_module_from_shader_stage_handle(shader_module_h);
 	    VkPipelineShaderStageCreateInfo stageinfo = {
 	        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 	        .pNext = NULL,
@@ -1056,36 +1289,33 @@ rn_vk_clear_bg(vec3 color)
 	DOT_ASSERT(frame_data->vk_command_buffers_in_use == 0, "Multi command buffers per frame not implemented yet");
 	VkCommandBuffer cmd = frame_data->vk_command_buffers.data[0];
 
-	(void)color;
 	RN_VK_Texture *draw_image = POOL_GET(&rn_vk_ctx->texture_pool, frame_data->draw_image);
 
 	VkClearColorValue clear_value = {
 	    .float32 = { color.r, color.g,color.b, 0 },
 	};
-	(void) clear_value;
 	VkImageSubresourceRange clear_range = vk_image_subresource_range(VK_IMAGE_ASPECT_COLOR_BIT);
-	(void) clear_range;
-	// vkCmdClearColorImage(cmd, draw_image->vk_image, VK_IMAGE_LAYOUT_GENERAL, &clear_value, 1, &clear_range);
+	vkCmdClearColorImage(cmd, draw_image->vk_image, VK_IMAGE_LAYOUT_GENERAL, &clear_value, 1, &clear_range);
+	
+	// VkWriteDescriptorSet drawImageWrite = {
+	//     .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+	//     .pNext = NULL,
+	//     .dstBinding = 0,
+	//     .dstSet = rn_vk_ctx->descriptor_sets[0],
+	//     .descriptorCount = 1,
+	//     .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+	//     .pImageInfo = &(VkDescriptorImageInfo) {
+	//         .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+	//         .imageView = draw_image->vk_image_view,
+	//     },
+	// };
+	// vkUpdateDescriptorSets(rn_vk_ctx->device.vk_device, 1, &drawImageWrite, 0, NULL);
 
-	VkWriteDescriptorSet drawImageWrite = {
-	    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-	    .pNext = NULL,
-	    .dstBinding = 0,
-	    .dstSet = rn_vk_ctx->descriptor_sets[0],
-	    .descriptorCount = 1,
-	    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-	    .pImageInfo = &(VkDescriptorImageInfo) {
-	        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-	        .imageView = draw_image->vk_image_view,
-	    },
-	};
-	vkUpdateDescriptorSets(rn_vk_ctx->device.vk_device, 1, &drawImageWrite, 0, NULL);
-
-	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, rn_vk_ctx->gradient_pipeline);
+	// vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, rn_vk_ctx->gradient_pipeline);
 	// bind the descriptor set containing the draw image for the compute pipeline
-	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, rn_vk_ctx->gradient_pipeline_layout, 0, 1, rn_vk_ctx->descriptor_sets, 0, NULL);
+	// vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, rn_vk_ctx->gradient_pipeline_layout, 0, 1, rn_vk_ctx->descriptor_sets, 0, NULL);
 	// execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
-	vkCmdDispatch(cmd, cast(u32)ceil(rn_vk_ctx->draw_extent.width / 16.0), cast(u32)ceil(rn_vk_ctx->draw_extent.height / 16.0), 1);
+	// vkCmdDispatch(cmd, cast(u32)ceil(rn_vk_ctx->draw_extent.width / 16.0), cast(u32)ceil(rn_vk_ctx->draw_extent.height / 16.0), 1);
 }
 
 internal void
@@ -1746,7 +1976,7 @@ rn_vk_overlay_create_pipeline(RN_VK_OverlayState *overlay_state)
 internal void
 rn_vk_overlay_init(const void *font_pixels, int font_w, int font_h)
 {
-    DOT_UNUSED(font_pixels); DOT_UNUSED(font_w); DOT_UNUSED(font_h);
+    DOT_UNUSED(font_pixels, font_w, font_h);
     MEMORY_ZERO_STRUCT(&g_rn_vk_overlay);
     rn_vk_overlay_create_render_pass(&g_rn_vk_overlay);
     rn_vk_overlay_create_framebuffer(&g_rn_vk_overlay);

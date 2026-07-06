@@ -4,6 +4,7 @@
 #include "render_config.h"
 
 #include "render_types.h"
+#include "render_cache.h"
 #include "shader.h"
 #include "renderer.h"
 

@@ -21,6 +21,7 @@
 //     }
 // }
 
+
 internal bool platform_file_exists(String8 file_path)
 {
 #if _WIN32
@@ -28,6 +29,13 @@ internal bool platform_file_exists(String8 file_path)
 #else
     return access(file_path.cstr, F_OK) == 0;
 #endif
+}
+
+internal void
+platform_init()
+{
+    os_init();
+
 }
 
 internal String8

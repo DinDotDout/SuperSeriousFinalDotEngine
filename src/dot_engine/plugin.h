@@ -1,5 +1,9 @@
 #ifndef PLUGIN_H
 #define PLUGIN_H
+#if DOT_COMPILER_MSVC
+#   pragma section(".plugin", read)
+#   pragma comment(linker, "/merge:.plugin=.data")
+#endif
 
 // NOTE: This is kind of magic but this will place whatever we tag as PLUGIN_SECTION in
 // a section specifically created for "ONLY" Plugin structs. Priority will determine the
@@ -12,8 +16,8 @@ typedef void (*PluginInitFn)();
 typedef void (*PluginEndFn)();
 internal inline void plugin_init_stub(){ }
 internal inline void plugin_end_stub(){ }
-internal const PluginInitFn plugin_init_stub_pfn = plugin_init_stub;
-internal const PluginEndFn plugin_end_stub_pfn = plugin_end_stub;
+internal const PluginInitFn plugin_init_stub_pfn    = plugin_init_stub;
+internal const PluginEndFn plugin_end_stub_pfn      = plugin_end_stub;
 struct Plugin{
     const char *name;
     char *file;

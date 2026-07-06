@@ -79,6 +79,7 @@ dot_engine_run(DOT_Engine *engine)
         // nk_end(ctx);
 
         rn_frame_begin(&engine->renderer);
+
         dot_game_run(engine->game);
         // nk_dot_render(&engine->renderer);
         rn_frame_end(&engine->renderer);
@@ -97,10 +98,11 @@ dot_engine_shutdown(DOT_Engine *engine)
     ARENA_DESTROY(engine->permanent_arena);
 }
 
+// TODO: Make os level entry points call into actual engine code
 int
 main(int argc, char *argv[])
 {
-    os_install_handlers();
+    platform_init();
     Arena *a = ARENA_CREATE();
     ARENA_RESET(a);
     DOT_Engine engine = {0};

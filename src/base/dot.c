@@ -13,7 +13,7 @@ print_log_level_kind(DOT_LogLevelKind debug_kind){
     return ret;
 }
 
-void
+internal void
 dot_print_debug_(const DOT_PrintDebugParams* params, const char *fmt, ...){
     if(params->print_debug_kind < g_log_level) return;
     thread_local static char buf[DOT_MAX_LOG_LEVEL_LENGTH];
@@ -32,11 +32,26 @@ dot_print_debug_(const DOT_PrintDebugParams* params, const char *fmt, ...){
         buf);
 }
 
-void
+internal void
 dot_debug_name_set(u32 capacity, char *ptr, String8 src)
 {
     u32 src_size = src.size;
     if(src_size > capacity) src_size = capacity - 1;
     MEMORY_COPY(ptr, src.str, src_size);
     ptr[src_size] = 0;
+}
+
+
+internal
+u32 fnv1a_runtime(String8 s)
+{
+    u32 h = FNV1A_OFFSET;
+    u8 *p = s.str;
+    u8 *end = s.str + s.size;
+
+    for (; p < end; p++) {
+        h ^= *p;
+        h *= FNV1A_PRIME;
+    }
+    return(h);
 }

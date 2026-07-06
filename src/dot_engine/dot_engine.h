@@ -93,13 +93,13 @@ DOT_DIAGNOSTIC_PUSH
 #endif
 
 #include "dot_engine/window.h"
-#include "dot_engine/asset.h"
 
 #include "dot_engine/setting.h"
 #include "renderer/renderer_include.h"
 #include "dot_engine/plugin.h"
 #include "dot_engine/model.h"
 #include "dot_engine/game.h"
+#include "dot_engine/reflect.h"
 #include "dot_engine/dot_engine_config.h"
 
 #define DOT_PROFILER_IMPL

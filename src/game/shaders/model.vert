@@ -1,4 +1,5 @@
-DOT_RAW_TEXT(
+#version 450
+#define PI 3.1415926538
 uint MaterialFeatures_ColorTexture     = 1 << 0;
 uint MaterialFeatures_NormalTexture    = 1 << 1;
 uint MaterialFeatures_RoughnessTexture = 1 << 2;
@@ -51,4 +52,3 @@ void main()
         vTangent = tangent;
     }
 }
-)

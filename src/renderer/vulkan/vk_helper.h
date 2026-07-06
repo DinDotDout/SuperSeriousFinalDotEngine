@@ -24,17 +24,10 @@ typedef struct VkHelper_SwapchainDetails{
     do { \
         VkResult err = x; \
         if(err < 0){ \
-            printf("Detected Vulkan error: %s\n", string_VkResult(err)); \
-            abort(); \
+            DOT_ERROR("Detected Vulkan error: %s\n", string_VkResult(err)); \
         } \
     } while (0)
 #endif
-
-#define VkSurfaceFormat2KHRParams(...) \
-    (VkSurfaceFormat2KHR){ \
-        .sType = VK_STRUCTURE_TYPE_SURFACE_FORMAT_2_KHR, \
-        __VA_ARGS__ \
-    }
 
 ///////////////////////////////////////////
 /// Vk Support helpers
@@ -42,41 +35,53 @@ typedef struct VkHelper_SwapchainDetails{
 
 typedef struct RN_VK_VulkanConfig RN_VK_VulkanConfig;
 typedef struct RN_VK_Device RN_VK_Device;
-internal b32 rn_vk_all_layers(const RN_VK_VulkanConfig *vk_config);
-internal RN_VK_Device rn_vk_pick_best_device(
-    const RN_VK_VulkanConfig *vk_config,
-    VkInstance instance,
-    VkSurfaceKHR surface);
 
-internal b32 rn_vk_physical_device_swapchain_support(
-    VkPhysicalDevice gpu,
-    VkSurfaceKHR surface,
-    VkHelper_SwapchainDetails *details);
-
-internal b32              rn_vk_physical_device_all_required_extensions(const RN_VK_VulkanConfig *vk_config, VkPhysicalDevice device);
-internal b32              rn_vk_instance_all_required_extensions(const RN_VK_VulkanConfig *vk_config);
+internal b32            rn_vk_all_layers(const RN_VK_VulkanConfig *vk_config);
+internal RN_VK_Device   rn_vk_pick_best_device(const RN_VK_VulkanConfig *vk_config, VkInstance instance, VkSurfaceKHR surface);
+internal b32            rn_vk_physical_device_swapchain_support(VkPhysicalDevice gpu, VkSurfaceKHR surface, VkHelper_SwapchainDetails *details);
+internal b32            rn_vk_instance_all_required_extensions(const RN_VK_VulkanConfig *vk_config);
+internal b32            rn_vk_physical_device_all_required_extensions(const RN_VK_VulkanConfig *vk_config, VkPhysicalDevice device);
 
 ///////////////////////////////////////////
-///DOT to VK
+/// VK to RN
+
+internal RN_TextureFormatKind   rn_texture_format_from_vk_format(VkFormat texture_format);
+internal RN_ShaderStageHandle   rn_vk_shader_stage_handle_from_vk_shader_module(VkShaderModule vk_sm);
+
+///////////////////////////////////////////
+/// RN to VK
 
 internal VkFilter               rn_vk_filter_from_rn_sampler_filter(RN_SamplerFilterKind sampler_filter);
 internal VkBlendOp              rn_vk_blendop_from_rn_blend_op_kind(RN_BlendOpKind op);
+internal VkBlendFactor          rn_vk_blend_factor_from_rn_blend_factor_kind(RN_BlendFactorKind blend_factor);
 internal VkSamplerMipmapMode    rn_vk_sampler_mipmap_mode_from_rn_sampler_mipmap_mode(RN_SamplerMipmapFilterKind sample_mipmap_mode);
 internal VkSamplerAddressMode   rn_vk_sampler_address_mode_from_rn_sampler_address_mode(RN_SamplerAddressModeKind address_mode);
 internal VkPresentModeKHR       rn_vk_present_mode_from_present_mode(RN_PresentModeKind present_mode);
 internal VkBufferUsageFlags     rn_vk_buffer_usage_flags_from_rn_buffer_usage_flags(RN_BufferUsageFlags usage_flags);
 internal VkImageType            rn_vk_image_type_from_texture_dimension(RN_TextureDimensionKind texture_dimension);
 internal VkImageViewType        rn_vk_image_view_type_from_texture_dimension(RN_TextureDimensionKind texture_dimension);
-internal VkFormat               rn_vk_format_from_texture_format(RN_TextureFormatKind present_mode);
-internal RN_TextureFormatKind   rn_texture_format_from_vk_format(VkFormat texture_format);
+internal VkFormat               rn_vk_vk_format_from_rn_texture_format_kind(RN_TextureFormatKind present_mode);
 internal VkDescriptorType       rn_vk_descriptor_type_from_shader_resource_kind(RN_ShaderResourceKind);
+internal VkShaderModule         rn_vk_shader_module_from_shader_stage_handle(RN_ShaderStageHandle dot_smh);
+internal VkShaderStageFlagBits  rn_vk_shader_stage_flag_from_shader_stage_kind(RN_ShaderStageKind);
+internal VkFormat               rn_vk_format_from_rn_format_kind(RN_FormatKind kind);
+internal VkCullModeFlags        rn_vk_vk_cull_mode_flags_from_rn_cull_mode_flags(RN_CullModeFlags flags);
+internal VkFrontFace            rn_vk_vk_front_face_from_front_face_sort_mode_kind(RN_FrontFaceSortModeKind kind);
+internal VkFrontFace            rn_vk_vk_front_face_from_front_face_sort_mode_kind(RN_FrontFaceSortModeKind kind);
+
+internal b32 rn_vk_vk_format_has_stencil(VkFormat fmt);
 
 ///////////////////////////////////////////
 /// Vk misc helpers
 ///
-
+typedef struct RN_VK_Texture RN_VK_Texture;
 internal VkExtent3D rn_vk_extent3d_from_extent2d(VkExtent2D extent2d);
 internal VkExtent2D rn_vk_extent2d_from_extent3d(VkExtent3D extent3d);
+internal void rn_vk_rn_vk_texture_transition(
+    VkCommandBuffer cmd,
+    RN_VK_Texture *tex,
+    VkImageLayout new_layout);
+
 internal void rn_vk_transition_image(
     VkCommandBuffer cmd,
     VkImage image,
@@ -89,7 +94,7 @@ internal void rn_vk_transition_image(
 
 // NOTE: Maybe we could use a bunch of default arg init macros for this
 internal VkImageCreateInfo          vk_image_create_info(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent);
-internal VkSubmitInfo2              vk_submit_info(VkCommandBufferSubmitInfo* cmd, VkSemaphoreSubmitInfo* signal_semaphore_info, VkSemaphoreSubmitInfo* wait_semaphore_info);
+internal VkSubmitInfo2              vk_submit_info(VkCommandBufferSubmitInfo *cmd, VkSemaphoreSubmitInfo *signal_semaphore_info, VkSemaphoreSubmitInfo *wait_semaphore_info);
 internal VkImageViewCreateInfo      vk_imageview_create_info(VkFormat format, VkImage image, VkImageAspectFlags aspectFlags);
 internal VkCommandBufferSubmitInfo  vk_command_buffer_submit_info(VkCommandBuffer cmd);
 internal VkSemaphoreSubmitInfo      vk_semaphore_submit_info(VkPipelineStageFlags2 stageMask, VkSemaphore semaphore);
@@ -99,6 +104,7 @@ internal VkMemoryRequirements2      vk_buffer_memory_requirements(VkDevice vk_de
 #endif // !VK_HELPER_H
 
 #ifdef VK_HELPER_IMPLEMENTATION
+
 ///////////////////////////////////////////
 /// Vk Support helpers
 ///
@@ -106,7 +112,7 @@ internal VkMemoryRequirements2      vk_buffer_memory_requirements(VkDevice vk_de
 internal b32
 rn_vk_all_layers(const RN_VK_VulkanConfig *vk_config)
 {
-    TempArena temp = threadctx_temp_begin(0);
+    TempArena temp = threadctx_temp_begin(0,0);
     u32 available_layer_count = 0;
     vkEnumerateInstanceLayerProperties(&available_layer_count, NULL);
     array(VkLayerProperties) available_layers = PUSH_ARRAY(temp.arena, VkLayerProperties, available_layer_count);
@@ -131,385 +137,10 @@ rn_vk_all_layers(const RN_VK_VulkanConfig *vk_config)
     return all_found;
 }
 
-internal b32
-rn_vk_instance_all_required_extensions(const RN_VK_VulkanConfig* vk_config)
-{
-    TempArena temp = threadctx_temp_begin(0);
-    u32 extension_count;
-    vkEnumerateInstanceExtensionProperties(NULL, &extension_count, NULL);
-    array(VkExtensionProperties) available_extensions = PUSH_ARRAY(temp.arena, VkExtensionProperties, extension_count);
-    vkEnumerateInstanceExtensionProperties(NULL, &extension_count, available_extensions);
-
-    b32 all_found = true;
-    for(u64 i = 0; i < vk_config->instance.extension_count; ++i){
-        b32 found = false;
-        const String8 instance_extension_name = vk_config->instance.extensions[i];
-        for(u64 j = 0; j < extension_count; ++j){
-            char* name = available_extensions[j].extensionName;
-            if(string8_equal(instance_extension_name, string8_from_cstring(name))){
-                DOT_PRINT("Found instance extension \"%s\"", instance_extension_name);
-                found = true;
-                break;
-            }
-        }
-        if(!found){ // Might aswell list all missing dev extensions
-            all_found = false;
-            DOT_WARNING("Requested instance extension \"%s\" not found", instance_extension_name);
-        }
-    }
-    threadctx_temp_end(temp);
-    return all_found;
-}
-
-internal VkBlendOp
-rn_vk_blendop_from_rn_blend_op_kind(RN_BlendOpKind blend_op)
-{
-    switch(blend_op){
-        default: DOT_ERROR("undefined op %u", blend_op);
-        case RN_BlendOpKind_Add:             return VK_BLEND_OP_ADD;
-        case RN_BlendOpKind_Subtract:        return VK_BLEND_OP_SUBTRACT;
-        case RN_BlendOpKind_ReverseSubtract: return VK_BLEND_OP_REVERSE_SUBTRACT;
-        case RN_BlendOpKind_Min:             return VK_BLEND_OP_MIN;
-        case RN_BlendOpKind_Max:             return VK_BLEND_OP_MAX;
-    }
-}
-
-internal VkBlendFactor
-rn_vk_blend_factor_from_rn_blend_factor_kind(RN_BlendFactorKind blend_factor)
-{
-    switch(blend_factor){
-    default: DOT_ERROR("undefined blend factor %u", blend_factor);
-    case RN_BlendFactorKind_Zero:                  return VK_BLEND_FACTOR_ZERO;
-    case RN_BlendFactorKind_One:                   return VK_BLEND_FACTOR_ONE;
-    case RN_BlendFactorKind_SrcColor:              return VK_BLEND_FACTOR_SRC_COLOR;
-    case RN_BlendFactorKind_OneMinusSrcColor:      return VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
-    case RN_BlendFactorKind_DstColor:              return VK_BLEND_FACTOR_DST_COLOR;
-    case RN_BlendFactorKind_OneMinusDstColor:      return VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
-    case RN_BlendFactorKind_SrcAlpha:              return VK_BLEND_FACTOR_SRC_ALPHA;
-    case RN_BlendFactorKind_OneMinusSrcAlpha:      return VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    case RN_BlendFactorKind_DstAlpha:              return VK_BLEND_FACTOR_DST_ALPHA;
-    case RN_BlendFactorKind_OneMinusDstAlpha:      return VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
-    case RN_BlendFactorKind_ConstantColor:         return VK_BLEND_FACTOR_CONSTANT_COLOR;
-    case RN_BlendFactorKind_OneMinusConstantColor: return VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
-    case RN_BlendFactorKind_ConstantAlpha:         return VK_BLEND_FACTOR_CONSTANT_ALPHA;
-    case RN_BlendFactorKind_OneMinusConstantAlpha: return VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
-    case RN_BlendFactorKind_SrcAlphaSaturate:      return VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;
-    case RN_BlendFactorKind_Src1Color:             return VK_BLEND_FACTOR_SRC1_COLOR;
-    case RN_BlendFactorKind_OneMinusSrc1Color:     return VK_BLEND_FACTOR_ONE_MINUS_SRC1_COLOR;
-    case RN_BlendFactorKind_Src1Alpha:             return VK_BLEND_FACTOR_SRC1_ALPHA;
-    case RN_BlendFactorKind_OneMinusSrc1Alpha:     return VK_BLEND_FACTOR_ONE_MINUS_SRC1_ALPHA;
-
-    }
-}
-
-internal VkFilter
-rn_vk_filter_from_rn_sampler_filter(RN_SamplerFilterKind sampler_filter)
-{
-    switch(sampler_filter){
-    default: DOT_ERROR("undefined sampler filter %u", sampler_filter);
-    case RN_SamplerFilterKind_Nearest: return VK_FILTER_NEAREST;
-    case RN_SamplerFilterKind_Linear:  return VK_FILTER_LINEAR;
-    case RN_SamplerFilterKind_Cubic:   return VK_FILTER_CUBIC_IMG;
-    }
-}
-
-internal VkSamplerMipmapMode
-rn_vk_sampler_mipmap_mode_from_rn_sampler_mipmap_mode(RN_SamplerMipmapFilterKind sample_mipmap_mode)
-{
-    switch(sample_mipmap_mode){
-    default: DOT_ERROR("undefined mip map mode %u", sample_mipmap_mode);
-    case RN_SamplerFilterKind_Nearest: return VK_SAMPLER_MIPMAP_MODE_NEAREST;
-    case RN_SamplerFilterKind_Linear:  return VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    }
-}
-
-internal VkSamplerAddressMode
-rn_vk_sampler_address_mode_from_rn_sampler_address_mode(RN_SamplerAddressModeKind address_mode)
-{
-    switch(address_mode){
-    default: DOT_ERROR("undefined address mode %u", address_mode);
-    case RN_SamplerAddressModeKind_Repeat:             return VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    case RN_SamplerAddressModeKind_Mirrored_repeat:    return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
-    case RN_SamplerAddressModeKind_ClampToEdge:        return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    case RN_SamplerAddressModeKind_ClampToBorder:      return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-    case RN_SamplerAddressModeKind_MirrorClampToEdge:  return VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE;
-    }
-}
-
-internal VkPresentModeKHR
-rn_vk_present_mode_from_present_mode(RN_PresentModeKind present_mode)
-{
-    switch(present_mode){
-    case RN_PresentModeKind_Immediate:      return VK_PRESENT_MODE_IMMEDIATE_KHR;
-    case RN_PresentModeKind_Mailbox:        return VK_PRESENT_MODE_MAILBOX_KHR;
-    case RN_PresentModeKind_Fifo:           return VK_PRESENT_MODE_FIFO_KHR;
-    case RN_PresentModeKind_FifoRelaxed:    return VK_PRESENT_MODE_FIFO_RELAXED_KHR;
-    // case RN_PresentModeKind_FIFO_Count:
-    default: DOT_WARNING("Unsuported requested present mode %s, defaulting to "
-                  "VK_PRESENT_MODE_IMMEDIATE_KHR", string8_from_RN_PresentModeKind[present_mode]);
-        return VK_PRESENT_MODE_IMMEDIATE_KHR;
-    }
-}
-
-internal VkBufferUsageFlags
-rn_vk_buffer_usage_flags_from_rn_buffer_usage_flags(RN_BufferUsageFlags flags)
-{
-    VkBufferUsageFlags vk_usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-    vk_usage |= DOT_BITS_ANY(flags, RN_BufferUsageBit_Vertex)   ? VK_BUFFER_USAGE_VERTEX_BUFFER_BIT : 0;
-    vk_usage |= DOT_BITS_ANY(flags, RN_BufferUsageBit_Index)    ? VK_BUFFER_USAGE_INDEX_BUFFER_BIT : 0;
-    vk_usage |= DOT_BITS_ANY(flags, RN_BufferUsageBit_Uniform)  ? VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT : 0;
-    vk_usage |= DOT_BITS_ANY(flags, RN_BufferUsageBit_Storage)  ? VK_BUFFER_USAGE_STORAGE_BUFFER_BIT : 0;
-    vk_usage |= DOT_BITS_ANY(flags, RN_BufferUsageBit_Indirect) ? VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT: 0;
-    vk_usage |= DOT_BITS_ANY(flags, RN_BufferUsageBit_DeviceAddress) ? VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT : 0;
-    return vk_usage;
-}
-
-internal VkImageType
-rn_vk_image_type_from_texture_dimension(RN_TextureDimensionKind texture_dimension)
-{
-    switch(texture_dimension){
-    case RN_TextureDimensionKind_1D         : return VK_IMAGE_TYPE_1D;
-    case RN_TextureDimensionKind_2D         : return VK_IMAGE_TYPE_2D;
-    case RN_TextureDimensionKind_3D         : return VK_IMAGE_TYPE_3D;
-    case RN_TextureDimensionKind_Array1D    : return VK_IMAGE_TYPE_1D;
-    case RN_TextureDimensionKind_Array2D    : return VK_IMAGE_TYPE_2D;
-    case RN_TextureDimensionKind_Array3D    : return VK_IMAGE_TYPE_3D;
-    }
-}
-
-internal VkImageViewType
-rn_vk_image_view_type_from_texture_dimension(RN_TextureDimensionKind texture_dimension)
-{
-    switch(texture_dimension){
-    case RN_TextureDimensionKind_1D         : return VK_IMAGE_VIEW_TYPE_1D;
-    case RN_TextureDimensionKind_2D         : return VK_IMAGE_VIEW_TYPE_2D;
-    case RN_TextureDimensionKind_3D         : return VK_IMAGE_VIEW_TYPE_3D;
-    case RN_TextureDimensionKind_Array1D    : return VK_IMAGE_VIEW_TYPE_1D_ARRAY;
-    case RN_TextureDimensionKind_Array2D    : return VK_IMAGE_VIEW_TYPE_2D_ARRAY;
-    case RN_TextureDimensionKind_Array3D    : return VK_IMAGE_VIEW_TYPE_CUBE_ARRAY;
-    }
-}
-
-internal VkFormat
-rn_vk_format_from_texture_format(RN_TextureFormatKind texture_format)
-{
-    switch(texture_format){
-    case RN_TextureFormatKind_Invalid: return VK_FORMAT_UNDEFINED;
-    // 8‑bit formats
-    case RN_TextureFormatKind_R8_UNORM      : return VK_FORMAT_R8_UNORM;
-    case RN_TextureFormatKind_R8_UINT       : return VK_FORMAT_R8_UINT;
-    case RN_TextureFormatKind_RG8_UNORM     : return VK_FORMAT_R8G8_UNORM;
-    case RN_TextureFormatKind_RGB8_UNORM    : return VK_FORMAT_R8G8B8_UNORM;
-    case RN_TextureFormatKind_RGB8_SRGB     : return VK_FORMAT_R8G8B8_SRGB;
-    case RN_TextureFormatKind_RGBA8_UNORM   : return VK_FORMAT_R8G8B8A8_UNORM;
-    case RN_TextureFormatKind_RGBA8_SRGB    : return VK_FORMAT_R8G8B8A8_SRGB;
-    case RN_TextureFormatKind_BGRA8_UNORM   : return VK_FORMAT_B8G8R8A8_UNORM;
-    case RN_TextureFormatKind_BGRA8_SRGB    : return VK_FORMAT_B8G8R8A8_SRGB;
-    // HDR / Float formats
-    case RN_TextureFormatKind_R16F          : return VK_FORMAT_R16_SFLOAT;
-    case RN_TextureFormatKind_RG16F         : return VK_FORMAT_R16G16_SFLOAT;
-    case RN_TextureFormatKind_RGBA16F       : return VK_FORMAT_R16G16B16A16_SFLOAT;
-    case RN_TextureFormatKind_R32F          : return VK_FORMAT_R32_SFLOAT;
-    case RN_TextureFormatKind_RG32F         : return VK_FORMAT_R32G32_SFLOAT;
-    case RN_TextureFormatKind_RGBA32F       : return VK_FORMAT_R32G32B32A32_SFLOAT;
-    // Depth / Stencil formats
-    case RN_TextureFormatKind_D16           : return VK_FORMAT_D16_UNORM;
-    case RN_TextureFormatKind_D24S8         : return VK_FORMAT_D24_UNORM_S8_UINT;
-    case RN_TextureFormatKind_D32F          : return VK_FORMAT_D32_SFLOAT;
-    case RN_TextureFormatKind_D32FS8        : return VK_FORMAT_D32_SFLOAT_S8_UINT;
-    // Block‑compressed formats
-    case RN_TextureFormatKind_BC1           : return VK_FORMAT_BC1_RGBA_UNORM_BLOCK;
-    case RN_TextureFormatKind_BC1_SRGB      : return VK_FORMAT_BC1_RGBA_SRGB_BLOCK;
-    case RN_TextureFormatKind_BC3           : return VK_FORMAT_BC3_UNORM_BLOCK;
-    case RN_TextureFormatKind_BC3_SRGB      : return VK_FORMAT_BC3_SRGB_BLOCK;
-    case RN_TextureFormatKind_BC7           : return VK_FORMAT_BC7_UNORM_BLOCK;
-    case RN_TextureFormatKind_BC7_SRGB      : return VK_FORMAT_BC7_SRGB_BLOCK;
-    // ETC2 formats
-    case RN_TextureFormatKind_ETC2_RGB8     : return VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK;
-    case RN_TextureFormatKind_ETC2_RGBA8    : return VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK;
-    }
-}
-
-internal RN_TextureFormatKind
-rn_texture_format_from_vk_format(VkFormat texture_format)
-{
-    DOT_ALLOW_PARTIAL_SWITCH
-    switch(texture_format){
-    default: DOT_ERROR("Format not implemented");
-    case VK_FORMAT_UNDEFINED: return RN_TextureFormatKind_Invalid;
-    // 8‑bit formats
-    case VK_FORMAT_R8_UNORM             : return RN_TextureFormatKind_R8_UNORM;
-    case VK_FORMAT_R8_UINT              : return RN_TextureFormatKind_R8_UINT;
-    case VK_FORMAT_R8G8_UNORM           : return RN_TextureFormatKind_RG8_UNORM;
-    case VK_FORMAT_R8G8B8_UNORM         : return RN_TextureFormatKind_RGB8_UNORM;
-    case VK_FORMAT_R8G8B8_SRGB          : return RN_TextureFormatKind_RGB8_SRGB;
-    case VK_FORMAT_R8G8B8A8_UNORM       : return RN_TextureFormatKind_RGBA8_UNORM;
-    case VK_FORMAT_R8G8B8A8_SRGB        : return RN_TextureFormatKind_RGBA8_SRGB;
-    case VK_FORMAT_B8G8R8A8_UNORM       : return RN_TextureFormatKind_BGRA8_UNORM;
-    case VK_FORMAT_B8G8R8A8_SRGB        : return RN_TextureFormatKind_BGRA8_SRGB;
-    // HDR / Float formats
-    case VK_FORMAT_R16_SFLOAT           : return RN_TextureFormatKind_R16F;
-    case VK_FORMAT_R16G16_SFLOAT        : return RN_TextureFormatKind_RG16F;
-    case VK_FORMAT_R16G16B16A16_SFLOAT  : return RN_TextureFormatKind_RGBA16F;
-    case VK_FORMAT_R32_SFLOAT           : return RN_TextureFormatKind_R32F;
-    case VK_FORMAT_R32G32_SFLOAT        : return RN_TextureFormatKind_RG32F;
-    case VK_FORMAT_R32G32B32A32_SFLOAT  : return RN_TextureFormatKind_RGBA32F;
-    // Depth / Stencil formats
-    case VK_FORMAT_D16_UNORM            : return RN_TextureFormatKind_D16;
-    case VK_FORMAT_D24_UNORM_S8_UINT    : return RN_TextureFormatKind_D24S8;
-    case VK_FORMAT_D32_SFLOAT           : return RN_TextureFormatKind_D32F;
-    case VK_FORMAT_D32_SFLOAT_S8_UINT   : return RN_TextureFormatKind_D32FS8;
-    // Block‑compressed formats
-    case VK_FORMAT_BC1_RGBA_UNORM_BLOCK : return RN_TextureFormatKind_BC1;
-    case VK_FORMAT_BC1_RGBA_SRGB_BLOCK  : return RN_TextureFormatKind_BC1_SRGB;
-    case VK_FORMAT_BC3_UNORM_BLOCK      : return RN_TextureFormatKind_BC3;
-    case VK_FORMAT_BC3_SRGB_BLOCK       : return RN_TextureFormatKind_BC3_SRGB;
-    case VK_FORMAT_BC7_UNORM_BLOCK      : return RN_TextureFormatKind_BC7;
-    case VK_FORMAT_BC7_SRGB_BLOCK       : return RN_TextureFormatKind_BC7_SRGB;
-    // ETC2 formats
-    case VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK      : return RN_TextureFormatKind_ETC2_RGB8;
-    case VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK    : return RN_TextureFormatKind_ETC2_RGBA8;
-    }
-    DOT_RESTORE_PARTIAL_SWITCH
-}
-
-internal VkDescriptorType
-rn_vk_descriptor_type_from_shader_resource_kind(RN_ShaderResourceKind kind)
-{
-    switch(kind){
-    default: DOT_ERROR("Unsupported shader resource kind");
-    case RN_ShaderResourceKind_Sampler              : return VK_DESCRIPTOR_TYPE_SAMPLER;
-    case RN_ShaderResourceKind_SampledTexture       : return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-    case RN_ShaderResourceKind_StorageTexture       : return VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER;
-    case RN_ShaderResourceKind_SamplerXTexture      : return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    case RN_ShaderResourceKind_UniformBuffer        : return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    case RN_ShaderResourceKind_UniformBufferDynamic : return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-    case RN_ShaderResourceKind_StorageBuffer        : return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    }
-};
-
-
-internal b32
-rn_vk_physical_device_all_required_extensions(
-    const RN_VK_VulkanConfig *vk_config,
-    VkPhysicalDevice device)
-{
-    TempArena temp = threadctx_temp_begin(0);
-    u32 extension_count;
-    vkEnumerateDeviceExtensionProperties(device, NULL, &extension_count, NULL);
-    array(VkExtensionProperties) available_extensions = PUSH_ARRAY(temp.arena, VkExtensionProperties, extension_count);
-    vkEnumerateDeviceExtensionProperties(device, NULL, &extension_count, available_extensions);
-
-    b32 all_found = true;
-    for(u64 i = 0; i < vk_config->device.extension_count; ++i){
-        b32 found = false;
-        String8 device_extension_name = vk_config->device.extensions[i];
-        for(u64 j = 0; j < extension_count; ++j){
-            if(string8_equal(device_extension_name, string8_from_cstring(available_extensions[j].extensionName))){
-                DOT_PRINT("Found extension \"%s\"", device_extension_name);
-                found = true;
-                break;
-            }
-        }
-        if(!found){  // Might aswell list all missing physical dev extensions
-            all_found = false;
-            DOT_WARNING("Requested extension %s not found", device_extension_name);
-        }
-    }
-    threadctx_temp_end(temp);
-    return all_found;
-}
-
-internal b32
-rn_vk_physical_device_swapchain_support(
-    VkPhysicalDevice gpu,
-    VkSurfaceKHR surface,
-    VkHelper_SwapchainDetails *details)
-{
-    TempArena temp = threadctx_temp_begin(0);
-    typedef struct SwapchainSupportDetails{
-        VkSurfaceCapabilities2KHR surface_capabilities;
-
-        array(VkSurfaceFormat2KHR) surface_formats;
-        u32 format_count;
-
-        array(VkPresentModeKHR) present_modes;
-        u32 present_modes_count;
-    }SwapchainSupportDetails;
-
-    SwapchainSupportDetails swapchain_support_details = {
-        .surface_capabilities.sType = VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR,
-    };
-
-    VkPhysicalDeviceSurfaceInfo2KHR surface_info = {
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR,
-        .surface = surface
-    };
-
-    // --- Query Surface Capabilities ---
-    vkGetPhysicalDeviceSurfaceCapabilities2KHR(gpu, &surface_info, &swapchain_support_details.surface_capabilities);
- 
-    // --- Query Surface Formats ---
-    RN_VK_CHECK(vkGetPhysicalDeviceSurfaceFormats2KHR(gpu, &surface_info, &swapchain_support_details.format_count, NULL));
-    swapchain_support_details.surface_formats = PUSH_ARRAY(temp.arena, VkSurfaceFormat2KHR, swapchain_support_details.format_count);
-    for(u32 it = 0; it < swapchain_support_details.format_count; ++it){
-        swapchain_support_details.surface_formats[it] = VkSurfaceFormat2KHRParams();
-    }
-    vkGetPhysicalDeviceSurfaceFormats2KHR(gpu, &surface_info, &swapchain_support_details.format_count, swapchain_support_details.surface_formats);
- 
-    // --- Query Present Modes ---
-    vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &swapchain_support_details.present_modes_count, NULL);
-    swapchain_support_details.present_modes = PUSH_ARRAY(temp.arena, VkPresentModeKHR, swapchain_support_details.present_modes_count);
-    vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &swapchain_support_details.present_modes_count, swapchain_support_details.present_modes);
-    b32 has_support = swapchain_support_details.format_count > 0 && swapchain_support_details.present_modes_count > 0;
-    if(has_support && details != NULL){
-        VkSurfaceCapabilitiesKHR surface_capabilities = swapchain_support_details.surface_capabilities.surfaceCapabilities;
-        VkExtent2D surface_extent = surface_capabilities.currentExtent;
-        if(surface_extent.width == U32_MAX){ // Should we just do this outside this func?
-            surface_extent.width = DOT_CLAMP(cast(u32)details->frame_buffer_size.x, surface_capabilities.minImageExtent.width, surface_capabilities.maxImageExtent.width);
-            surface_extent.height = DOT_CLAMP(cast(u32)details->frame_buffer_size.y, surface_capabilities.minImageExtent.height, surface_capabilities.maxImageExtent.height);
-        }
-
-        VkColorSpaceKHR  preferred_colorspace   = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-        VkSurfaceFormat2KHR desired_format = swapchain_support_details.surface_formats[0]; // Keep this one if none found
-        VkSurfaceFormat2KHR *surface_formats = swapchain_support_details.surface_formats;
-        for(u32 i = 0; i < swapchain_support_details.format_count; ++i){
-            VkSurfaceFormat2KHR desiredVk_format = surface_formats[i];
-            if (desiredVk_format.surfaceFormat.format == details->preferred_format &&
-                desiredVk_format.surfaceFormat.colorSpace == preferred_colorspace){
-                desired_format = desiredVk_format;
-                break;
-            }
-        }
-
-        VkPresentModeKHR best_present_mode = VK_PRESENT_MODE_FIFO_KHR; // Keep this one if none found for now
-        array(VkPresentModeKHR) present_modes = swapchain_support_details.present_modes;
-        for(u32 i = 0; i < swapchain_support_details.present_modes_count; ++i){
-            if (present_modes[i] == details->preferred_present_mode){
-                best_present_mode = present_modes[i];
-                break;
-            }
-        }
-        details->best_present_mode   = best_present_mode;
-        details->best_surface_format = desired_format.surfaceFormat;
-        details->surface_extent      = surface_extent;
-        details->image_count         = surface_capabilities.minImageCount+1;
-        if(surface_capabilities.maxImageCount > 0 && details->image_count > surface_capabilities.maxImageCount){
-            details->image_count = surface_capabilities.maxImageCount;
-        }
-        details->current_transform   = surface_capabilities.currentTransform;
-    }
-    threadctx_temp_end(temp);
-    return has_support;
-}
-
 internal RN_VK_Device
-rn_vk_pick_best_device(
-    const RN_VK_VulkanConfig *vk_config,
-    VkInstance instance,
-    VkSurfaceKHR surface)
+rn_vk_pick_best_device(const RN_VK_VulkanConfig *vk_config, VkInstance instance, VkSurfaceKHR surface)
 {
-    TempArena temp = threadctx_temp_begin(0);
+    TempArena temp = threadctx_temp_begin(0,0);
     u32 device_count = 0;
     vkEnumeratePhysicalDevices(instance, &device_count, NULL);
     if (device_count == 0) {
@@ -600,6 +231,501 @@ rn_vk_pick_best_device(
               best_score);
     threadctx_temp_end(temp);
     return best_device;
+}
+
+internal b32
+rn_vk_physical_device_swapchain_support(
+    VkPhysicalDevice gpu,
+    VkSurfaceKHR surface,
+    VkHelper_SwapchainDetails *details)
+{
+    TempArena temp = threadctx_temp_begin(0,0);
+    typedef struct SwapchainSupportDetails{
+        VkSurfaceCapabilities2KHR surface_capabilities;
+
+        array(VkSurfaceFormat2KHR) surface_formats;
+        u32 format_count;
+
+        array(VkPresentModeKHR) present_modes;
+        u32 present_modes_count;
+    }SwapchainSupportDetails;
+
+    SwapchainSupportDetails swapchain_support_details = {
+        .surface_capabilities.sType = VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR,
+    };
+
+    VkPhysicalDeviceSurfaceInfo2KHR surface_info = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR,
+        .surface = surface
+    };
+
+    // --- Query Surface Capabilities ---
+    vkGetPhysicalDeviceSurfaceCapabilities2KHR(gpu, &surface_info, &swapchain_support_details.surface_capabilities);
+ 
+    // --- Query Surface Formats ---
+    RN_VK_CHECK(vkGetPhysicalDeviceSurfaceFormats2KHR(gpu, &surface_info, &swapchain_support_details.format_count, NULL));
+    swapchain_support_details.surface_formats = PUSH_ARRAY(temp.arena, VkSurfaceFormat2KHR, swapchain_support_details.format_count);
+    for(u32 it = 0; it < swapchain_support_details.format_count; ++it){
+        swapchain_support_details.surface_formats[it] = (VkSurfaceFormat2KHR){
+            .sType = VK_STRUCTURE_TYPE_SURFACE_FORMAT_2_KHR,
+        };
+
+    }
+    vkGetPhysicalDeviceSurfaceFormats2KHR(gpu, &surface_info, &swapchain_support_details.format_count, swapchain_support_details.surface_formats);
+ 
+    // --- Query Present Modes ---
+    vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &swapchain_support_details.present_modes_count, NULL);
+    swapchain_support_details.present_modes = PUSH_ARRAY(temp.arena, VkPresentModeKHR, swapchain_support_details.present_modes_count);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &swapchain_support_details.present_modes_count, swapchain_support_details.present_modes);
+    b32 has_support = swapchain_support_details.format_count > 0 && swapchain_support_details.present_modes_count > 0;
+    if(has_support && details != NULL){
+        VkSurfaceCapabilitiesKHR surface_capabilities = swapchain_support_details.surface_capabilities.surfaceCapabilities;
+        VkExtent2D surface_extent = surface_capabilities.currentExtent;
+        if(surface_extent.width == U32_MAX){ // Should we just do this outside this func?
+            surface_extent.width = DOT_CLAMP(cast(u32)details->frame_buffer_size.x, surface_capabilities.minImageExtent.width, surface_capabilities.maxImageExtent.width);
+            surface_extent.height = DOT_CLAMP(cast(u32)details->frame_buffer_size.y, surface_capabilities.minImageExtent.height, surface_capabilities.maxImageExtent.height);
+        }
+
+        VkColorSpaceKHR  preferred_colorspace   = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+        VkSurfaceFormat2KHR desired_format = swapchain_support_details.surface_formats[0]; // Keep this one if none found
+        VkSurfaceFormat2KHR *surface_formats = swapchain_support_details.surface_formats;
+        for(u32 i = 0; i < swapchain_support_details.format_count; ++i){
+            VkSurfaceFormat2KHR desiredVk_format = surface_formats[i];
+            if (desiredVk_format.surfaceFormat.format == details->preferred_format &&
+                desiredVk_format.surfaceFormat.colorSpace == preferred_colorspace){
+                desired_format = desiredVk_format;
+                break;
+            }
+        }
+
+        VkPresentModeKHR best_present_mode = VK_PRESENT_MODE_FIFO_KHR; // Keep this one if none found for now
+        array(VkPresentModeKHR) present_modes = swapchain_support_details.present_modes;
+        for(u32 i = 0; i < swapchain_support_details.present_modes_count; ++i){
+            if (present_modes[i] == details->preferred_present_mode){
+                best_present_mode = present_modes[i];
+                break;
+            }
+        }
+        details->best_present_mode   = best_present_mode;
+        details->best_surface_format = desired_format.surfaceFormat;
+        details->surface_extent      = surface_extent;
+        details->image_count         = surface_capabilities.minImageCount+1;
+        if(surface_capabilities.maxImageCount > 0 && details->image_count > surface_capabilities.maxImageCount){
+            details->image_count = surface_capabilities.maxImageCount;
+        }
+        details->current_transform   = surface_capabilities.currentTransform;
+    }
+    threadctx_temp_end(temp);
+    return has_support;
+}
+
+internal b32
+rn_vk_physical_device_all_required_extensions(
+    const RN_VK_VulkanConfig *vk_config,
+    VkPhysicalDevice device)
+{
+    TempArena temp = threadctx_temp_begin(0,0);
+    u32 extension_count;
+    vkEnumerateDeviceExtensionProperties(device, NULL, &extension_count, NULL);
+    array(VkExtensionProperties) available_extensions = PUSH_ARRAY(temp.arena, VkExtensionProperties, extension_count);
+    vkEnumerateDeviceExtensionProperties(device, NULL, &extension_count, available_extensions);
+
+    b32 all_found = true;
+    for(u64 i = 0; i < vk_config->device.extension_count; ++i){
+        b32 found = false;
+        String8 device_extension_name = vk_config->device.extensions[i];
+        for(u64 j = 0; j < extension_count; ++j){
+            if(string8_equal(device_extension_name, string8_from_cstring(available_extensions[j].extensionName))){
+                DOT_PRINT("Found extension \"%s\"", device_extension_name);
+                found = true;
+                break;
+            }
+        }
+        if(!found){  // Might aswell list all missing physical dev extensions
+            all_found = false;
+            DOT_WARNING("Requested extension %s not found", device_extension_name);
+        }
+    }
+    threadctx_temp_end(temp);
+    return all_found;
+}
+
+internal b32
+rn_vk_instance_all_required_extensions(const RN_VK_VulkanConfig* vk_config)
+{
+    TempArena temp = threadctx_temp_begin(0,0);
+    u32 extension_count;
+    vkEnumerateInstanceExtensionProperties(NULL, &extension_count, NULL);
+    array(VkExtensionProperties) available_extensions = PUSH_ARRAY(temp.arena, VkExtensionProperties, extension_count);
+    vkEnumerateInstanceExtensionProperties(NULL, &extension_count, available_extensions);
+
+    b32 all_found = true;
+    for(u64 i = 0; i < vk_config->instance.extension_count; ++i){
+        b32 found = false;
+        const String8 instance_extension_name = vk_config->instance.extensions[i];
+        for(u64 j = 0; j < extension_count; ++j){
+            char* name = available_extensions[j].extensionName;
+            if(string8_equal(instance_extension_name, string8_from_cstring(name))){
+                DOT_PRINT("Found instance extension \"%s\"", instance_extension_name);
+                found = true;
+                break;
+            }
+        }
+        if(!found){ // Might aswell list all missing dev extensions
+            all_found = false;
+            DOT_WARNING("Requested instance extension \"%s\" not found", instance_extension_name);
+        }
+    }
+    threadctx_temp_end(temp);
+    return all_found;
+}
+
+///////////////////////////////////////////
+/// VK to RN
+
+internal RN_TextureFormatKind
+rn_texture_format_from_vk_format(VkFormat texture_format)
+{
+    DOT_ALLOW_PARTIAL_SWITCH
+    switch(texture_format){
+    default: DOT_ERROR("Format not implemented");
+    case VK_FORMAT_UNDEFINED: return RN_TextureFormatKind_Invalid;
+    // 8‑bit formats
+    case VK_FORMAT_R8_UNORM             : return RN_TextureFormatKind_R8_UNORM;
+    case VK_FORMAT_R8_UINT              : return RN_TextureFormatKind_R8_UINT;
+    case VK_FORMAT_R8G8_UNORM           : return RN_TextureFormatKind_RG8_UNORM;
+    case VK_FORMAT_R8G8B8_UNORM         : return RN_TextureFormatKind_RGB8_UNORM;
+    case VK_FORMAT_R8G8B8_SRGB          : return RN_TextureFormatKind_RGB8_SRGB;
+    case VK_FORMAT_R8G8B8A8_UNORM       : return RN_TextureFormatKind_RGBA8_UNORM;
+    case VK_FORMAT_R8G8B8A8_SRGB        : return RN_TextureFormatKind_RGBA8_SRGB;
+    case VK_FORMAT_B8G8R8A8_UNORM       : return RN_TextureFormatKind_BGRA8_UNORM;
+    case VK_FORMAT_B8G8R8A8_SRGB        : return RN_TextureFormatKind_BGRA8_SRGB;
+    // HDR / Float formats
+    case VK_FORMAT_R16_SFLOAT           : return RN_TextureFormatKind_R16F;
+    case VK_FORMAT_R16G16_SFLOAT        : return RN_TextureFormatKind_RG16F;
+    case VK_FORMAT_R16G16B16A16_SFLOAT  : return RN_TextureFormatKind_RGBA16F;
+    case VK_FORMAT_R32_SFLOAT           : return RN_TextureFormatKind_R32F;
+    case VK_FORMAT_R32G32_SFLOAT        : return RN_TextureFormatKind_RG32F;
+    case VK_FORMAT_R32G32B32A32_SFLOAT  : return RN_TextureFormatKind_RGBA32F;
+    // Depth / Stencil formats
+    case VK_FORMAT_D16_UNORM            : return RN_TextureFormatKind_D16_UNORM;
+    case VK_FORMAT_D24_UNORM_S8_UINT    : return RN_TextureFormatKind_D24_UNORM_S8_UINT;
+    case VK_FORMAT_D32_SFLOAT           : return RN_TextureFormatKind_D32_SFLOAT;
+    case VK_FORMAT_D32_SFLOAT_S8_UINT   : return RN_TextureFormatKind_D32F_S8_UINT;
+    // Block‑compressed formats
+    case VK_FORMAT_BC1_RGBA_UNORM_BLOCK : return RN_TextureFormatKind_BC1;
+    case VK_FORMAT_BC1_RGBA_SRGB_BLOCK  : return RN_TextureFormatKind_BC1_SRGB;
+    case VK_FORMAT_BC3_UNORM_BLOCK      : return RN_TextureFormatKind_BC3;
+    case VK_FORMAT_BC3_SRGB_BLOCK       : return RN_TextureFormatKind_BC3_SRGB;
+    case VK_FORMAT_BC7_UNORM_BLOCK      : return RN_TextureFormatKind_BC7;
+    case VK_FORMAT_BC7_SRGB_BLOCK       : return RN_TextureFormatKind_BC7_SRGB;
+    // ETC2 formats
+    case VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK      : return RN_TextureFormatKind_ETC2_RGB8;
+    case VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK    : return RN_TextureFormatKind_ETC2_RGBA8;
+    }
+    DOT_RESTORE_PARTIAL_SWITCH
+}
+
+internal RN_ShaderStageHandle
+rn_vk_shader_stage_handle_from_vk_shader_module(VkShaderModule vk_sm)
+{
+    RN_ShaderStageHandle dot_smh = { .handle[0] = cast(u64) vk_sm, };
+    return dot_smh;
+}
+
+///////////////////////////////////////////
+/// RN to VK
+
+internal VkFilter
+rn_vk_filter_from_rn_sampler_filter(RN_SamplerFilterKind sampler_filter)
+{
+    switch(sampler_filter){
+    default: DOT_ERROR("undefined sampler filter %u", sampler_filter);
+    case RN_SamplerFilterKind_Nearest: return VK_FILTER_NEAREST;
+    case RN_SamplerFilterKind_Linear:  return VK_FILTER_LINEAR;
+    case RN_SamplerFilterKind_Cubic:   return VK_FILTER_CUBIC_IMG;
+    }
+}
+
+internal VkBlendOp
+rn_vk_blendop_from_rn_blend_op_kind(RN_BlendOpKind blend_op)
+{
+    switch(blend_op){
+        default: DOT_ERROR("undefined op %u", blend_op);
+        case RN_BlendOpKind_Add:             return VK_BLEND_OP_ADD;
+        case RN_BlendOpKind_Subtract:        return VK_BLEND_OP_SUBTRACT;
+        case RN_BlendOpKind_ReverseSubtract: return VK_BLEND_OP_REVERSE_SUBTRACT;
+        case RN_BlendOpKind_Min:             return VK_BLEND_OP_MIN;
+        case RN_BlendOpKind_Max:             return VK_BLEND_OP_MAX;
+    }
+}
+
+internal VkBlendFactor
+rn_vk_blend_factor_from_rn_blend_factor_kind(RN_BlendFactorKind blend_factor)
+{
+    switch(blend_factor){
+    default: DOT_ERROR("undefined blend factor %u", blend_factor);
+    case RN_BlendFactorKind_Zero:                  return VK_BLEND_FACTOR_ZERO;
+    case RN_BlendFactorKind_One:                   return VK_BLEND_FACTOR_ONE;
+    case RN_BlendFactorKind_SrcColor:              return VK_BLEND_FACTOR_SRC_COLOR;
+    case RN_BlendFactorKind_OneMinusSrcColor:      return VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+    case RN_BlendFactorKind_DstColor:              return VK_BLEND_FACTOR_DST_COLOR;
+    case RN_BlendFactorKind_OneMinusDstColor:      return VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+    case RN_BlendFactorKind_SrcAlpha:              return VK_BLEND_FACTOR_SRC_ALPHA;
+    case RN_BlendFactorKind_OneMinusSrcAlpha:      return VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    case RN_BlendFactorKind_DstAlpha:              return VK_BLEND_FACTOR_DST_ALPHA;
+    case RN_BlendFactorKind_OneMinusDstAlpha:      return VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+    case RN_BlendFactorKind_ConstantColor:         return VK_BLEND_FACTOR_CONSTANT_COLOR;
+    case RN_BlendFactorKind_OneMinusConstantColor: return VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
+    case RN_BlendFactorKind_ConstantAlpha:         return VK_BLEND_FACTOR_CONSTANT_ALPHA;
+    case RN_BlendFactorKind_OneMinusConstantAlpha: return VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+    case RN_BlendFactorKind_SrcAlphaSaturate:      return VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;
+    case RN_BlendFactorKind_Src1Color:             return VK_BLEND_FACTOR_SRC1_COLOR;
+    case RN_BlendFactorKind_OneMinusSrc1Color:     return VK_BLEND_FACTOR_ONE_MINUS_SRC1_COLOR;
+    case RN_BlendFactorKind_Src1Alpha:             return VK_BLEND_FACTOR_SRC1_ALPHA;
+    case RN_BlendFactorKind_OneMinusSrc1Alpha:     return VK_BLEND_FACTOR_ONE_MINUS_SRC1_ALPHA;
+
+    }
+}
+
+internal VkSamplerMipmapMode
+rn_vk_sampler_mipmap_mode_from_rn_sampler_mipmap_mode(RN_SamplerMipmapFilterKind sample_mipmap_mode)
+{
+    switch(sample_mipmap_mode){
+    default: DOT_ERROR("undefined mip map mode %u", sample_mipmap_mode);
+    case RN_SamplerFilterKind_Nearest: return VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    case RN_SamplerFilterKind_Linear:  return VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    }
+}
+
+internal VkSamplerAddressMode
+rn_vk_sampler_address_mode_from_rn_sampler_address_mode(RN_SamplerAddressModeKind address_mode)
+{
+    switch(address_mode){
+    default: DOT_ERROR("undefined address mode %u", address_mode);
+    case RN_SamplerAddressModeKind_Repeat:             return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    case RN_SamplerAddressModeKind_Mirrored_repeat:    return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+    case RN_SamplerAddressModeKind_ClampToEdge:        return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    case RN_SamplerAddressModeKind_ClampToBorder:      return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    case RN_SamplerAddressModeKind_MirrorClampToEdge:  return VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE;
+    }
+}
+
+internal VkPresentModeKHR
+rn_vk_present_mode_from_present_mode(RN_PresentModeKind present_mode)
+{
+    switch(present_mode){
+    case RN_PresentModeKind_Immediate:      return VK_PRESENT_MODE_IMMEDIATE_KHR;
+    case RN_PresentModeKind_Mailbox:        return VK_PRESENT_MODE_MAILBOX_KHR;
+    case RN_PresentModeKind_Fifo:           return VK_PRESENT_MODE_FIFO_KHR;
+    case RN_PresentModeKind_FifoRelaxed:    return VK_PRESENT_MODE_FIFO_RELAXED_KHR;
+    // case RN_PresentModeKind_FIFO_Count:
+    default: DOT_WARNING("Unsuported requested present mode %s, defaulting to "
+                  "VK_PRESENT_MODE_IMMEDIATE_KHR", string8_from_RN_PresentModeKind[present_mode]);
+        return VK_PRESENT_MODE_IMMEDIATE_KHR;
+    }
+}
+
+internal VkBufferUsageFlags
+rn_vk_buffer_usage_flags_from_rn_buffer_usage_flags(RN_BufferUsageFlags flags)
+{
+    VkBufferUsageFlags vk_usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    vk_usage |= DOT_BITS_ANY(flags, RN_BufferUsageBit_Vertex)   ? VK_BUFFER_USAGE_VERTEX_BUFFER_BIT : 0;
+    vk_usage |= DOT_BITS_ANY(flags, RN_BufferUsageBit_Index)    ? VK_BUFFER_USAGE_INDEX_BUFFER_BIT : 0;
+    vk_usage |= DOT_BITS_ANY(flags, RN_BufferUsageBit_Uniform)  ? VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT : 0;
+    vk_usage |= DOT_BITS_ANY(flags, RN_BufferUsageBit_Storage)  ? VK_BUFFER_USAGE_STORAGE_BUFFER_BIT : 0;
+    vk_usage |= DOT_BITS_ANY(flags, RN_BufferUsageBit_Indirect) ? VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT: 0;
+    vk_usage |= DOT_BITS_ANY(flags, RN_BufferUsageBit_DeviceAddress) ? VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT : 0;
+    return vk_usage;
+}
+
+internal VkImageType
+rn_vk_image_type_from_texture_dimension(RN_TextureDimensionKind texture_dimension)
+{
+    switch(texture_dimension){
+    case RN_TextureDimensionKind_1D         : return VK_IMAGE_TYPE_1D;
+    case RN_TextureDimensionKind_2D         : return VK_IMAGE_TYPE_2D;
+    case RN_TextureDimensionKind_3D         : return VK_IMAGE_TYPE_3D;
+    case RN_TextureDimensionKind_Array1D    : return VK_IMAGE_TYPE_1D;
+    case RN_TextureDimensionKind_Array2D    : return VK_IMAGE_TYPE_2D;
+    case RN_TextureDimensionKind_Array3D    : return VK_IMAGE_TYPE_3D;
+    }
+}
+
+internal VkImageViewType
+rn_vk_image_view_type_from_texture_dimension(RN_TextureDimensionKind texture_dimension)
+{
+    switch(texture_dimension){
+    case RN_TextureDimensionKind_1D         : return VK_IMAGE_VIEW_TYPE_1D;
+    case RN_TextureDimensionKind_2D         : return VK_IMAGE_VIEW_TYPE_2D;
+    case RN_TextureDimensionKind_3D         : return VK_IMAGE_VIEW_TYPE_3D;
+    case RN_TextureDimensionKind_Array1D    : return VK_IMAGE_VIEW_TYPE_1D_ARRAY;
+    case RN_TextureDimensionKind_Array2D    : return VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+    case RN_TextureDimensionKind_Array3D    : return VK_IMAGE_VIEW_TYPE_CUBE_ARRAY;
+    }
+}
+
+internal VkFormat
+rn_vk_vk_format_from_rn_texture_format_kind(RN_TextureFormatKind texture_format)
+{
+    switch(texture_format){
+    case RN_TextureFormatKind_Invalid: return VK_FORMAT_UNDEFINED;
+    // 8‑bit formats
+    case RN_TextureFormatKind_R8_UNORM      : return VK_FORMAT_R8_UNORM;
+    case RN_TextureFormatKind_R8_UINT       : return VK_FORMAT_R8_UINT;
+    case RN_TextureFormatKind_RG8_UNORM     : return VK_FORMAT_R8G8_UNORM;
+    case RN_TextureFormatKind_RGB8_UNORM    : return VK_FORMAT_R8G8B8_UNORM;
+    case RN_TextureFormatKind_RGB8_SRGB     : return VK_FORMAT_R8G8B8_SRGB;
+    case RN_TextureFormatKind_RGBA8_UNORM   : return VK_FORMAT_R8G8B8A8_UNORM;
+    case RN_TextureFormatKind_RGBA8_SRGB    : return VK_FORMAT_R8G8B8A8_SRGB;
+    case RN_TextureFormatKind_BGRA8_UNORM   : return VK_FORMAT_B8G8R8A8_UNORM;
+    case RN_TextureFormatKind_BGRA8_SRGB    : return VK_FORMAT_B8G8R8A8_SRGB;
+    // HDR / Float formats
+    case RN_TextureFormatKind_R16F          : return VK_FORMAT_R16_SFLOAT;
+    case RN_TextureFormatKind_RG16F         : return VK_FORMAT_R16G16_SFLOAT;
+    case RN_TextureFormatKind_RGBA16F       : return VK_FORMAT_R16G16B16A16_SFLOAT;
+    case RN_TextureFormatKind_R32F          : return VK_FORMAT_R32_SFLOAT;
+    case RN_TextureFormatKind_RG32F         : return VK_FORMAT_R32G32_SFLOAT;
+    case RN_TextureFormatKind_RGBA32F       : return VK_FORMAT_R32G32B32A32_SFLOAT;
+    // Depth / Stencil formats
+    case RN_TextureFormatKind_D16_UNORM     : return VK_FORMAT_D16_UNORM;
+    case RN_TextureFormatKind_D24_UNORM_S8_UINT   : return VK_FORMAT_D24_UNORM_S8_UINT;
+    case RN_TextureFormatKind_D32_SFLOAT   : return VK_FORMAT_D32_SFLOAT;
+    case RN_TextureFormatKind_D32F_S8_UINT : return VK_FORMAT_D32_SFLOAT_S8_UINT;
+    // Block‑compressed formats
+    case RN_TextureFormatKind_BC1           : return VK_FORMAT_BC1_RGBA_UNORM_BLOCK;
+    case RN_TextureFormatKind_BC1_SRGB      : return VK_FORMAT_BC1_RGBA_SRGB_BLOCK;
+    case RN_TextureFormatKind_BC3           : return VK_FORMAT_BC3_UNORM_BLOCK;
+    case RN_TextureFormatKind_BC3_SRGB      : return VK_FORMAT_BC3_SRGB_BLOCK;
+    case RN_TextureFormatKind_BC7           : return VK_FORMAT_BC7_UNORM_BLOCK;
+    case RN_TextureFormatKind_BC7_SRGB      : return VK_FORMAT_BC7_SRGB_BLOCK;
+    // ETC2 formats
+    case RN_TextureFormatKind_ETC2_RGB8     : return VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK;
+    case RN_TextureFormatKind_ETC2_RGBA8    : return VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK;
+    }
+}
+
+internal VkDescriptorType
+rn_vk_descriptor_type_from_shader_resource_kind(RN_ShaderResourceKind kind)
+{
+    switch(kind){
+    default: DOT_ERROR("Unsupported shader resource kind");
+    case RN_ShaderResourceKind_Sampler              : return VK_DESCRIPTOR_TYPE_SAMPLER;
+    case RN_ShaderResourceKind_SampledTexture       : return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    case RN_ShaderResourceKind_StorageTexture       : return VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER;
+    case RN_ShaderResourceKind_SamplerXTexture      : return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    case RN_ShaderResourceKind_UniformBuffer        : return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    case RN_ShaderResourceKind_UniformBufferDynamic : return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+    case RN_ShaderResourceKind_StorageBuffer        : return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    }
+};
+
+internal VkShaderModule
+rn_vk_shader_module_from_shader_stage_handle(RN_ShaderStageHandle dot_smh)
+{
+    VkShaderModule vk_sm = cast(VkShaderModule)dot_smh.handle[0];
+    return vk_sm;
+}
+
+internal VkShaderStageFlagBits
+rn_vk_shader_stage_flag_from_shader_stage_kind(RN_ShaderStageKind kind)
+{
+    switch(kind){
+    case RN_ShaderStageKind_None:
+    case RN_ShaderStageKind_Count:
+    default: DOT_ERROR("Unsupported shader stage kind %u", kind);
+    case RN_ShaderStageKind_Vertex                  : return VK_SHADER_STAGE_VERTEX_BIT;
+    case RN_ShaderStageKind_Fragment                : return VK_SHADER_STAGE_FRAGMENT_BIT;
+    case RN_ShaderStageKind_Compute                 : return VK_SHADER_STAGE_COMPUTE_BIT;
+    case RN_ShaderStageKind_RayGen                  : return VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+    case RN_ShaderStageKind_RayHitAny               : return VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
+    case RN_ShaderStageKind_RayHitClosest           : return VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+    case RN_ShaderStageKind_RayHitMiss              : return VK_SHADER_STAGE_MISS_BIT_KHR;
+    case RN_ShaderStageKind_RayHitIntersection      : return VK_SHADER_STAGE_INTERSECTION_BIT_KHR;
+    case RN_ShaderStageKind_Callable                : return VK_SHADER_STAGE_CALLABLE_BIT_KHR;
+    case RN_ShaderStageKind_Task                    : return VK_SHADER_STAGE_TASK_BIT_EXT;
+    case RN_ShaderStageKind_Mesh                    : return VK_SHADER_STAGE_MESH_BIT_EXT;
+    case RN_ShaderStageKind_TesselationControl      : return VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
+    case RN_ShaderStageKind_TesselationEvaluation   : return VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
+    case RN_ShaderStageKind_Geometry                : return VK_SHADER_STAGE_GEOMETRY_BIT;
+    }
+}
+
+internal VkFormat
+rn_vk_format_from_rn_format_kind(RN_FormatKind kind)
+{
+    switch(kind){
+    case RN_FormatKind_Count:
+    default: DOT_ERROR("Unsupported format kind kind");
+    case RN_FormatKind_F32:        return VK_FORMAT_R32_SFLOAT;
+    case RN_FormatKind_F32x2:      return VK_FORMAT_R32G32_SFLOAT;
+    case RN_FormatKind_F32x3:      return VK_FORMAT_R32G32B32_SFLOAT;
+    case RN_FormatKind_F32x4:      return VK_FORMAT_R32G32B32A32_SFLOAT;
+
+    case RN_FormatKind_I8:         return VK_FORMAT_R8_SINT;
+    case RN_FormatKind_I8x4Norm:   return VK_FORMAT_R8G8B8A8_SNORM;
+
+    case RN_FormatKind_U8:         return VK_FORMAT_R8_UINT;
+    case RN_FormatKind_U8x4Norm:   return VK_FORMAT_R8G8B8A8_UNORM;
+
+    case RN_FormatKind_U16x2:      return VK_FORMAT_R16G16_UINT;
+    case RN_FormatKind_U16x2Norm:  return VK_FORMAT_R16G16_UNORM;
+    case RN_FormatKind_U16x4:      return VK_FORMAT_R16G16B16A16_UINT;
+    case RN_FormatKind_U16x4Norm:  return VK_FORMAT_R16G16B16A16_UNORM;
+
+    case RN_FormatKind_U32:        return VK_FORMAT_R32_UINT;
+    case RN_FormatKind_U32x2:      return VK_FORMAT_R32G32_UINT;
+    case RN_FormatKind_U32x4:      return VK_FORMAT_R32G32B32A32_UINT;
+    }
+}
+
+internal VkCullModeFlags
+rn_vk_vk_cull_mode_flags_from_rn_cull_mode_flags(RN_CullModeFlags flags)
+{
+    VkCullModeFlags vk_cull_mode = 0;
+    vk_cull_mode |= DOT_BITS_ANY(flags, RN_CullModeBit_Front) ? VK_CULL_MODE_FRONT_BIT : 0;
+    vk_cull_mode |= DOT_BITS_ANY(flags, RN_CullModeBit_Back) ? VK_CULL_MODE_BACK_BIT : 0;
+
+    return vk_cull_mode;
+}
+
+internal VkFrontFace
+rn_vk_vk_front_face_from_front_face_sort_mode_kind(RN_FrontFaceSortModeKind kind)
+{
+    switch (kind) {
+    case RN_FrontFaceSortKind_CounterClockwise  : return VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    case RN_FrontFaceSortKind_Clockwise         : return VK_FRONT_FACE_CLOCKWISE;
+    }
+    return VK_FRONT_FACE_COUNTER_CLOCKWISE;
+}
+
+internal VkCompareOp
+rn_vk_vk_compare_op_from_rn_compare_op(RN_CompareOpKind kind)
+{
+    switch(kind){
+    case RN_CompareOpKind_Always:         return VK_COMPARE_OP_ALWAYS;
+    case RN_CompareOpKind_Never:          return VK_COMPARE_OP_NEVER;
+    case RN_CompareOpKind_Less:           return VK_COMPARE_OP_LESS;
+    case RN_CompareOpKind_Equal:          return VK_COMPARE_OP_EQUAL;
+    case RN_CompareOpKind_LessOrEqual:    return VK_COMPARE_OP_LESS_OR_EQUAL;
+    case RN_CompareOpKind_Greater:        return VK_COMPARE_OP_GREATER;
+    case RN_CompareOpKind_NotEqual:       return VK_COMPARE_OP_NOT_EQUAL;
+    case RN_CompareOpKind_GreaterOrEqual: return VK_COMPARE_OP_GREATER_OR_EQUAL;
+    }
+    DOT_WARNING("Invalid compare op %u , returning VK_COMPARE_OP_ALWAYS", kind);
+    return VK_COMPARE_OP_ALWAYS;
+}
+
+internal b32
+rn_vk_vk_format_has_stencil(VkFormat fmt)
+{
+    DOT_ALLOW_PARTIAL_SWITCH
+    switch(fmt){
+    case VK_FORMAT_D24_UNORM_S8_UINT:
+    case VK_FORMAT_D32_SFLOAT_S8_UINT: return true;
+    default: return false;
+    }
+    DOT_RESTORE_PARTIAL_SWITCH
 }
 
 ///////////////////////////////////////////
@@ -791,10 +917,7 @@ vk_command_buffer_submit_info(VkCommandBuffer cmd)
 }
 
 internal VkSubmitInfo2
-vk_submit_info(
-    VkCommandBufferSubmitInfo* cmd,
-    VkSemaphoreSubmitInfo* signal_semaphore_info,
-    VkSemaphoreSubmitInfo* wait_semaphore_info)
+vk_submit_info(VkCommandBufferSubmitInfo *cmd, VkSemaphoreSubmitInfo *signal_semaphore_info, VkSemaphoreSubmitInfo *wait_semaphore_info)
 {
     VkSubmitInfo2 info = {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
@@ -863,7 +986,6 @@ vk_imageview_create_info(VkFormat format, VkImage image, VkImageAspectFlags aspe
 internal void*
 vk_alloc(void* data, usize size, usize alignment, VkSystemAllocationScope scope)
 {
-    DOT_UNUSED(data); DOT_UNUSED(size); DOT_UNUSED(alignment); DOT_UNUSED(scope);
     DOT_PRINT("VK Alloc: size=%M; scope=\n", size, string_VkSystemAllocationScope(scope));
 
     Arena* arena = cast(Arena*)data;
@@ -875,7 +997,7 @@ vk_alloc(void* data, usize size, usize alignment, VkSystemAllocationScope scope)
 internal void*
 vk_realloc(void* data, void* old_mem, usize size, usize alignment, VkSystemAllocationScope scope)
 {
-    DOT_UNUSED(data); DOT_UNUSED(size); DOT_UNUSED(alignment); DOT_UNUSED(scope); DOT_UNUSED(old_mem);
+    DOT_UNUSED(old_mem);
     DOT_PRINT("VK Realloc: size=%M; scope=%s", size, string_VkSystemAllocationScope(scope) );
     Arena* arena = cast(Arena*)data;
     void* mem = ARENA_PUSH(arena, size, alignment, true);
@@ -886,7 +1008,7 @@ vk_realloc(void* data, void* old_mem, usize size, usize alignment, VkSystemAlloc
 internal void
 vk_free(void* data, void* mem)
 {
-    DOT_UNUSED(data); DOT_UNUSED(mem);
+    DOT_UNUSED(mem);
     Arena* arena = cast(Arena*)data;
     DOT_PRINT("VK free");
     arena_print_debug(arena);
@@ -895,7 +1017,7 @@ vk_free(void* data, void* mem)
 internal void
 vk_internal_alloc(void* data, usize size, VkInternalAllocationType alloc_type, VkSystemAllocationScope scope)
 {
-    DOT_UNUSED(data); DOT_UNUSED(size); DOT_UNUSED(scope); DOT_UNUSED(alloc_type);
+    DOT_UNUSED(data, alloc_type);
     DOT_PRINT("VK Internal Alloc: size=%M; scope=%s", size, string_VkSystemAllocationScope(scope));
     // Arena* arena = cast(Arena*)data;
     // arena_print_debug(arena);
@@ -904,7 +1026,7 @@ vk_internal_alloc(void* data, usize size, VkInternalAllocationType alloc_type, V
 internal void
 vk_internal_free(void* data, usize size, VkInternalAllocationType alloc_type, VkSystemAllocationScope scope)
 {
-    DOT_UNUSED(data); DOT_UNUSED(size); DOT_UNUSED(scope); DOT_UNUSED(alloc_type);
+    DOT_UNUSED(data, alloc_type);
     DOT_PRINT("VK Internal Free: size=%M; scope=%s", size, string_VkSystemAllocationScope(scope));
 }
 

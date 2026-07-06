@@ -251,10 +251,9 @@ typedef double f64;
 
 #define DOT_ARRAY_COUNT(arr) sizeof(arr) / sizeof(arr[0])
 #define DOT_ARRAY_COUNT_T(T, ...) (sizeof((T[]){__VA_ARGS__}) / sizeof(T))
-#define DOT_ARRAY_UNWRAP(T, ...) (T[])__VA_ARGS__, (u64) (sizeof((T[]){__VA_ARGS__}) / sizeof(T))
 
-// Unpacks a parameter list into into size and static array
-#define DOT_ARRAY_UNPACK_T(T, ...) (sizeof((T[]){__VA_ARGS__}) / sizeof(T)), (T[]){__VA_ARGS__}
+#define DOT_ARRAY_SPREAD(T, ...) (T[])__VA_ARGS__, (u64) (sizeof((T[]){__VA_ARGS__}) / sizeof(T))
+#define DOT_ARRAY_SPREAD_T(T, ...) (sizeof((T[]){__VA_ARGS__}) / sizeof(T)), (T[]){__VA_ARGS__}
 
 // #define ARRAY_FIELDS(T, field, field_count, ...) \
 //     .field = { __VA_ARGS__ }, \
@@ -303,8 +302,11 @@ typedef double f64;
 //
 // Static Debug
 
-#define DOT_STATIC_ASSERT(x, ...) \
-typedef int DOT_CONCAT(DOT_STATIC_ASSERT, __COUNTER__) [(x) ? 1 : -1]
+#define DOT_STATIC_ASSERT(cond, ...) typedef int DOT_CONCAT(DOT_STATIC_ASSERT, __COUNTER__) [(cond) ? 1 : -1]
+// (jd) This is used as a compile time assert expression. Can be composed with other expressions
+// when we compile, signifying we didn't assert
+#define DOT_STATIC_ASSERT_EXPR(cond, ...) (0 * sizeof(char[(cond) ? 1 : -1]))
+#define DOT_STATIC_ASSERT_LITERAL_LEN(s, n) DOT_STATIC_ASSERT_EXPR(sizeof(s) - 1 == (n))
 
 ////////////////////////////////////////////////////////////////
 //
@@ -453,17 +455,23 @@ do { \
 // Memory
 
 #if DOT_COMPILER_MSVC
+#   define alignas(a) __declspec(align(a))
+#elif DOT_COMPILER_CLANG || DOT_COMPILER_GCC
+#   define alignas(a) __attribute((aligned(a)))
+#else
+#   error aligas not defined for this compiler.
+#endif
+
+#if DOT_COMPILER_MSVC
 #   define DOT_ALIGNOF(T) __alignof(T)
-#elif DOT_COMPILER_CLANG
-#   define DOT_ALIGNOF(T) __alignof__(T)
-#elif DOT_COMPILER_GCC
+#elif DOT_COMPILER_CLANG || DOT_COMPILER_GCC
 #   define DOT_ALIGNOF(T) __alignof__(T)
 #else
 #   error alignof not defined for this compiler.
 #endif
 
 #if ((defined(__GNUC__) && __GNUC__ >= 4) || defined(__clang__))
-#   define DOT_OFFSETOF(st,m) (__builtin_offsetof(st,m))
+#   define DOT_OFFSETOF(T,member) (__builtin_offsetof(T,member))
 #else
 #   define DOT_OFFSETOF(T, member) ((usize)&(((T*)0)->member))
 #endif
@@ -497,6 +505,10 @@ do { \
 #define MEMORY_EQUAL(a, b, size)    (MEMORY_COMPARE((a), (b), (size)) == 0)
 #define MEMORY_EQUAL_STRUCT(a, b)   (MEMORY_COMPARE((a), (b), sizeof(*(a))) == 0)
 
+// (jd) the comparisson here isn't doing anything. We just let the compiler validate the types
+// Note that the -Wcompare-distinct-pointer-types is needed
+#define VALIDATE_TYPE(x, T) ((void)((T*)0 == &(x)))
+
 ////////////////////////////////////////////////////////////////
 //
 // Useful Mem copy from raddebugger
@@ -512,35 +524,32 @@ do { \
 // Removalble debug field names
 
 typedef struct String8 String8;
-void dot_debug_name_set(u32 capacity, char *ptr, String8 src);
+internal void dot_debug_name_set(u32 capacity, char *ptr, String8 src);
+
+typedef struct DOT_DebugName16{
+    char buff[16];
+}DOT_DebugName16;
+
+typedef struct DOT_DebugName8{
+    char buff[8];
+}DOT_DebugName;
 
 #if DOT_DEBUG
-#   define DOT_DEBUG_NAME_LEN 16
-#   define DOT_DEBUG_NAME(field, size) char field[size]
-#   define DOT_DEBUG_NAME_SET(buff, str8) dot_debug_name_set(sizeof(buff), buff, str8)
+#   define DOT_DebugName16(field) DOT_DebugName16 field
+#   define DOT_DebugName8(field) DOT_DebugName8 field
+#   define DOT_DebugNameSet(field, str8) dot_debug_name_set(sizeof(field.buff), field.buff, str8)
 #else
-#   define DOT_DEBUG_NAME_LEN 0
-#   define DOT_DEBUG_NAME(field, size)
-#   define DOT_DEBUG_NAME_SET(buff, str8) (void) str8
+#   define DOT_DebugName16(field)
+#   define DOT_DebugName8(field)
+#   define DOT_DebugNameSet(buff, str8) (void) str8
 #endif
+
 
 ////////////////////////////////////////////////////////////////
 //
 // Unused
 
-#if DOT_COMPILER_MSVC
-#   define DOT_UNUSED(x) (__pragma(warning(suppress:4100))(x))
-#else
-#   define DOT_UNUSED(x) ((void)(x))
-#endif
-
-#if DOT_COMPILER_MSVC
-#   define UNUSED_PARAM(x) (__pragma(warning(suppress:4100))(x))
-#elif DOT_COMPILER_GCC || DOT_COMPILER_CLANG
-#   define UNUSED_PARAM(x) x __attribute__((__unused__))
-#else
-#   define UNUSED_PARAM(x) x
-#endif
+#define DOT_UNUSED(...) (void) sizeof((__VA_ARGS__, 0))
 
 ////////////////////////////////////////////////////////////////
 //
@@ -607,22 +616,21 @@ void dot_debug_name_set(u32 capacity, char *ptr, String8 src);
 
 
 #if DOT_COMPILER_MSVC || (DOT_COMPILER_CLANG && DOT_OS_WINDOWS)
-    // ???
-    // #pragma section("plugins$a", read)
-    // #pragma section("plugins$m", read)
-    // #pragma section("plugins$z", read)
+// (jd) NOTE: This need to be placed in manually for the section we want above declare section
+// #pragma section(".#name", read)
+// #pragma comment(linker, "/merge:.#name=.data")
+#   define DECLARE_SECTION(name) \
+        __declspec(allocate(#name "$a")) extern __start_##name; \
+        __declspec(allocate(#name "$z")) extern __stop_##name;
 
-    #define DECLARE_SECTION(name) \
-        __declspec(allocate(#name "$a")) extern const void *__start_##name; \
-        __declspec(allocate(#name "$z")) extern const void *__stop_##name;
-
-    #define SECTION_ITEM(name) __declspec(allocate(#name "$m"))
+#   define SECTION_ITEM(name) \
+        __declspec(allocate(#name "$m"))
 #else
-    #define DECLARE_SECTION(T, name) \
+#   define DECLARE_SECTION(T, name) \
         extern T __start_##name[]; \
         extern T __stop_##name[];
 
-    #define SECTION_ITEM(name, priority) \
+#   define SECTION_ITEM(name, priority) \
         __attribute__((no_sanitize("address"), used, section("." #name "." #priority)))
 #endif
 
@@ -648,5 +656,37 @@ void dot_debug_name_set(u32 capacity, char *ptr, String8 src);
 #else
 #  error "Atomic intrinsics not defined for this compiler / architecture."
 #endif
+
+////////////////////////////////////////////////////////////////
+///
+// Static hash
+//
+
+#define FNV1A_OFFSET 2166136261u
+#define FNV1A_PRIME  16777619u
+
+
+
+#define DOT_FNV1A_STEP(h, c) ((h ^ (unsigned char)(c)) * FNV1A_PRIME)
+
+#define DOT_FNV1A_1_UNCHECKED(s)  DOT_FNV1A_STEP(FNV1A_OFFSET, s[0])
+#define DOT_FNV1A_2_UNCHECKED(s)  DOT_FNV1A_STEP(DOT_FNV1A_1_UNCHECKED(s), s[1])
+#define DOT_FNV1A_3_UNCHECKED(s)  DOT_FNV1A_STEP(DOT_FNV1A_2_UNCHECKED(s), s[2])
+#define DOT_FNV1A_4_UNCHECKED(s)  DOT_FNV1A_STEP(DOT_FNV1A_3_UNCHECKED(s), s[3])
+#define DOT_FNV1A_5_UNCHECKED(s)  DOT_FNV1A_STEP(DOT_FNV1A_4_UNCHECKED(s), s[4])
+#define DOT_FNV1A_6_UNCHECKED(s)  DOT_FNV1A_STEP(DOT_FNV1A_6_UNCHECKED(s), s[4])
+#define DOT_FNV1A_7_UNCHECKED(s)  DOT_FNV1A_STEP(DOT_FNV1A_7_UNCHECKED(s), s[4])
+#define DOT_FNV1A_8_UNCHECKED(s)  DOT_FNV1A_STEP(DOT_FNV1A_8_UNCHECKED(s), s[4])
+
+#define DOT_FNV1A_1(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,1), DOT_FNV1A_1_UNCHECKED(s))
+#define DOT_FNV1A_2(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,2), DOT_FNV1A_2_UNCHECKED(s))
+#define DOT_FNV1A_3(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,3), DOT_FNV1A_3_UNCHECKED(s))
+#define DOT_FNV1A_4(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,4), DOT_FNV1A_4_UNCHECKED(s))
+#define DOT_FNV1A_5(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,5), DOT_FNV1A_5_UNCHECKED(s))
+#define DOT_FNV1A_6(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,6), DOT_FNV1A_6_UNCHECKED(s))
+#define DOT_FNV1A_7(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,7), DOT_FNV1A_7_UNCHECKED(s))
+#define DOT_FNV1A_8(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,8), DOT_FNV1A_8_UNCHECKED(s))
+
+static inline u32 fnv1a_runtime(String8 s);
 
 #endif // !DOT_H

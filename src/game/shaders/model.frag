@@ -1,4 +1,5 @@
-DOT_RAW_TEXT(
+#version 450
+#define PI 3.1415926538
 uint MaterialFeatures_ColorTexture      = 1 << 0;
 uint MaterialFeatures_NormalTexture     = 1 << 1;
 uint MaterialFeatures_RoughnessTexture  = 1 << 2;
@@ -39,8 +40,6 @@ layout (location = 2) in vec4 vTangent;
 layout (location = 3) in vec4 vPosition;
 
 layout (location = 0) out vec4 frag_color;
-
-\\#define PI 3.1415926538
 
 vec3 decode_srgb(vec3 c)
 {
@@ -117,8 +116,10 @@ void main()
         vec2 st1 = dFdx(vTexcoord0);
         vec2 st2 = dFdy(vTexcoord0);
 
-        vec3 T = normalize( Q1 * st2.t - Q2 * st1.t);
-        vec3 B = normalize(-Q1 * st2.s + Q2 * st1.s);
+        vec3 T = normalize(Q1 * st2.y - Q2 * st1.y);
+        vec3 B = normalize(-Q1 * st2.x + Q2 * st1.x);
+        // vec3 T = normalize( Q1 * st2.t - Q2 * st1.t);
+        // vec3 B = normalize(-Q1 * st2.s + Q2 * st1.s);
 
         // the transpose of texture-to-eye space matrix
         TBN = mat3(
@@ -213,4 +214,3 @@ void main()
         frag_color = vec4(base_colour.rgb * 0.1, base_colour.a);
     }
 }
-)

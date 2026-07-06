@@ -24,7 +24,7 @@ typedef struct DOT_Game{
     Arena *permanent_arena;
     Arena *transient_arena;
 
-    RN_ShaderModule *test_shader_module;
+    // RN_ShaderStage *test_shader_module;
     DOT_Model *test_model;
 }DOT_Game;
 

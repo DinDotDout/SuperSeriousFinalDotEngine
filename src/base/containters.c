@@ -16,6 +16,41 @@ raw_buffer_get(u8 raw_buffer[], i32 elem_idx, u32 elem_size)
 
 ////////////////////////////////////////////////////////////////
 ///
+///NODE
+
+internal u8 *
+arena_push_llnode(Arena *arena, u32 size, u32 offset, u32 align)
+{
+    u8 *mem = ARENA_PUSH(arena, size, align, false);
+    LLNode *node = cast(LLNode *)(mem + offset);
+    node->next  = cast(LLNode *)&g_llnode_sentinel;
+    return mem;
+}
+
+////////////////////////////////////////////////////////////////
+///
+/// Free List
+
+internal u8 *
+free_list_get_or_create(Arena *arena, LLHead *head, u32 size, u32 offset, u32 align)
+{
+    LLNode *first = head->first;
+    if (LLNodeIsNil(first)){
+        u8 *new = arena_push_llnode(arena, size, offset, align);
+        return new;
+    }
+    return (cast(u8*)first) - offset;
+}
+
+internal void
+free_list_free(LLHead *head, LLNode *node)
+{
+    node->next = head->first;
+    head->first = node;
+}
+
+////////////////////////////////////////////////////////////////
+///
 /// Pool
 
 internal u64
@@ -26,13 +61,6 @@ pool_handle_pack(PoolHandle h)
     return(res);
 }
 
-internal b32
-pool_handle_is_default(PoolHandle h)
-{
-    b32 res = h.idx == POOL_DEFAULT_HANDLE.idx;
-    return res;
-}
-
 internal PoolHandle
 pool_handle_unpack(u64 pack)
 {
@@ -41,6 +69,13 @@ pool_handle_unpack(u64 pack)
         // .gen = cast(u32)(pack >> 32),
     };
     return(h);
+}
+
+internal b32
+pool_handle_is_default(PoolHandle h)
+{
+    b32 res = h.idx == POOL_DEFAULT_HANDLE.idx;
+    return res;
 }
 
 internal u32
@@ -439,7 +474,7 @@ DOT_TEST_SUITE(pool_tests)
 
 DOT_TEST_SUITE(tree_tests)
 {
-    TempArena temp = threadctx_temp_begin(0);
+    TempArena temp = threadctx_temp_begin(0,0);
     DOT_TestResults test = {0};
     typedef struct SceneNode{
         const char *name;

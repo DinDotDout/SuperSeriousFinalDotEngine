@@ -45,7 +45,7 @@ internal void
 dot_cgltf_free(void *user, void* ptr)
 {
     // DOT_PRINT("freeing memory %p", ptr);
-    DOT_UNUSED(user); DOT_UNUSED(ptr);
+    DOT_UNUSED(user, ptr);
 }
 
 internal void
@@ -123,7 +123,7 @@ dot_model_from_cgltf(RN_RenderCtx *renderer, const cgltf_data *data, String8 glt
         .meshes     = SLICE_CREATE(renderer->transient_arena, DOT_Mesh, cast(u32)data->meshes_count),
     };
 
-    TempArena temp = threadctx_temp_begin(0);
+    TempArena temp = threadctx_temp_begin(0,0);
     String8 folder = string8_chop_last_slash(gltf_path);
     for (usize mesh_idx = 0; mesh_idx < data->meshes_count; mesh_idx++) {
         cgltf_mesh *src_mesh = &data->meshes[mesh_idx];
@@ -150,12 +150,13 @@ dot_model_from_cgltf(RN_RenderCtx *renderer, const cgltf_data *data, String8 glt
     for(u64 i = 0; i < data->samplers_count; ++i){
         cgltf_sampler *sampler = &data->samplers[i];
         String8 name = sampler->name ? string8_from_cstring(sampler->name) : string8_lit("Default");
-        SLICE_GET(model.samplers, i) = rn_sampler_create(
-            renderer,
-            RN_SAMPLER_DESC(
-                .min_filter = sampler->min_filter == cgltf_filter_type_linear ? RN_SamplerFilterKind_Linear : RN_SamplerFilterKind_Nearest,
-                .mag_filter = sampler->mag_filter == cgltf_filter_type_linear ? RN_SamplerFilterKind_Linear : RN_SamplerFilterKind_Nearest,
-            ), name);
+
+        RN_SamplerDesc desc = {0};
+        desc.min_filter = sampler->min_filter == cgltf_filter_type_linear ? RN_SamplerFilterKind_Linear : RN_SamplerFilterKind_Nearest,
+        desc.mag_filter = sampler->mag_filter == cgltf_filter_type_linear ? RN_SamplerFilterKind_Linear : RN_SamplerFilterKind_Nearest,
+        DOT_DebugNameSet(desc.debug_name, name);
+
+        SLICE_GET(model.samplers, i) = rn_sampler_create(renderer, &desc);
     }
 
     // (jd) NOTE: We already loaded buffers with cgltf_load_buffers, maybe do this ourselves?
@@ -164,13 +165,14 @@ dot_model_from_cgltf(RN_RenderCtx *renderer, const cgltf_data *data, String8 glt
         cgltf_buffer *buffer = buffer_view->buffer;
         String8 name = buffer_view->name ? string8_from_cstring(buffer_view->name) : string8_lit("Default");
         u8 *buffer_data = cast(u8*)buffer->data + buffer_view->offset;
-        SLICE_GET(model.buffers, i) = rn_buffer_create(
-            renderer,
-            RN_BUFFER_DESC(.size = buffer_view->size,
-                .resource_usage = RN_ResourceUsageKind_GPUOnly,
-                .buffer_usage_flags = RN_BufferUsageBit_Vertex
-                                      | RN_BufferUsageBit_Index),
-            buffer_data, name);
+
+        RN_BufferDesc desc = {0};
+        desc.size               = buffer_view->size;
+        desc.resource_usage     = RN_ResourceUsageKind_GPUOnly;
+        desc.buffer_usage_flags = RN_BufferUsageBit_Vertex | RN_BufferUsageBit_Index;
+        DOT_DebugNameSet(desc.debug_name, name);
+
+        SLICE_GET(model.buffers, i) = rn_buffer_create(renderer, &desc, buffer_data);
     }
     threadctx_temp_end(temp);
     return(model);
@@ -279,7 +281,7 @@ dot_gltf_load_from_path(Arena *arena, String8 path)
 internal DOT_Model
 dot_model_load_from_path(RN_RenderCtx *renderer, String8 path)
 {
-    TempArena temp = threadctx_temp_begin(0);
+    TempArena temp = threadctx_temp_begin(0,0);
     cgltf_data *gltf = dot_gltf_load_from_path(temp.arena, path);
     DOT_Model model = {0};
     if(gltf){

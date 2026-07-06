@@ -8,15 +8,20 @@ DOT_SETTING_U32("Render", g_thread_count, 1);
 
 DOT_SETTING_U32("Render", g_draw_texture_format, RN_TextureFormatKind_RGBA16F);
 DOT_SETTING_U32("Render", g_swapchaing_texture_format, RN_TextureFormatKind_RGBA8_SRGB);
-DOT_SETTING_U32("Render", g_depth_stencil_format, RN_TextureFormatKind_D32F);
+// DOT_SETTING_U32("Render", g_depth_stencil_format, RN_TextureFormatKind_D32F_S8_UINT);
+DOT_SETTING_U32("Render", g_depth_stencil_format, RN_TextureFormatKind_D32_SFLOAT);
 DOT_SETTING_U32("Render", g_present_mode, RN_PresentModeKind_Mailbox);
 
 DOT_SETTING_U32("RenderBackend", g_render_backend_transient_memory_size_b, DOT_KB(512));
 DOT_SETTING_U32("RenderBackend", g_render_backend_permanent_memory_size_b, DOT_MB(4));
-DOT_SETTING_U32("RenderBackend", g_texture_max, 512);
-DOT_SETTING_U32("RenderBackend", g_buffer_max, 4096);
-DOT_SETTING_U32("RenderBackend", g_sampler_max, 128);
-DOT_SETTING_U32("RenderBackend", rn_vk_g_shader_resource_max, 128);
+
+DOT_SETTING_U32("RenderBackend", rn_g_texture_max, 512);
+DOT_SETTING_U32("RenderBackend", rn_g_buffer_max, 4096);
+DOT_SETTING_U32("RenderBackend", rn_g_sampler_max, 128);
+DOT_SETTING_U32("RenderBackend", rn_g_shader_resource_max, 128);
+DOT_SETTING_U32("RenderBackend", rn_g_shader_state_resource_max, 128);
+DOT_SETTING_U32("RenderBackend", rn_g_pipeline_max, 128);
+
 DOT_SETTING_U32("RenderBackend", g_command_buffers_per_thread, 4);
 
 DOT_SETTING_U32("ShaderCache", g_shader_cache_bucket_count, 64);
@@ -57,7 +62,7 @@ rn_init(Arena *arena, RN_RenderCtx *renderer, DOT_Window *window)
         .name         = "Application renderer transient");
 
     TREE_INIT(renderer->permanent_arena, RN_ResourceCleanupCtx, &renderer->cleanup_tree, g_cleanup_resource_pool_max);
-    hash_map_RN_ShaderModule_init(renderer->permanent_arena, &renderer->shader_cache, g_shader_cache_bucket_count);
+    hash_map_RN_ShaderCachedData_init(renderer->permanent_arena, &renderer->shader_cache, g_shader_cache_bucket_count);
 
     renderer->backend = rn_backend_create(renderer->permanent_arena);
     renderer->frame_data_count = g_frame_overlap;
@@ -68,33 +73,32 @@ rn_init(Arena *arena, RN_RenderCtx *renderer, DOT_Window *window)
             .reserve_size = g_frame_arena_size_b);
     }
     RENDER_BACKEND_CALL(init(window));
-    null_texture = rn_texture_create_h(
-        renderer,
-        &(RN_TextureDesc) {
-            .width = 1,
-            .height = 1,
-            .depth = 1,
-            .mip_levels = 1,
-            .format_kind = RN_TextureFormatKind_RGBA8_UNORM,
-            .dimension_kind = RN_TextureDimensionKind_2D,
-        },
-        (u8[]){0,0,0,0},
-        string8_lit("null_texture")
-    );
-    (void)null_texture;
+    // null_texture = rn_texture_create_h(
+    //     renderer,
+    //     &(RN_TextureDesc) {
+    //         .width = 1,
+    //         .height = 1,
+    //         .depth = 1,
+    //         .mip_levels = 1,
+    //         .format_kind = RN_TextureFormatKind_RGBA8_UNORM,
+    //         .dimension_kind = RN_TextureDimensionKind_2D,
+    //     },
+    //     (u8[]){0,0,0,0},
+    // );
+    // (void)null_texture;
 }
 
 internal void
 rn_shutdown(RN_RenderCtx *renderer)
 {
-    HashMap_RN_ShaderModule *shader_cache = &renderer->shader_cache;
+    HashMap_RN_ShaderCachedData *shader_cache = &renderer->shader_cache;
     HashMap_Iter it = hash_map_iter_init();
-    RN_ShaderModule *shader_module = NULL;
-    while((shader_module = hash_map_RN_ShaderModule_iter_next(shader_cache, &it))){
-            RN_ShaderModuleHandle h = shader_module->shader_module_handle;
-            RENDER_BACKEND_CALL(shader_unload(h));
+    RN_ShaderCachedData *shader_stage = NULL;
+    while((shader_stage = hash_map_RN_ShaderCachedData_iter_next(shader_cache, &it))){
+        RN_ShaderStageHandle h = shader_stage->shader_stage_handle;
+        RENDER_BACKEND_CALL(shader_unload(h));
     }
-    hash_map_RN_ShaderModule_end(shader_cache);
+    hash_map_RN_ShaderCachedData_end(shader_cache);
     rn_resource_cleanup_list_pop_all(renderer);
     RENDER_BACKEND_CALL(shutdown());
 }
@@ -118,9 +122,9 @@ rn_sampler_destroy(RN_RenderCtx *renderer, RN_SamplerHandle handle)
 }
 
 internal RN_TextureHandle
-rn_texture_create_h(RN_RenderCtx *renderer, RN_TextureDesc *texture_desc, void *data, String8 debug_name)
+rn_texture_create_h(RN_RenderCtx *renderer, RN_TextureDesc *texture_desc, void *data)
 {
-    RN_TextureHandle h = RENDER_BACKEND_CALL(texture_create(texture_desc, data, debug_name));
+    RN_TextureHandle h = RENDER_BACKEND_CALL(texture_create(texture_desc, data));
     rn_resource_cleanup_list_push_texture(renderer, h);
     return(h);
 }
@@ -129,7 +133,7 @@ rn_texture_create_h(RN_RenderCtx *renderer, RN_TextureDesc *texture_desc, void *
 RN_Texture
 rn_texture_load_from_path(RN_RenderCtx *renderer, String8 name, String8 path, u8 mip_levels)
 {
-    DOT_WARNING("Creating texture with name %S, from path: ", name, path);
+    DOT_PRINT("Creating texture with name %S, from path %S: ", name, path);
     TempArena temp = temp_arena_start(renderer->transient_arena);
     String8 file_data = platform_read_entire_file(temp.arena, path);
 
@@ -166,7 +170,6 @@ rn_texture_load_from_path(RN_RenderCtx *renderer, String8 name, String8 path, u8
         }
     }
     RN_Texture res = {
-        .resource.kind = RN_ResourceKind_Texture,
         .desc = {
             .dimension_kind = RN_TextureDimensionKind_2D,
             .format_kind = rn_texture_format_from_info(comp, size_bytes, true),
@@ -176,53 +179,60 @@ rn_texture_load_from_path(RN_RenderCtx *renderer, String8 name, String8 path, u8
             .depth = 1,
         },
     };
-    res.handle = rn_texture_create_h(renderer, &res.desc, data, name),
+    res.handle = rn_texture_create_h(renderer, &res.desc, data),
     stbi_allocator_unset();
     temp_arena_restore(temp);
     return res;
 }
 
 internal RN_SamplerHandle
-rn_sampler_create_h(RN_RenderCtx *renderer, RN_SamplerDesc *sampler_desc, String8 debug_name)
+rn_sampler_create_h(RN_RenderCtx *renderer, RN_SamplerDesc *sampler_desc)
 {
-    RN_SamplerHandle h = RENDER_BACKEND_CALL(sampler_create(sampler_desc, debug_name));
+    RN_SamplerHandle h = RENDER_BACKEND_CALL(sampler_create(sampler_desc));
     rn_resource_cleanup_list_push_sampler(renderer, h);
     return(h);
 }
 
 internal RN_Sampler
-rn_sampler_create(RN_RenderCtx *renderer, RN_SamplerDesc *sampler_desc, String8 debug_name)
+rn_sampler_create(RN_RenderCtx *renderer, RN_SamplerDesc *sampler_desc)
 {
     RN_Sampler sampler = {
-        .resource.kind = RN_ResourceKind_Sampler,
         // .asset = dot_asset_from_create_info(renderer, asset_info, RN_ResourceKind_Sampler), .desc = *sampler_desc,
-        .handle = rn_sampler_create_h(renderer, sampler_desc, debug_name),
+        .handle = rn_sampler_create_h(renderer, sampler_desc),
     };
     return sampler;
 }
 
 internal RN_BufferHandle
-rn_buffer_create_h(RN_RenderCtx *renderer, RN_BufferDesc *buffer_desc, u8 *data, String8 debug_name)
+rn_buffer_create_h(RN_RenderCtx *renderer, RN_BufferDesc *buffer_desc, u8 *data)
 {
-    RN_BufferHandle h = RENDER_BACKEND_CALL(buffer_create(buffer_desc, data, debug_name));
+    RN_BufferHandle h = RENDER_BACKEND_CALL(buffer_create(buffer_desc, data));
     rn_resource_cleanup_list_push_buffer(renderer, h);
     return(h);
 }
 
 internal RN_Buffer
-rn_buffer_create(RN_RenderCtx *renderer, RN_BufferDesc *buffer_desc, u8 *data, String8 debug_name)
+rn_buffer_create(RN_RenderCtx *renderer, RN_BufferDesc *buffer_desc, u8 *data)
 {
     RN_Buffer buffer_asset = {
-        .resource.kind = RN_ResourceKind_Buffer,
         .desc = *buffer_desc,
     };
-    buffer_asset.handle = rn_buffer_create_h(renderer, buffer_desc, data, debug_name);
+    buffer_asset.handle = rn_buffer_create_h(renderer, buffer_desc, data);
     return buffer_asset;
 }
 
 internal RN_PipelineHandle
 rn_pipeline_create(RN_RenderCtx *renderer, RN_PipelineDesc *pipeline_desc)
 {
+    RN_ShaderState *shader_state = &pipeline_desc->shader_state;
+    shader_state->is_graphics_pipeline = true;
+    for(u32 i = 0; i < shader_state->shader_stage_count; ++i){
+        RN_ShaderStage *stage = &shader_state->shader_stages[i];
+        stage->shader_stage_handle = rn_shader_stage_handle_get_or_create(renderer, stage);
+        if(stage->stage_kind == RN_ShaderStageKind_Compute){
+            shader_state->is_graphics_pipeline = false;
+        }
+    }
     RN_PipelineHandle h = RENDER_BACKEND_CALL(pipeline_create(pipeline_desc));
     return(h);
 }
@@ -239,12 +249,11 @@ internal RN_RenderPassOutput
 rn_swapchain_output()
 {
     RN_RenderPassOutput rpo = {0};
-    rpo.depth_stencil_format = g_depth_stencil_format;
-    RN_TextureFormatKind texture_fmt = g_swapchaing_texture_format;
-    ARRAY_PUSH(rpo.color_formats, texture_fmt);
+    rpo.depth_stencil_format    = g_depth_stencil_format;
+    rpo.color_formats[0]        = g_swapchaing_texture_format;
+    rpo.color_format_count      = 1;
     return(rpo);
 }
-
 
 void
 rn_clear_background(RN_RenderCtx *renderer, vec3 color)
@@ -316,7 +325,7 @@ rn_resource_cleanup_list_pop_at(PoolHandle pop_start)
 internal void
 rn_resource_cleanup_list_pop_all(RN_RenderCtx *renderer)
 {
-    TempArena t = threadctx_temp_begin(0);
+    TempArena t = threadctx_temp_begin(0,0);
     RN_ResourceCleanupTree *tree = &renderer->cleanup_tree;
     TreeIterator it = TREE_ITER_BEGIN(t.arena, tree, tree->tree_pool.tree_root);
     for EACH_TREE_NODE(node_h, &it){
@@ -337,33 +346,39 @@ rn_resource_cleanup_list_pop_all(RN_RenderCtx *renderer)
     threadctx_temp_end(t);
 }
 
-RN_ShaderModule*
-rn_shader_module_load_from_path(RN_RenderCtx *renderer, String8 path)
+internal RN_ShaderStageHandle
+rn_shader_stage_handle_get_or_create(RN_RenderCtx *renderer, RN_ShaderStage *stage)
 {
-    TempArena temp = threadctx_temp_begin(0);
-    String8 compiled_path = rn_shader_cache_get_compiled_path(renderer->permanent_arena, path);
-    b32 source_updated = platform_file_is_newer(path, compiled_path);
+    DOT_ASSERT(stage->stage_kind < RN_ShaderStageKind_Count);
+    if(stage->stage_kind == RN_ShaderStageKind_None){
+        stage->stage_kind = rn_shader_stage_kind_from_path(stage->path);
+    }
+    String8 stage_str = rn_slang_stage_from_shader_stage_kind(stage->stage_kind);
+    String8 compiled_path = rn_shader_cache_get_compiled_path(renderer->permanent_arena, stage->path);
+
+    b32 need_recompile = platform_file_is_newer(stage->path, compiled_path);
     b32 compilation_success = false;
-    if(source_updated){
-        DOT_PRINT("Recompiling %S", path);
-        compilation_success = rn_shader_compile_from_path(path, compiled_path);
+    if(need_recompile){
+        DOT_PRINT("Recompiling %S", stage->path);
+        compilation_success = rn_shader_compile_from_path(1, &stage_str, stage->path, compiled_path);
         if(!compilation_success){
-            DOT_WARNING("Failed to compile shader %S", path);
+            DOT_WARNING("Failed to compile shader %S", stage->path); 
         }
     }
 
-    RN_ShaderModule *shader_module = hash_map_RN_ShaderModule_get_or_create(renderer->permanent_arena, &renderer->shader_cache, path);
-    b32 should_update_shader = (source_updated && compilation_success) || !rn_shader_module_is_initialized(shader_module);
+    RN_ShaderCachedData *shader_stage = hash_map_RN_ShaderCachedData_get_or_create(renderer->permanent_arena, &renderer->shader_cache, stage->path);
+
+    b32 just_created = !rn_shader_module_is_initialized(shader_stage);
+    b32 should_update_shader = (need_recompile && compilation_success) || just_created;
     if(should_update_shader){
-        shader_module->compiled_path = compiled_path;
-        shader_module->path = path;
-        String8 compiled_shader_content = platform_read_entire_file(temp.arena, compiled_path);
-        if(compiled_shader_content.size > 0){
-            shader_module->shader_module_handle = RENDER_BACKEND_CALL(shader_create(compiled_shader_content));
+        shader_stage->compiled_path = compiled_path;
+        shader_stage->path = stage->path;
+        shader_stage->byte_code = platform_read_entire_file(renderer->permanent_arena, compiled_path);
+        if(shader_stage->byte_code.size > 0){
+            shader_stage->shader_stage_handle = RENDER_BACKEND_CALL(shader_create(shader_stage->byte_code));
         }else{
-            DOT_WARNING("Failed to read shader %S compilation %S", path, compiled_path);
+            DOT_WARNING("Failed to read shader %S compilation %S", stage->path, compiled_path);
         }
     }
-    threadctx_temp_end(temp);
-    return shader_module;
+    return(shader_stage->shader_stage_handle);
 }

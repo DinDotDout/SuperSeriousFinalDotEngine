@@ -18,6 +18,7 @@ typedef PoolHandle RN_VK_BufferHandle;
 typedef PoolHandle RN_VK_SamplerHandle;
 typedef PoolHandle RN_VK_ShaderResourceLayoutHandle;
 typedef PoolHandle RN_VK_PipelineHandle;
+typedef PoolHandle RN_VK_ShaderStateHandle;
 
 RN_VK_TextureHandle *rn_vk_g_default_texture = {0};
 RN_VK_SamplerHandle *rn_vk_g_default_sampler = {0};
@@ -34,8 +35,7 @@ typedef struct RN_VK_Sampler{
     VkSamplerAddressMode vk_address_mode_u;
     VkSamplerAddressMode vk_address_mode_v;
     VkSamplerAddressMode vk_address_mode_w;
-
-    DOT_DEBUG_NAME(name, DOT_DEBUG_NAME_LEN);
+    DOT_DebugName16(debug_name);
 }RN_VK_Sampler;
 
 typedef struct RN_VK_Texture{
@@ -47,23 +47,22 @@ typedef struct RN_VK_Texture{
     VkImageLayout vk_image_layout;
 
     RN_VK_GpuAllocHandle alloc;
-    // u8 flags; // Needed?
     u8 mip_levels;
 
     RN_VK_SamplerHandle sampler;
-    DOT_DEBUG_NAME(name, DOT_DEBUG_NAME_LEN);
+    DOT_DebugName16(debug_name);
 }RN_VK_Texture;
 
 typedef struct RN_VK_Buffer{
     VkBuffer            vk_buffer;
     u64                 vk_size;
     VkBufferUsageFlags  vk_buffer_usage_flags;
-    RN_VK_GpuAllocHandle alloc;
 
-    u32                 global_offset;    // Offset into global constant, if dynamic
-    // RN_VK_BufferHandle   parent_buffer;
+    RN_VK_GpuAllocHandle alloc;
+    u64                  offset;
+
     RN_ResourceUsageKind resource_usage; // here for now;
-    DOT_DEBUG_NAME(name, DOT_DEBUG_NAME_LEN);
+    DOT_DebugName16(debug_name);
 }RN_VK_Buffer;
 
 typedef struct RN_VK_ShaderResourceLayout{
@@ -76,26 +75,32 @@ typedef struct RN_VK_ShaderResourceLayout{
     u16 resource_layout_idx;
     RN_VK_ShaderResourceLayoutHandle handle;
 }RN_VK_ShaderResourceLayout;
- 
-enum { DOT_MAX_DESCRIPTOR_SET_LAYOUTS = 16 };
+
+typedef struct RN_VK_ShaderState{
+    u32                             shader_stage_info_count;
+    VkPipelineShaderStageCreateInfo shader_stage_info[RN_SHADER_STAGES_MAX];
+    bool is_graphics_pipeline;
+
+    DOT_DebugName16(debug_name);
+}RN_VK_ShaderState;
+
+typedef struct RN_VK_RenderPassOutput{
+    VkFormat depth_stencil_format;
+    VkFormat color_formats[RN_IMAGE_OUTPUTS_MAX];
+    u32      color_formats_count;
+}RN_VK_RenderPassOutput;
+
 typedef struct RN_VK_Pipeline{
-    VkPipeline                      vk_pipeline;
-    VkPipelineLayout                vk_pipeline_layout;
+    VkPipeline           vk_pipeline;
+    VkPipelineLayout     vk_pipeline_layout;
 
-    VkPipelineBindPoint            vk_bind_point;
-    RN_ShaderModuleHandle          shader_state;
+    VkPipelineBindPoint  vk_bind_point;
+    RN_VK_ShaderStateHandle shader_state_handle;
 
-    // const DesciptorSetLayout*       descriptor_set_layout[DOT_MAX_DESCRIPTOR_SET_LAYOUTS];
-    // DescriptorSetLayoutHandle       descriptor_set_layout_handle[DOT_MAX_DESCRIPTOR_SET_LAYOUTS];
-    // u32                             num_active_layouts = 0;
-    //
-    // DepthStencilCreation            depth_stencil;
-    // BlendStateCreation              blend_state;
-    // RasterizationCreation           rasterization;
-    //
-    // PipelineHandle                  handle;
-    // bool                            graphics_pipeline = true;
-}RN_VK_Pipeline;
+    u32                  shader_resource_layout_count;
+    RN_VK_ShaderResourceLayoutHandle shader_resource_layouts[RN_SHADER_RESOURCE_LAYOUT_MAX];
+    RN_VK_RenderPassOutput renderpass_output;
+} RN_VK_Pipeline;
 
 typedef struct RN_VK_SwapchainImage{
     VkImage     vk_image;
@@ -110,9 +115,6 @@ typedef struct RN_VK_Swapchain{
 
     u32 swapchain_image_count;
     RN_VK_SwapchainImage *swapchain_images;
-
-    // ARRAY(VkSemaphore,          RENDER_SWAPCHAIN_TEXTURES_MAX) render_complete_semaphores;
-    // SLICE(RN_VK_SwapchainTexture) image_datas;
 }RN_VK_Swapchain;
 
 enum{
@@ -121,9 +123,6 @@ enum{
 };
 typedef struct RN_VK_FrameData{
     Arena          *frame_arena;
-
-    // VkCommandBuffer frame_command_buffer; // (jd) NOTE: * parallel recordings in flight
-    // VkCommandBuffer immediate_command_buffer;
 
     RN_VK_TextureHandle     draw_image;
 
@@ -138,37 +137,29 @@ typedef struct RN_VK_FrameData{
 
 // (jd) TODO: Move this to renderer and use DOT_TextureHandles and so on
 
+// vkCmdBeginRendering
 typedef struct RN_VK_AttachmentOps {
-    VkImageLayout initial_layout;
-    VkImageLayout final_layout;
+    // VkImageLayout initial_layout;
+    // VkImageLayout final_layout;
     VkAttachmentLoadOp load_op;
     VkAttachmentStoreOp store_op;
     VkClearValue clear_value;
 }RN_VK_AttachmentOps;
 
-typedef struct RN_VK_RenderingAttachments {
-    RN_VK_TextureHandle color[RN_IMAGE_OUTPUTS_MAX];
-    RN_VK_TextureHandle depth_stencil;
+// vkCmdBeginRendering
+typedef struct RN_VK_RenderingAttachments{
+    u32 color_texture_count;
+    RN_VK_TextureHandle color_textures[RN_IMAGE_OUTPUTS_MAX];
+    RN_VK_TextureHandle depth_stencil_texture;
 
-    u32 num_color;
     u16 width, height;
 
     f32 scale_x, scale_y;
     u8 resize;
 
-    DOT_DEBUG_NAME(name, DOT_DEBUG_NAME_LEN);
+    DOT_DebugName16(debug_name);
 }RN_VK_RenderingAttachments;
 
-typedef struct RN_VK_RenderPassOutput{
-    VkFormat depth_stencil_format;
-    VkFormat color_formats[RN_IMAGE_OUTPUTS_MAX];
-    u32      color_formats_count;
-}RN_VK_RenderPassOutput;
-
-// Switch case of h type or switch on asset kind or something?
-typedef struct RN_VK_ResourcePool{
-
-}RN_VK_ResourcePool;
 
 typedef struct RN_VK_BackendCtx{
     RN_BackendCtx base;
@@ -210,6 +201,8 @@ typedef struct RN_VK_BackendCtx{
     POOL(RN_VK_Buffer)   buffer_pool;
     POOL(RN_VK_Sampler)  sampler_pool;
     POOL(RN_VK_ShaderResourceLayout)  shader_resource_layout_pool;
+    POOL(RN_VK_ShaderState) shader_state_pool;
+    POOL(RN_VK_Pipeline) pipeline_pool;
 
     // NOTE: vk expects a malloc like allocator, which I don't intend on make or using for now
     // so our push arenas do not work for this :(
@@ -236,10 +229,11 @@ internal void rn_vk_frame_counters_advance();
 // TODO: Not sure if missing desc should just mean returning a defaulted g_ thing
 // initialized the first time falling through that path or we should treat it as
 // an error
-internal RN_VK_TextureHandle                rn_vk_texture_create_(RN_TextureDesc *desc, void *data, String8 debug_name);
-internal RN_VK_SamplerHandle                rn_vk_sampler_create_(RN_SamplerDesc *desc, String8 debug_name);
-internal RN_VK_BufferHandle                 rn_vk_buffer_create_(RN_BufferDesc *create_info, u8 *data, String8 debug_name);
+internal RN_VK_TextureHandle                rn_vk_texture_create_(RN_TextureDesc *desc, void *data);
+internal RN_VK_SamplerHandle                rn_vk_sampler_create_(RN_SamplerDesc *desc);
+internal RN_VK_BufferHandle                 rn_vk_buffer_create_(RN_BufferDesc *create_info, u8 *data);
 internal RN_VK_ShaderResourceLayoutHandle   rn_vk_shader_resource_layout_create_(RN_ShaderResourceLayoutDesc *resource_layout);
+internal RN_VK_PipelineHandle               rn_vk_pipeline_create_(RN_PipelineDesc *create_info);
 
 internal void                               rn_vk_texture_destroy_(RN_VK_TextureHandle h);
 internal void                               rn_vk_buffer_destroy_(RN_VK_BufferHandle h);
@@ -248,9 +242,4 @@ internal void                               rn_vk_shader_resource_layout_destroy
 internal void                               rn_vk_pipeline_destroy_(RN_VK_PipelineHandle h);
 
 internal RN_VK_FrameData    *rn_vk_frame_data_get_current();
-
-// Should these be also coming from a pool like RN_VK_Resources?
-internal RN_ShaderModuleHandle rn_vk_dot_shader_module_from_vk_shader_module(VkShaderModule vk_sm);
-internal VkShaderModule         rn_vk_vk_shader_module_from_rn_shader_module(RN_ShaderModuleHandle dot_smh);
-
 #endif // !RN_VK_H

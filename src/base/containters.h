@@ -5,6 +5,48 @@ internal u64 array_bounds_check(u64 elem_idx, u64 capacity, char *file, int line
 
 ////////////////////////////////////////////////////////////////
 ///
+///NODE
+
+typedef struct LLNode LLNode;
+struct LLNode{
+    LLNode *next;
+};
+
+typedef struct LLHead{
+    LLNode *first;
+    LLNode *last;
+}LLHead;
+
+read_only global LLNode g_llnode_sentinel = {
+    cast(LLNode*)&g_llnode_sentinel
+};
+
+internal u8 *arena_push_llnode(Arena *arena, u32 size, u32 offset, u32 align);
+
+#define llhead_node(...)    {.next = cast(LLNode*)&g_llnode_sentinel};
+#define llhead_lit(...)     {.head.first = cast(LLNode*)&g_llnode_sentinel, .head.last = cast(LLNode*)&g_llnode_sentinel}
+
+#define PushLLNode(a, T)    (T*)arena_push_llnode((a), sizeof(T), DOT_OFFSETOF(T, node), DOT_ALIGNOF(T))
+
+#define LLNodeIsNil(p)       ((p) == &g_llnode_sentinel || (p) == 0)
+#define LLHeadFirst(T, h)   DOT_CONTAINER_OF((h)->head.first, T, node)
+#define LLHeadLast(T, h)    DOT_CONTAINER_OF((h)->head.last, T, node)
+
+#define LLNodeGet(T, n)     DOT_CONTAINER_OF(n, T, node)
+#define LLNodeNext(T, n)    DOT_CONTAINER_OF(n->node.next, T, node)
+
+////////////////////////////////////////////////////////////////
+///
+/// Free List
+
+internal u8 * free_list_get_or_create(Arena *arena, LLHead *head, u32 size, u32 offset, u32 align);
+internal void free_list_free(LLHead *head, LLNode *node);
+
+#define FreeListGetOrCreate(a, h, T)    (T*)free_list_get_or_create((a), &(h)->head, sizeof(T), DOT_OFFSETOF(T, node), DOT_ALIGNOF(T))
+#define FreeListFree(h, n)              free_list_free(&(h)->head, &(n)->node)
+
+////////////////////////////////////////////////////////////////
+///
 /// SLICE
 
 #define SLICE(T) \

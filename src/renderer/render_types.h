@@ -8,13 +8,9 @@
     X(RN_ResourceKind, Buffer) \
     X(RN_ResourceKind, Pipeline) \
     X(RN_ResourceKind, ShaderResourceLayout) \
-    X(RN_ResourceKind, ShaderModule) \
+    X(RN_ResourceKind, ShaderState) \
     X(RN_ResourceKind, Count)
 DOT_ENUM_REFLECT_TYPED(u8, RN_ResourceKind, RN_RESOURCE_KINDS);
-
-typedef struct RN_Resource{
-    RN_ResourceKind kind;
-}RN_Resource;
 
 #define RN_PRESENT_MODE_KINDS(X) \
     X(RN_PresentModeKind, Immediate) \
@@ -55,10 +51,10 @@ DOT_ENUM_REFLECT(RN_TextureDimensionKind, RN_TEXTURE_DIMENSION_KINDS)
     X(RN_TextureFormatKind, RG32F) \
     X(RN_TextureFormatKind, RGBA32F) \
     /* Depth stencil */\
-    X(RN_TextureFormatKind, D16) \
-    X(RN_TextureFormatKind, D24S8) \
-    X(RN_TextureFormatKind, D32F) \
-    X(RN_TextureFormatKind, D32FS8) \
+    X(RN_TextureFormatKind, D16_UNORM) \
+    X(RN_TextureFormatKind, D24_UNORM_S8_UINT) \
+    X(RN_TextureFormatKind, D32_SFLOAT) \
+    X(RN_TextureFormatKind, D32F_S8_UINT) \
     /* Block compressed */ \
     X(RN_TextureFormatKind, BC1) \
     X(RN_TextureFormatKind, BC1_SRGB) \
@@ -99,7 +95,6 @@ typedef struct RN_TextureFormatInfo{
     RN_TextureFormatFlags format_flags;
 }RN_TextureFormatInfo;
 
-
 #define RN_SHADER_RESOURCE_LAYOUT_KINDS(X) \
     X(RN_ShaderResourceKind, Sampler) \
     X(RN_ShaderResourceKind, SampledTexture) /* SRV */ \
@@ -120,14 +115,14 @@ rn_handle_pack(u32 index, RN_ResourceKind kind)
     return ((u64)kind << 32) | (u64)index;
 }
 
-internal inline
-u32 rn_handle_index(u64 h)
+internal inline u32
+rn_handle_index(u64 h)
 {
     return cast(u32)(h & 0xffffffffu);
 }
 
-internal inline
-RN_ResourceKind rn_handle_kind(u64 h)
+internal inline RN_ResourceKind
+rn_handle_kind(u64 h)
 {
     return cast(RN_ResourceKind)((h >> 32) & 0xffffu);
 }
@@ -152,6 +147,14 @@ typedef struct RN_PipelineHandle{
     RN_Handle handle;
 }RN_PipelineHandle;
 
+typedef struct RN_ShaderStageHandle{
+    RN_Handle handle;
+}RN_ShaderStageHandle;
+
+typedef struct RN_ShaderStateHandle{
+    RN_Handle handle;
+}RN_ShaderStateHandle;
+
 typedef struct RN_ShaderResourceBinding{
     RN_ShaderResourceKind kind;
     u16 start;
@@ -168,7 +171,7 @@ typedef struct RN_ShaderResourceLayoutDesc{
 }RN_ShaderResourceLayoutDesc;
 
 typedef struct RN_ShaderResourceLayout{
-    RN_Resource resource;
+    // RN_Resource resource;
     RN_ShaderResourceLayoutHandle handle;
     RN_ShaderResourceLayoutDesc desc;
 }RN_ShaderResourceLayout;
@@ -181,7 +184,7 @@ typedef struct RN_TextureDesc{
     u16 height; // = 1;
     u16 depth; // = 1;
     u8 mip_levels; // = 1; // 0 will auto generate
-    DOT_DEBUG_NAME(debug_name, DOT_DEBUG_NAME_LEN);
+    DOT_DebugName16(debug_name);
 }RN_TextureDesc;
 
 #define RN_TEXTURE_DESC(...) \
@@ -195,7 +198,6 @@ typedef struct RN_TextureDesc{
 
 global RN_TextureHandle null_texture = {0};
 typedef struct RN_Texture{
-    RN_Resource resource;
     RN_TextureHandle handle;
     RN_TextureDesc desc;
 }RN_Texture;
@@ -226,14 +228,10 @@ typedef struct RN_BufferDesc{
     u64 size;
     RN_BufferUsageFlags     buffer_usage_flags;
     RN_ResourceUsageKind    resource_usage;
-    DOT_DEBUG_NAME(debug_name, DOT_DEBUG_NAME_LEN);
+    DOT_DebugName16(debug_name);
 }RN_BufferDesc;
 
-#define RN_BUFFER_DESC(...) \
-    &(RN_BufferDesc){__VA_ARGS__} \
-
 typedef struct RN_Buffer{
-    RN_Resource resource;
     RN_BufferHandle handle;
     RN_BufferDesc desc;
 }RN_Buffer;
@@ -271,14 +269,15 @@ typedef struct RN_SamplerDesc{
     RN_SamplerAddressModeKind  address_mode_u;
     RN_SamplerAddressModeKind  address_mode_v;
     RN_SamplerAddressModeKind  address_mode_w;
+    DOT_DebugName16(debug_name);
 }RN_SamplerDesc;
-#define RN_SAMPLER_DESC(...) \
-    &(RN_SamplerDesc){ \
-        __VA_ARGS__ \
-    }
+
+// #define RN_SAMPLER_DESC(...) \
+//     &(RN_SamplerDesc){ \
+//         __VA_ARGS__ \
+//     }
 
 typedef struct RN_Sampler{
-    RN_Resource resource;
     RN_SamplerHandle handle;
     RN_SamplerDesc desc;
 }RN_Sampler;
@@ -286,8 +285,8 @@ typedef struct RN_Sampler{
 // typedef struct RN_Program{
 // }RN_Program;
 enum{
-    RN_MAX_VERTEX_STREAMS = 16,
-    RN_MAX_VERTEX_ATTRIBUTES = 16
+    RN_VERTEX_STREAMS_MAX = 16,
+    RN_VERTEX_ATTRIBUTES_MAX = 16
 };
 typedef enum RN_VertexInputRateKind{
     RN_VertexInputRateKind_PerVertex,
@@ -301,38 +300,42 @@ typedef struct RN_VertexStream{
     RN_VertexInputRateKind input_rate;
 }RN_VertexStream;
 
-typedef enum RN_VertexCommponentKind{
-    RN_VertexCommponentKind_F32,
-    RN_VertexCommponentKind_F32x2,
-    RN_VertexCommponentKind_F32x3,
-    RN_VertexCommponentKind_F32x4,
-    RN_VertexCommponentKind_Mat4,
-    RN_VertexCommponentKind_I8,
-    RN_VertexCommponentKind_I8x4Norm,
-    RN_VertexCommponentKind_U8,
-    RN_VertexCommponentKind_U8x4Norm,
-    RN_VertexCommponentKind_U16x2,
-    RN_VertexCommponentKind_U16x2Norm,
-    RN_VertexCommponentKind_U16x4,
-    RN_VertexCommponentKind_U16x4Norm,
-    RN_VertexCommponentKind_U32,
-    RN_VertexCommponentKind_U32x2,
-    RN_VertexCommponentKind_U32x4,
-    RN_VertexCommponentKind_Count,
-}RN_VertexCommponentKind;
+typedef enum RN_FormatKind{
+    RN_FormatKind_F32,
+    RN_FormatKind_F32x2,
+    RN_FormatKind_F32x3,
+    RN_FormatKind_F32x4,
+    // RN_FormatKind_Mat4,
+    RN_FormatKind_I8,
+    RN_FormatKind_I8x4Norm,
+    RN_FormatKind_U8,
+    RN_FormatKind_U8x4Norm,
+    RN_FormatKind_U16x2,
+    RN_FormatKind_U16x2Norm,
+    RN_FormatKind_U16x4,
+    RN_FormatKind_U16x4Norm,
+    RN_FormatKind_U32,
+    RN_FormatKind_U32x2,
+    RN_FormatKind_U32x4,
+    RN_FormatKind_Count,
+}RN_FormatKind;
 
 typedef struct RN_VertexAttribute{
     u16 location;
     u32 binding;
-    u64 offset;
-    RN_VertexCommponentKind vertex_component_kind;
+    u32 offset;
+    RN_FormatKind vertex_component_kind;
 }RN_VertexAttribute;
 
 typedef struct RN_VertexInput{
-    // u32 vertex_attribute_count;
-    // RN_VertexAttribute vertex_attributes[RN_MAX_VERTEX_ATTRIBUTES];
-    ARRAY(RN_VertexAttribute, RN_MAX_VERTEX_ATTRIBUTES) vertex_attributes;
-    ARRAY(RN_VertexStream, RN_MAX_VERTEX_STREAMS) vertex_streams;
+    u32 vertex_attribute_count;
+    RN_VertexAttribute vertex_attributes[RN_VERTEX_ATTRIBUTES_MAX];
+
+    u32 vertex_stream_count;
+    RN_VertexStream vertex_streams[RN_VERTEX_STREAMS_MAX];
+ 
+    // ARRAY(RN_VertexAttribute, RN_VERTEX_ATTRIBUTES_MAX) vertex_attributes;
+    // ARRAY(RN_VertexStream, RN_VERTEX_STREAMS_MAX) vertex_streams;
 }RN_VertexInput;
 
 typedef u8 RN_CullModeFlags;
@@ -360,34 +363,34 @@ typedef struct RN_RasterState{
     RN_FillModeKind fill_mode;
 }RN_RasterState;
 
-typedef enum RN_CompareOp{
-    RN_CompareOp_Always,
-    RN_CompareOp_Never,
-    RN_CompareOp_Less,
-    RN_CompareOp_Equal,
-    RN_CompareOp_LessOrEqual,
-    RN_CompareOp_Greater,
-    RN_CompareOp_NotEqual,
-    RN_CompareOp_GreaterOrEqual,
-}RN_CompareOp;
+typedef enum RN_CompareOpKind{
+    RN_CompareOpKind_Always,
+    RN_CompareOpKind_Never,
+    RN_CompareOpKind_Less,
+    RN_CompareOpKind_Equal,
+    RN_CompareOpKind_LessOrEqual,
+    RN_CompareOpKind_Greater,
+    RN_CompareOpKind_NotEqual,
+    RN_CompareOpKind_GreaterOrEqual,
+}RN_CompareOpKind;
 
-typedef enum RN_StencilOp{
-    RN_StencilOp_Keep,
-    RN_StencilOp_Zero,
-    RN_StencilOp_Replace,
-    RN_StencilOp_IncrementAndClamp,
-    RN_StencilOp_DecrementAndClamp,
-    RN_StencilOp_Invert,
-    RN_StencilOp_IncrementAndWrap,
-    RN_StencilOp_DecrementAndWrap,
-}RN_StencilOp;
+typedef enum RN_StencilOpKind{
+    RN_StencilOpKind_Keep,
+    RN_StencilOpKind_Zero,
+    RN_StencilOpKind_Replace,
+    RN_StencilOpKind_IncrementAndClamp,
+    RN_StencilOpKind_DecrementAndClamp,
+    RN_StencilOpKind_Invert,
+    RN_StencilOpKind_IncrementAndWrap,
+    RN_StencilOpKind_DecrementAndWrap,
+}RN_StencilOpKind;
 
 typedef struct RN_StencilState{
-    RN_StencilOp fail;
-    RN_StencilOp pass;
-    RN_StencilOp depth_fail;
+    RN_StencilOpKind fail;
+    RN_StencilOpKind pass;
+    RN_StencilOpKind depth_fail;
 
-    RN_CompareOp compare_op;
+    RN_CompareOpKind compare_op;
 
     u32 compare_mask;
     u32 write_mask;
@@ -397,7 +400,7 @@ typedef struct RN_StencilState{
 typedef struct RN_DepthStencilState{
     RN_StencilState front;
     RN_StencilState back;
-    RN_CompareOp   depth_comparison;
+    RN_CompareOpKind   depth_comparison;
     union{
         struct {
             b8 depth_enable : 1;
@@ -411,7 +414,7 @@ typedef struct RN_DepthStencilState{
 enum
 {
     RN_IMAGE_OUTPUTS_MAX = 8, // Maximum number of images/render_targets/fbo attachments usable.
-    RN_DESCRIPTOR_SET_LAYOUT_MAX,
+    RN_SHADER_RESOURCE_LAYOUT_MAX,
     RN_SHADER_STAGES_MAX,
 };
 
@@ -459,7 +462,7 @@ enum{
 
 typedef struct RN_BlendState{
     RN_BlendFactorKind src_color;
-    RN_BlendFactorKind dest_color;
+    RN_BlendFactorKind dst_color;
     RN_BlendOpKind     blend_op;
 
     RN_BlendFactorKind src_alpha;
@@ -468,13 +471,14 @@ typedef struct RN_BlendState{
 
     RN_ColorWriteFlags color_write_mask;
     b8 blend_enabled : 1;
-    b8 separate_enabled : 1;
-    b8 pad : 6;
+    b8 separate_blend : 1;
+    // b8 pad : 6;
 }RN_BlendState;
 
 typedef struct RN_RenderPassOutput{
     RN_TextureFormatKind depth_stencil_format;
-    ARRAY(RN_TextureFormatKind, RN_IMAGE_OUTPUTS_MAX) color_formats;
+    u32 color_format_count;
+    RN_TextureFormatKind color_formats[RN_IMAGE_OUTPUTS_MAX];
 }RN_RenderPassOutput;
 
 typedef struct RN_Extent2D16{
@@ -497,6 +501,7 @@ typedef struct RN_ViewportState{
 }RN_ViewportState;
 
 typedef enum RN_ShaderStageKind{
+    RN_ShaderStageKind_None , // (jd) Infer based on file type
     RN_ShaderStageKind_Vertex,
     RN_ShaderStageKind_Fragment,
     RN_ShaderStageKind_Compute,
@@ -507,28 +512,79 @@ typedef enum RN_ShaderStageKind{
     RN_ShaderStageKind_RayHitClosest,
     RN_ShaderStageKind_RayHitMiss,
     RN_ShaderStageKind_RayHitIntersection,
+    RN_ShaderStageKind_Callable,
+
     RN_ShaderStageKind_Mesh,
+    RN_ShaderStageKind_Task,
 
     RN_ShaderStageKind_TesselationControl,
     RN_ShaderStageKind_TesselationEvaluation,
     RN_ShaderStageKind_Geometry,
+    RN_ShaderStageKind_Count,
 }RN_ShaderStageKind;
+DOT_STATIC_ASSERT(RN_ShaderStageKind_Count == 15, "If this is increased, add ext_map entries and rn_shader_stage_from_ext");
 
-typedef enum RN_ShaderFormat{
-    RN_ShaderFormat_Source,
-    RN_ShaderFormat_Spirv,
-    RN_ShaderFormat_Dxil
-}RN_ShaderFormat;
+typedef struct RN_ShaderStageExtMap{
+    String8 ext;
+    RN_ShaderStageKind kind;
+}RN_ShaderStageExtMap;
+
+#define RN_EXT_VERT    "vert"
+#define RN_EXT_FRAG    "frag"
+#define RN_EXT_COMP    "comp"
+
+#define RN_EXT_RGEN    "rgen"
+#define RN_EXT_RAHIT   "rahit"
+#define RN_EXT_RCHIT   "rchit"
+#define RN_EXT_RMISS   "rmiss"
+#define RN_EXT_RINT    "rint"
+#define RN_EXT_CALL    "call"
+
+#define RN_EXT_MESH    "mesh"
+#define RN_EXT_TASK    "task"
+
+#define RN_EXT_TESC    "tesc"
+#define RN_EXT_TESE    "tese"
+#define RN_EXT_GEOM    "geom"
+
+read_only RN_ShaderStageExtMap rn_g_shader_stage_ext_map[] = {
+    { string8_lit(RN_EXT_VERT),  RN_ShaderStageKind_Vertex },
+    { string8_lit(RN_EXT_FRAG),  RN_ShaderStageKind_Fragment },
+    { string8_lit(RN_EXT_COMP),  RN_ShaderStageKind_Compute },
+
+    { string8_lit(RN_EXT_RGEN),  RN_ShaderStageKind_RayGen },
+    { string8_lit(RN_EXT_RAHIT), RN_ShaderStageKind_RayHitAny },
+    { string8_lit(RN_EXT_RCHIT), RN_ShaderStageKind_RayHitClosest },
+    { string8_lit(RN_EXT_RMISS), RN_ShaderStageKind_RayHitMiss },
+    { string8_lit(RN_EXT_RINT),  RN_ShaderStageKind_RayHitIntersection },
+    { string8_lit(RN_EXT_CALL),  RN_ShaderStageKind_Callable },
+
+    { string8_lit(RN_EXT_MESH),  RN_ShaderStageKind_Mesh },
+    { string8_lit(RN_EXT_TASK),  RN_ShaderStageKind_Task },
+
+    { string8_lit(RN_EXT_TESC),  RN_ShaderStageKind_TesselationControl },
+    { string8_lit(RN_EXT_TESE),  RN_ShaderStageKind_TesselationEvaluation },
+    { string8_lit(RN_EXT_GEOM),  RN_ShaderStageKind_Geometry },
+};
+
+// typedef enum RN_ShaderFormat{
+//     RN_ShaderFormat_Source,
+//     RN_ShaderFormat_Spirv,
+//     RN_ShaderFormat_Dxil
+// }RN_ShaderFormat;
 
 typedef struct RN_ShaderStage{
-    RN_ShaderStageKind stage;
-    String8 code;
+    String8 path;
+    RN_ShaderStageKind stage_kind;
+    RN_ShaderStageHandle shader_stage_handle;
 }RN_ShaderStage;
 
 typedef struct RN_ShaderState{
-    ARRAY(RN_ShaderStage, RN_SHADER_STAGES_MAX) shader_stages;
-    RN_ShaderFormat format;
-    DOT_DEBUG_NAME(name, DOT_DEBUG_NAME_LEN);
+    u32 shader_stage_count;
+    RN_ShaderStage shader_stages[RN_SHADER_STAGES_MAX];
+    RN_ShaderStateHandle shader_state_handle;
+    b8 is_graphics_pipeline;
+    DOT_DebugName16(debug_name);
 }RN_ShaderState;
 
 typedef struct RN_PipelineDesc{
@@ -538,15 +594,17 @@ typedef struct RN_PipelineDesc{
     RN_ViewportState        *viewport;
     RN_RenderPassOutput     render_pass;
     RN_ShaderState          shader_state;
-    ARRAY(RN_BlendState, RN_IMAGE_OUTPUTS_MAX) blend_states;
-    u32 descriptor_set_layout_count;
-    RN_ShaderResourceLayoutHandle descriptor_set_layouts[RN_DESCRIPTOR_SET_LAYOUT_MAX];
-    // ARRAY(RN_ShaderResourceLayoutHandle, RN_DESCRIPTOR_SET_LAYOUT_MAX) descriptor_set_layouts;
-    DOT_DEBUG_NAME(name, DOT_DEBUG_NAME_LEN);
+
+    u32 blend_state_count;
+    RN_BlendState blend_states[RN_IMAGE_OUTPUTS_MAX];
+    // ARRAY(RN_BlendState, RN_IMAGE_OUTPUTS_MAX) blend_states;
+
+    u32 shader_resource_layout_count;
+    RN_ShaderResourceLayoutHandle shader_resource_layouts[RN_SHADER_RESOURCE_LAYOUT_MAX];
+    DOT_DebugName16(debug_name);
 }RN_PipelineDesc;
 
 typedef struct RN_Pipeline{
-    RN_Resource resource;
     RN_PipelineHandle handle;
     RN_PipelineDesc desc;
 }RN_Pipeline;
@@ -554,28 +612,44 @@ typedef struct RN_Pipeline{
 internal RN_TextureFormatInfo rn_texture_format_info_from_format(RN_TextureFormatKind fmt);
 internal RN_TextureFormatKind rn_texture_format_from_info(int comp, u8 size_bytes, b32 srgb);
 
-// ////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////
+///
 // RN_PipelineDesc
+//
 
 internal RN_PipelineDesc rn_pipeline_begin();
-internal void rn_pipeline_set_vertex_attributes_(RN_PipelineDesc *pp, u32 count, RN_VertexAttribute *attr);
-internal void rn_pipeline_set_vertex_streams_(RN_PipelineDesc *pp, u32 count, RN_VertexStream *streams);
-internal void rn_pipeline_set_depth_stencil_state_(RN_PipelineDesc *pp, RN_DepthStencilState *depth_stencil);
-internal void rn_pipeline_set_shader_state_(RN_PipelineDesc *pp, RN_ShaderFormat format, String8 debug_name, u32 count, RN_ShaderStage *stages);
-internal void rn_pipeline_set_render_pass_ouput(RN_PipelineDesc *pp, RN_RenderPassOutput render_pass_output); // (jd) NOTE: full array copy but it's fine. Will probs move to slice anyway at some point
+internal void rn_pipeline_set_vertex_attributes_(RN_PipelineDesc *pl, u32 count, RN_VertexAttribute *attr);
+internal void rn_pipeline_set_vertex_streams_(RN_PipelineDesc *pl, u32 count, RN_VertexStream *streams);
+internal void rn_pipeline_set_depth_stencil_state_(RN_PipelineDesc *pl, RN_DepthStencilState *depth_stencil);
+internal void rn_pipeline_set_shader_state_(RN_PipelineDesc *pl, u32 count, RN_ShaderStage *stages);
+internal void rn_pipeline_set_render_pass_output(RN_PipelineDesc *pl, RN_RenderPassOutput render_pass_output); // (jd) NOTE: full array copy but it's fine. Will probs move to slice anyway at some point
+internal void rn_pipeline_push_shader_resource_layout(RN_PipelineDesc *, RN_ShaderResourceLayoutHandle);
 
-#define rn_pipeline_set_vertex_attributes(pl, ...)      rn_pipeline_set_vertex_attributes_(pl, DOT_ARRAY_UNPACK_T(RN_VertexAttribute, __VA_ARGS__));
-#define rn_pipeline_set_vertex_streams(pl, ...)         rn_pipeline_set_vertex_streams_(pl, DOT_ARRAY_UNPACK_T(RN_VertexStream, __VA_ARGS__);
-#define rn_pipeline_set_depth_stencil_state(pl, ...)    rn_pipeline_set_depth_stencil_state_(pl, &(RN_DepthStencilState){__VA_ARGS__});
-#define rn_pipeline_set_shader_state(pl, fmt, name,...) rn_pipeline_set_shader_state_(pl, fmt, name, DOT_ARRAY_UNPACK_T(RN_ShaderStage, __VA_ARGS__)) ;
+#define rn_pipeline_set_vertex_attributes(pl, ...)      rn_pipeline_set_vertex_attributes_(pl, DOT_ARRAY_SPREAD_T(RN_VertexAttribute, __VA_ARGS__))
+#define rn_pipeline_set_vertex_streams(pl, ...)         rn_pipeline_set_vertex_streams_(pl, DOT_ARRAY_SPREAD_T(RN_VertexStream, __VA_ARGS__))
+#define rn_pipeline_set_depth_stencil_state(pl, ...)    rn_pipeline_set_depth_stencil_state_(pl, &(RN_DepthStencilState){__VA_ARGS__})
+#define rn_pipeline_set_shader_state(pl,...)            rn_pipeline_set_shader_state_(pl, DOT_ARRAY_SPREAD_T(RN_ShaderStage, __VA_ARGS__))
 
-// ////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////
+//
 // RN_ShaderResourceLayoutDesc
+//
 
 internal RN_ShaderResourceLayoutDesc    rn_shader_resource_layout_begin();
 internal void                           rn_shader_resource_layout_set_bindings_(RN_ShaderResourceLayoutDesc *layout_desc, u16 binding_count, RN_ShaderResourceBinding *bindings);
+internal void                           rn_shader_resource_layout_push_binding_(RN_ShaderResourceLayoutDesc *layout_desc, RN_ShaderResourceBinding *bindings);
 
-#define rn_shader_resource_layout_set_bindings(pl, ...) rn_shader_resource_layout_set_bindings_(pl, DOT_ARRAY_UNPACK_T(RN_ShaderResourceBinding, __VA_ARGS__));
+#define rn_shader_resource_layout_set_bindings(pl, ...) rn_shader_resource_layout_set_bindings_(pl, DOT_ARRAY_SPREAD_T(RN_ShaderResourceBinding, __VA_ARGS__));
+#define rn_shader_resource_layout_push_binding(pl, ...) rn_shader_resource_layout_push_binding_(pl,  &(RN_ShaderResourceBinding)__VA_ARGS__);
 // internal void rn_pipeline_set_vertex_streams_(RN_ShaderResourceLayoutDesc *, u32 count, RN_VertexStream *streams);
+
+///////////////////////////////////////////////////////////////////
+// RN_ShaderStageKind
+//
+
+internal RN_ShaderStageKind rn_shader_stage_kind_from_ext(String8 ext);
+internal RN_ShaderStageKind rn_shader_stage_kind_from_path(String8 path);
+
+internal String8            rn_slang_stage_from_shader_stage_kind(RN_ShaderStageKind kind);
 
 #endif // !RN_H
