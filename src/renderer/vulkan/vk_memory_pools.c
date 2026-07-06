@@ -1,25 +1,22 @@
 internal void
-rn_vk_memory_ring_buffer_pop(RN_VK_Memory_RingBuffer *ring_buffer, RN_VK_GpuAllocHandle h)
+rn_vk_memory_ring_buffer_pop(RN_VK_GpuAllocHandle h)
 {
     RN_VK_GpuAlloc *alloc = cast(RN_VK_GpuAlloc*)h;
+    RN_VK_Memory_RingBuffer *ring_buffer = rn_vk_ring_buffer_from_buffer(alloc->buffer);
     DOT_ASSERT(ring_buffer->tail == alloc->offset - alloc->pad, "Incorrect ring buffer pop order %u %u %u", ring_buffer->tail, alloc->offset, alloc->pad);
-    // ring_buffer->tail = (alloc->offset - alloc->pad) + alloc->size;
     ring_buffer->tail = alloc->offset + alloc->size;
-    rn_vk_gpu_alloc_free(&ring_buffer->next_free, alloc);
+    FreeListFree(&ring_buffer->backing.free_list, alloc);
 }
 
 internal void
-rn_vk_memory_pools_staging_ring_buffer_pop(RN_VK_Memory *pools, RN_VK_StagingAlloc *staging_alloc)
+rn_vk_memory_pools_staging_ring_buffer_pop(RN_VK_StagingAlloc *staging_alloc)
 {
-    RN_VK_Memory_RingBuffer *staging_buffer = rn_vk_memory_ring_buffer_get(pools, RN_VK_GpuAllocKind_Staging);
-
-    rn_vk_memory_ring_buffer_pop(staging_buffer, staging_alloc->handle);
+    rn_vk_memory_ring_buffer_pop(staging_alloc->handle);
 }
 
 internal RN_VK_GpuAlloc *
 rn_vk_memory_ring_buffer_push_(Arena *arena, RN_VK_Memory_RingBuffer *ring_buffer, u64 size)
 {
-    // u64 pop_marker = ring_buffer->head;
     u64 aligned_memory = ALIGN_POW2(ring_buffer->head, cast(u64)16);
     u32 pad = cast(u32) (aligned_memory - ring_buffer->head);
     if(ring_buffer->head + size > ring_buffer->backing.size){
@@ -33,32 +30,48 @@ rn_vk_memory_ring_buffer_push_(Arena *arena, RN_VK_Memory_RingBuffer *ring_buffe
         DOT_ERROR("Out of Staging memory, consider increasing it!");
     }
  
-    RN_VK_GpuAlloc *alloc = rn_vk_gpu_alloc_alloc(arena, &ring_buffer->next_free);
-    alloc->vk_buffer = ring_buffer->backing.vk_buffer;
-    alloc->pool_kind = RN_VK_GpuAllocKind_Staging;
-    alloc->size = size;
-    alloc->offset = aligned_memory;
-    alloc->pad = pad;
+    RN_VK_GpuAlloc *alloc = FreeListGetOrCreate(arena, &ring_buffer->backing.free_list, RN_VK_GpuAlloc);
+    alloc->buffer       = &ring_buffer->backing;
+    alloc->vk_buffer    = ring_buffer->backing.vk_buffer;
+    alloc->size         = size;
+    alloc->offset       = aligned_memory;
+    alloc->pad          = pad;
 
     ring_buffer->head = aligned_memory + size;
     return(alloc);
 }
 
+internal RN_VK_Memory_RingBuffer *
+rn_vk_ring_buffer_from_buffer(RN_VK_Memory_GpuBuffer *buffer)
+{
+    DOT_ASSERT(buffer->alloc_strategy_kind == rn_vk_g_memory_pools_alloc_strategy[buffer->memory_kind]);
+    RN_VK_Memory_RingBuffer *ring_buffer = DOT_CONTAINER_OF(buffer, RN_VK_Memory_RingBuffer, backing);
+    return ring_buffer;
+}
+
 internal RN_VK_Memory_Pool *
-rn_vk_memory_pool_get(RN_VK_Memory *pools, RN_VK_GpuAllocKind kind)
+rn_vk_memory_pool_from_buffer(RN_VK_Memory_GpuBuffer *buffer)
+{
+    DOT_ASSERT(buffer->alloc_strategy_kind == rn_vk_g_memory_pools_alloc_strategy[buffer->memory_kind]);
+    RN_VK_Memory_Pool *pool = DOT_CONTAINER_OF(buffer, RN_VK_Memory_Pool, backing);
+    return pool;
+}
+
+internal RN_VK_Memory_Pool *
+rn_vk_memory_pool_get(RN_VK_Memory *pools, RN_VK_GpuMemoryKind kind)
 {
     RN_VK_Memory_GpuBuffer *buffer = pools->memory_kinds[kind];
-    DOT_ASSERT(buffer->pool_kind == kind);
+    DOT_ASSERT(buffer->memory_kind == kind);
     DOT_ASSERT(buffer->alloc_strategy_kind == rn_vk_g_memory_pools_alloc_strategy[kind]);
     RN_VK_Memory_Pool *pool = DOT_CONTAINER_OF(buffer, RN_VK_Memory_Pool, backing);
     return pool;
 }
 
 internal RN_VK_Memory_RingBuffer *
-rn_vk_memory_ring_buffer_get(RN_VK_Memory *pools, RN_VK_GpuAllocKind kind)
+rn_vk_memory_ring_buffer_get(RN_VK_Memory *pools, RN_VK_GpuMemoryKind kind)
 {
     RN_VK_Memory_GpuBuffer *buffer = pools->memory_kinds[kind];
-    DOT_ASSERT(buffer->pool_kind == kind);
+    DOT_ASSERT(buffer->memory_kind == kind);
     DOT_ASSERT(buffer->alloc_strategy_kind == rn_vk_g_memory_pools_alloc_strategy[kind]);
     RN_VK_Memory_RingBuffer *staging_buffer = DOT_CONTAINER_OF(buffer, RN_VK_Memory_RingBuffer, backing);
     return staging_buffer;
@@ -67,30 +80,40 @@ rn_vk_memory_ring_buffer_get(RN_VK_Memory *pools, RN_VK_GpuAllocKind kind)
 internal RN_VK_StagingAlloc
 rn_vk_memory_pools_staging_ring_buffer_push(Arena *arena, RN_VK_Memory *pools, u64 size, void *data)
 {
-    RN_VK_Memory_RingBuffer *staging_buffer = rn_vk_memory_ring_buffer_get(pools, RN_VK_GpuAllocKind_Staging);
-
+    RN_VK_Memory_RingBuffer *staging_buffer = rn_vk_memory_ring_buffer_get(pools, RN_VK_GpuMemoryKind_Staging);
     RN_VK_GpuAlloc *alloc = rn_vk_memory_ring_buffer_push_(arena, staging_buffer, size);
     void *destination_data;
     if(data){
         RN_VK_CHECK(vkMapMemory(pools->vk_device, staging_buffer->backing.vk_memory, alloc->offset, alloc->size, 0, &destination_data));
-        DOT_PRINT("alloc size %M", alloc->size); 
+        DOT_PRINT("alloc size %M", alloc->size);
         MEMORY_COPY_NO_ALIAS(destination_data, data, size);
         vkUnmapMemory(pools->vk_device, staging_buffer->backing.vk_memory);
     }
 
     RN_VK_StagingAlloc staging = {0};
     staging.handle = cast(RN_VK_GpuAllocHandle) alloc;
-    staging.size = alloc->size;
-    staging.offset = alloc->offset;
     staging.vk_buffer = alloc->vk_buffer;
 
     return(staging);
 }
 
-internal RN_VK_GpuAllocHandle
-rn_vk_memory_gpu_buffer_alloc(Arena *arena, RN_VK_Memory *pools, VkBuffer vk_buffer)
+internal RN_VK_GpuMemoryKind
+rn_vk_gpu_memory_kind_from_resource_usage(RN_ResourceUsageKind usage_kind)
 {
-    RN_VK_Memory_Pool *gpu_pool = rn_vk_memory_pool_get(pools, RN_VK_GpuAllocKind_GpuOnly);
+    switch (usage_kind){
+    default: DOT_ERROR("Invalid usage kind %u", usage_kind);
+    case RN_ResourceUsageKind_Dynamic   : return RN_VK_GpuMemoryKind_Dynamic;
+    case RN_ResourceUsageKind_Readback  : return RN_VK_GpuMemoryKind_Readback;
+    case RN_ResourceUsageKind_GPUOnly   : return RN_VK_GpuMemoryKind_GpuOnly;
+    }
+}
+
+internal RN_VK_GpuAllocHandle
+rn_vk_memory_gpu_buffer_alloc(Arena *arena, RN_VK_Memory *pools, RN_ResourceUsageKind usage_kind, VkBuffer vk_buffer)
+{
+    RN_VK_GpuMemoryKind memory_kind = rn_vk_gpu_memory_kind_from_resource_usage(usage_kind);
+
+    RN_VK_Memory_Pool *gpu_pool = rn_vk_memory_pool_get(pools, memory_kind);
 
     VkMemoryRequirements2 reqs2 = vk_buffer_memory_requirements(pools->vk_device, vk_buffer);
     VkMemoryRequirements reqs   = reqs2.memoryRequirements;
@@ -108,10 +131,10 @@ rn_vk_memory_gpu_buffer_alloc(Arena *arena, RN_VK_Memory *pools, VkBuffer vk_buf
     }
     DOT_PRINT("Total memory %M/%M, needed used %M", gpu_pool->used, gpu_pool->backing.size, needed);
 
-    RN_VK_GpuAlloc *alloc = rn_vk_gpu_alloc_alloc(arena, &gpu_pool->next_free);
-    alloc->size = reqs.size;
-    alloc->pool_kind = RN_VK_GpuAllocKind_GpuOnly;
-    alloc->offset = aligned_memory;
+    RN_VK_GpuAlloc *alloc = FreeListGetOrCreate(arena, &gpu_pool->backing.free_list, RN_VK_GpuAlloc);
+    alloc->size     = reqs.size;
+    alloc->buffer   = &gpu_pool->backing;
+    alloc->offset   = aligned_memory;
 
     RN_VK_CHECK(vkBindBufferMemory(pools->vk_device, vk_buffer, gpu_pool->backing.vk_memory, alloc->offset));
     return(cast(RN_VK_GpuAllocHandle)alloc);
@@ -120,7 +143,7 @@ rn_vk_memory_gpu_buffer_alloc(Arena *arena, RN_VK_Memory *pools, VkBuffer vk_buf
 internal RN_VK_GpuAllocHandle
 rn_vk_memory_gpu_image_alloc(Arena *arena, RN_VK_Memory *pools, VkImage vk_image)
 {
-    RN_VK_Memory_Pool *gpu_pool = rn_vk_memory_pool_get(pools, RN_VK_GpuAllocKind_GpuOnly);
+    RN_VK_Memory_Pool *gpu_pool = rn_vk_memory_pool_get(pools, RN_VK_GpuMemoryKind_GpuOnly);
 
     VkMemoryRequirements2 reqs2 = vk_image_memory_requirements(pools->vk_device, vk_image);
     VkMemoryRequirements reqs   = reqs2.memoryRequirements;
@@ -138,11 +161,11 @@ rn_vk_memory_gpu_image_alloc(Arena *arena, RN_VK_Memory *pools, VkImage vk_image
     }
     DOT_PRINT("Total memory %M/%M, needed %M", gpu_pool->used, gpu_pool->backing.size, needed);
 
-    RN_VK_GpuAlloc *alloc = rn_vk_gpu_alloc_alloc(arena, &gpu_pool->next_free);
-    alloc->size = reqs.size;
-    alloc->pool_kind = RN_VK_GpuAllocKind_GpuOnly;
-    alloc->offset = aligned_memory;
-    alloc->pad = pad;
+    RN_VK_GpuAlloc *alloc = FreeListGetOrCreate(arena, &gpu_pool->backing.free_list, RN_VK_GpuAlloc);
+    alloc->size             = reqs.size;
+    alloc->buffer           = &gpu_pool->backing;
+    alloc->offset           = aligned_memory;
+    alloc->pad              = pad;
 
     RN_VK_CHECK(vkBindImageMemory(pools->vk_device, vk_image, gpu_pool->backing.vk_memory, alloc->offset));
     return(cast(RN_VK_GpuAllocHandle)alloc);
@@ -181,7 +204,7 @@ rn_vk_memory_pools_find_memory_type(
 }
 
 internal RN_VK_Memory_GpuBuffer *
-rn_vk_memory_gpu_alloc(Arena *arena, RN_VK_Device *device, RN_VK_GpuAllocKind kind, RN_VK_GpuAllocStrategyKind alloc_strategy, u64 alloc_size)
+rn_vk_memory_gpu_alloc(Arena *arena, RN_VK_Device *device, RN_VK_GpuMemoryKind memory_kind, RN_VK_GpuAllocStrategyKind alloc_strategy, u64 alloc_size)
 {
     VkMemoryPropertyFlags required  = 0;
     VkMemoryPropertyFlags preferred = 0;
@@ -191,24 +214,24 @@ rn_vk_memory_gpu_alloc(Arena *arena, RN_VK_Device *device, RN_VK_GpuAllocKind ki
     vkGetPhysicalDeviceMemoryProperties(device->vk_gpu, &memory_properties);
 
     DOT_ALLOW_PARTIAL_SWITCH;
-    switch(kind){
+    switch(memory_kind){
     default: DOT_ERROR("Non existent memory kind");
-    case RN_VK_GpuAllocKind_GpuOnly:
+    case RN_VK_GpuMemoryKind_GpuOnly:
         required    = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
         forbidden   = (device->is_integrated_gpu ? 0 : VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
     break;
-    case RN_VK_GpuAllocKind_Staging:
+    case RN_VK_GpuMemoryKind_Staging:
         required    = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
         forbidden   = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
         usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     break;
-    case RN_VK_GpuAllocKind_Dyanmic:
+    case RN_VK_GpuMemoryKind_Dynamic:
         required    = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
         preferred   = VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
         forbidden   = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
         usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     break;
-    case RN_VK_GpuAllocKind_Readback:
+    case RN_VK_GpuMemoryKind_Readback:
         required    = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
         preferred   = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
         forbidden   = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
@@ -231,6 +254,8 @@ rn_vk_memory_gpu_alloc(Arena *arena, RN_VK_Device *device, RN_VK_GpuAllocKind ki
     }
     alloc_ctx->vk_memory_type_idx = rn_vk_memory_pools_find_memory_type(&memory_properties, required, preferred, forbidden);
     alloc_ctx->size = alloc_size;
+    alloc_ctx->alloc_strategy_kind = alloc_strategy;
+    alloc_ctx->memory_kind = memory_kind;
 
     u64 required_alloc_size = alloc_size;
     if(usage){
@@ -273,21 +298,17 @@ rn_vk_memory_pools_create(Arena *arena, RN_VK_Device *device)
 {
     RN_VK_Memory pools = {0};
     pools.vk_device =  device->vk_device;
-    for EACH_ENUM_VAL(RN_VK_GpuAllocKind, alloc_kind){
-        RN_VK_GpuAllocStrategyKind alloc_strategy = rn_vk_g_memory_pools_alloc_strategy[alloc_kind];
-        pools.memory_kinds[alloc_kind] = rn_vk_memory_gpu_alloc(arena, device, alloc_kind, alloc_strategy, rn_vk_g_memory_pools_memory_sizes[alloc_kind]);
+    for EACH_ENUM_VAL(RN_VK_GpuMemoryKind, memory_kind){
+        RN_VK_GpuAllocStrategyKind alloc_strategy = rn_vk_g_memory_pools_alloc_strategy[memory_kind];
+        pools.memory_kinds[memory_kind] = rn_vk_memory_gpu_alloc(arena, device, memory_kind, alloc_strategy, rn_vk_g_memory_pools_memory_sizes[memory_kind]);
     }
-    // pools.gpu_pool.backing          = rn_vk_memory_gpu_alloc(device, RN_VK_GpuAllocKind_GpuOnly, RN_VK_MEMORY_POOLS_GPU_ONLY_SIZE);
-    // pools.streaming_pool.backing    = rn_vk_memory_gpu_alloc(device, RN_VK_GpuAllocKind_Streaming, RN_VK_MEMORY_POOLS_STREAMING_SIZE);
-    // pools.staging_buffer.backing    = rn_vk_memory_gpu_alloc(device, RN_VK_GpuAllocKind_Staging, RN_VK_MEMORY_POOLS_STAGING_SIZE);
-    // pools.readback_buffer.backing   = rn_vk_memory_gpu_alloc(device, RN_VK_GpuAllocKind_Readback, RN_VK_MEMORY_POOLS_READBACK_SIZE);
     return(pools);
 }
 
 internal void
 rn_vk_memory_pools_destroy(RN_VK_Memory *pools)
 {
-    for EACH_ENUM_VAL(RN_VK_GpuAllocKind, it){
+    for EACH_ENUM_VAL(RN_VK_GpuMemoryKind, it){
         RN_VK_Memory_GpuBuffer *pool = pools->memory_kinds[it];
         if(pool->vk_buffer != VK_NULL_HANDLE){
             vkDestroyBuffer(pools->vk_device, pool->vk_buffer, NULL);
@@ -296,39 +317,4 @@ rn_vk_memory_pools_destroy(RN_VK_Memory *pools)
             vkFreeMemory(pools->vk_device, pool->vk_memory, NULL);
         }
     }
-    // if(pools->staging_buffer.backing.vk_buffer != VK_NULL_HANDLE)
-    //     vkDestroyBuffer(device->vk_device, pools->staging_buffer.backing.vk_buffer, NULL);
-    // if(pools->readback_buffer.backing.vk_buffer != VK_NULL_HANDLE)
-    //     vkDestroyBuffer(device->vk_device, pools->readback_buffer.backing.vk_buffer, NULL);
-    // if(pools->streaming_pool.backing.vk_buffer != VK_NULL_HANDLE)
-    //     vkDestroyBuffer(device->vk_device, pools->streaming_pool.backing.vk_buffer, NULL);
-    //
-    // if(pools->gpu_pool.backing.vk_memory != VK_NULL_HANDLE)
-    //     vkFreeMemory(device->vk_device, pools->gpu_pool.backing.vk_memory, NULL);
-    // if(pools->staging_buffer.backing.vk_memory)
-    //     vkFreeMemory(device->vk_device, pools->staging_buffer.backing.vk_memory, NULL);
-    // if(pools->readback_buffer.backing.vk_memory != VK_NULL_HANDLE)
-    //     vkFreeMemory(device->vk_device, pools->readback_buffer.backing.vk_memory, NULL);
-    // if(pools->streaming_pool.backing.vk_memory != VK_NULL_HANDLE)
-    //     vkFreeMemory(device->vk_device, pools->streaming_pool.backing.vk_memory, NULL);
-}
-
-
-internal RN_VK_GpuAlloc *
-rn_vk_gpu_alloc_alloc(Arena *arena, RN_VK_GpuAlloc **head)
-{
-    RN_VK_GpuAlloc *node = *head;
-    if (node) {
-        *head = node->next_free;
-    } else {
-        node = PUSH_STRUCT(arena, RN_VK_GpuAlloc);
-    }
-    return node;
-}
-
-internal void
-rn_vk_gpu_alloc_free(RN_VK_GpuAlloc **head, RN_VK_GpuAlloc *alloc)
-{
-    alloc->next_free = *head;
-    *head = alloc;
 }
