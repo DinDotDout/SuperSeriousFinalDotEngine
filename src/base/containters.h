@@ -23,8 +23,8 @@ read_only global LLNode g_llnode_sentinel = {
 
 internal u8 *arena_push_llnode(Arena *arena, u32 size, u32 offset, u32 align);
 
-#define llhead_node(...)    {.next = cast(LLNode*)&g_llnode_sentinel};
-#define llhead_lit(...)     {.head.first = cast(LLNode*)&g_llnode_sentinel, .head.last = cast(LLNode*)&g_llnode_sentinel}
+#define llhead_node(...)    {.next = cast(LLNode*)&g_llnode_sentinel, __VA_ARGS__};
+#define llhead_lit(...)     {.head.first = cast(LLNode*)&g_llnode_sentinel, .head.last = cast(LLNode*)&g_llnode_sentinel, __VA_ARGS__}
 
 #define PushLLNode(a, T)    (T*)arena_push_llnode((a), sizeof(T), DOT_OFFSETOF(T, node), DOT_ALIGNOF(T))
 
@@ -113,8 +113,8 @@ typedef struct PoolHandle{
 }PoolHandle;
 
 internal u64        pool_handle_pack(PoolHandle h);
-internal b32        pool_handle_is_default(PoolHandle h);
 internal PoolHandle pool_handle_unpack(u64 pack);
+internal b32        pool_handle_is_default(PoolHandle h);
 
 #define POOL_DEFAULT_HANDLE (PoolHandle){0}
 
