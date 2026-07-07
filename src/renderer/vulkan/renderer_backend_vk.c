@@ -89,7 +89,7 @@ internal RN_SamplerHandle
 rn_vk_sampler_create(RN_SamplerDesc *desc)
 {
     RN_VK_SamplerHandle h = rn_vk_sampler_create_(desc);
-    RN_SamplerHandle rn_h = {.handle[0] = pool_handle_pack(h),};
+    RN_SamplerHandle rn_h = { pool_handle_pack(h),};
     return(rn_h);
 }
 
@@ -150,7 +150,7 @@ rn_vk_shader_state_create(RN_ShaderState *desc)
  
     // Either free the resouce and return or provide a fallback
     DOT_ASSERT(!pool_handle_is_default(h), "Not handling default case yet");
-    RN_ShaderStateHandle rn_h = {.handle[0] = pool_handle_pack(h),};
+    RN_ShaderStateHandle rn_h = { pool_handle_pack(h) };
 
     if(desc->shader_stage_count == 0){
         DOT_WARNING("Empty shader stages");
@@ -178,7 +178,7 @@ internal RN_TextureHandle
 rn_vk_texture_create(RN_TextureDesc *desc, void *data)
 {
     RN_VK_TextureHandle h = rn_vk_texture_create_(desc, data);
-    RN_TextureHandle rn_h = {.handle[0] = pool_handle_pack(h),};
+    RN_TextureHandle rn_h = { pool_handle_pack(h) };
     return rn_h;
 }
 
@@ -224,60 +224,58 @@ rn_vk_texture_create_(RN_TextureDesc *desc, void *data)
         const b8 usage_render_target_bit    = DOT_BITS_MATCH(desc->texture_usage_flags, RN_TextureUsageBit_RenderTarget);
 
         VkDevice vk_device = rn_vk_ctx->device.vk_device;
-        {
-            VkImageUsageFlags image_usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT | (usage_compute_bit ? VK_IMAGE_USAGE_STORAGE_BIT : 0);
-            if(format_depth_bit || format_stencil_bit){
-                image_usage_flags |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-            }else{
-                image_usage_flags |= VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-                image_usage_flags |= usage_render_target_bit ? VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT : 0;
-            }
-            RN_VK_CHECK(vkCreateImage(
-                vk_device,
-                &(VkImageCreateInfo){
-                    .sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-                    .imageType = rn_vk_image_type_from_texture_dimension(desc->dimension_kind),
-                    .format = rn_vk_vk_format_from_rn_texture_format_kind(desc->format_kind),
-                    .extent = image_extent_3d,
-                    .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-                    .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 
-                    .mipLevels = desc->mip_levels,
-                    .arrayLayers = 1,
-                    .samples = VK_SAMPLE_COUNT_1_BIT,
-                    .tiling = VK_IMAGE_TILING_OPTIMAL,
-                    .usage = image_usage_flags,
-                },
-                NULL,
-                &texture->vk_image));
-            rn_vk_vk_resource_set_name(VK_OBJECT_TYPE_IMAGE, cast(u64)texture->vk_image, texture->debug_name.buff);
-            texture->alloc = rn_vk_memory_gpu_image_alloc(rn_vk_ctx->base.permanent_arena, &rn_vk_ctx->memory_pools, texture->vk_image);
+        VkImageUsageFlags image_usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT | (usage_compute_bit ? VK_IMAGE_USAGE_STORAGE_BIT : 0);
+        if(format_depth_bit || format_stencil_bit){
+            image_usage_flags |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        }else{
+            image_usage_flags |= VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+            image_usage_flags |= usage_render_target_bit ? VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT : 0;
         }
-        {
-            VkImageAspectFlags aspect_mask = VK_IMAGE_ASPECT_NONE;
-            aspect_mask |= format_depth_bit ? VK_IMAGE_ASPECT_DEPTH_BIT : 0;
-            aspect_mask |= format_stencil_bit ? VK_IMAGE_ASPECT_STENCIL_BIT : 0;
-            if(aspect_mask == 0){aspect_mask = VK_IMAGE_ASPECT_COLOR_BIT;}
+        RN_VK_CHECK(vkCreateImage(
+            vk_device,
+            &(VkImageCreateInfo){
+                .sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+                .imageType = rn_vk_image_type_from_texture_dimension(desc->dimension_kind),
+                .format = rn_vk_vk_format_from_rn_texture_format_kind(desc->format_kind),
+                .extent = image_extent_3d,
+                .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 
-            RN_VK_CHECK(vkCreateImageView(
-                vk_device,
-                &(VkImageViewCreateInfo){
-                    .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                    .image = texture->vk_image,
-                    .viewType = rn_vk_image_view_type_from_texture_dimension(desc->dimension_kind),
-                    .format = texture->vk_format,
-                    .subresourceRange = {
-                        .baseMipLevel = 0,
-                        .levelCount = 1,
-                        .baseArrayLayer = 0,
-                        .layerCount = 1,
-                        .aspectMask = aspect_mask,
-                    }
-                },
-                NULL,
-                &texture->vk_image_view));
-            rn_vk_vk_resource_set_name(VK_OBJECT_TYPE_IMAGE_VIEW, cast(u64)texture->vk_image_view, desc->debug_name.buff);
-        }
+                .mipLevels = desc->mip_levels,
+                .arrayLayers = 1,
+                .samples = VK_SAMPLE_COUNT_1_BIT,
+                .tiling = VK_IMAGE_TILING_OPTIMAL,
+                .usage = image_usage_flags,
+            },
+            NULL,
+            &texture->vk_image));
+        texture->alloc = rn_vk_memory_gpu_image_alloc(rn_vk_ctx->base.permanent_arena, &rn_vk_ctx->memory_pools, texture->vk_image);
+        rn_vk_vk_resource_set_name(VK_OBJECT_TYPE_IMAGE, cast(u64)texture->vk_image, texture->debug_name.buff);
+
+        VkImageAspectFlags aspect_mask = VK_IMAGE_ASPECT_NONE;
+        aspect_mask |= format_depth_bit ? VK_IMAGE_ASPECT_DEPTH_BIT : 0;
+        aspect_mask |= format_stencil_bit ? VK_IMAGE_ASPECT_STENCIL_BIT : 0;
+        if(aspect_mask == 0){aspect_mask = VK_IMAGE_ASPECT_COLOR_BIT;}
+
+        RN_VK_CHECK(vkCreateImageView(
+            vk_device,
+            &(VkImageViewCreateInfo){
+                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                .image = texture->vk_image,
+                .viewType = rn_vk_image_view_type_from_texture_dimension(desc->dimension_kind),
+                .format = texture->vk_format,
+                .subresourceRange = {
+                    .baseMipLevel = 0,
+                    .levelCount = 1,
+                    .baseArrayLayer = 0,
+                    .layerCount = 1,
+                    .aspectMask = aspect_mask,
+                }
+            },
+            NULL,
+            &texture->vk_image_view));
+        rn_vk_vk_resource_set_name(VK_OBJECT_TYPE_IMAGE_VIEW, cast(u64)texture->vk_image_view, desc->debug_name.buff);
 
         if(data){
             u64 texture_size = format_info.block_size * image_extent_3d.height * image_extent_3d.width  * image_extent_3d.depth;
@@ -330,7 +328,7 @@ internal RN_BufferHandle
 rn_vk_buffer_create(RN_BufferDesc *desc, u8 *data)
 {
     RN_VK_BufferHandle h = rn_vk_buffer_create_(desc, data);
-    RN_BufferHandle rn_h = {.handle[0] = pool_handle_pack(h),};
+    RN_BufferHandle rn_h = { pool_handle_pack(h) };
     return rn_h;
 }
 
@@ -411,7 +409,7 @@ internal RN_ShaderResourceLayoutHandle
 rn_vk_shader_resource_layout_create(RN_ShaderResourceLayoutDesc *resource_layout)
 {
     RN_VK_TextureHandle h = rn_vk_shader_resource_layout_create_(resource_layout);
-    RN_ShaderResourceLayoutHandle rn_h = {.handle[0] = pool_handle_pack(h),};
+    RN_ShaderResourceLayoutHandle rn_h = { pool_handle_pack(h) };
     return(rn_h);
 }
 
@@ -466,7 +464,7 @@ rn_vk_pipeline_create(RN_PipelineDesc *desc)
 {
     desc->shader_state.shader_state_handle = rn_vk_shader_state_create(&desc->shader_state);
     RN_VK_PipelineHandle h = rn_vk_pipeline_create_(desc);
-    RN_PipelineHandle rn_h = {.handle[0] = pool_handle_pack(h),};
+    RN_PipelineHandle rn_h = { pool_handle_pack(h) };
     return(rn_h);
 }
 
@@ -514,7 +512,7 @@ rn_vk_pipeline_create_(RN_PipelineDesc *desc)
 
     // Shader state
     RN_ShaderStateHandle ss_h = desc->shader_state.shader_state_handle;
-    RN_VK_ShaderStateHandle rn_vk_ss_h = pool_handle_unpack(ss_h.handle[0]);
+    RN_VK_ShaderStateHandle rn_vk_ss_h = pool_handle_unpack(ss_h.handle);
     pipeline->shader_state_handle = rn_vk_ss_h;
 
     RN_VK_ShaderState *shader_state = POOL_GET(&rn_vk_ctx->shader_state_pool, rn_vk_ss_h);
@@ -526,7 +524,7 @@ rn_vk_pipeline_create_(RN_PipelineDesc *desc)
     pipeline->shader_resource_layout_count = desc->shader_resource_layout_count;
     for(u32 l = 0; l < desc->shader_resource_layout_count; ++l){
         RN_ShaderResourceLayoutHandle srl_h = desc->shader_resource_layouts[l];
-        RN_VK_ShaderResourceLayoutHandle rn_vk_srl_h = pool_handle_unpack(srl_h.handle[0]);
+        RN_VK_ShaderResourceLayoutHandle rn_vk_srl_h = pool_handle_unpack(srl_h.handle);
         pipeline->shader_resource_layouts[l] = rn_vk_srl_h;
 
         RN_VK_ShaderResourceLayout *rn_vk_srl =
@@ -551,6 +549,8 @@ rn_vk_pipeline_create_(RN_PipelineDesc *desc)
 
     // Graphics vs compute
     if(shader_state->is_graphics_pipeline){
+        pipeline->vk_bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS;
+
         VkFormat depth_stencil_fmt = pipeline->renderpass_output.depth_stencil_format;
         VkPipelineRenderingCreateInfo rendering_info = {0};
         rendering_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
@@ -567,40 +567,32 @@ rn_vk_pipeline_create_(RN_PipelineDesc *desc)
         pipeline_info.layout    = vk_pipeline_layout;
         pipeline_info.pNext     = &rendering_info;
 
-        // Vertex input
-        VkPipelineVertexInputStateCreateInfo vertex_input_info = {0};
-        vertex_input_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        vertex_input_info.pNext                           = NULL;
-
         VkVertexInputAttributeDescription vk_attributes[RN_VERTEX_ATTRIBUTES_MAX];
         VkVertexInputBindingDescription   vk_bindings[RN_SHADER_RESOURCE_BINDING_MAX];
 
-        if(desc->vertex_input.vertex_attribute_count){
-            vertex_input_info.vertexAttributeDescriptionCount = desc->vertex_input.vertex_attribute_count;
+        VkPipelineVertexInputStateCreateInfo vertex_input_info = {0};
+        vertex_input_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+        vertex_input_info.vertexAttributeDescriptionCount   = desc->vertex_input.vertex_attribute_count;
+        vertex_input_info.vertexBindingDescriptionCount     = desc->vertex_input.vertex_stream_count;
+        vertex_input_info.pNext                             = NULL;
 
-            for (u32 i = 0; i < desc->vertex_input.vertex_attribute_count; ++i) {
-                RN_VertexAttribute *attr = &desc->vertex_input.vertex_attributes[i];
-                vk_attributes[i].location = attr->location;
-                vk_attributes[i].binding  = attr->binding;
-                vk_attributes[i].format   = rn_vk_format_from_rn_format_kind(attr->vertex_component_kind);
-                vk_attributes[i].offset   = attr->offset;
-            }
-            vertex_input_info.pVertexAttributeDescriptions = vk_attributes;
+        for (u32 i = 0; i < desc->vertex_input.vertex_attribute_count; ++i) {
+            RN_VertexAttribute *attr = &desc->vertex_input.vertex_attributes[i];
+            vk_attributes[i].location = attr->location;
+            vk_attributes[i].binding  = attr->binding;
+            vk_attributes[i].format   = rn_vk_format_from_rn_format_kind(attr->vertex_component_kind);
+            vk_attributes[i].offset   = attr->offset;
         }
+        vertex_input_info.pVertexAttributeDescriptions = vk_attributes;
 
-        if(desc->vertex_input.vertex_stream_count){
-            vertex_input_info.vertexBindingDescriptionCount = desc->vertex_input.vertex_stream_count;
-
-            for (u32 i = 0; i < desc->vertex_input.vertex_stream_count; ++i) {
-                RN_VertexStream *stream = &desc->vertex_input.vertex_streams[i];
-                VkVertexInputRate rate = (stream->input_rate == RN_VertexInputRateKind_PerVertex) ? VK_VERTEX_INPUT_RATE_VERTEX : VK_VERTEX_INPUT_RATE_INSTANCE;
-
-                vk_bindings[i].binding   = stream->binding;
-                vk_bindings[i].stride    = stream->stride;
-                vk_bindings[i].inputRate = rate;
-            }
-            vertex_input_info.pVertexBindingDescriptions = vk_bindings;
+        for (u32 i = 0; i < desc->vertex_input.vertex_stream_count; ++i) {
+            RN_VertexStream *stream = &desc->vertex_input.vertex_streams[i];
+            VkVertexInputRate rate = (stream->input_rate == RN_VertexInputRateKind_PerVertex) ? VK_VERTEX_INPUT_RATE_VERTEX : VK_VERTEX_INPUT_RATE_INSTANCE;
+            vk_bindings[i].binding   = stream->binding;
+            vk_bindings[i].stride    = stream->stride;
+            vk_bindings[i].inputRate = rate;
         }
+        vertex_input_info.pVertexBindingDescriptions = vk_bindings;
 
         VkPipelineInputAssemblyStateCreateInfo input_assembly = {0};
         input_assembly.sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -629,16 +621,8 @@ rn_vk_pipeline_create_(RN_PipelineDesc *desc)
         depth_stencil.depthCompareOp   = rn_vk_vk_compare_op_from_rn_compare_op(desc->depth_stencil_state.depth_comparison);
         depth_stencil.stencilTestEnable = VK_FALSE;
 
-        pipeline_info.pVertexInputState     = &vertex_input_info;
-        pipeline_info.pInputAssemblyState   = &input_assembly;
-        pipeline_info.pRasterizationState   = &rasterizer;
-        pipeline_info.pMultisampleState     = &multisample;
-        pipeline_info.pDepthStencilState    = &depth_stencil;
-
-        // Color blend
         VkPipelineColorBlendAttachmentState vk_blend_attachments[RN_IMAGE_OUTPUTS_MAX];
         u32 active_blends = desc->blend_state_count;
-
         if(active_blends == 0){
             active_blends = 1;
             MEMORY_ZERO_STRUCT(&vk_blend_attachments[0]);
@@ -697,19 +681,23 @@ rn_vk_pipeline_create_(RN_PipelineDesc *desc)
         viewport_state.scissorCount  = 1;
         viewport_state.pScissors     = &scissor;
 
-        pipeline_info.pViewportState = &viewport_state;
-        pipeline_info.pColorBlendState = &color_blend;
-
-        // Dynamic state (viewport/scissor)
         VkDynamicState dyn_states[] = {
             VK_DYNAMIC_STATE_VIEWPORT,
             VK_DYNAMIC_STATE_SCISSOR,
         };
-        VkPipelineDynamicStateCreateInfo dyn_state = {
-            .sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-            .dynamicStateCount = (u32)DOT_ARRAY_COUNT(dyn_states),
-            .pDynamicStates    = dyn_states,
-        };
+        VkPipelineDynamicStateCreateInfo dyn_state = {0};
+        dyn_state.sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        dyn_state.dynamicStateCount = DOT_ARRAY_COUNT(dyn_states);
+        dyn_state.pDynamicStates    = dyn_states;
+
+
+        pipeline_info.pVertexInputState     = &vertex_input_info;
+        pipeline_info.pInputAssemblyState   = &input_assembly;
+        pipeline_info.pRasterizationState   = &rasterizer;
+        pipeline_info.pMultisampleState     = &multisample;
+        pipeline_info.pDepthStencilState    = &depth_stencil;
+        pipeline_info.pViewportState = &viewport_state;
+        pipeline_info.pColorBlendState = &color_blend;
         pipeline_info.pDynamicState = &dyn_state;
 
         RN_VK_CHECK(vkCreateGraphicsPipelines(rn_vk_ctx->device.vk_device,
@@ -719,9 +707,9 @@ rn_vk_pipeline_create_(RN_PipelineDesc *desc)
                 NULL,
                 &pipeline->vk_pipeline));
 
-        pipeline->vk_bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS;
     }else{
-        // Compute pipeline
+        pipeline->vk_bind_point = VK_PIPELINE_BIND_POINT_COMPUTE;
+
         VkComputePipelineCreateInfo pipeline_info = {0};
         pipeline_info.sType  = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
         pipeline_info.stage  = shader_state->shader_stage_info[0];
@@ -733,8 +721,6 @@ rn_vk_pipeline_create_(RN_PipelineDesc *desc)
                 &pipeline_info,
                 NULL,
                 &pipeline->vk_pipeline));
-
-        pipeline->vk_bind_point = VK_PIPELINE_BIND_POINT_COMPUTE;
     }
 
     return p_h;
@@ -767,7 +753,7 @@ rn_vk_pipeline_destroy_(RN_VK_PipelineHandle h)
 internal void
 rn_vk_texture_destroy(RN_TextureHandle handle)
 {
-    const RN_VK_TextureHandle texture_h = pool_handle_unpack(handle.handle[0]);
+    const RN_VK_TextureHandle texture_h = pool_handle_unpack(handle.handle);
     rn_vk_texture_destroy_(texture_h);
 }
 
@@ -785,7 +771,7 @@ rn_vk_texture_destroy_(RN_VK_TextureHandle h)
 internal void
 rn_vk_buffer_destroy(RN_BufferHandle handle)
 {
-    const PoolHandle buffer_h = pool_handle_unpack(handle.handle[0]);
+    const PoolHandle buffer_h = pool_handle_unpack(handle.handle);
     rn_vk_buffer_destroy_(buffer_h);
     POOL_FREE(&rn_vk_ctx->buffer_pool, buffer_h);
 }
@@ -802,7 +788,7 @@ rn_vk_buffer_destroy_(RN_VK_BufferHandle h)
 internal void
 rn_vk_sampler_destroy(RN_SamplerHandle rn_h)
 {
-    const PoolHandle h = pool_handle_unpack(rn_h.handle[0]);
+    const PoolHandle h = pool_handle_unpack(rn_h.handle);
     rn_vk_sampler_destroy_(h);
 }
 

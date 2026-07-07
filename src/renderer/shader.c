@@ -7,7 +7,7 @@ rn_shader_cache_get_compiled_path(Arena *arena, String8 path){
 internal b32
 rn_shader_module_is_initialized(RN_ShaderCachedData *shader_module)
 {
-    return shader_module->shader_stage_handle.handle[0] != 0;
+    return shader_module->shader_stage_handle.handle != 0;
 }
 
 internal b32

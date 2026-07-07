@@ -109,7 +109,8 @@ do{ \
 
 typedef struct PoolHandle{
     u32 idx;
-    // u32 gen;
+    u32 gen;
+    // u16 kind; // Use in multipool
 }PoolHandle;
 
 internal u64        pool_handle_pack(PoolHandle h);

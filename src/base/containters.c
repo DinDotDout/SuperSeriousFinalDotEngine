@@ -56,17 +56,17 @@ free_list_free(LLHead *head, LLNode *node)
 internal u64
 pool_handle_pack(PoolHandle h)
 {
-    // u64 res = (cast(u64)h.gen << 32) | (cast(u64)h.idx);
-    u64 res = cast(u64)h.idx;
+    u64 res = (cast(u64)h.gen << 32) | (cast(u64)h.idx);
     return(res);
 }
 
 internal PoolHandle
 pool_handle_unpack(u64 pack)
 {
+    DOT_ASSERT(pack);
     PoolHandle h = {
         .idx = cast(u32)pack,
-        // .gen = cast(u32)(pack >> 32),
+        .gen = cast(u32)(pack >> 32),
     };
     return(h);
 }

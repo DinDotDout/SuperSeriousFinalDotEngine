@@ -107,7 +107,7 @@ DOT_ENUM_REFLECT(RN_ShaderResourceKind, RN_SHADER_RESOURCE_LAYOUT_KINDS);
 
 enum{RN_SHADER_RESOURCE_BINDING_MAX = 10};
 
-typedef u64 RN_Handle[1];
+typedef u64 RN_Handle;
 
 internal inline u64
 rn_handle_pack(u32 index, RN_ResourceKind kind)

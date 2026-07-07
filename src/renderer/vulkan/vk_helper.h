@@ -429,7 +429,7 @@ rn_texture_format_from_vk_format(VkFormat texture_format)
 internal RN_ShaderStageHandle
 rn_vk_shader_stage_handle_from_vk_shader_module(VkShaderModule vk_sm)
 {
-    RN_ShaderStageHandle dot_smh = { .handle[0] = cast(u64) vk_sm, };
+    RN_ShaderStageHandle dot_smh = { cast(u64) vk_sm, };
     return dot_smh;
 }
 
@@ -623,7 +623,7 @@ rn_vk_descriptor_type_from_shader_resource_kind(RN_ShaderResourceKind kind)
 internal VkShaderModule
 rn_vk_shader_module_from_shader_stage_handle(RN_ShaderStageHandle dot_smh)
 {
-    VkShaderModule vk_sm = cast(VkShaderModule)dot_smh.handle[0];
+    VkShaderModule vk_sm = cast(VkShaderModule)dot_smh.handle;
     return vk_sm;
 }
 
