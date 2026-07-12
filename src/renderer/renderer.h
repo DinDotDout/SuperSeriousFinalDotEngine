@@ -78,10 +78,11 @@ FN(void, shutdown, (void)) \
 FN(void, frame_begin, (void)) \
 FN(void, frame_end, (void)) \
 FN(void, clear_bg, (vec3 color)) \
-FN(RN_ShaderStageHandle,           shader_create,                  (String8 fb)) \
+FN(RN_ShaderStageHandle,            shader_create,                  (String8 fb)) \
 FN(RN_TextureHandle,                texture_create,                 (RN_TextureDesc *desc, void *data)) \
 FN(RN_SamplerHandle,                sampler_create,                 (RN_SamplerDesc *desc)) \
 FN(RN_BufferHandle,                 buffer_create,                  (RN_BufferDesc *desc, u8 *data)) \
+FN(RN_ShaderResourceHandle,         shader_resource_create,         (RN_ShaderResourceDesc *desc)) \
 FN(RN_ShaderResourceLayoutHandle,   shader_resource_layout_create,  (RN_ShaderResourceLayoutDesc *desc)) \
 FN(RN_PipelineHandle,               pipeline_create,                (RN_PipelineDesc *desc)) \
 FN(void, shader_unload,     (RN_ShaderStageHandle shader_module)) \
@@ -135,6 +136,7 @@ internal RN_SamplerHandle               rn_sampler_create_h(RN_RenderCtx *render
 internal RN_BufferHandle                rn_buffer_create_h(RN_RenderCtx *renderer, RN_BufferDesc *desc, u8 *data);
 internal RN_PipelineHandle              rn_pipeline_create_h(RN_RenderCtx *renderer, RN_PipelineDesc *desc);
 internal RN_ShaderResourceLayoutHandle  rn_shader_resource_layout_create_h(RN_RenderCtx *renderer, RN_ShaderResourceLayoutDesc *desc);
+internal RN_ShaderResourceHandle        rn_shader_resource_create(RN_RenderCtx *renderer, RN_ShaderResourceDesc *desc);
 
 internal void rn_texture_destroy(RN_RenderCtx *renderer, RN_TextureHandle handle);
 internal void rn_buffer_destroy(RN_RenderCtx *renderer, RN_BufferHandle handle);

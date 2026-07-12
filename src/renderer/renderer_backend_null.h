@@ -30,7 +30,8 @@ internal RN_SamplerHandle               rn_null_sampler_create(RN_SamplerDesc *d
 internal RN_TextureHandle               rn_null_texture_create(RN_TextureDesc *desc, void *data) { return((RN_TextureHandle){0}); }
 internal RN_PipelineHandle              rn_null_pipeline_create(RN_PipelineDesc *desc) { return((RN_PipelineHandle){0}); }
 internal RN_ShaderResourceLayoutHandle  rn_null_shader_resource_layout_create(RN_ShaderResourceLayoutDesc *desc) { return((RN_ShaderResourceLayoutHandle){0}); }
-internal RN_ShaderStageHandle          rn_null_shader_create(String8 shader_data) { return((RN_ShaderStageHandle){0}); }
+internal RN_ShaderResourceHandle        rn_null_shader_resource_create(RN_ShaderResourceDesc *desc) { return((RN_ShaderResourceHandle){0}); }
+internal RN_ShaderStageHandle           rn_null_shader_create(String8 shader_data) { return((RN_ShaderStageHandle){0}); }
 
 internal void rn_null_texture_destroy(RN_TextureHandle texture_handle){}
 internal void rn_null_buffer_destroy(RN_BufferHandle buffer_handle){}

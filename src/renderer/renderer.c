@@ -18,6 +18,7 @@ DOT_SETTING_U32("RenderBackend", g_render_backend_permanent_memory_size_b, DOT_M
 DOT_SETTING_U32("RenderBackend", rn_g_texture_max, 512);
 DOT_SETTING_U32("RenderBackend", rn_g_buffer_max, 4096);
 DOT_SETTING_U32("RenderBackend", rn_g_sampler_max, 128);
+DOT_SETTING_U32("RenderBackend", rn_g_shader_resource_layout_max, 128);
 DOT_SETTING_U32("RenderBackend", rn_g_shader_resource_max, 128);
 DOT_SETTING_U32("RenderBackend", rn_g_shader_state_resource_max, 128);
 DOT_SETTING_U32("RenderBackend", rn_g_pipeline_max, 128);
@@ -169,17 +170,16 @@ rn_texture_load_from_path(RN_RenderCtx *renderer, String8 name, String8 path, u8
             mip_levels++;
         }
     }
-    RN_Texture res = {
-        .desc = {
-            .dimension_kind = RN_TextureDimensionKind_2D,
-            .format_kind = rn_texture_format_from_info(comp, size_bytes, true),
-            .mip_levels = mip_levels,
-            .width = cast(u16)width,
-            .height = cast(u16)height,
-            .depth = 1,
-        },
-    };
-    res.handle = rn_texture_create_h(renderer, &res.desc, data),
+
+    RN_Texture res = {0};
+    res.desc.dimension_kind = RN_TextureDimensionKind_2D;
+    res.desc.format_kind    = rn_texture_format_from_info(comp, size_bytes, true);
+    res.desc.mip_levels     = mip_levels;
+    res.desc.width          = cast(u16)width;
+    res.desc.height         = cast(u16)height;
+    res.desc.depth          = 1;
+    res.handle              = rn_texture_create_h(renderer, &res.desc, data),
+
     stbi_allocator_unset();
     temp_arena_restore(temp);
     return res;
@@ -196,11 +196,11 @@ rn_sampler_create_h(RN_RenderCtx *renderer, RN_SamplerDesc *sampler_desc)
 internal RN_Sampler
 rn_sampler_create(RN_RenderCtx *renderer, RN_SamplerDesc *sampler_desc)
 {
-    RN_Sampler sampler = {
-        // .asset = dot_asset_from_create_info(renderer, asset_info, RN_ResourceKind_Sampler), .desc = *sampler_desc,
-        .handle = rn_sampler_create_h(renderer, sampler_desc),
-    };
-    return sampler;
+    RN_Sampler sampler = {0};
+    sampler.desc = *sampler_desc;
+    sampler.handle = rn_sampler_create_h(renderer, sampler_desc);
+
+    return(sampler);
 }
 
 internal RN_BufferHandle
@@ -214,10 +214,10 @@ rn_buffer_create_h(RN_RenderCtx *renderer, RN_BufferDesc *buffer_desc, u8 *data)
 internal RN_Buffer
 rn_buffer_create(RN_RenderCtx *renderer, RN_BufferDesc *buffer_desc, u8 *data)
 {
-    RN_Buffer buffer_asset = {
-        .desc = *buffer_desc,
-    };
+    RN_Buffer buffer_asset = {0};
+    buffer_asset.desc = *buffer_desc;
     buffer_asset.handle = rn_buffer_create_h(renderer, buffer_desc, data);
+
     return buffer_asset;
 }
 
@@ -234,6 +234,12 @@ rn_pipeline_create(RN_RenderCtx *renderer, RN_PipelineDesc *pipeline_desc)
         }
     }
     RN_PipelineHandle h = RENDER_BACKEND_CALL(pipeline_create(pipeline_desc));
+    return(h);
+}
+internal RN_ShaderResourceHandle
+rn_shader_resource_create(RN_RenderCtx *renderer, RN_ShaderResourceDesc *desc)
+{
+    RN_ShaderResourceHandle h = RENDER_BACKEND_CALL(shader_resource_create(desc));
     return(h);
 }
 

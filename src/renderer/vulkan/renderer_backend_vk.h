@@ -17,6 +17,7 @@ typedef PoolHandle RN_VK_TextureHandle;
 typedef PoolHandle RN_VK_BufferHandle;
 typedef PoolHandle RN_VK_SamplerHandle;
 typedef PoolHandle RN_VK_ShaderResourceLayoutHandle;
+typedef PoolHandle RN_VK_ShaderResourceHandle;
 typedef PoolHandle RN_VK_PipelineHandle;
 typedef PoolHandle RN_VK_ShaderStateHandle;
 
@@ -75,6 +76,10 @@ typedef struct RN_VK_ShaderResourceLayout{
     u16 resource_layout_idx;
     RN_VK_ShaderResourceLayoutHandle handle;
 }RN_VK_ShaderResourceLayout;
+
+typedef struct RN_VK_ShaderResource{
+    VkDescriptorSet vk_descriptor_set;
+}RN_VK_ShaderResource;
 
 typedef struct RN_VK_ShaderState{
     u32                             shader_stage_info_count;
@@ -200,7 +205,8 @@ typedef struct RN_VK_BackendCtx{
     POOL(RN_VK_Texture)  texture_pool;
     POOL(RN_VK_Buffer)   buffer_pool;
     POOL(RN_VK_Sampler)  sampler_pool;
-    POOL(RN_VK_ShaderResourceLayout)  shader_resource_layout_pool;
+    POOL(RN_VK_ShaderResourceLayout) shader_resource_layout_pool;
+    POOL(RN_VK_ShaderResource)  shader_resource_pool;
     POOL(RN_VK_ShaderState) shader_state_pool;
     POOL(RN_VK_Pipeline) pipeline_pool;
 
@@ -231,9 +237,10 @@ internal void rn_vk_frame_counters_advance();
 // an error
 internal RN_VK_TextureHandle                rn_vk_texture_create_(RN_TextureDesc *desc, void *data);
 internal RN_VK_SamplerHandle                rn_vk_sampler_create_(RN_SamplerDesc *desc);
-internal RN_VK_BufferHandle                 rn_vk_buffer_create_(RN_BufferDesc *create_info, u8 *data);
-internal RN_VK_ShaderResourceLayoutHandle   rn_vk_shader_resource_layout_create_(RN_ShaderResourceLayoutDesc *resource_layout);
-internal RN_VK_PipelineHandle               rn_vk_pipeline_create_(RN_PipelineDesc *create_info);
+internal RN_VK_BufferHandle                 rn_vk_buffer_create_(RN_BufferDesc *desc, u8 *data);
+internal RN_VK_ShaderResourceLayoutHandle   rn_vk_shader_resource_layout_create_(RN_ShaderResourceLayoutDesc *desc);
+internal RN_VK_ShaderResourceHandle                rn_vk_shader_resource_create_(RN_ShaderResourceDesc *desc);
+internal RN_VK_PipelineHandle               rn_vk_pipeline_create_(RN_PipelineDesc *desc);
 
 internal void                               rn_vk_texture_destroy_(RN_VK_TextureHandle h);
 internal void                               rn_vk_buffer_destroy_(RN_VK_BufferHandle h);

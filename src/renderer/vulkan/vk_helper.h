@@ -46,7 +46,7 @@ internal b32            rn_vk_physical_device_all_required_extensions(const RN_V
 /// VK to RN
 
 internal RN_TextureFormatKind   rn_texture_format_from_vk_format(VkFormat texture_format);
-internal RN_ShaderStageHandle   rn_vk_shader_stage_handle_from_vk_shader_module(VkShaderModule vk_sm);
+internal RN_ShaderStageHandle   rn_shader_stage_handle_from_vk_shader_module(VkShaderModule vk_sm);
 
 ///////////////////////////////////////////
 /// RN to VK
@@ -60,16 +60,16 @@ internal VkPresentModeKHR       rn_vk_present_mode_from_present_mode(RN_PresentM
 internal VkBufferUsageFlags     rn_vk_buffer_usage_flags_from_rn_buffer_usage_flags(RN_BufferUsageFlags usage_flags);
 internal VkImageType            rn_vk_image_type_from_texture_dimension(RN_TextureDimensionKind texture_dimension);
 internal VkImageViewType        rn_vk_image_view_type_from_texture_dimension(RN_TextureDimensionKind texture_dimension);
-internal VkFormat               rn_vk_vk_format_from_rn_texture_format_kind(RN_TextureFormatKind present_mode);
+internal VkFormat               rn_vk_format_from_rn_texture_format_kind(RN_TextureFormatKind present_mode);
 internal VkDescriptorType       rn_vk_descriptor_type_from_shader_resource_kind(RN_ShaderResourceKind);
 internal VkShaderModule         rn_vk_shader_module_from_shader_stage_handle(RN_ShaderStageHandle dot_smh);
 internal VkShaderStageFlagBits  rn_vk_shader_stage_flag_from_shader_stage_kind(RN_ShaderStageKind);
 internal VkFormat               rn_vk_format_from_rn_format_kind(RN_FormatKind kind);
-internal VkCullModeFlags        rn_vk_vk_cull_mode_flags_from_rn_cull_mode_flags(RN_CullModeFlags flags);
-internal VkFrontFace            rn_vk_vk_front_face_from_front_face_sort_mode_kind(RN_FrontFaceSortModeKind kind);
-internal VkFrontFace            rn_vk_vk_front_face_from_front_face_sort_mode_kind(RN_FrontFaceSortModeKind kind);
+internal VkCullModeFlags        rn_vk_cull_mode_flags_from_rn_cull_mode_flags(RN_CullModeFlags flags);
+internal VkFrontFace            rn_vk_front_face_from_front_face_sort_mode_kind(RN_FrontFaceSortModeKind kind);
+internal VkCompareOp            rn_vk_compare_op_from_rn_compare_op(RN_CompareOpKind kind);
 
-internal b32 rn_vk_vk_format_has_stencil(VkFormat fmt);
+internal b32 rn_vk_format_has_stencil(VkFormat fmt);
 
 ///////////////////////////////////////////
 /// Vk misc helpers
@@ -77,12 +77,12 @@ internal b32 rn_vk_vk_format_has_stencil(VkFormat fmt);
 typedef struct RN_VK_Texture RN_VK_Texture;
 internal VkExtent3D rn_vk_extent3d_from_extent2d(VkExtent2D extent2d);
 internal VkExtent2D rn_vk_extent2d_from_extent3d(VkExtent3D extent3d);
-internal void rn_vk_rn_vk_texture_transition(
+internal void rn_vk_texture_transition(
     VkCommandBuffer cmd,
     RN_VK_Texture *tex,
     VkImageLayout new_layout);
 
-internal void rn_vk_transition_image(
+internal void rn_vk_image_transition(
     VkCommandBuffer cmd,
     VkImage image,
     VkImageLayout current_layout,
@@ -427,7 +427,7 @@ rn_texture_format_from_vk_format(VkFormat texture_format)
 }
 
 internal RN_ShaderStageHandle
-rn_vk_shader_stage_handle_from_vk_shader_module(VkShaderModule vk_sm)
+rn_shader_stage_handle_from_vk_shader_module(VkShaderModule vk_sm)
 {
     RN_ShaderStageHandle dot_smh = { cast(u64) vk_sm, };
     return dot_smh;
@@ -493,8 +493,8 @@ rn_vk_sampler_mipmap_mode_from_rn_sampler_mipmap_mode(RN_SamplerMipmapFilterKind
 {
     switch(sample_mipmap_mode){
     default: DOT_ERROR("undefined mip map mode %u", sample_mipmap_mode);
-    case RN_SamplerFilterKind_Nearest: return VK_SAMPLER_MIPMAP_MODE_NEAREST;
-    case RN_SamplerFilterKind_Linear:  return VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    case RN_SamplerMipmapFilterKind_Nearest: return VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    case RN_SamplerMipmapFilterKind_Linear:  return VK_SAMPLER_MIPMAP_MODE_LINEAR;
     }
 }
 
@@ -503,11 +503,11 @@ rn_vk_sampler_address_mode_from_rn_sampler_address_mode(RN_SamplerAddressModeKin
 {
     switch(address_mode){
     default: DOT_ERROR("undefined address mode %u", address_mode);
-    case RN_SamplerAddressModeKind_Repeat:             return VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    case RN_SamplerAddressModeKind_Mirrored_repeat:    return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
-    case RN_SamplerAddressModeKind_ClampToEdge:        return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    case RN_SamplerAddressModeKind_ClampToBorder:      return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-    case RN_SamplerAddressModeKind_MirrorClampToEdge:  return VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE;
+    case RN_SamplerAddressModeKind_Repeat:              return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    case RN_SamplerAddressModeKind_MirroredRepeat:      return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+    case RN_SamplerAddressModeKind_ClampToEdge:         return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    case RN_SamplerAddressModeKind_ClampToBorder:       return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    case RN_SamplerAddressModeKind_MirrorClampToEdge:   return VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE;
     }
 }
 
@@ -566,7 +566,7 @@ rn_vk_image_view_type_from_texture_dimension(RN_TextureDimensionKind texture_dim
 }
 
 internal VkFormat
-rn_vk_vk_format_from_rn_texture_format_kind(RN_TextureFormatKind texture_format)
+rn_vk_format_from_rn_texture_format_kind(RN_TextureFormatKind texture_format)
 {
     switch(texture_format){
     case RN_TextureFormatKind_Invalid: return VK_FORMAT_UNDEFINED;
@@ -589,7 +589,7 @@ rn_vk_vk_format_from_rn_texture_format_kind(RN_TextureFormatKind texture_format)
     case RN_TextureFormatKind_RGBA32F       : return VK_FORMAT_R32G32B32A32_SFLOAT;
     // Depth / Stencil formats
     case RN_TextureFormatKind_D16_UNORM     : return VK_FORMAT_D16_UNORM;
-    case RN_TextureFormatKind_D24_UNORM_S8_UINT   : return VK_FORMAT_D24_UNORM_S8_UINT;
+    case RN_TextureFormatKind_D24_UNORM_S8_UINT : return VK_FORMAT_D24_UNORM_S8_UINT;
     case RN_TextureFormatKind_D32_SFLOAT   : return VK_FORMAT_D32_SFLOAT;
     case RN_TextureFormatKind_D32F_S8_UINT : return VK_FORMAT_D32_SFLOAT_S8_UINT;
     // Block‑compressed formats
@@ -680,7 +680,7 @@ rn_vk_format_from_rn_format_kind(RN_FormatKind kind)
 }
 
 internal VkCullModeFlags
-rn_vk_vk_cull_mode_flags_from_rn_cull_mode_flags(RN_CullModeFlags flags)
+rn_vk_cull_mode_flags_from_rn_cull_mode_flags(RN_CullModeFlags flags)
 {
     VkCullModeFlags vk_cull_mode = 0;
     vk_cull_mode |= DOT_BITS_ANY(flags, RN_CullModeBit_Front) ? VK_CULL_MODE_FRONT_BIT : 0;
@@ -690,7 +690,7 @@ rn_vk_vk_cull_mode_flags_from_rn_cull_mode_flags(RN_CullModeFlags flags)
 }
 
 internal VkFrontFace
-rn_vk_vk_front_face_from_front_face_sort_mode_kind(RN_FrontFaceSortModeKind kind)
+rn_vk_front_face_from_front_face_sort_mode_kind(RN_FrontFaceSortModeKind kind)
 {
     switch (kind) {
     case RN_FrontFaceSortKind_CounterClockwise  : return VK_FRONT_FACE_COUNTER_CLOCKWISE;
@@ -700,7 +700,7 @@ rn_vk_vk_front_face_from_front_face_sort_mode_kind(RN_FrontFaceSortModeKind kind
 }
 
 internal VkCompareOp
-rn_vk_vk_compare_op_from_rn_compare_op(RN_CompareOpKind kind)
+rn_vk_compare_op_from_rn_compare_op(RN_CompareOpKind kind)
 {
     switch(kind){
     case RN_CompareOpKind_Always:         return VK_COMPARE_OP_ALWAYS;
@@ -717,10 +717,24 @@ rn_vk_vk_compare_op_from_rn_compare_op(RN_CompareOpKind kind)
 }
 
 internal b32
-rn_vk_vk_format_has_stencil(VkFormat fmt)
+rn_vk_format_has_stencil(VkFormat fmt)
 {
     DOT_ALLOW_PARTIAL_SWITCH
     switch(fmt){
+    case VK_FORMAT_D24_UNORM_S8_UINT:
+    case VK_FORMAT_D32_SFLOAT_S8_UINT: return true;
+    default: return false;
+    }
+    DOT_RESTORE_PARTIAL_SWITCH
+}
+
+internal b32
+rn_vk_format_has_depth_or_stencil(VkFormat fmt)
+{
+    DOT_ALLOW_PARTIAL_SWITCH
+    switch(fmt){
+    case VK_FORMAT_D32_SFLOAT:
+    case VK_FORMAT_D16_UNORM:
     case VK_FORMAT_D24_UNORM_S8_UINT:
     case VK_FORMAT_D32_SFLOAT_S8_UINT: return true;
     default: return false;
@@ -745,7 +759,7 @@ rn_vk_extent2d_from_extent3d(VkExtent3D extent3d)
 }
 
 internal void
-rn_vk_rn_vk_texture_transition(
+rn_vk_texture_transition(
     VkCommandBuffer cmd,
     RN_VK_Texture *tex,
     VkImageLayout new_layout)
@@ -778,7 +792,7 @@ rn_vk_rn_vk_texture_transition(
 }
 
 internal void
-rn_vk_transition_image(
+rn_vk_image_transition(
     VkCommandBuffer cmd,
     VkImage image,
     VkImageLayout current_layout,

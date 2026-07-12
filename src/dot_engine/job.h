@@ -32,8 +32,7 @@ static void tramp_##fn(void *p){ \
     JOB_DEFINE(fn, T) \
     void fn(T var_name)
 
-#define JOB_CREATE(a, fn, T, ptr)       job_make(a, tramp_##fn, (ptr), sizeof(T), DOT_ALIGNOF(T))
-#define JOB_CREATE_LIT(a, fn, T, ...)   job_make(a, tramp_##fn, &(T){ __VA_ARGS__ }, sizeof(T), DOT_ALIGNOF(T))
+#define JOB_CREATE(a, fn, ptr)       job_make(a, tramp_##fn, (ptr), sizeof(*(ptr)), DOT_ALIGNOF(*(ptr)))
 
 typedef struct DOT_TestJobSystem{
     int x;
@@ -53,10 +52,9 @@ JOB_DEFINE_INLINE(random_name2, DOT_TestJobSystem*, arg)
 
 DOT_TEST_SUITE(dot_job_system){
     Arena *a = ARENA_CREATE();
-    Job job = JOB_CREATE_LIT(a, random_name, DOT_TestJobSystem, .x = 5);
+    // Job job = JOB_CREATE_LIT(a, random_name, DOT_TestJobSystem, .x = 5);
     DOT_TestJobSystem b = {0};
-    Job job2 = JOB_CREATE(a, random_name, DOT_TestJobSystem, &b);
+    Job job = JOB_CREATE(a, random_name, &b);
     (void)job;
-    (void)job2;
     return (DOT_TestResults){0};
 }

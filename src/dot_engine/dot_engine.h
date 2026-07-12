@@ -97,6 +97,7 @@ DOT_DIAGNOSTIC_PUSH
 #include "dot_engine/setting.h"
 #include "renderer/renderer_include.h"
 #include "dot_engine/plugin.h"
+
 #include "dot_engine/model.h"
 #include "dot_engine/game.h"
 #include "dot_engine/reflect.h"
@@ -105,6 +106,8 @@ DOT_DIAGNOSTIC_PUSH
 #define DOT_PROFILER_IMPL
 #include "dot_engine/profiler.h"
 #include "dot_engine/window.c"
+
+#include "dot_engine/model.c"
 #include "dot_engine/game.c"
 
 #include "game/my_game.c"

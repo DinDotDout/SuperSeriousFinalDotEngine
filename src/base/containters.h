@@ -170,7 +170,6 @@ typedef struct MemoryPool{
     MemoryPoolBlock *next_free_block;
 }MemoryPool;
 
-
 internal MemoryPool memory_pool_create(u32 block_size);
 internal u8        *memory_pool_alloc(Arena *arena, MemoryPool *memory_pool);
 internal void       memory_pool_free(MemoryPool *memory_pool, u8 *ptr);
@@ -181,9 +180,9 @@ internal void       memory_pool_free(MemoryPool *memory_pool, u8 *ptr);
 /// Go to definition for example usage:
 
 typedef struct {
-  u32 count;
-  u32 *data;
-} MultiMemoryPoolBlockSizes;
+    u32 count;
+    u32 *data;
+}MultiMemoryPoolBlockSizes;
 
 typedef struct MultiMemoryPool{
     u32 pools_count;

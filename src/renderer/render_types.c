@@ -198,12 +198,6 @@ rn_texture_format_from_info(int comp, u8 size_bytes, b32 srgb)
 // RN_PipelineDesc
 //
 
-internal RN_ShaderResourceLayoutDesc
-rn_shader_resource_layout_begin()
-{
-    return (RN_ShaderResourceLayoutDesc){0};
-}
-
 internal void
 rn_pipeline_set_vertex_attributes_(RN_PipelineDesc *pl, u32 count, RN_VertexAttribute *attr)
 {
@@ -257,6 +251,12 @@ rn_pipeline_push_shader_resource_layout(RN_PipelineDesc *pipeline_desc, RN_Shade
 // RN_ShaderResourceLayoutDesc
 //
 
+internal RN_ShaderResourceLayoutDesc
+rn_shader_resource_layout_begin()
+{
+    return (RN_ShaderResourceLayoutDesc){0};
+}
+
 internal void
 rn_shader_resource_layout_set_bindings_(RN_ShaderResourceLayoutDesc *layout_desc, u16 binding_count, RN_ShaderResourceBinding *bindings)
 {
@@ -275,9 +275,54 @@ rn_shader_resource_layout_push_binding_(RN_ShaderResourceLayoutDesc *layout_desc
 }
 
 ///////////////////////////////////////////////////////////////////
+//
+// RN_ShaderResourceDesc
+
+internal void
+rn_shader_resource_desc_set_layout(RN_ShaderResourceDesc *desc, RN_ShaderResourceLayoutHandle h)
+{
+    desc->layout_desc_h = h;
+}
+
+internal void
+rn_shader_resource_desc_bind_buffer(
+    RN_ShaderResourceDesc* desc,
+    RN_BufferHandle buffer,
+    u16 binding)
+{
+    DOT_ASSERT(binding < RN_SHADER_RESOURCE_BINDING_MAX);
+    desc->buffers[binding] = buffer;
+    desc->buffer_count += 1;
+}
+
+internal void
+rn_shader_resource_desc_bind_texture(
+    RN_ShaderResourceDesc* desc,
+    RN_TextureHandle texture,
+    u16 binding)
+{
+    DOT_ASSERT(binding < RN_SHADER_RESOURCE_BINDING_MAX);
+    desc->textures[binding] = texture;
+    desc->texture_sampler_count += 1;
+}
+
+internal void
+rn_shader_resource_desc_bind_texture_sampler(
+    RN_ShaderResourceDesc* desc,
+    RN_TextureHandle texture,
+    RN_SamplerHandle sampler,
+    u16 binding)
+{
+    DOT_ASSERT(binding < RN_SHADER_RESOURCE_BINDING_MAX);
+
+    desc->textures[binding] = texture;
+    desc->samplers[binding] = sampler;
+    desc->texture_sampler_count += 1;
+}
+
+///////////////////////////////////////////////////////////////////
 // RN_ShaderStageKind
 //
-
 
 // (jd) didn't really need to do the hash thing but I wanted to test this for where it may matter
 RN_ShaderStageKind

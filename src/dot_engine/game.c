@@ -16,6 +16,7 @@ void dot_game_run(DOT_Game *game) {
 }
 
 #else
+
 // NOTE: All this shouldn't we here but I am using this as a testbed for the render api for now
 b32 dot_game_init(DOT_Game *game, RN_RenderCtx *renderer,
     u8 permanent_memory[], usize permanent_memory_size,
@@ -34,9 +35,9 @@ b32 dot_game_init(DOT_Game *game, RN_RenderCtx *renderer,
     // String8 model_path = string8_lit(DOT_GAME_ASSET_PATH"glTF-Sample-Models/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf");
     String8 model_path = string8_lit(DOT_GAME_ASSET_PATH"glTF-Sample-Models/2.0/Cube/glTF/Cube.gltf");
     // String8 model_path = string8_lit(DOT_GAME_ASSET_PATH"glTF-Sample-Models/2.0/2CylinderEngine/glTF/2CylinderEngine.gltf");
-    DOT_Model model = dot_model_load_from_path(g_game->renderer, model_path);
+    DOT_Scene model = dot_scene_load_from_path(g_game->renderer, model_path);
 
-    RN_ShaderResourceLayoutDesc resource_layout_desc = rn_shader_resource_layout_begin();
+    RN_ShaderResourceLayoutDesc resource_layout_desc = {0};
     rn_shader_resource_layout_set_bindings(&resource_layout_desc,
         { RN_ShaderResourceKind_UniformBufferDynamic, 0, 1, string8_lit("LocalConstants"), 0 },
         { RN_ShaderResourceKind_UniformBufferDynamic, 1, 1, string8_lit("MaterialConstants"), 0 },
@@ -46,20 +47,20 @@ b32 dot_game_init(DOT_Game *game, RN_RenderCtx *renderer,
         { RN_ShaderResourceKind_SamplerXTexture, 5, 1, string8_lit("emissiveTexture"), 0 },
         { RN_ShaderResourceKind_SamplerXTexture, 6, 1, string8_lit("occlusionTexture"), 0 },
     );
-    RN_ShaderResourceLayoutHandle h = rn_shader_resource_layout_create(renderer, &resource_layout_desc);
+    g_shader_resource_layout_h = rn_shader_resource_layout_create(renderer, &resource_layout_desc);
 
     RN_PipelineDesc pipeline_desc = {0};
     rn_pipeline_set_vertex_attributes(&pipeline_desc,
-        { .location = 0, .binding = 0, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x3 },
-        { .location = 1, .binding = 1, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x4 },
-        { .location = 2, .binding = 2, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x3 },
-        { .location = 3, .binding = 3, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x2 }
+        { .location = 0, .binding = 0, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x3 }, // position
+        { .location = 1, .binding = 1, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x4 }, // tangent
+        { .location = 2, .binding = 2, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x3 }, // normal
+        { .location = 3, .binding = 3, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x2 }  // texcoord
     );
     rn_pipeline_set_vertex_streams(&pipeline_desc,
-        { .binding = 0, .stride = 12, .input_rate = RN_VertexInputRateKind_PerVertex},
-        { .binding = 1, .stride = 16, .input_rate = RN_VertexInputRateKind_PerVertex},
-        { .binding = 2, .stride = 12, .input_rate = RN_VertexInputRateKind_PerVertex},
-        { .binding = 3, .stride = 8, .input_rate = RN_VertexInputRateKind_PerVertex},
+        { .binding = 0, .stride = 12, .input_rate = RN_VertexInputRateKind_PerVertex}, // position
+        { .binding = 1, .stride = 16, .input_rate = RN_VertexInputRateKind_PerVertex}, // tangent
+        { .binding = 2, .stride = 12, .input_rate = RN_VertexInputRateKind_PerVertex}, // normal
+        { .binding = 3, .stride = 8, .input_rate = RN_VertexInputRateKind_PerVertex},  // texcoord
     );
     rn_pipeline_set_depth_stencil_state(&pipeline_desc,
         .depth_write_enable = true,
@@ -73,11 +74,11 @@ b32 dot_game_init(DOT_Game *game, RN_RenderCtx *renderer,
     DOT_DebugNameSet(pipeline_desc.shader_state.debug_name, string8_lit("Cube"));
 
     rn_pipeline_set_render_pass_output(&pipeline_desc, rn_swapchain_output());
-    rn_pipeline_push_shader_resource_layout(&pipeline_desc, h);
+    rn_pipeline_push_shader_resource_layout(&pipeline_desc, g_shader_resource_layout_h);
 
-    typedef struct UniformData {
-        mat4 m;
-        mat4 vp;
+    typedef struct UniformData{
+        mat4 model_from_view;
+        mat4 view_from_projection;
         vec4 eye;
         vec4 light;
     }UniformData;
@@ -88,12 +89,22 @@ b32 dot_game_init(DOT_Game *game, RN_RenderCtx *renderer,
     bd.size = sizeof(UniformData);
     DOT_DebugNameSet(bd.debug_name, string8_lit("cube constant buffer"));
 
-    RN_BufferHandle bh = rn_buffer_create_h(renderer, &bd, NULL);
-    (void)bh;
+    g_cube_ubo_h = rn_buffer_create_h(renderer, &bd, NULL);
+    (void)g_cube_ubo_h;
 
     RN_PipelineHandle cube_pipeline = rn_pipeline_create(renderer, &pipeline_desc);
     (void)cube_pipeline;
 
+    // TODO: put alloc somewhere it makes sense
+    // RN_ShaderResourceDesc *descriptor_sets = PUSH_ARRAY(game->permanent_arena, RN_ShaderResourceDesc, model.sub_mesh_draw_count);
+
+    // for EACH_INDEX(i, model.sub_mesh_draw_count){
+        // DOT_Submesh *submesh = &model.sub_mesh_draw[i];
+        // submesh->buffers
+        // RN_ShaderResourceDesc *descriptor_set = &descriptor_sets[i];
+        // if(
+    // }
+    //
 
     // RN_PipelineDesc pipeline2 = {0};
     // rn_pipeline_set_depth_stencil_state(&pipeline2,

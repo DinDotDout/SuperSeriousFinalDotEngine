@@ -163,6 +163,10 @@ typedef struct RN_ShaderResourceBinding{
     u16 set;
 }RN_ShaderResourceBinding;
 
+typedef struct RN_ShaderResourceHandle{
+    RN_Handle handle;
+}RN_ShaderResourceHandle;
+
 typedef struct RN_ShaderResourceLayoutDesc{
     u16 binding_count;
     RN_ShaderResourceBinding bindings[RN_SHADER_RESOURCE_BINDING_MAX];
@@ -171,10 +175,20 @@ typedef struct RN_ShaderResourceLayoutDesc{
 }RN_ShaderResourceLayoutDesc;
 
 typedef struct RN_ShaderResourceLayout{
-    // RN_Resource resource;
     RN_ShaderResourceLayoutHandle handle;
     RN_ShaderResourceLayoutDesc desc;
 }RN_ShaderResourceLayout;
+
+typedef struct RN_ShaderResourceDesc{
+    RN_ShaderResourceLayoutHandle layout_desc_h;
+
+    u32 buffer_count;
+    RN_BufferHandle     buffers[RN_SHADER_RESOURCE_BINDING_MAX];
+
+    u32 texture_sampler_count;
+    RN_TextureHandle    textures[RN_SHADER_RESOURCE_BINDING_MAX];
+    RN_SamplerHandle    samplers[RN_SHADER_RESOURCE_BINDING_MAX];
+}RN_ShaderResourceDesc;
 
 typedef struct RN_TextureDesc{
     RN_TextureDimensionKind dimension_kind;
@@ -254,7 +268,7 @@ DOT_ENUM_REFLECT(RN_SamplerMipmapFilterKind, RN_SAMPLER_MIP_MAP_MODE_KINDS);
 
 #define RN_SAMPLER_ADDRESS_MODE_KINDS(X) \
     X(RN_SamplerAddressModeKind, Repeat) \
-    X(RN_SamplerAddressModeKind, Mirrored_repeat) \
+    X(RN_SamplerAddressModeKind, MirroredRepeat) \
     X(RN_SamplerAddressModeKind, ClampToEdge) \
     X(RN_SamplerAddressModeKind, ClampToBorder) \
     X(RN_SamplerAddressModeKind, MirrorClampToEdge)
@@ -642,6 +656,17 @@ internal void                           rn_shader_resource_layout_push_binding_(
 #define rn_shader_resource_layout_set_bindings(pl, ...) rn_shader_resource_layout_set_bindings_(pl, DOT_ARRAY_SPREAD_T(RN_ShaderResourceBinding, __VA_ARGS__));
 #define rn_shader_resource_layout_push_binding(pl, ...) rn_shader_resource_layout_push_binding_(pl,  &(RN_ShaderResourceBinding)__VA_ARGS__);
 // internal void rn_pipeline_set_vertex_streams_(RN_ShaderResourceLayoutDesc *, u32 count, RN_VertexStream *streams);
+
+///////////////////////////////////////////////////////////////////
+//
+// RN_ShaderResourceDesc
+//
+
+internal void rn_shader_resource_desc_set_layout(RN_ShaderResourceDesc *, RN_ShaderResourceLayoutHandle);
+internal void rn_shader_resource_desc_bind_buffer(RN_ShaderResourceDesc *, RN_BufferHandle buffer, u16 binding);
+internal void rn_shader_resource_desc_bind_texture(RN_ShaderResourceDesc *, RN_TextureHandle texture, u16 binding);
+internal void rn_shader_resource_desc_bind_texture_sampler(RN_ShaderResourceDesc *, RN_TextureHandle texture, RN_SamplerHandle sampler, u16 binding);
+
 
 ///////////////////////////////////////////////////////////////////
 // RN_ShaderStageKind

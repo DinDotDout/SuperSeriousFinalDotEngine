@@ -44,7 +44,7 @@ rn_vk_debug_callback(
 }
 
 internal inline VKAPI_ATTR void VKAPI_CALL
-rn_vk_vk_resource_set_name(VkObjectType type, u64 handle, const char *name)
+rn_vk_resource_set_name(VkObjectType type, u64 handle, const char *name)
 {
     if(!VK_EXT_DEBUG_UTILS_ENABLE){
         return;
@@ -73,8 +73,8 @@ rn_vk_shader_create(String8 data)
 
     VkShaderModule vk_shader_module = VK_NULL_HANDLE;
     RN_VK_CHECK(vkCreateShaderModule(rn_vk_ctx->device.vk_device, &create_info, NULL, &vk_shader_module));
-    rn_vk_vk_resource_set_name(VK_OBJECT_TYPE_SHADER_MODULE, cast(u64)vk_shader_module, "default");
-    RN_ShaderStageHandle rn_h = rn_vk_shader_stage_handle_from_vk_shader_module(vk_shader_module);
+    rn_vk_resource_set_name(VK_OBJECT_TYPE_SHADER_MODULE, cast(u64)vk_shader_module, "default");
+    RN_ShaderStageHandle rn_h = rn_shader_stage_handle_from_vk_shader_module(vk_shader_module);
     return rn_h;
 }
 
@@ -138,7 +138,7 @@ rn_vk_sampler_create_(RN_SamplerDesc *desc)
             VkBorderColor           borderColor;
             VkBool32                unnormalizedCoordinates;*/
         }, NULL, &sampler->vk_sampler);
-    rn_vk_vk_resource_set_name(VK_OBJECT_TYPE_SAMPLER, cast(u64)sampler->vk_sampler, sampler->debug_name.buff);
+    rn_vk_resource_set_name(VK_OBJECT_TYPE_SAMPLER, cast(u64)sampler->vk_sampler, sampler->debug_name.buff);
     return sampler_h;
 }
 
@@ -213,7 +213,7 @@ rn_vk_texture_create_(RN_TextureDesc *desc, void *data)
         RN_VK_Texture *texture      = POOL_GET(&rn_vk_ctx->texture_pool, texture_h);
         texture->vk_extent3d        = image_extent_3d;
         texture->mip_levels         = desc->mip_levels;
-        texture->vk_format          = rn_vk_vk_format_from_rn_texture_format_kind(desc->format_kind);
+        texture->vk_format          = rn_vk_format_from_rn_texture_format_kind(desc->format_kind);
         texture->vk_image_layout    = VK_IMAGE_LAYOUT_UNDEFINED;
         texture->debug_name         = desc->debug_name;
 
@@ -237,7 +237,7 @@ rn_vk_texture_create_(RN_TextureDesc *desc, void *data)
             &(VkImageCreateInfo){
                 .sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
                 .imageType = rn_vk_image_type_from_texture_dimension(desc->dimension_kind),
-                .format = rn_vk_vk_format_from_rn_texture_format_kind(desc->format_kind),
+                .format = rn_vk_format_from_rn_texture_format_kind(desc->format_kind),
                 .extent = image_extent_3d,
                 .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
                 .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
@@ -251,7 +251,7 @@ rn_vk_texture_create_(RN_TextureDesc *desc, void *data)
             NULL,
             &texture->vk_image));
         texture->alloc = rn_vk_memory_gpu_image_alloc(rn_vk_ctx->base.permanent_arena, &rn_vk_ctx->memory_pools, texture->vk_image);
-        rn_vk_vk_resource_set_name(VK_OBJECT_TYPE_IMAGE, cast(u64)texture->vk_image, texture->debug_name.buff);
+        rn_vk_resource_set_name(VK_OBJECT_TYPE_IMAGE, cast(u64)texture->vk_image, texture->debug_name.buff);
 
         VkImageAspectFlags aspect_mask = VK_IMAGE_ASPECT_NONE;
         aspect_mask |= format_depth_bit ? VK_IMAGE_ASPECT_DEPTH_BIT : 0;
@@ -275,7 +275,7 @@ rn_vk_texture_create_(RN_TextureDesc *desc, void *data)
             },
             NULL,
             &texture->vk_image_view));
-        rn_vk_vk_resource_set_name(VK_OBJECT_TYPE_IMAGE_VIEW, cast(u64)texture->vk_image_view, desc->debug_name.buff);
+        rn_vk_resource_set_name(VK_OBJECT_TYPE_IMAGE_VIEW, cast(u64)texture->vk_image_view, desc->debug_name.buff);
 
         if(data){
             u64 texture_size = format_info.block_size * image_extent_3d.height * image_extent_3d.width  * image_extent_3d.depth;
@@ -290,7 +290,7 @@ rn_vk_texture_create_(RN_TextureDesc *desc, void *data)
                     .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
                     .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
                 });
-            rn_vk_rn_vk_texture_transition(vk_command_buffer, texture, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+            rn_vk_texture_transition(vk_command_buffer, texture, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
             vkCmdCopyBufferToImage(vk_command_buffer, mem_alloc.vk_buffer, texture->vk_image, texture->vk_image_layout, 1, 
                 &(VkBufferImageCopy){
                     .bufferOffset = mem_alloc.offset,
@@ -304,7 +304,7 @@ rn_vk_texture_create_(RN_TextureDesc *desc, void *data)
 
                     .imageOffset = { 0, 0, 0 },
                     .imageExtent = image_extent_3d});
-            rn_vk_rn_vk_texture_transition(vk_command_buffer, texture, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            rn_vk_texture_transition(vk_command_buffer, texture, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
             vkEndCommandBuffer(vk_command_buffer);
             vkQueueSubmit(rn_vk_ctx->device.graphics_queue, 1,
                 &(VkSubmitInfo){
@@ -365,7 +365,7 @@ rn_vk_buffer_create_(RN_BufferDesc *desc, u8 *data)
         },
     NULL,
     &buffer->vk_buffer));
-    rn_vk_vk_resource_set_name(VK_OBJECT_TYPE_BUFFER, cast(u64)buffer->vk_buffer, desc->debug_name.buff);
+    rn_vk_resource_set_name(VK_OBJECT_TYPE_BUFFER, cast(u64)buffer->vk_buffer, desc->debug_name.buff);
     if(desc->resource_usage == RN_ResourceUsageKind_Readback){
         DOT_TODO("Unimplemented");
     }
@@ -459,6 +459,258 @@ rn_vk_shader_resource_layout_create_(RN_ShaderResourceLayoutDesc *desc)
     return(shader_resource_layout_h);
 }
 
+internal RN_VK_ShaderResourceHandle
+rn_vk_shader_resource_create_(RN_ShaderResourceDesc* desc){
+    DOT_ASSERT(desc, "Missing descriptor set desc");
+
+    RN_VK_ShaderResourceHandle set_h = POOL_ALLOC(&rn_vk_ctx->shader_resource_pool);
+    if(pool_handle_is_default(set_h)){
+        DOT_WARNING("Couldn't allocate more descriptor sets. Returning default");
+        return set_h;
+    }
+
+    RN_VK_ShaderResource* set = POOL_GET(&rn_vk_ctx->shader_resource_pool, set_h);
+    RN_VK_ShaderResourceLayout* layout =
+        POOL_GET(&rn_vk_ctx->shader_resource_layout_pool,
+                 pool_handle_unpack(desc->layout_desc_h.handle));
+
+    VkDescriptorSetAllocateInfo alloc_info = {0};
+    alloc_info.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    alloc_info.descriptorPool     = rn_vk_ctx->descriptor_pool;
+    alloc_info.descriptorSetCount = 1;
+    alloc_info.pSetLayouts        = &layout->vk_descriptor_set_layout;
+
+    RN_VK_CHECK(vkAllocateDescriptorSets(rn_vk_ctx->device.vk_device,
+                                         &alloc_info,
+                                         &set->vk_descriptor_set));
+
+    VkWriteDescriptorSet   writes[RN_SHADER_RESOURCE_BINDING_MAX]      = {0};
+    VkDescriptorBufferInfo buffer_infos[RN_SHADER_RESOURCE_BINDING_MAX] = {0};
+    VkDescriptorImageInfo  image_infos[RN_SHADER_RESOURCE_BINDING_MAX]  = {0};
+
+    u32 write_count = 0;
+    for(u32 i = 0; i < layout->binding_count; ++i){
+        RN_ShaderResourceBinding* b        = &layout->bindings[i];
+        VkWriteDescriptorSet*     write_set = &writes[write_count];
+
+        write_set->sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write_set->dstSet          = set->vk_descriptor_set;
+        write_set->dstBinding      = b->start;
+        write_set->dstArrayElement = 0;
+        write_set->descriptorCount = b->count;
+        write_set->descriptorType  = rn_vk_descriptor_type_from_shader_resource_kind(b->kind);
+
+        switch(b->kind){
+        case RN_ShaderResourceKind_UniformBufferDynamic:{
+            RN_VK_Buffer* buf =
+                POOL_GET(&rn_vk_ctx->buffer_pool,
+                         pool_handle_unpack(desc->buffers[i].handle));
+
+            buffer_infos[write_count].buffer = buf->vk_buffer;
+            buffer_infos[write_count].offset = buf->offset;
+            buffer_infos[write_count].range  = buf->vk_size;
+
+            write_set->pBufferInfo   = &buffer_infos[write_count];
+            write_set->descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        }break;
+
+        case RN_ShaderResourceKind_UniformBuffer:{
+            RN_VK_Buffer* buf =
+                POOL_GET(&rn_vk_ctx->buffer_pool,
+                         pool_handle_unpack(desc->buffers[i].handle));
+
+            buffer_infos[write_count].buffer = buf->vk_buffer;
+            buffer_infos[write_count].offset = 0;
+            buffer_infos[write_count].range  = buf->vk_size;
+
+            write_set->pBufferInfo   = &buffer_infos[write_count];
+            write_set->descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        }break;
+
+        case RN_ShaderResourceKind_SampledTexture:
+        case RN_ShaderResourceKind_SamplerXTexture:{
+            RN_VK_Texture* tex = POOL_GET(&rn_vk_ctx->texture_pool, pool_handle_unpack(desc->textures[i].handle));
+
+            VkSampler sampler_vk = rn_vk_g_default_sampler;
+            if(desc->samplers[i].handle != 0){
+                RN_VK_Sampler* samp = POOL_GET(&rn_vk_ctx->sampler_pool, pool_handle_unpack(desc->samplers[i].handle));
+                sampler_vk = samp->vk_sampler;
+            }
+
+            image_infos[write_count].sampler   = sampler_vk;
+            image_infos[write_count].imageView = tex->vk_image_view;
+            image_infos[write_count].imageLayout = rn_vk_format_has_depth_or_stencil(tex->vk_format)
+                    ? VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
+                    : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+            write_set->pImageInfo    = &image_infos[write_count];
+            write_set->descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        }break;
+
+        case RN_ShaderResourceKind_StorageTexture:{
+            RN_VK_Texture* tex =
+                POOL_GET(&rn_vk_ctx->texture_pool,
+                         pool_handle_unpack(desc->textures[i].handle));
+
+            image_infos[write_count].sampler   = VK_NULL_HANDLE;
+            image_infos[write_count].imageView = tex->vk_image_view;
+            image_infos[write_count].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+            write_set->pImageInfo    = &image_infos[write_count];
+            write_set->descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        }break;
+
+        case RN_ShaderResourceKind_StorageBuffer:{
+            RN_VK_Buffer* buf =
+                POOL_GET(&rn_vk_ctx->buffer_pool,
+                         pool_handle_unpack(desc->buffers[i].handle));
+
+            buffer_infos[write_count].buffer = buf->vk_buffer;
+            buffer_infos[write_count].offset = 0;
+            buffer_infos[write_count].range  = buf->vk_size;
+
+            write_set->pBufferInfo    = &buffer_infos[write_count];
+            write_set->descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        }break;
+
+        default:
+            DOT_ERROR("Unsupported descriptor type %u", b->kind);
+            break;
+        }
+
+        write_count++;
+    }
+
+    vkUpdateDescriptorSets(rn_vk_ctx->device.vk_device, write_count, writes, 0, NULL);
+
+    return set_h;
+}
+
+// internal RN_VK_ShaderResourceHandle
+// rn_vk_shader_resource_create_(RN_ShaderResourceDesc* desc)
+// {
+//     DOT_ASSERT(desc, "Missing descriptor set desc");
+//
+//     RN_VK_ShaderResourceHandle set_h = POOL_ALLOC(&rn_vk_ctx->shader_resource_pool);
+//     if(pool_handle_is_default(set_h)){
+//         DOT_WARNING("Couldn't allocate more descriptor sets. Returning default");
+//         return set_h;
+//     }
+//
+//     RN_VK_ShaderResource *set = POOL_GET(&rn_vk_ctx->shader_resource_pool, set_h);
+//     RN_VK_ShaderResourceLayout *layout = POOL_GET(&rn_vk_ctx->shader_resource_layout_pool, pool_handle_unpack(desc->layout_desc_h.handle));
+//
+//     VkDescriptorSetAllocateInfo alloc_info = {0};
+//     alloc_info.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+//     alloc_info.descriptorPool     = rn_vk_ctx->descriptor_pool;
+//     alloc_info.descriptorSetCount = 1;
+//     alloc_info.pSetLayouts        = &layout->vk_descriptor_set_layout;
+//
+//     RN_VK_CHECK(vkAllocateDescriptorSets(rn_vk_ctx->device.vk_device, &alloc_info, &set->vk_descriptor_set));
+//
+//     // Prepare write structures
+//     VkWriteDescriptorSet      writes[RN_SHADER_RESOURCE_BINDING_MAX] = {0};
+//     VkDescriptorBufferInfo    buffer_infos[RN_SHADER_RESOURCE_BINDING_MAX] = {0};
+//     VkDescriptorImageInfo     image_infos[RN_SHADER_RESOURCE_BINDING_MAX] = {0};
+//
+//     u32 write_count = 0;
+//     for(u32 i = 0; i < layout->binding_count; ++i){
+//         RN_ShaderResourceBinding *b = &layout->bindings[i];
+//         VkWriteDescriptorSet *write_set     = &writes[write_count];
+//
+//         write_set->sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+//         write_set->dstSet          = set->vk_descriptor_set;
+//         write_set->dstBinding      = b->start;
+//         write_set->dstArrayElement = 0;
+//         write_set->descriptorCount = b->count;
+//         write_set->descriptorType  = rn_vk_descriptor_type_from_shader_resource_kind(b->kind);
+//
+//         switch(b->kind){
+//         case RN_ShaderResourceKind_UniformBufferDynamic:{
+//             RN_VK_Buffer *buf = POOL_GET(&rn_vk_ctx->buffer_pool, pool_handle_unpack(desc->buffers[i].handle));
+//
+//             buffer_infos[write_count].buffer = buf->vk_buffer;
+//             buffer_infos[write_count].offset = buf->offset;
+//             buffer_infos[write_count].range  = buf->vk_size;
+//
+//             write_set->pBufferInfo = &buffer_infos[write_count];
+//             write_set->descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+//         }break;
+//         case RN_ShaderResourceKind_UniformBuffer:{
+//             RN_VK_Buffer *buf = POOL_GET(&rn_vk_ctx->buffer_pool, pool_handle_unpack(desc->buffers[i].handle));
+//
+//             buffer_infos[write_count].buffer = buf->vk_buffer;
+//             buffer_infos[write_count].offset = 0;
+//             buffer_infos[write_count].range  = buf->vk_size;
+//
+//             write_set->pBufferInfo = &buffer_infos[write_count];
+//             write_set->descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+//         }break;
+//         case RN_ShaderResourceKind_SampledTexture:
+//         case RN_ShaderResourceKind_SamplerXTexture:
+//         {
+//             RN_VK_Texture* tex = POOL_GET(&rn_vk_ctx->texture_pool, pool_handle_unpack(desc->textures[i].handle));
+//
+//             VkSampler sampler_vk = rn_vk_ctx->default_sampler.vk_sampler;
+//             if (desc->samplers[i].index != RN_INVALID_HANDLE) {
+//                 RN_VK_Sampler *samp = POOL_GET(&rn_vk_ctx->sampler_pool, pool_handle_unpack(desc->samplers[i].handle));
+//                 sampler_vk = samp->vk_sampler;
+//             }
+//
+//             image_infos[write_count].sampler     = sampler_vk;
+//             image_infos[write_count].imageView   = tex->vk_image_view;
+//             image_infos[write_count].imageLayout = rn_vk_format_has_depth_or_stencil(tex->vk_format)
+//                     ? VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
+//                     : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+//
+//             write_set->pImageInfo = &image_infos[write_count];
+//             write_set->descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+//             break;
+//         }
+//
+//         case RN_ShaderResourceKind_StorageTexture:{
+//             RN_VK_Texture *tex = POOL_GET(&rn_vk_ctx->texture_pool, pool_handle_unpack(desc->textures[i].handle));
+//
+//             image_infos[write_count].sampler     = VK_NULL_HANDLE;
+//             image_infos[write_count].imageView   = tex->vk_image_view;
+//             image_infos[write_count].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+//
+//             write_set->pImageInfo = &image_infos[write_count];
+//         }break;
+//
+//         case RN_ShaderResourceKind_StorageBuffer:{
+//             RN_VK_Buffer *buf = POOL_GET(&rn_vk_ctx->buffer_pool, pool_handle_unpack(desc->buffers[i].handle));
+//
+//             buffer_infos[write_count].buffer = buf->vk_buffer;
+//             buffer_infos[write_count].offset = 0;
+//             buffer_infos[write_count].range  = buf->vk_size;
+//
+//             write_set->pBufferInfo = &buffer_infos[write_count];
+//         }break;
+//         default: DOT_ERROR("Unsupported descriptor type %u", b->kind); break;
+//         }
+//
+//         write_count++;
+//     }
+//
+//     vkUpdateDescriptorSets(
+//         rn_vk_ctx->device.vk_device,
+//         write_count,
+//         writes,
+//         0,
+//         NULL);
+//
+//     return set_h;
+// }
+
+internal RN_ShaderResourceHandle
+rn_vk_shader_resource_create(RN_ShaderResourceDesc *desc)
+{
+    RN_VK_TextureHandle h = rn_vk_shader_resource_create_(desc);
+    RN_ShaderResourceHandle rn_h = { pool_handle_pack(h) };
+    return(rn_h);
+}
+
 internal RN_PipelineHandle
 rn_vk_pipeline_create(RN_PipelineDesc *desc)
 {
@@ -492,10 +744,10 @@ rn_vk_render_pass_output(RN_RenderPassOutput *rp)
 {
     RN_VK_RenderPassOutput out  = {0};
     out.color_formats_count     = rp->color_format_count;
-    out.depth_stencil_format    = rn_vk_vk_format_from_rn_texture_format_kind(rp->depth_stencil_format);
+    out.depth_stencil_format    = rn_vk_format_from_rn_texture_format_kind(rp->depth_stencil_format);
 
     for (u32 i = 0; i < rp->color_format_count; ++i) {
-        out.color_formats[i] = rn_vk_vk_format_from_rn_texture_format_kind(rp->color_formats[i]);
+        out.color_formats[i] = rn_vk_format_from_rn_texture_format_kind(rp->color_formats[i]);
     }
     return out;
 }
@@ -557,7 +809,7 @@ rn_vk_pipeline_create_(RN_PipelineDesc *desc)
         rendering_info.colorAttachmentCount    = desc->render_pass.color_format_count;
         rendering_info.pColorAttachmentFormats = pipeline->renderpass_output.color_formats;
         rendering_info.depthAttachmentFormat   = depth_stencil_fmt;
-        rendering_info.stencilAttachmentFormat = rn_vk_vk_format_has_stencil(depth_stencil_fmt) ? depth_stencil_fmt : VK_FORMAT_UNDEFINED;
+        rendering_info.stencilAttachmentFormat = rn_vk_format_has_stencil(depth_stencil_fmt) ? depth_stencil_fmt : VK_FORMAT_UNDEFINED;
 
         VkGraphicsPipelineCreateInfo pipeline_info = {0};
         pipeline_info.sType     = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -604,8 +856,8 @@ rn_vk_pipeline_create_(RN_PipelineDesc *desc)
         rasterizer.depthClampEnable        = VK_FALSE;
         rasterizer.rasterizerDiscardEnable = VK_FALSE;
         rasterizer.polygonMode             = VK_POLYGON_MODE_FILL;
-        rasterizer.cullMode                = rn_vk_vk_cull_mode_flags_from_rn_cull_mode_flags(desc->raster_state.cull_mode);
-        rasterizer.frontFace               = rn_vk_vk_front_face_from_front_face_sort_mode_kind(desc->raster_state.front_face_sort_mode);
+        rasterizer.cullMode                = rn_vk_cull_mode_flags_from_rn_cull_mode_flags(desc->raster_state.cull_mode);
+        rasterizer.frontFace               = rn_vk_front_face_from_front_face_sort_mode_kind(desc->raster_state.front_face_sort_mode);
         rasterizer.depthBiasEnable         = VK_FALSE;
         rasterizer.lineWidth               = 1.0f;
 
@@ -618,7 +870,7 @@ rn_vk_pipeline_create_(RN_PipelineDesc *desc)
         depth_stencil.sType            = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
         depth_stencil.depthTestEnable  = desc->depth_stencil_state.depth_enable;
         depth_stencil.depthWriteEnable = desc->depth_stencil_state.depth_write_enable;
-        depth_stencil.depthCompareOp   = rn_vk_vk_compare_op_from_rn_compare_op(desc->depth_stencil_state.depth_comparison);
+        depth_stencil.depthCompareOp   = rn_vk_compare_op_from_rn_compare_op(desc->depth_stencil_state.depth_comparison);
         depth_stencil.stencilTestEnable = VK_FALSE;
 
         VkPipelineColorBlendAttachmentState vk_blend_attachments[RN_IMAGE_OUTPUTS_MAX];
@@ -811,7 +1063,8 @@ rn_vk_init(DOT_Window *window)
     POOL_INIT(ctx_arena, &rn_vk_ctx->sampler_pool,  rn_g_sampler_max);
     POOL_INIT(ctx_arena, &rn_vk_ctx->pipeline_pool, rn_g_pipeline_max);
     POOL_INIT(ctx_arena, &rn_vk_ctx->shader_state_pool, rn_g_shader_state_resource_max);
-    POOL_INIT(ctx_arena, &rn_vk_ctx->shader_resource_layout_pool, rn_g_shader_resource_max);
+    POOL_INIT(ctx_arena, &rn_vk_ctx->shader_resource_layout_pool, rn_g_shader_resource_layout_max);
+    POOL_INIT(ctx_arena, &rn_vk_ctx->shader_resource_pool, rn_g_shader_resource_max);
 
 #ifdef DOT_USE_VOLK
     volkInitialize();
@@ -1328,10 +1581,10 @@ rn_vk_frame_begin()
     };
     RN_VK_CHECK(vkBeginCommandBuffer(cmd, &cmd_begin_info));
 
-    rn_vk_transition_image(cmd, swapchain_image->vk_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+    rn_vk_image_transition(cmd, swapchain_image->vk_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
 	RN_VK_Texture *draw_image = POOL_GET(&rn_vk_ctx->texture_pool, frame_data->draw_image);
-    rn_vk_transition_image(cmd, draw_image->vk_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL); // (jd) TODO: use rn_vk_texture helper
+    rn_vk_image_transition(cmd, draw_image->vk_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL); // (jd) TODO: use rn_vk_texture helper
 }
 
 internal void
@@ -1349,12 +1602,12 @@ rn_vk_frame_end()
     {
 	    RN_VK_Texture *draw_image = POOL_GET(&rn_vk_ctx->texture_pool, frame_data->draw_image);
 
-        // rn_vk_rn_vk_texture_transition(cmd, draw_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-        rn_vk_transition_image(cmd, draw_image->vk_image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-        rn_vk_transition_image(cmd, swapchain_image->vk_image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        // rn_vk_rn_vk_texture_transition(cmd, draw_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        // rn_vk_texture_transition(cmd, draw_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        rn_vk_image_transition(cmd, draw_image->vk_image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        rn_vk_image_transition(cmd, swapchain_image->vk_image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        // rn_vk_texture_transition(cmd, draw_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         rn_vk_copy_image_to_image(cmd, draw_image->vk_image, swapchain_image->vk_image, rn_vk_ctx->draw_extent, rn_vk_ctx->swapchain.extent);
-        rn_vk_transition_image(cmd, swapchain_image->vk_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        rn_vk_image_transition(cmd, swapchain_image->vk_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     }
 
 	RN_VK_CHECK(vkEndCommandBuffer(cmd));

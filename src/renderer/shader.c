@@ -46,9 +46,8 @@ rn_shader_compile_from_path(u32 argument_count, String8 arguments[], String8 inp
             if(string8_contains(str, string8_lit("error"))){
                 execute_success = false;
             }
-       }else{
+        }else{
             int err = errno;
-
             DOT_PRINT( "Execute process error.\n Exe: \"%S\"", output_path);
             DOT_PRINT( "Error: %d\n", err );
             execute_success = false;
