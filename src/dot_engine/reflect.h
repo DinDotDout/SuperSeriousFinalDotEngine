@@ -80,7 +80,7 @@ struct RFL_ReflectMeta{
 #define HM_PREFIX RFL_ReflectMetaPtr
 #include "base/templates/hashmap.h"
 
-DECLARE_SECTION(RFL_ReflectMeta, reflect);
+SECTION_DECLARE(RFL_ReflectMeta, reflect);
 
 #define Reflect(n, hook_fn, ...) \
     typedef struct n __VA_ARGS__ n; \
@@ -138,7 +138,6 @@ ReflectPrimitive(i32,  RFL_ReflectKind_Int);
 ReflectPrimitive(i64,  RFL_ReflectKind_Int);
 ReflectPrimitive(iptr, RFL_ReflectKind_Int);
 
-ReflectPrimitive(uint, RFL_ReflectKind_Uint);
 ReflectPrimitive(u8,   RFL_ReflectKind_Uint);
 ReflectPrimitive(u16,  RFL_ReflectKind_Uint);
 ReflectPrimitive(u32,  RFL_ReflectKind_Uint);
@@ -177,7 +176,7 @@ ReflectEnum(u32, Some_enum, {
 internal b32
 rfl_is_tag(String8 tok)
 {
-    return string8_starts_with(tok, string8_lit("rfl_"));
+    return string8_starts_with(tok, string8_comp("rfl_"));
 }
 
 typedef struct RFL_ParsedField{
@@ -243,7 +242,7 @@ rfl_parse_struct_fields(Arena *arena, RFL_ReflectMeta *meta)
 
         // Default hook
         // Tag → hook mapping
-        // if (string8_equal(tmp_fields[i].tag, string8_lit("rfl_color"))) {
+        // if (string8_equal(tmp_fields[i].tag, string8_comp("rfl_color"))) {
             // You can add custom hooks here
         // }
 

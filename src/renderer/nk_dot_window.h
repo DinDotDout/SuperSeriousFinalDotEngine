@@ -281,6 +281,12 @@ nk_dot_render(RN_RenderCtx *renderer)
             { NK_VERTEX_LAYOUT_END }
         };
 
+        // NOTE: NK_ALIGNOF expands to an inline `struct{...}` (Nuklear's offsetof-based
+        // alignof trick); MSVC flags that shape with C4116 even though it's well-defined.
+        DOT_DIAGNOSTIC_PUSH
+#       if DOT_COMPILER_MSVC
+            DOT_DIAGNOSTIC_IGNORE(4116)
+#       endif
         struct nk_convert_config config = {
             .vertex_layout        = vertex_layout,
             .vertex_size          = sizeof(OverlayVertex),
@@ -293,6 +299,9 @@ nk_dot_render(RN_RenderCtx *renderer)
             .shape_AA             = NK_ANTI_ALIASING_ON,
             .line_AA              = NK_ANTI_ALIASING_ON,
         };
+#       if DOT_COMPILER_MSVC
+        DOT_DIAGNOSTIC_POP
+#       endif
 
         struct nk_buffer vbuf, ebuf;
         nk_buffer_init_fixed(&vbuf, s->vertex_buf, NK_DOT_MAX_VERTEX_BUFFER);

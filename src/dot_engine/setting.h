@@ -31,7 +31,7 @@ DOT_ENUM_REFLECT_TYPED(u8, DOT_SettingKind, DOT_SETTING_KINDS);
 DOT_ENUM_REFLECT_TYPED(u8, DOT_SettingVisualizationKind, DOT_SETTING_VISUALIZATION_KINDS);
 
 typedef struct DOT_Setting DOT_Setting;
-struct DOT_Setting{
+struct alignas(16) DOT_Setting{
     String8 scope_name;
     String8 setting_name;
 
@@ -78,7 +78,7 @@ typedef struct DOT_Settings{
 }DOT_Settings;
 global DOT_Settings g_settings = {0};
 
-DECLARE_SECTION(DOT_Setting, SettingsSection);
+SECTION_DECLARE(DOT_Setting, SettingsSection);
 
 #define DOT_SETTING(T, section, name, value) DOT_SETTING_TYPED(T, section, name, value, DOT_SettingVisualizationKind_Default)
 #define DOT_SETTING_TYPED(k, ctype, section, var, value, viz) \
@@ -101,7 +101,7 @@ DECLARE_SECTION(DOT_Setting, SettingsSection);
 #define DOT_SETTING_VEC2(section, var, value)      DOT_SETTING_TYPED(DOT_SettingKind_Vec2, vec2, section, var, value, DOT_SettingVisualizationKind_Default)
 #define DOT_SETTING_VEC3(section, var, value)      DOT_SETTING_TYPED(DOT_SettingKind_Vec3, vec3, section, var, value, DOT_SettingVisualizationKind_Default)
 #define DOT_SETTING_VEC4(section, var, value)      DOT_SETTING_TYPED(DOT_SettingKind_Vec4, vec4, section, var, value, DOT_SettingVisualizationKind_Default)
-#define DOT_SETTING_STRING8(section, var, value)   DOT_SETTING_TYPED(DOT_SettingKind_String8, String8, section, var, string8_lit(value), DOT_SettingVisualizationKind_Default)
+#define DOT_SETTING_STRING8(section, var, value)   DOT_SETTING_TYPED(DOT_SettingKind_String8, String8, section, var, string8_comp(value), DOT_SettingVisualizationKind_Default)
 #define DOT_SETTING_COLOR3(section, var, value)    DOT_SETTING_TYPED(DOT_SettingKind_Vec3, vec3, section, var, value, DOT_SettingVisualizationKind_ColorPicker)
 #define DOT_SETTING_COLOR4(section, var, value)    DOT_SETTING_TYPED(DOT_SettingKind_Vec4, vec4, section, var, value, DOT_SettingVisualizationKind_ColorPicker)
 
@@ -117,9 +117,10 @@ void dot_settings_register_all(Arena *arena)
     for EACH_IN_SECTION(SettingsSection, DOT_Setting, setting_it){
         *hash_map_DOT_SettingPtr_get_or_create(arena, &g_settings.settings, setting_it->whole_name) = setting_it;
         DOT_SettingScope *setting_scope = hash_map_DOT_SettingScope_get_or_create(arena, &g_settings.setting_scopes, setting_it->scope_name);
-        setting_scope->scope_name   = setting_it->scope_name;
-        setting_it->next_setting    = setting_scope->setting;
-        setting_scope->setting      = setting_it;
+
+        setting_scope->scope_name = setting_it->scope_name;
+        setting_it->next_setting = setting_scope->setting;
+        setting_scope->setting = setting_it;
         String8 setting_value = dot_setting_to_string8(t.arena, setting_it);
         DOT_PRINT("Setting scope: %S name: %S val: %S", setting_scope->scope_name, setting_it->setting_name, setting_value);
     }
@@ -142,7 +143,7 @@ dot_setting_to_string8(Arena *a, DOT_Setting *setting)
                 setting->vec4_value->z, setting->vec4_value->w);
 
     case DOT_SettingKind_String8: return *setting->String8_value;
-    default: return string8_lit("<unknown>");
+    default: return (String8){.str = (u8 *)("<unknown>"), .size = sizeof("<unknown>") - 1};
     }
 }
 

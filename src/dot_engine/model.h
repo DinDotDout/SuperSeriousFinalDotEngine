@@ -31,14 +31,15 @@ typedef enum DOT_MaterialFeatureFlags{
     DOT_MaterialFeatureBit_TexcoordVertexAttribute = DOT_BIT(6),
 }DOT_MaterialFeatureFlags;
 
+
 typedef struct alignas(16) DOT_MaterialPBR{
     // RN_BufferHandle buffers[DOT_PrimitiveBufferKind_Count];
 
     // RN_TextureHandle textures[DOT_PBRTextureKind_Count];
     // RN_SamplerHandle samplers[DOT_PBRTextureKind_Count];
 
-    mat4 model_from_view;
-    mat4 model_from_view_inv;
+    //mat4 model_from_view;
+    //mat4 model_from_view_inv;
 
     vec4    base_color_factor;
     f32     metallic_factor;

@@ -10,7 +10,52 @@
     X(RN_ResourceKind, ShaderResourceLayout) \
     X(RN_ResourceKind, ShaderState) \
     X(RN_ResourceKind, Count)
-DOT_ENUM_REFLECT_TYPED(u8, RN_ResourceKind, RN_RESOURCE_KINDS);
+
+typedef u8 RN_ResourceKind;
+enum {
+  RN_ResourceKind_Unknown,
+  RN_ResourceKind_Texture,
+  RN_ResourceKind_Sampler,
+  RN_ResourceKind_Buffer,
+  RN_ResourceKind_Pipeline,
+  RN_ResourceKind_ShaderResourceLayout,
+  RN_ResourceKind_ShaderState,
+  RN_ResourceKind_Count,
+};
+static const String8 string8_from_RN_ResourceKind[] = {
+    {.str = (u8 *)("Unknown"), .size = sizeof("Unknown") - 1},
+    {.str = (u8 *)("Texture"), .size = sizeof("Texture") - 1},
+    {.str = (u8 *)("Sampler"), .size = sizeof("Sampler") - 1},
+    {.str = (u8 *)("Buffer"), .size = sizeof("Buffer") - 1},
+    {.str = (u8 *)("Pipeline"), .size = sizeof("Pipeline") - 1},
+    {.str = (u8 *)("ShaderResourceLayout"),
+     .size = sizeof("ShaderResourceLayout") - 1},
+    {.str = (u8 *)("ShaderState"), .size = sizeof("ShaderState") - 1},
+    {.str = (u8 *)("Count"), .size = sizeof("Count") - 1},
+};
+static RN_ResourceKind RN_ResourceKind_from_string8(String8 str) {
+  if (string8_equal(string8_from_RN_ResourceKind[RN_ResourceKind_Unknown], str))
+    return RN_ResourceKind_Unknown;
+  if (string8_equal(string8_from_RN_ResourceKind[RN_ResourceKind_Texture], str))
+    return RN_ResourceKind_Texture;
+  if (string8_equal(string8_from_RN_ResourceKind[RN_ResourceKind_Sampler], str))
+    return RN_ResourceKind_Sampler;
+  if (string8_equal(string8_from_RN_ResourceKind[RN_ResourceKind_Buffer], str))
+    return RN_ResourceKind_Buffer;
+  if (string8_equal(string8_from_RN_ResourceKind[RN_ResourceKind_Pipeline],
+                    str))
+    return RN_ResourceKind_Pipeline;
+  if (string8_equal(
+          string8_from_RN_ResourceKind[RN_ResourceKind_ShaderResourceLayout],
+          str))
+    return RN_ResourceKind_ShaderResourceLayout;
+  if (string8_equal(string8_from_RN_ResourceKind[RN_ResourceKind_ShaderState],
+                    str))
+    return RN_ResourceKind_ShaderState;
+  if (string8_equal(string8_from_RN_ResourceKind[RN_ResourceKind_Count], str))
+    return RN_ResourceKind_Count;
+  DOT_ERROR("Invalid enum name");
+};
 
 #define RN_PRESENT_MODE_KINDS(X) \
     X(RN_PresentModeKind, Immediate) \
@@ -130,6 +175,7 @@ rn_handle_kind(u64 h)
 typedef struct RN_TextureHandle{
     RN_Handle handle;
 }RN_TextureHandle;
+global RN_TextureHandle g_rn_null_texture = {0};
 
 typedef struct RN_ShaderResourceLayoutHandle{
     RN_Handle handle;
@@ -138,10 +184,12 @@ typedef struct RN_ShaderResourceLayoutHandle{
 typedef struct RN_BufferHandle{
     RN_Handle handle;
 }RN_BufferHandle;
+global RN_BufferHandle g_rn_null_buffer = {0};
 
 typedef struct RN_SamplerHandle{
     RN_Handle handle;
 }RN_SamplerHandle;
+global RN_SamplerHandle g_rn_null_sampler = {0};
 
 typedef struct RN_PipelineHandle{
     RN_Handle handle;
@@ -210,7 +258,6 @@ typedef struct RN_TextureDesc{
         __VA_ARGS__ \
     }
 
-global RN_TextureHandle null_texture = {0};
 typedef struct RN_Texture{
     RN_TextureHandle handle;
     RN_TextureDesc desc;
@@ -273,7 +320,6 @@ DOT_ENUM_REFLECT(RN_SamplerMipmapFilterKind, RN_SAMPLER_MIP_MAP_MODE_KINDS);
     X(RN_SamplerAddressModeKind, ClampToBorder) \
     X(RN_SamplerAddressModeKind, MirrorClampToEdge)
 DOT_ENUM_REFLECT(RN_SamplerAddressModeKind, RN_SAMPLER_ADDRESS_MODE_KINDS);
-
 
 typedef struct RN_SamplerDesc{
     RN_SamplerFilterKind       min_filter;
@@ -623,6 +669,18 @@ typedef struct RN_Pipeline{
     RN_PipelineDesc desc;
 }RN_Pipeline;
 
+///////////////////////////////////////////////////////////////////
+///
+// Handles
+//
+
+internal b32 rn_handle_is_valid();
+
+///////////////////////////////////////////////////////////////////
+///
+// Texture Formats
+//
+
 internal RN_TextureFormatInfo rn_texture_format_info_from_format(RN_TextureFormatKind fmt);
 internal RN_TextureFormatKind rn_texture_format_from_info(int comp, u8 size_bytes, b32 srgb);
 
@@ -666,7 +724,6 @@ internal void rn_shader_resource_desc_set_layout(RN_ShaderResourceDesc *, RN_Sha
 internal void rn_shader_resource_desc_bind_buffer(RN_ShaderResourceDesc *, RN_BufferHandle buffer, u16 binding);
 internal void rn_shader_resource_desc_bind_texture(RN_ShaderResourceDesc *, RN_TextureHandle texture, u16 binding);
 internal void rn_shader_resource_desc_bind_texture_sampler(RN_ShaderResourceDesc *, RN_TextureHandle texture, RN_SamplerHandle sampler, u16 binding);
-
 
 ///////////////////////////////////////////////////////////////////
 // RN_ShaderStageKind

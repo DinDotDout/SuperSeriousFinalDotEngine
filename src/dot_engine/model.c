@@ -27,7 +27,7 @@ dot_scene_from_gltf(RN_RenderCtx *renderer, const cgltf_data *gltf_data, String8
     // (jd) NOTE: For now we are going to assume that all images are on a separate path
     for(u64 i = 0; i < gltf_data->images_count; ++i){
         cgltf_image *image = &gltf_data->images[i];
-        String8 name = image->name ? string8_from_cstring(image->name) : string8_lit("Default");
+        String8 name = image->name ? string8_from_cstring(image->name) : string8_comp("Default");
         String8 full_path = string8_format(temp.arena, "%S/%s", folder, image->uri);
         DOT_PRINT("name: %S, image uri: %S", name, full_path);
 
@@ -36,7 +36,7 @@ dot_scene_from_gltf(RN_RenderCtx *renderer, const cgltf_data *gltf_data, String8
 
     for(u64 i = 0; i < gltf_data->samplers_count; ++i){
         cgltf_sampler *sampler = &gltf_data->samplers[i];
-        String8 name = sampler->name ? string8_from_cstring(sampler->name) : string8_lit("Default");
+        String8 name = sampler->name ? string8_from_cstring(sampler->name) : string8_comp("Default");
 
         RN_SamplerDesc desc = {0};
         desc.min_filter = sampler->min_filter == cgltf_filter_type_linear ? RN_SamplerFilterKind_Linear : RN_SamplerFilterKind_Nearest;
@@ -94,7 +94,7 @@ dot_scene_from_gltf(RN_RenderCtx *renderer, const cgltf_data *gltf_data, String8
         desc.resource_usage     = RN_ResourceUsageKind_GPUOnly;
         desc.buffer_usage_flags = RN_BufferUsageBit_Vertex | RN_BufferUsageBit_Index;
 
-        String8 name = buffer_view->name ? string8_from_cstring(buffer_view->name) : string8_lit("Default");
+        String8 name = buffer_view->name ? string8_from_cstring(buffer_view->name) : string8_comp("Default");
         DOT_DebugNameSet(desc.debug_name, name);
 
         scene.buffers[i] = rn_buffer_create(renderer, &desc, buffer_data);
@@ -126,7 +126,6 @@ dot_scene_from_gltf(RN_RenderCtx *renderer, const cgltf_data *gltf_data, String8
 
             DOT_Submesh *sub_mesh = &scene.sub_mesh_draw[scene.sub_mesh_draw_count];
 
-
             RN_ShaderResourceDesc *shader_resource = &sub_mesh->shader_resource;
             rn_shader_resource_desc_set_layout(shader_resource, g_shader_resource_layout_h);
             rn_shader_resource_desc_bind_buffer(shader_resource, g_cube_ubo_h, 0);
@@ -136,22 +135,17 @@ dot_scene_from_gltf(RN_RenderCtx *renderer, const cgltf_data *gltf_data, String8
             DOT_ASSERT(index_accessor->count < U32_MAX);
             sub_mesh->index_count = cast(u32)index_accessor->count;
 
-            { // Bind material buffer
-                RN_BufferDesc desc = {0};
-                desc.buffer_usage_flags = RN_BufferUsageBit_Uniform;
-                desc.resource_usage = RN_ResourceUsageKind_Dynamic;
-                desc.size = sizeof(DOT_MaterialPBR);
-                DOT_DebugNameSet(desc.debug_name, string8_lit("material"));
-                sub_mesh->buffers[DOT_PrimitiveBufferKind_Material] = rn_buffer_create(renderer, &desc, 0).handle;
-            }
-
             if(index_accessor){
                sub_mesh->buffers[DOT_PrimitiveBufferKind_Index] = scene.buffers[cgltf_buffer_index(gltf_data, index_accessor->buffer_view->buffer)].handle;
                sub_mesh->buffer_offsets[DOT_PrimitiveBufferKind_Index] = cast(u32)(index_accessor->offset + index_accessor->buffer_view->offset);
+            }else{
+                DOT_ERROR("No index data found");
             }
             if(position_accessor){
                 sub_mesh->buffers[DOT_PrimitiveBufferKind_Position] = scene.buffers[cgltf_buffer_index(gltf_data, position_accessor->buffer_view->buffer)].handle;
                 sub_mesh->buffer_offsets[DOT_PrimitiveBufferKind_Position] = cast(u32)(position_accessor->offset + position_accessor->buffer_view->offset);
+            }else{
+                DOT_ERROR("No position data found");
             }
             if(normal_accessor){
                 sub_mesh->buffers[DOT_PrimitiveBufferKind_Normal] = scene.buffers[cgltf_buffer_index(gltf_data, normal_accessor->buffer_view->buffer)].handle;
@@ -176,6 +170,16 @@ dot_scene_from_gltf(RN_RenderCtx *renderer, const cgltf_data *gltf_data, String8
                 DOT_TODO("Provide fallback");
             }
 
+            // Bind material buffer
+            RN_BufferDesc desc = {0};
+            desc.buffer_usage_flags = RN_BufferUsageBit_Uniform;
+            desc.resource_usage = RN_ResourceUsageKind_Dynamic;
+            desc.size = sizeof(DOT_MaterialPBR);
+            DOT_DebugNameSet(desc.debug_name, string8_comp("material"));
+            RN_BufferHandle material_h = rn_buffer_create(renderer, &desc, NULL).handle;
+            sub_mesh->buffers[DOT_PrimitiveBufferKind_Material] = material_h;
+            rn_shader_resource_desc_bind_buffer(shader_resource, material_h, 1);
+
             cgltf_material *gltf_material = primitive->material;
             DOT_ASSERT(gltf_material);
             sub_mesh->material_data.base_color_factor  = v4(1,1,1,1);
@@ -184,8 +188,8 @@ dot_scene_from_gltf(RN_RenderCtx *renderer, const cgltf_data *gltf_data, String8
             sub_mesh->material_data.emissive_factor    = v3(0,0,0);
             sub_mesh->material_data.occlusion_factor   = 1.0f;
 
-            RN_TextureHandle dummy_texture = {0};
-            RN_SamplerHandle dummy_sampler = {0};
+            RN_TextureHandle texture = {0};
+            RN_SamplerHandle sampler = {0};
             if(gltf_material->has_pbr_metallic_roughness){
                 cgltf_pbr_metallic_roughness *pbr = &gltf_material->pbr_metallic_roughness;
 
@@ -198,66 +202,60 @@ dot_scene_from_gltf(RN_RenderCtx *renderer, const cgltf_data *gltf_data, String8
 
                 if(pbr->base_color_texture.texture){
                     DOT_ASSERT(pbr->base_color_texture.texture->image);
-                    rn_shader_resource_desc_bind_texture_sampler(shader_resource,
-                        scene.textures[cgltf_image_index(gltf_data, pbr->base_color_texture.texture->image)].handle,
-                        scene.samplers[cgltf_sampler_index(gltf_data, pbr->base_color_texture.texture->sampler)].handle, 
-                        2);
+                    DOT_ASSERT(pbr->base_color_texture.texture->sampler);
+                    texture = scene.textures[cgltf_image_index(gltf_data, pbr->base_color_texture.texture->image)].handle;
+                    sampler = scene.samplers[cgltf_sampler_index(gltf_data, pbr->base_color_texture.texture->sampler)].handle;
                     sub_mesh->material_data.flags |= DOT_MaterialFeatureBit_ColorTexture;
-                }else{
-                    DOT_TODO("Provide fallback");
-                    rn_shader_resource_desc_bind_texture_sampler(shader_resource, dummy_texture, dummy_sampler, 2);
                 }
+                rn_shader_resource_desc_bind_texture_sampler(shader_resource, texture, sampler, 2);
 
+                MEMORY_ZERO_STRUCT(&texture);
+                MEMORY_ZERO_STRUCT(&sampler);
                 if(pbr->metallic_roughness_texture.texture){
                     DOT_ASSERT(pbr->base_color_texture.texture->image);
-                    rn_shader_resource_desc_bind_texture_sampler(shader_resource,
-                        scene.textures[cgltf_image_index(gltf_data, pbr->metallic_roughness_texture.texture->image)].handle,
-                        scene.samplers[cgltf_sampler_index(gltf_data, pbr->metallic_roughness_texture.texture->sampler)].handle,
-                        3);
+                    texture = scene.textures[cgltf_image_index(gltf_data, pbr->metallic_roughness_texture.texture->image)].handle;
+                    sampler = scene.samplers[cgltf_sampler_index(gltf_data, pbr->metallic_roughness_texture.texture->sampler)].handle;
                     sub_mesh->material_data.flags |= DOT_MaterialFeatureBit_RoughnessTexture;
-                }else{
-                    DOT_TODO("Provide fallback");
-                    rn_shader_resource_desc_bind_texture_sampler(shader_resource, dummy_texture, dummy_sampler, 3);
                 }
+                rn_shader_resource_desc_bind_texture_sampler(shader_resource, texture, sampler, 3);
+
                 sub_mesh->material_data.metallic_factor    = pbr->metallic_factor;
                 sub_mesh->material_data.roughness_factor   = pbr->roughness_factor;
             }
 
+            MEMORY_ZERO_STRUCT(&texture);
+            MEMORY_ZERO_STRUCT(&sampler);
             cgltf_texture_view *occlusion_view = &gltf_material->occlusion_texture;
             if(occlusion_view->texture && occlusion_view->texture->image){
-                rn_shader_resource_desc_bind_texture_sampler(shader_resource,
-                    scene.textures[cgltf_image_index(gltf_data, occlusion_view->texture->image)].handle,
-                    scene.samplers[cgltf_sampler_index(gltf_data, occlusion_view->texture->sampler)].handle,
-                    4);
+                texture = scene.textures[cgltf_image_index(gltf_data, occlusion_view->texture->image)].handle;
+                sampler = scene.samplers[cgltf_sampler_index(gltf_data, occlusion_view->texture->sampler)].handle;
+
                 sub_mesh->material_data.occlusion_factor = occlusion_view->scale; // always valid (default = 1.0f)
                 sub_mesh->material_data.flags |= DOT_MaterialFeatureBit_OcclusionTexture;
-            }else{
-                rn_shader_resource_desc_bind_texture_sampler(shader_resource, dummy_texture, dummy_sampler, 4);
-                // DOT_TODO("Provide fallback");
             }
+            rn_shader_resource_desc_bind_texture_sampler(shader_resource, texture, sampler, 4);
+
+            MEMORY_ZERO_STRUCT(&texture);
+            MEMORY_ZERO_STRUCT(&sampler);
             cgltf_texture_view *emissive_view = &gltf_material->emissive_texture;
             if(emissive_view->texture && occlusion_view->texture->image){
-                rn_shader_resource_desc_bind_texture_sampler(shader_resource,
-                    scene.textures[cgltf_image_index(gltf_data, emissive_view->texture->image)].handle,
-                    scene.samplers[cgltf_sampler_index(gltf_data, emissive_view->texture->sampler)].handle,
-                    5);
+                texture = scene.textures[cgltf_image_index(gltf_data, emissive_view->texture->image)].handle;
+                sampler = scene.samplers[cgltf_sampler_index(gltf_data, emissive_view->texture->sampler)].handle;
                 sub_mesh->material_data.emissive_factor = v3(gltf_material->emissive_factor[0], gltf_material->emissive_factor[1], gltf_material->emissive_factor[2]); // always valid (default = 1.0f)
                 sub_mesh->material_data.flags |= DOT_MaterialFeatureBit_EmissiveTexture;
-            }else{
-                rn_shader_resource_desc_bind_texture_sampler(shader_resource, dummy_texture, dummy_sampler, 5);
-                // DOT_TODO("Provide fallback");
             }
+            rn_shader_resource_desc_bind_texture_sampler(shader_resource, texture, sampler, 5);
+
+            MEMORY_ZERO_STRUCT(&texture);
+            MEMORY_ZERO_STRUCT(&sampler);
             cgltf_texture_view *normal_view = &gltf_material->normal_texture;
             if(normal_view->texture && normal_view->texture->image){
-                rn_shader_resource_desc_bind_texture_sampler(shader_resource,
-                    scene.textures[cgltf_image_index(gltf_data, normal_view->texture->image)].handle,
-                    scene.samplers[cgltf_sampler_index(gltf_data, normal_view->texture->sampler)].handle,
-                    6);
+                texture = scene.textures[cgltf_image_index(gltf_data, normal_view->texture->image)].handle;
+                sampler = scene.samplers[cgltf_sampler_index(gltf_data, normal_view->texture->sampler)].handle;
                 sub_mesh->material_data.flags |= DOT_MaterialFeatureBit_NormalTexture;
-            }else{
-                rn_shader_resource_desc_bind_texture_sampler(shader_resource, dummy_texture, dummy_sampler, 6);
-                // DOT_TODO("Provide fallback");
             }
+            rn_shader_resource_desc_bind_texture_sampler(shader_resource, texture, sampler, 6);
+
             rn_shader_resource_create(renderer, shader_resource);
             scene.sub_mesh_draw_count += 1;
         }

@@ -13,7 +13,7 @@
    #include "stb_image.h"
 
    You can #define STBI_ASSERT(x) before the #include to avoid using assert.h.
-   And #define STBI_MALLOC, STBI_REALLOC, and stbi__free to avoid using malloc,realloc,free
+   And #define STBI_MALLOC, STBI_REALLOC, and STBI_FREE to avoid using malloc,realloc,free
 
 
    QUICK NOTES:
@@ -672,16 +672,16 @@ typedef unsigned char validate_uint32[sizeof(stbi__uint32)==4 ? 1 : -1];
 
 #if defined(STBI_MALLOC) && defined(STBI_FREE) && (defined(STBI_REALLOC) || defined(STBI_REALLOC_SIZED))
 // ok
-#elif !defined(STBI_MALLOC) && !defined(stbi__free) && !defined(STBI_REALLOC) && !defined(STBI_REALLOC_SIZED)
+#elif !defined(STBI_MALLOC) && !defined(STBI_FREE) && !defined(STBI_REALLOC) && !defined(STBI_REALLOC_SIZED)
 // ok
 #else
-#error "Must define all or none of STBI_MALLOC, stbi__free, and STBI_REALLOC (or STBI_REALLOC_SIZED)."
+#error "Must define all or none of STBI_MALLOC, STBI_FREE, and STBI_REALLOC (or STBI_REALLOC_SIZED)."
 #endif
 
 #ifndef STBI_MALLOC
 #define STBI_MALLOC(sz)           malloc(sz)
 #define STBI_REALLOC(p,newsz)     realloc(p,newsz)
-#define stbi__free(p)              free(p)
+#define STBI_FREE(p)              free(p)
 #endif
 
 #ifndef STBI_REALLOC_SIZED
@@ -984,6 +984,7 @@ static int stbi__err(const char *str)
 
 typedef struct stbi_allocator{
     u8 *(*stbi_alloc)(ArenaOpParams *, usize, usize, b32);
+    u8 *(*stbi_realloc)();
     void (*stbi_free)(); // (jd) NOTE: Do nothing on free
     Arena *arena;
 }stbi_allocator;
@@ -1008,7 +1009,14 @@ static void *stbi__malloc(size_t size)
     STBI_ASSERT(g_allocator);
     void *alloc = g_allocator->stbi_alloc(&params, size, ARENA_MAX_ALIGNMENT, true);
     return alloc;
-    // return STBI_MALLOC(size);
+}
+
+static void stbi__realloc(void *ptr, size_t size)
+{
+    STBI_NOTUSED(ptr);
+    STBI_NOTUSED(size);
+    STBI_ASSERT(g_allocator);
+    g_allocator->stbi_realloc();
 }
 
 static void stbi__free(void *ptr)
@@ -1016,8 +1024,6 @@ static void stbi__free(void *ptr)
     STBI_NOTUSED(ptr);
     STBI_ASSERT(g_allocator);
     g_allocator->stbi_free();
-    // stbi__free(ptr);
-
 }
 
 // stb_image uses ints pervasively, including for offset calculations.

@@ -74,19 +74,28 @@ rn_init(Arena *arena, RN_RenderCtx *renderer, DOT_Window *window)
             .reserve_size = g_frame_arena_size_b);
     }
     RENDER_BACKEND_CALL(init(window));
-    // null_texture = rn_texture_create_h(
-    //     renderer,
-    //     &(RN_TextureDesc) {
-    //         .width = 1,
-    //         .height = 1,
-    //         .depth = 1,
-    //         .mip_levels = 1,
-    //         .format_kind = RN_TextureFormatKind_RGBA8_UNORM,
-    //         .dimension_kind = RN_TextureDimensionKind_2D,
-    //     },
-    //     (u8[]){0,0,0,0},
-    // );
-    // (void)null_texture;
+    RN_TextureDesc null_texture_desc = {0};
+    null_texture_desc.width = 1;
+    null_texture_desc.height = 1;
+    null_texture_desc.depth = 1;
+    null_texture_desc.mip_levels = 1;
+    null_texture_desc.format_kind = RN_TextureFormatKind_RGBA8_UNORM;
+    null_texture_desc.dimension_kind = RN_TextureDimensionKind_2D;
+    g_rn_null_texture = rn_texture_create_h(renderer, &null_texture_desc , (u8[]){0,0,0,0}, NULL);
+
+    RN_SamplerDesc null_sampler_desc = {0};
+    null_sampler_desc.min_filter = RN_SamplerFilterKind_Linear;
+    null_sampler_desc.mag_filter = RN_SamplerFilterKind_Linear;
+    null_sampler_desc.address_mode_u = RN_SamplerAddressModeKind_Repeat;
+    null_sampler_desc.address_mode_v = RN_SamplerAddressModeKind_Repeat;
+    g_rn_null_sampler = rn_sampler_create_h(renderer, &null_sampler_desc);
+
+    vec4 data[3] = {0};
+    RN_BufferDesc null_buffer_desc = {0};
+    null_buffer_desc.size = sizeof(data);
+    null_buffer_desc.buffer_usage_flags = RN_BufferUsageBit_Vertex;
+    DOT_DebugNameSet(null_buffer_desc.debug_name, string8_comp("dummy attribute"));
+    g_rn_null_buffer = rn_buffer_create_h(renderer, &null_buffer_desc, data);
 }
 
 internal void
@@ -123,9 +132,9 @@ rn_sampler_destroy(RN_RenderCtx *renderer, RN_SamplerHandle handle)
 }
 
 internal RN_TextureHandle
-rn_texture_create_h(RN_RenderCtx *renderer, RN_TextureDesc *texture_desc, void *data)
+rn_texture_create_h(RN_RenderCtx *renderer, RN_TextureDesc *texture_desc, void *data, RN_TextureHandle *fallback)
 {
-    RN_TextureHandle h = RENDER_BACKEND_CALL(texture_create(texture_desc, data));
+    RN_TextureHandle h = RENDER_BACKEND_CALL(texture_create(texture_desc, data, fallback));
     rn_resource_cleanup_list_push_texture(renderer, h);
     return(h);
 }
@@ -178,8 +187,8 @@ rn_texture_load_from_path(RN_RenderCtx *renderer, String8 name, String8 path, u8
     res.desc.width          = cast(u16)width;
     res.desc.height         = cast(u16)height;
     res.desc.depth          = 1;
-    res.handle              = rn_texture_create_h(renderer, &res.desc, data),
 
+    res.handle              = rn_texture_create_h(renderer, &res.desc, data, &g_rn_null_texture);
     stbi_allocator_unset();
     temp_arena_restore(temp);
     return res;
@@ -204,7 +213,7 @@ rn_sampler_create(RN_RenderCtx *renderer, RN_SamplerDesc *sampler_desc)
 }
 
 internal RN_BufferHandle
-rn_buffer_create_h(RN_RenderCtx *renderer, RN_BufferDesc *buffer_desc, u8 *data)
+rn_buffer_create_h(RN_RenderCtx *renderer, RN_BufferDesc *buffer_desc, void *data)
 {
     RN_BufferHandle h = RENDER_BACKEND_CALL(buffer_create(buffer_desc, data));
     rn_resource_cleanup_list_push_buffer(renderer, h);
@@ -290,6 +299,7 @@ internal void
 rn_resource_cleanup_list_push_texture(RN_RenderCtx *renderer, RN_TextureHandle texture_id)
 {
     RN_ResourceCleanupCtx *root = TREE_GET_ROOT(&renderer->cleanup_tree);
+    // TODO: We still cannot clear individual resources since this would leave holes in the tree array
     ARRAY_PUSH(root->texture_ids, texture_id);
 }
 
@@ -297,6 +307,7 @@ internal void
 rn_resource_cleanup_list_push_sampler(RN_RenderCtx *renderer, RN_SamplerHandle sampler_id)
 {
     RN_ResourceCleanupCtx *root = TREE_GET_ROOT(&renderer->cleanup_tree);
+    // TODO: We still cannot clear individual resources since this would leave holes in the tree array
     ARRAY_PUSH(root->sampler_ids, sampler_id);
 }
 
@@ -304,6 +315,7 @@ internal void
 rn_resource_cleanup_list_push_buffer(RN_RenderCtx *renderer, RN_BufferHandle buffer_id)
 {
     RN_ResourceCleanupCtx *root = TREE_GET_ROOT(&renderer->cleanup_tree);
+    // TODO: We still cannot clear individual resources since this would leave holes in the tree array
     ARRAY_PUSH(root->buffer_ids, buffer_id);
 }
 

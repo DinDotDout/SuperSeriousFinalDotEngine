@@ -142,7 +142,7 @@ internal PoolHandle pool_handle_get_default(Pool *p);
 #define POOL_ELEM_(tp) (*(tp)->data)
 
 // (jd) The ref deref crazyness is just there to preserve the syntax of how you would call the functions
-#define POOL_INIT(arena, tp, cap)   ((tp)->data = pool_init((arena), &(tp)->pool, (cap), sizeof(POOL_ELEM_(tp)), DOT_ALIGNOF(POOL_ELEM_(tp))))
+#define POOL_INIT(arena, T, tp, cap)((tp)->data = pool_init((arena), &(tp)->pool, (cap), sizeof(POOL_ELEM_(tp)), DOT_ALIGNOF(T)))
 #define POOL_ALLOC(tp)              pool_alloc(&(tp)->pool, sizeof(POOL_ELEM_(tp)), (tp)->data)
 #define POOL_GET(tp, h)             ((tp)->data + pool_handle_to_pool_idx(&(tp)->pool, (h)))
 // #define POOL_HANDLE_GET_DEFAULT(tp) pool_handle_get_default(&(tp)->pool, sizeof(POOL_ELEM_(tp)), (u8*)(tp)->data)
@@ -244,7 +244,7 @@ struct{ \
 // (jd) This is in case our created tree node isn't named node because it clashes with something else
 // #define TREE_INIT_NAME(arena, ttp, T, capacity, field_name) tree_init((arena), &TREE_BASE_(ttp), (capacity), sizeof(*((ttp)->last_accessed)), DOT_ALIGNOF(POOL_ELEM_(ttp)), DOT_OFFSETOF(T, field_name))
 
-#define TREE_INIT(arena, T, ttp, capacity)  ((ttp)->data = tree_init((arena), &TREE_BASE_(ttp), (capacity), sizeof(POOL_ELEM_(ttp)), DOT_ALIGNOF(POOL_ELEM_(ttp)), DOT_OFFSETOF(T, node)))
+#define TREE_INIT(arena, T, ttp, capacity)  ((ttp)->data = tree_init((arena), &TREE_BASE_(ttp), (capacity), sizeof(POOL_ELEM_(ttp)), DOT_ALIGNOF(T), DOT_OFFSETOF(T, node)))
 #define TREE_ALLOC(ttp, parent)             pool_alloc(&TREE_BASE_(ttp).pool, sizeof(POOL_ELEM_(ttp)), (ttp)->data)
 #define TREE_PUSH_FRONT(ttp, parent, new)   tree_push_front(&TREE_BASE_(ttp), (parent), (new))
 #define TREE_PUSH_FRONT_NEW(ttp, parent)    tree_push_front_new(&TREE_BASE_(ttp), (parent), sizeof(POOL_ELEM_(ttp)), (u8*)((ttp)->data))

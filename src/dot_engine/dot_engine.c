@@ -111,8 +111,8 @@ main(int argc, char *argv[])
     b32 any_arg = false;
     if(argc > 1){
         String8 arg1 = string8_from_cstring(argv[1]);
-        String8 tests = string8_lit("-tests");
-        String8 tests_list = string8_lit("-tests_list");
+        String8 tests = string8_comp("-tests");
+        String8 tests_list = string8_comp("-tests_list");
         tests_only = string8_equal(arg1, tests);
         tests_list_only = string8_equal(arg1, tests_list);
         any_arg = tests_only || tests_list_only;

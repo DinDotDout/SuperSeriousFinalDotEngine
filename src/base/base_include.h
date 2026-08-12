@@ -1,12 +1,32 @@
 #ifndef BASE_INC_H
 #define BASE_INC_H
 
+#include "base/build_ctx.h"
+#include "base/dot.h"
+
+DOT_DIAGNOSTIC_PUSH
+#   if DOT_COMPILER_MSVC
+        DOT_DIAGNOSTIC_IGNORE(4456)
+#   endif
 #define STB_SPRINTF_STATIC
 #define STB_SPRINTF_NOUNALIGNED
 #define STB_SPRINTF_DECORATE(name) dot_##name
 #include "third_party/stb/stb_sprintf.h"
-#define DOT_INT_SKIP
-#include "base/dot.h"
+DOT_DIAGNOSTIC_POP
+
+DOT_DIAGNOSTIC_PUSH
+#if DOT_COMPILER_CLANG || defined(__GNUC__)
+    DOT_DIAGNOSTIC_ERROR("-Wimplicit-fallthrough")
+    DOT_DIAGNOSTIC_ERROR("-Wswitch-enum")
+    DOT_DIAGNOSTIC_ERROR("-Wvla")
+    DOT_DIAGNOSTIC_ERROR("-Wconversion")
+    DOT_DIAGNOSTIC_ERROR("-Wimplicit-int-conversion")
+    DOT_DIAGNOSTIC_ERROR("-Wsign-conversion")
+#elif defined(_MSC_VER)
+    DOT_DIAGNOSTIC_IGNORE(5287)
+    DOT_DIAGNOSTIC_IGNORE(4456)
+#endif
+
 #include "base/platform.h"
 #include "base/containters.h"
 #include "base/test_suite.h"
@@ -25,5 +45,6 @@
 #include "base/arena.c"
 #include "base/string.c"
 #include "base/thread_ctx.c"
+DOT_DIAGNOSTIC_POP
 
 #endif // !BASE_INC_H

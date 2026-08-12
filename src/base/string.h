@@ -24,14 +24,18 @@ typedef struct String8List{
     u64 total_size;
 }String8List;
 
-#define string8_lit(s)  (String8){.str = (u8*)(s), .size = sizeof(s) - 1}
+#define string8_comp(s)  (String8){.str = (u8*)(s), .size = sizeof(s) - 1}
+#define string8_lit(s)  {.str = (u8*)(s), .size = sizeof(s) - 1}
+
+// Does not work on msvc
+
 #define str_fmt "%.*s"
 #define str_arg(sv) (int)(sv).size, (sv).str
 
 #define MEMORY_COPY_STRING8(dst, s) MEM_COPY(dst, (s).str, (s).size)
 
 #define CHAR_WHITESPACES "\t\n\v\f\r "
-internal read_only String8 g_string_whitespaces = string8_lit(CHAR_WHITESPACES);
+read_only internal String8 g_string_whitespaces = string8_lit(CHAR_WHITESPACES);
 DOT_STATIC_ASSERT('\r' - '\t' == 4);
 DOT_STATIC_ASSERT('\r' - '\n' == 3);
 DOT_STATIC_ASSERT('\r' - '\v' == 2);

@@ -123,7 +123,7 @@ rn_vk_all_layers(const RN_VK_VulkanConfig *vk_config)
         const String8 layer_name = vk_config->validation_layers[i];
         for(u64 j = 0; j < available_layer_count; ++j){
             if(string8_equal(layer_name, string8_from_cstring(available_layers[j].layerName))){
-                DOT_PRINT("Found Layer %s", layer_name);
+                DOT_PRINT("Found Layer %S", layer_name);
                 found = true;
                 break;
             }
@@ -386,8 +386,7 @@ rn_vk_instance_all_required_extensions(const RN_VK_VulkanConfig* vk_config)
 internal RN_TextureFormatKind
 rn_texture_format_from_vk_format(VkFormat texture_format)
 {
-    DOT_ALLOW_PARTIAL_SWITCH
-    switch(texture_format){
+    partial_switch_begin(texture_format){
     default: DOT_ERROR("Format not implemented");
     case VK_FORMAT_UNDEFINED: return RN_TextureFormatKind_Invalid;
     // 8‑bit formats
@@ -422,8 +421,7 @@ rn_texture_format_from_vk_format(VkFormat texture_format)
     // ETC2 formats
     case VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK      : return RN_TextureFormatKind_ETC2_RGB8;
     case VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK    : return RN_TextureFormatKind_ETC2_RGBA8;
-    }
-    DOT_RESTORE_PARTIAL_SWITCH
+    }partial_switch_end;
 }
 
 internal RN_ShaderStageHandle
@@ -550,6 +548,7 @@ rn_vk_image_type_from_texture_dimension(RN_TextureDimensionKind texture_dimensio
     case RN_TextureDimensionKind_Array2D    : return VK_IMAGE_TYPE_2D;
     case RN_TextureDimensionKind_Array3D    : return VK_IMAGE_TYPE_3D;
     }
+    DOT_ERROR("Invalid texture dimension");
 }
 
 internal VkImageViewType
@@ -563,6 +562,7 @@ rn_vk_image_view_type_from_texture_dimension(RN_TextureDimensionKind texture_dim
     case RN_TextureDimensionKind_Array2D    : return VK_IMAGE_VIEW_TYPE_2D_ARRAY;
     case RN_TextureDimensionKind_Array3D    : return VK_IMAGE_VIEW_TYPE_CUBE_ARRAY;
     }
+    DOT_ERROR("Invalid texture dimension kind");
 }
 
 internal VkFormat
@@ -603,6 +603,7 @@ rn_vk_format_from_rn_texture_format_kind(RN_TextureFormatKind texture_format)
     case RN_TextureFormatKind_ETC2_RGB8     : return VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK;
     case RN_TextureFormatKind_ETC2_RGBA8    : return VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK;
     }
+    DOT_ERROR("Invalid rn texture format kind");
 }
 
 internal VkDescriptorType
@@ -719,27 +720,23 @@ rn_vk_compare_op_from_rn_compare_op(RN_CompareOpKind kind)
 internal b32
 rn_vk_format_has_stencil(VkFormat fmt)
 {
-    DOT_ALLOW_PARTIAL_SWITCH
-    switch(fmt){
+    partial_switch_begin(fmt){
     case VK_FORMAT_D24_UNORM_S8_UINT:
     case VK_FORMAT_D32_SFLOAT_S8_UINT: return true;
     default: return false;
-    }
-    DOT_RESTORE_PARTIAL_SWITCH
+    }partial_switch_end;
 }
 
 internal b32
 rn_vk_format_has_depth_or_stencil(VkFormat fmt)
 {
-    DOT_ALLOW_PARTIAL_SWITCH
-    switch(fmt){
+    partial_switch_begin(fmt){
+    default: DOT_ERROR("Invalid depth_stencil format");
     case VK_FORMAT_D32_SFLOAT:
     case VK_FORMAT_D16_UNORM:
     case VK_FORMAT_D24_UNORM_S8_UINT:
     case VK_FORMAT_D32_SFLOAT_S8_UINT: return true;
-    default: return false;
-    }
-    DOT_RESTORE_PARTIAL_SWITCH
+    }partial_switch_end;
 }
 
 ///////////////////////////////////////////

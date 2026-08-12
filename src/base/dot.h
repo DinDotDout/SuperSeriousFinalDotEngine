@@ -18,102 +18,45 @@
 
 #include <threads.h>
 
-#if defined(NDEBUG)
-#   define DOT_DEBUG 0
-#else
-#   define DOT_DEBUG 1
-#endif
-
-////////////////////////////////////////////////////////////////
-//
-// Compiler
-
-#if defined(_MSC_VER)
-#   define DOT_COMPILER_CLANG 0
-#   define DOT_COMPILER_GCC 0
-#   define DOT_COMPILER_MSVC 1
-#elif defined(__clang__)
-#   define DOT_COMPILER_GCC 0
-#   define DOT_COMPILER_MSVC 0
-#   define DOT_COMPILER_CLANG 1
-#elif defined(__GNUC__)
-#   define DOT_COMPILER_MSVC 0
-#   define DOT_COMPILER_CLANG 0
-#   define DOT_COMPILER_GCC 1
-#else
-#   error Unknown compiler
-#endif
-
-////////////////////////////////////////////////////////////////
-///
-/// Compiler diagnostics
-
-#if DOT_COMPILER_CLANG
-#   define DOT_DIAGNOSTIC_PUSH      _Pragma("clang diagnostic push")
-#   define DOT_DIAGNOSTIC_POP       _Pragma("clang diagnostic pop")
-#   define DOT_DIAGNOSTIC_IGNORE(w) _Pragma(DOT_STR(clang diagnostic ignored w))
-#   define DOT_DIAGNOSTIC_ERROR(w)  _Pragma(DOT_STR(clang diagnostic error w))
-// DOT_STR
-#elif DOT_COMPILER_GCC
-#   define DOT_DIAGNOSTIC_PUSH      _Pragma("GCC diagnostic push")
-#   define DOT_DIAGNOSTIC_POP       _Pragma("GCC diagnostic pop")
-#   define DOT_DIAGNOSTIC_IGNORE(w) _Pragma(DOT_STR(GCC diagnostic ignored error w))
-#   define DOT_DIAGNOSTIC_ERROR(w)  _Pragma(DOT_STR(GCC diagnostic error w))
-#elif DOT_COMPILER_MSVC
-#   define DOT_DIAGNOSTIC_PUSH      __pragma(warning(push))
-#   define DOT_DIAGNOSTIC_POP       __pragma(warning(pop))
-#   define DOT_DIAGNOSTIC_IGNORE(w) __pragma(warning(disable: w))
-#   define DOT_DIAGNOSTIC_ERROR(w)  __pragma(warning(error: w))
-#else
-#   define DOT_DIAGNOSTIC_PUSH
-#   define DOT_DIAGNOSTIC_POP
-#   define DOT_DIAGNOSTIC_IGNORE(w)
-#   define DOT_DIAGNOSTIC_ERROR(w)
-#endif
-
 #if DOT_COMPILER_CLANG || (DOT_COMPILER_GCC && __GNUC__ >= 7)
-    #define DOT_FALLTHROUGH __attribute__((fallthrough))
+#   define DOT_FALLTHROUGH __attribute__((fallthrough))
 #else
-    #define DOT_FALLTHROUGH /* fallthrough */
+#   define DOT_FALLTHROUGH /* fallthrough */
 #endif
 
 #if DOT_COMPILER_CLANG
-    #define DOT_ALLOW_PARTIAL_SWITCH \
+#   define DOT_ALLOW_PARTIAL_SWITCH \
         _Pragma("clang diagnostic push") \
         _Pragma("clang diagnostic ignored \"-Wswitch-enum\"")
         // _Pragma("clang diagnostic ignored \"-Wswitch\"")
 
-    #define DOT_RESTORE_PARTIAL_SWITCH \
+#   define DOT_RESTORE_PARTIAL_SWITCH \
         _Pragma("clang diagnostic pop")
 
 #elif DOT_COMPILER_GCC
-    #define DOT_DISABLE_SWITCH_ENUM \
+#   define DOT_ALLOW_PARTIAL_SWITCH \
         _Pragma("GCC diagnostic push") \
         _Pragma("GCC diagnostic ignored \"-Wswitch-enum\"")
         // _Pragma("GCC diagnostic ignored \"-Wswitch\"")
 
-    #define DOT_RESTORE_SWITCH_ENUM \
-        _Pragma("GCC diagnostic pop")
-
+#   define DOT_RESTORE_PARTIAL_SWITCH _Pragma("GCC diagnostic pop")
+#elif DOT_COMPILER_MSVC
+#   define DOT_ALLOW_PARTIAL_SWITCH \
+        __pragma(warning(push)) \
+        __pragma(warning(disable: 4061 4062 4063 4065))
+#   define DOT_RESTORE_PARTIAL_SWITCH \
+        __pragma(warning(pop))
 #else
-    // MSVC or unknown compiler — no-op
-    #define DOT_DISABLE_SWITCH_ENUM
-    #define DOT_RESTORE_SWITCH_ENUM
+    // MSVC or unknown compiler 
+#   define DOT_ALLOW_PARTIAL_SWITCH
+#   define DOT_RESTORE_PARTIAL_SWITCH
 #endif
 
-////////////////////////////////////////////////////////////////
-//
-// OS
+#define partial_switch_begin(cond) \
+        DOT_ALLOW_PARTIAL_SWITCH; \
+        switch(cond)
 
-#if defined(_WIN32)
-#define DOT_OS_POSIX 0
-#define DOT_OS_WINDOWS 1
-#elif defined(__unix__) || defined(__APPLE__) || defined(__linux__)
-#define DOT_OS_POSIX 1
-#define DOT_OS_WINDOWS 0
-#else
-#   error "Unsupported platform"
-#endif
+#define partial_switch_end DOT_RESTORE_PARTIAL_SWITCH
 
 ////////////////////////////////////////////////////////////////
 //
@@ -143,14 +86,28 @@
 #endif
 
 #ifndef thread_local
-#if DOT_COMPILER_MSVC
-#   define thread_local __declspec(thread)
-#elif DOT_COMPILER_GCC || DOT_COMPILER_CLANG
-#   define thread_local __thread
-#else
-#   error "No thread-local storage keyword available for this compiler"
+#   if DOT_COMPILER_MSVC
+#       define thread_local __declspec(thread)
+#   elif DOT_COMPILER_GCC || DOT_COMPILER_CLANG
+#       define thread_local __thread
+#   else
+#       error "No thread-local storage keyword available for this compiler"
+#   endif
 #endif
-#endif
+
+// #if defined(__GNUC__) && __GNUC__ < 5
+//     #define thread_local __thread
+// #elif DOT_COMPILER_MSVC
+//     #define thread_local       __declspec(thread)
+// #elif defined (__STDC_VERSION__) && __STDC_VERSION__ >= 201112L && !defined(__STDC_NO_THREADS__)
+//     #define thread_local       _Thread_local
+// #endif
+//
+// #ifndef STBI_THREAD_LOCAL
+//     #if defined(__GNUC__)
+//     #define thread_local       __thread
+//     #endif
+// #endif
 
 ////////////////////////////////////////////////////////////////
 //
@@ -168,14 +125,14 @@
 // (jd) NOTE: Should probably use something for code gen but whatever
 #define DOT_X_ENUM_ARG(prefix, v)           prefix##_##v,
 #define DOT_X_ENUM_STR(prefix, v)           string8_lit(#v),
-#define DOT_X_ENUM_STR_FROM_VAL(prefix, v)  if(string8_equal(string8_from_##prefix[prefix##_##v], str)) return prefix##_##v;
+#define DOT_X_ENUM_VAL_FROM_STR(prefix, v)  if(string8_equal(string8_from_##prefix[prefix##_##v], str)) return prefix##_##v;
 #define DOT_ENUM_REFLECT(enum_name, x_list) \
     typedef enum enum_name{x_list(DOT_X_ENUM_ARG) }enum_name; \
     static const String8 string8_from_##enum_name[] = { x_list(DOT_X_ENUM_STR) }; \
     static enum_name \
     enum_name##_from_string8(String8 str) \
     { \
-        x_list(DOT_X_ENUM_STR_FROM_VAL) \
+        x_list(DOT_X_ENUM_VAL_FROM_STR) \
         DOT_ERROR("Invalid enum name"); \
     }
 
@@ -186,10 +143,9 @@
     static enum_name \
     enum_name##_from_string8(String8 str) \
     { \
-        x_list(DOT_X_ENUM_STR_FROM_VAL) \
+        x_list(DOT_X_ENUM_VAL_FROM_STR) \
         DOT_ERROR("Invalid enum name"); \
     }
-
 
 ////////////////////////////////////////////////////////////////
 //
@@ -201,7 +157,6 @@
 typedef size_t usize;
 #include <stdint.h>
 
-#ifndef DOT_INT_SKIP
 typedef int8_t i8;
 typedef int16_t i16;
 typedef int32_t i32;
@@ -210,7 +165,6 @@ typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
-#endif
 typedef uintptr_t uptr;
 typedef ptrdiff_t iptr;
 
@@ -323,14 +277,13 @@ typedef double f64;
 #   define DOT_PRINTF_STRING
 #endif
 
-typedef enum DOT_LogLevelKind DOT_LogLevelKind;
-enum DOT_LogLevelKind{
+typedef enum DOT_LogLevelKind{
     DOT_LogLevelKind_Debug,
     DOT_LogLevelKind_Warning,
     DOT_LogLevelKind_Error,
     DOT_LogLevelKind_Assert,
     DOT_LogLevelKind_Count,
-};
+}DOT_LogLevelKind;
 
 global const char *dot_log_level_kind_str[] = {
     [DOT_LogLevelKind_Debug]   = "",
@@ -448,19 +401,16 @@ do { \
 #   define DOT_UNLIKELY(x) (x)
 #endif
 
-
 ////////////////////////////////////////////////////////////////
 //
 // Memory
 
 #if DOT_COMPILER_MSVC
-#   define alignas(a) __declspec(align(a))
 #elif DOT_COMPILER_CLANG || DOT_COMPILER_GCC
-#   define alignas(a) __attribute((aligned(a)))
 #else
-#   error aligas not defined for this compiler.
 #endif
 
+// _Alignof
 #if DOT_COMPILER_MSVC
 #   define DOT_ALIGNOF(T) __alignof(T)
 #elif DOT_COMPILER_CLANG || DOT_COMPILER_GCC
@@ -469,7 +419,7 @@ do { \
 #   error alignof not defined for this compiler.
 #endif
 
-#if ((defined(__GNUC__) && __GNUC__ >= 4) || defined(__clang__))
+#if (DOT_COMPILER_GCC && __GNUC__ >= 4) || DOT_COMPILER_CLANG
 #   define DOT_OFFSETOF(T,member) (__builtin_offsetof(T,member))
 #else
 #   define DOT_OFFSETOF(T, member) ((usize)&(((T*)0)->member))
@@ -477,14 +427,23 @@ do { \
 
 #define DOT_CONTAINER_OF(ptr, type, member) ((type *)((u8 *)(ptr) - offsetof(type, member)))
 
+#if DOT_COMPILER_CLANG || DOT_COMPILER_GCC
+#   define TYPEOF(x) __typeof__(x)
+#   define alignas(a) __attribute((aligned(a)))
 
-#if defined(__clang__) || defined(__GNUC__)
-    #define TYPEOF(x) __typeof__(x)
-#elif defined(_MSC_VER) && _MSC_VER >= 1939 && defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202000L
+#elif DOT_COMPILER_MSVC
+#   define alignas(a) __declspec(align(a))
+#   if _MSC_VER >= 1939 && defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202000L
     // MSVC 19.39+ (VS 2022 17.9+)
-    #define TYPEOF(x) __typeof__(x)
+#   define TYPEOF(x) __typeof__(x)
+#   else
+#   define TYPEOF(x) __typeof__(x)
+//#   error "no typeof"
+
+#   endif
 #else
-    #error "typeof is not supported on this compiler. Upgrade MSVC to 17.9+ or use GCC/Clang."
+    // #define TYPEOF(x) "typeof is not supported on this compiler. Upgrade MSVC to 17.9+ or use GCC/Clang."
+    // #error "typeof is not supported on this compiler. Upgrade MSVC to 17.9+ or use GCC/Clang."
 #endif
 
 #ifndef DOT_SWAP
@@ -523,7 +482,7 @@ do { \
 // Removalble debug field names
 
 typedef struct String8 String8;
-internal void dot_debug_name_set(u32 capacity, char *ptr, String8 src);
+internal void dot_debug_name_set(u64 capacity, char *ptr, String8 src);
 
 typedef struct DOT_DebugName16{
     char buff[16];
@@ -585,18 +544,30 @@ typedef struct DOT_DebugName8{
 #if DOT_COMPILER_MSVC
 #   pragma section(".CRT$XCU",read)
 #   define DOT_CONSTRUCTOR2_(fn, p) \
+        static void fn(void); \
         __declspec(allocate(".CRT$XCU")) void (*fn##_)(void) = fn; \
         __pragma(comment(linker,"/include:" p #fn "_")) \
         static void fn(void)
-#   ifdef _WIN64
-        #define DOT_CONSTRUCTOR(fn) CONSTRUCTOR2_(fn,"")
-#   else
-        #define DOT_CONSTRUCTOR(fn) CONSTRUCTOR2_(fn,"_")
-#   endif
+#   define DOT_CONSTRUCTOR(fn) DOT_CONSTRUCTOR2_(fn,"")
 #else
 #   define DOT_CONSTRUCTOR(fn) \
-        __attribute__((constructor)) static void fn
+        __attribute__((constructor)) static void fn(void)
 #endif
+//
+// #if DOT_COMPILER_MSVC
+//     typedef void (__cdecl *DOT_CRTINIT)(void);
+//
+//     #pragma section(".CRT$XCU", read)
+//
+//     #define DOT_CONSTRUCTOR(fn)                     \
+//         static void __cdecl fn(void);               \
+//         __declspec(allocate(".CRT$XCU"))            \
+//         DOT_CRTINIT fn##_ = fn;                     \
+//         static void __cdecl fn(void)
+// #else
+//     #define DOT_CONSTRUCTOR(fn)                     \
+//         __attribute__((constructor)) static void fn(void)
+// #endif
 
 ////////////////////////////////////////////////////////////////
 //
@@ -613,23 +584,45 @@ typedef struct DOT_DebugName8{
 //   }
 // } INSERT AFTER .data;
 
-
-#if DOT_COMPILER_MSVC || (DOT_COMPILER_CLANG && DOT_OS_WINDOWS)
 // (jd) NOTE: This need to be placed in manually for the section we want above declare section
 // #pragma section(".#name", read)
 // #pragma comment(linker, "/merge:.#name=.data")
-#   define DECLARE_SECTION(name) \
-        __declspec(allocate(#name "$a")) extern __start_##name; \
-        __declspec(allocate(#name "$z")) extern __stop_##name;
 
-#   define SECTION_ITEM(name) \
-        __declspec(allocate(#name "$m"))
+#if DOT_COMPILER_MSVC
+// For some reason #name "$a" doesn't work with __declspec(allocate)
+#   define SECTION_NAME_JOIN(a, b) DOT_STR(a##b)
+// (jd) NOTE: `extern T __start_##name[]` never actually defines storage for the symbol (it's just
+// a declaration), so the linker had nothing to resolve it to. Instead we place one real, zeroed
+// T-sized marker at each end of the section ($a and $z) and derive __start_/__stop_ from their
+// addresses.
+//
+// (jd) NOTE: Each `__declspec(allocate(...))` variable becomes its own COMDAT, and MSVC pads
+// every COMDAT in one of these custom sections up to 16 bytes. That means consecutive items in
+// "$m" actually sit `DOT_ALIGN_UP(sizeof(T), 16)` apart, not `sizeof(T)` apart. Iteration (see
+// EACH_IN_SECTION) walks the array with `sizeof(T)`-strided pointer arithmetic, so T must already
+// be a multiple of 16 bytes or the walk silently drifts off the real items. Use `alignas(16)` on T
+// if this fires.
+#   define SECTION_DECLARE(T, name) \
+        DOT_STATIC_ASSERT(sizeof(T) % 16 == 0, "T must be 16-byte sized for MSVC section iteration to stay aligned"); \
+        __pragma(data_seg(#name "$a")) \
+        __pragma(data_seg(#name "$m")) \
+        __pragma(data_seg(#name "$z")) \
+        __pragma(data_seg()) \
+        __declspec(allocate(SECTION_NAME_JOIN(name, $a))) static T DOT_CONCAT(__dot_section_begin_, name) = {0}; \
+        __declspec(allocate(SECTION_NAME_JOIN(name, $z))) static T DOT_CONCAT(__dot_section_end_, name) = {0}; \
+        static T *__start_##name = &DOT_CONCAT(__dot_section_begin_, name) + 1; \
+        static T *__stop_##name  = &DOT_CONCAT(__dot_section_end_, name)
+
+// priority doesn't work on windows. Nothing depends on it for now tho
+#   define SECTION_ITEM(name, priority) \
+        __declspec(allocate(SECTION_NAME_JOIN(name, $m)))
 #else
-#   define DECLARE_SECTION(T, name) \
+#   define SECTION_DECLARE(T, name) \
         extern T __start_##name[]; \
         extern T __stop_##name[];
 
 #   define SECTION_ITEM(name, priority) \
+        DOT_STATIC_ASSERT(priority == 0, "priority != 0 doesn't work on windows"); \
         __attribute__((no_sanitize("address"), used, section("." #name "." #priority)))
 #endif
 
@@ -639,21 +632,20 @@ typedef struct DOT_DebugName8{
 #define EACH_IN_SECTION(section_name, T, it) \
     (T *it = __start_##section_name; (it) < __stop_##section_name; (it)++)
 
-
 // NOTE: revisit atomics, also grabbed this from raddbg for the stracktrace thing
 #if DOT_COMPILER_MSVC
-# include <intrin.h>
-# if ARCH_X64
-#  define ins_atomic_u32_eval_cond_assign(x,k,c)  _InterlockedCompareExchange((long *)(x), (k), (c))
-# else
-#  error "Atomic intrinsics not defined for this compiler / architecture combination."
-# endif
+#   include <intrin.h>
+#   if DOT_ARCH_X64
+#       define ins_atomic_u32_eval_cond_assign(x,k,c)  _InterlockedCompareExchange((long *)(x), (k), (c))
+#   else
+#       error "Atomic intrinsics not defined for this compiler / architecture combination."
+#   endif
 #elif DOT_COMPILER_CLANG || DOT_COMPILER_GCC
-#include <immintrin.h>
-#include <emmintrin.h>
-#  define ins_atomic_u32_eval_cond_assign(x,k,c)  ({ u32 _new = (c); __atomic_compare_exchange_n((u32 *)(x),&_new,(k),0,__ATOMIC_SEQ_CST,__ATOMIC_SEQ_CST); _new; })
+#   include <immintrin.h>
+#   include <emmintrin.h>
+#   define ins_atomic_u32_eval_cond_assign(x,k,c)  ({ u32 _new = (c); __atomic_compare_exchange_n((u32 *)(x),&_new,(k),0,__ATOMIC_SEQ_CST,__ATOMIC_SEQ_CST); _new; })
 #else
-#  error "Atomic intrinsics not defined for this compiler / architecture."
+#    error "Atomic intrinsics not defined for this compiler / architecture."
 #endif
 
 ////////////////////////////////////////////////////////////////
@@ -664,7 +656,8 @@ typedef struct DOT_DebugName8{
 #define FNV1A_OFFSET 2166136261u
 #define FNV1A_PRIME  16777619u
 
-
+#define DOT_STATIC_ASSERT_EXPR(cond, ...) (0 * sizeof(char[(cond) ? 1 : -1]))
+#define DOT_STATIC_ASSERT_LITERAL_LEN(s, n) DOT_STATIC_ASSERT_EXPR(sizeof(s) - 1 == (n))
 
 #define DOT_FNV1A_STEP(h, c) ((h ^ (unsigned char)(c)) * FNV1A_PRIME)
 
@@ -673,10 +666,20 @@ typedef struct DOT_DebugName8{
 #define DOT_FNV1A_3_UNCHECKED(s)  DOT_FNV1A_STEP(DOT_FNV1A_2_UNCHECKED(s), s[2])
 #define DOT_FNV1A_4_UNCHECKED(s)  DOT_FNV1A_STEP(DOT_FNV1A_3_UNCHECKED(s), s[3])
 #define DOT_FNV1A_5_UNCHECKED(s)  DOT_FNV1A_STEP(DOT_FNV1A_4_UNCHECKED(s), s[4])
-#define DOT_FNV1A_6_UNCHECKED(s)  DOT_FNV1A_STEP(DOT_FNV1A_6_UNCHECKED(s), s[5])
-#define DOT_FNV1A_7_UNCHECKED(s)  DOT_FNV1A_STEP(DOT_FNV1A_7_UNCHECKED(s), s[6])
-#define DOT_FNV1A_8_UNCHECKED(s)  DOT_FNV1A_STEP(DOT_FNV1A_8_UNCHECKED(s), s[7])
+#define DOT_FNV1A_6_UNCHECKED(s)  DOT_FNV1A_STEP(DOT_FNV1A_5_UNCHECKED(s), s[5])
+#define DOT_FNV1A_7_UNCHECKED(s)  DOT_FNV1A_STEP(DOT_FNV1A_6_UNCHECKED(s), s[6])
+#define DOT_FNV1A_8_UNCHECKED(s)  DOT_FNV1A_STEP(DOT_FNV1A_7_UNCHECKED(s), s[7])
 
+#if DOT_COMPILER_MSVC
+#define DOT_FNV1A_1(s)  DOT_FNV1A_1_UNCHECKED(s)
+#define DOT_FNV1A_2(s)  DOT_FNV1A_2_UNCHECKED(s)
+#define DOT_FNV1A_3(s)  DOT_FNV1A_3_UNCHECKED(s)
+#define DOT_FNV1A_4(s)  DOT_FNV1A_4_UNCHECKED(s)
+#define DOT_FNV1A_5(s)  DOT_FNV1A_5_UNCHECKED(s)
+#define DOT_FNV1A_6(s)  DOT_FNV1A_6_UNCHECKED(s)
+#define DOT_FNV1A_7(s)  DOT_FNV1A_7_UNCHECKED(s)
+#define DOT_FNV1A_8(s)  DOT_FNV1A_8_UNCHECKED(s)
+#else
 #define DOT_FNV1A_1(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,1), DOT_FNV1A_1_UNCHECKED(s))
 #define DOT_FNV1A_2(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,2), DOT_FNV1A_2_UNCHECKED(s))
 #define DOT_FNV1A_3(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,3), DOT_FNV1A_3_UNCHECKED(s))
@@ -685,6 +688,7 @@ typedef struct DOT_DebugName8{
 #define DOT_FNV1A_6(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,6), DOT_FNV1A_6_UNCHECKED(s))
 #define DOT_FNV1A_7(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,7), DOT_FNV1A_7_UNCHECKED(s))
 #define DOT_FNV1A_8(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,8), DOT_FNV1A_8_UNCHECKED(s))
+#endif
 
 static inline u32 fnv1a_runtime(String8 s);
 

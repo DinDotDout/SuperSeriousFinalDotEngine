@@ -1,6 +1,6 @@
-#if defined(DOT_OS_POSIX)
+#if DOT_OS_POSIX
 #   include "os/os_linux.c"
-#elif defined(DOT_OS_WINDOWS)
+#elif DOT_OS_WINDOWS
 #   include "os/os_windows.c"
 #endif
 // typedef DOT_ENUM(u8, FileModeKind){
@@ -14,10 +14,10 @@
 // platform_get_file_mode_from_kind(FileModeKind kind)
 // {
 //     switch(kind){
-//     case Platform_FileModeKind_R: return string8_lit("r");
-//     case Platform_FileModeKind_W: return string8_lit("w");
-//     case Platform_FileModeKind_RW: return string8_lit("w");
-//     case Platform_FileModeKind_A: return string8_lit("a");
+//     case Platform_FileModeKind_R: return string8_comp("r");
+//     case Platform_FileModeKind_W: return string8_comp("w");
+//     case Platform_FileModeKind_RW: return string8_comp("w");
+//     case Platform_FileModeKind_A: return string8_comp("a");
 //     }
 // }
 
@@ -25,7 +25,7 @@
 internal bool platform_file_exists(String8 file_path)
 {
 #if _WIN32
-    return GetFileAttributesA(file_path) != INVALID_FILE_ATTRIBUTES;
+    return GetFileAttributesA(file_path.cstr) != INVALID_FILE_ATTRIBUTES;
 #else
     return access(file_path.cstr, F_OK) == 0;
 #endif
@@ -62,8 +62,8 @@ b32 platform_file_is_newer(String8 a, String8 b)
 {
 #ifdef _WIN32
     struct _stat sa, sb;
-    if (_stat(a, &sa) != 0) return false;
-    if (_stat(b, &sb) != 0) return true;
+    if (_stat(a.cstr, &sa) != 0) return false;
+    if (_stat(b.cstr, &sb) != 0) return true;
 #else
     struct stat sa, sb;
     if (stat(a.cstr, &sa) != 0) return false;

@@ -26,10 +26,10 @@ struct Plugin{
     PluginInitFn init;
     PluginEndFn end;
 };
-DECLARE_SECTION(const Plugin, PluginsSection);
+SECTION_DECLARE(const Plugin, PluginsSection);
 
 #define PLUGIN_REGISTER(n, priority, ...) \
-    SECTION_ITEM(DOT_plugins, priority) static const Plugin DOT_CONCAT(__DOT_Plugin_, n) = (Plugin){ \
+    SECTION_ITEM(PluginsSection, priority) static const Plugin DOT_CONCAT(__DOT_Plugin_, n) = { \
         .name = #n, \
         .file = __FILE__, \
         .line = __LINE__, \

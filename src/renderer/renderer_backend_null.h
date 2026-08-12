@@ -15,10 +15,10 @@ DOT_DIAGNOSTIC_PUSH
 #endif
 
 internal void rn_null_init(DOT_Window* window){}
-internal void rn_null_shutdown(){}
-internal void rn_null_frame_begin(){}
-internal void rn_null_frame_end(){}
-internal void rn_null_clear_bg(){}
+internal void rn_null_shutdown(void){}
+internal void rn_null_frame_begin(void){}
+internal void rn_null_frame_end(void){}
+internal void rn_null_clear_bg(vec3 color){}
 internal void rn_null_shader_unload(RN_ShaderStageHandle sm){}
 internal void rn_null_resource_cleanup_list_push(void){}
 internal void rn_null_resource_cleanup_list_pop_at(PoolHandle idx){}
@@ -27,7 +27,7 @@ internal void rn_null_resource_cleanup_list_pop_last(void){}
 // (jd) Empty handles
 internal RN_BufferHandle                rn_null_buffer_create(RN_BufferDesc *desc, u8 *data){ return((RN_BufferHandle){0}); }
 internal RN_SamplerHandle               rn_null_sampler_create(RN_SamplerDesc *desc){ return((RN_SamplerHandle){0}); }
-internal RN_TextureHandle               rn_null_texture_create(RN_TextureDesc *desc, void *data) { return((RN_TextureHandle){0}); }
+internal RN_TextureHandle               rn_null_texture_create(RN_TextureDesc *desc, void *data, RN_TextureHandle *fallback) { return((RN_TextureHandle){0}); }
 internal RN_PipelineHandle              rn_null_pipeline_create(RN_PipelineDesc *desc) { return((RN_PipelineHandle){0}); }
 internal RN_ShaderResourceLayoutHandle  rn_null_shader_resource_layout_create(RN_ShaderResourceLayoutDesc *desc) { return((RN_ShaderResourceLayoutHandle){0}); }
 internal RN_ShaderResourceHandle        rn_null_shader_resource_create(RN_ShaderResourceDesc *desc) { return((RN_ShaderResourceHandle){0}); }

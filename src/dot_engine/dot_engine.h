@@ -1,25 +1,35 @@
 #ifndef DOT_ENGINE_H
 #define DOT_ENGINE_H
 
+#include "base/build_ctx.h"
+
 //////////////////////////////////////////////////////
 /// THIRD PARTY
 ///
-
-#define _GNU_SOURCE
-
-// #define DOT_USE_VOLK
+//#define VK_USE_PLATFORM_WIN32_KHR
 #ifdef DOT_USE_VOLK
-    #define VK_NO_PROTOTYPES
-    #define VK_USE_PLATFORM_WAYLAND_KHR
-    #define VK_USE_PLATFORM_XLIB_KHR
-    #define VOLK_IMPLEMENTATION
-    #include "third_party/volk/volk.h"
+#   define VK_NO_PROTOTYPES
+#   ifdef DOT_PLATFORM_LINUX
+#       define VK_USE_PLATFORM_WAYLAND_KHR
+#       define VK_USE_PLATFORM_XLIB_KHR
+#   elif defined(DOT_PLATFORM_WINDOWS)
+#       define VK_USE_PLATFORM_WIN32_KHR
+#   endif
+#   define VOLK_IMPLEMENTATION
+#   include "third_party/volk/volk.h"
+#endif
+
+DOT_DIAGNOSTIC_PUSH
+#if DOT_COMPILER_MSVC
+DOT_DIAGNOSTIC_IGNORE(4244) // conversion from 'u64' to 'u32', possible loss of data
+DOT_DIAGNOSTIC_IGNORE(4116) // enum operands of different types
+DOT_DIAGNOSTIC_IGNORE(5287) // operands are different enum types
 #endif
 
 #define RGFW_VULKAN
 #define RGFW_IMPLEMENTATION
+//#define RGFW_INT_DEFINED
 #define RGFWDEF static inline
-
 #include "third_party/RGFW/RGFW.h"
 
 #define NK_INCLUDE_FONT_BAKING  // STB_TRUETYPE_IMPLEMENTATION, STB_RECT_PACK_IMPLEMENTATION
@@ -30,22 +40,24 @@
 #define NK_INCLUDE_VERTEX_BUFFER_OUTPUT
 #define NK_IMPLEMENTATION
 #include "third_party/Nuklear/nuklear.h"
+DOT_DIAGNOSTIC_POP
 
-//////////////////////////////////////////////////////
-/// DOT
-///
 #if DOT_OS_WINDOWS
-#  if DOT_ENGINE_BUILD
-#    define DOT_ENGINE_API __declspec(dllexport)
-#  else
+#  if DOT_ENGINE_IMPORT
 #    define DOT_ENGINE_API __declspec(dllimport)
+#  else
+#    define DOT_ENGINE_API __declspec(dllexport)
 #  endif
 #else
 #   define DOT_ENGINE_API __attribute__((visibility("default")))
 #endif
 
-#define DOT_INT_SKIP // Already included ints by rgfw
+//////////////////////////////////////////////////////
+/// DOT
+//
 #include "base/base_include.h"
+
+#if DOT_DEBUG_ALLOCATORS
 void* malloc_debug(u64 sz, char *file, u32 line)
 {
     void *mem = malloc(sz);
@@ -55,7 +67,7 @@ void* malloc_debug(u64 sz, char *file, u32 line)
 
 void* realloc_debug(void* ptr, u64 new_sz, char *file, u32 line)
 {
-    DOT_PRINT("realloc %M", new_sz, file, line);
+    DOT_PRINT("realloc %d", new_sz, file, line);
     return realloc(ptr, new_sz);
 }
 
@@ -64,20 +76,24 @@ void free_debug(void *ptr, char *file, u32 line)
     DOT_PRINT("free debug %p", ptr, file, line);
     free(ptr);
 }
+#endif
 
-#define STBI_MALLOC(size) malloc_debug(size, __FILE__, __LINE__)
-#define STBI_REALLOC(size,new_sz) realloc_debug(size, new_sz, __FILE__, __LINE__)
-#define STBI_FREE(size) free_debug(size, __FILE__, __LINE__)
-#define STB_IMAGE_IMPLEMENTATION
-#include "third_party/stb/stb_image.h"
+#if DOT_DEBUG_ALLOCATORS
+#   define CGLTF_MALLOC(size) malloc_debug(size, __FILE__, __LINE__)
+#   define CGLTF_FREE(ptr) free_debug(ptr, __FILE__, __LINE__)
+#endif
 
-#define CGLTF_MALLOC(size) malloc_debug(size, __FILE__, __LINE__)
-#define CGLTF_FREE(ptr) free_debug(ptr, __FILE__, __LINE__)
-#define CGLTF_IMPLEMENTATION
-
-#define CGLTF_FREE(ptr) free_debug(ptr, __FILE__, __LINE__)
 #define CGLTF_IMPLEMENTATION
 #include "third_party/cgltf/cgltf.h"
+
+#if DOT_DEBUG_ALLOCATORS
+#   define STBI_MALLOC(size) malloc_debug(size, __FILE__, __LINE__)
+#   define STBI_REALLOC(size,new_sz) realloc_debug(size, new_sz, __FILE__, __LINE__)
+#   define STBI_FREE(size) free_debug(size, __FILE__, __LINE__)
+#endif
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "third_party/stb/stb_image.h"
 
 // (jd) TODO: base doesn't have those enabled for now
 // Compile all libs separately and only enable this for my code

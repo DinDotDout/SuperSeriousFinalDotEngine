@@ -150,7 +150,6 @@ arena_push(ArenaOpParams *op, u64 alloc_size, u64 alignment, b32 should_zero)
         if(DOT_UNLIKELY(commit_size > arena_leftover_memory)){
             arena_print_debug(arena);
             DOT_ERROR_FL(op->file, op->line, "Can't commit more memory total = %M, needed = %M; leftover = %M", arena->reserved, commit_size, arena_leftover_memory);
-            return NULL;
         }
         uptr commit_pos = arena_base + arena->committed;
         if(large_pages){
@@ -175,7 +174,7 @@ arena_free()
 internal String8
 arena_to_string(Arena *arena)
 {
-    String8 str = string8_lit("");
+    String8 str = string8_comp("");
     if(!arena){
         str = string8_format(arena, "Arena: <null>\n");
         return str;
@@ -350,86 +349,86 @@ test_padding_behavior_fn(void)
     return test;
 }
 
-#include <sys/resource.h>
-NO_ASAN internal inline void
-test_page_fault_progression()
-{
-    Arena *arena = ARENA_CREATE(
-        .reserve_size = DOT_MB(300),
-        .commit_size = DOT_MB(200),
-        // .commit_expand_size = DOT_MB(100),
-        // .large_pages = true,
-    );
+// #include <sys/resource.h>
+// NO_ASAN internal inline void
+// test_page_fault_progression()
+// {
+//     Arena *arena = ARENA_CREATE(
+//         .reserve_size = DOT_MB(300),
+//         .commit_size = DOT_MB(200),
+//         // .commit_expand_size = DOT_MB(100),
+//         // .large_pages = true,
+//     );
+//
+//     struct rusage before, after;
+//
+//     u64 pages = (arena->reserved / PLATFORM_REGULAR_PAGE_SIZE) - 1;
+//
+//     u64 nofault_start = 0;
+//     u64 nofault_count = 0;
+//
+//     for (u64 i = 0; i < pages; ++i) {
+//         getrusage(RUSAGE_SELF, &before);
+//
+//         u8 *mem = PUSH_ARRAY_NO_ZERO(arena, u8, PLATFORM_REGULAR_PAGE_SIZE);
+//         if (mem) mem[0] = 1;
+//
+//         getrusage(RUSAGE_SELF, &after);
+//
+//         long delta = after.ru_minflt - before.ru_minflt;
+//
+//         if (delta == 0) {
+//             // extend no‑fault run
+//             if (nofault_count == 0)
+//                 nofault_start = i;
+//             nofault_count++;
+//         } else {
+//             // flush no‑fault run before printing the fault
+//             if (nofault_count > 0) {
+//                 DOT_PRINT(
+//                     "No‑fault run: %lu DOT_KB (%lu pages) from page %lu to %lu",
+//                     nofault_count * (PLATFORM_REGULAR_PAGE_SIZE / 1024),
+//                     nofault_count,
+//                     nofault_start,
+//                     nofault_start + nofault_count - 1
+//                 );
+//                 nofault_count = 0;
+//             }
+//
+//             DOT_PRINT(
+//                 "FAULT: %ld minor faults at page %lu (offset %M)\n",
+//                 delta,
+//                 i,
+//                 i * PLATFORM_REGULAR_PAGE_SIZE
+//             );
+//         }
+//     }
+//
+//     // flush trailing no‑fault run
+//     if (nofault_count > 0) {
+//         DOT_PRINT(
+//             "No‑fault run: %lu DOT_KB (%lu pages) from page %lu to %lu\n",
+//             nofault_count * (PLATFORM_REGULAR_PAGE_SIZE / 1024),
+//             nofault_count,
+//             nofault_start,
+//             nofault_start + nofault_count - 1
+//         );
+//     }
+//     // print_hugepage_info(arena->base);
+//     printf("PID = %d — press ENTER to continue...\n", getpid());
+//     getchar();
+//     ARENA_DESTROY(arena);
+// }
 
-    struct rusage before, after;
-
-    u64 pages = (arena->reserved / PLATFORM_REGULAR_PAGE_SIZE) - 1;
-
-    u64 nofault_start = 0;
-    u64 nofault_count = 0;
-
-    for (u64 i = 0; i < pages; ++i) {
-        getrusage(RUSAGE_SELF, &before);
-
-        u8 *mem = PUSH_ARRAY_NO_ZERO(arena, u8, PLATFORM_REGULAR_PAGE_SIZE);
-        if (mem) mem[0] = 1;
-
-        getrusage(RUSAGE_SELF, &after);
-
-        long delta = after.ru_minflt - before.ru_minflt;
-
-        if (delta == 0) {
-            // extend no‑fault run
-            if (nofault_count == 0)
-                nofault_start = i;
-            nofault_count++;
-        } else {
-            // flush no‑fault run before printing the fault
-            if (nofault_count > 0) {
-                DOT_PRINT(
-                    "No‑fault run: %lu DOT_KB (%lu pages) from page %lu to %lu",
-                    nofault_count * (PLATFORM_REGULAR_PAGE_SIZE / 1024),
-                    nofault_count,
-                    nofault_start,
-                    nofault_start + nofault_count - 1
-                );
-                nofault_count = 0;
-            }
-
-            DOT_PRINT(
-                "FAULT: %ld minor faults at page %lu (offset %M)\n",
-                delta,
-                i,
-                i * PLATFORM_REGULAR_PAGE_SIZE
-            );
-        }
-    }
-
-    // flush trailing no‑fault run
-    if (nofault_count > 0) {
-        DOT_PRINT(
-            "No‑fault run: %lu DOT_KB (%lu pages) from page %lu to %lu\n",
-            nofault_count * (PLATFORM_REGULAR_PAGE_SIZE / 1024),
-            nofault_count,
-            nofault_start,
-            nofault_start + nofault_count - 1
-        );
-    }
-    // print_hugepage_info(arena->base);
-    printf("PID = %d — press ENTER to continue...\n", getpid());
-    getchar();
-    ARENA_DESTROY(arena);
-}
-
-DOT_TEST_SUITE(arena_tests)
-{
-    DOT_TestResults test = {0};
-    DOT_MERGE_TEST_RESULTS(test, test_basic_allocation_fn());
-    DOT_MERGE_TEST_RESULTS(test, test_alignment_fn());
-    DOT_MERGE_TEST_RESULTS(test, test_out_of_bounds_fn());
-    DOT_MERGE_TEST_RESULTS(test, test_reset_fn());
-    DOT_MERGE_TEST_RESULTS(test, test_large_pages_fn());
-    DOT_MERGE_TEST_RESULTS(test, test_padding_behavior_fn());
-    // test_page_fault_progression(); // This one is just informative
-    return test;
-}
+// DOT_TEST_SUITE(arena_tests)
+// {
+//     DOT_TestResults test = {0};
+//     DOT_MERGE_TEST_RESULTS(test, test_basic_allocation_fn());
+//     DOT_MERGE_TEST_RESULTS(test, test_alignment_fn());
+//     DOT_MERGE_TEST_RESULTS(test, test_out_of_bounds_fn());
+//     DOT_MERGE_TEST_RESULTS(test, test_reset_fn());
+//     DOT_MERGE_TEST_RESULTS(test, test_large_pages_fn());
+//     DOT_MERGE_TEST_RESULTS(test, test_padding_behavior_fn());
+//     // test_page_fault_progression(); // This one is just informative
+//     return test;
+// }

@@ -6,8 +6,8 @@
 #include <execinfo.h>
 #include <sys/time.h>
 #include <sys/mman.h>
-#include <sys/stat.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 
 internal u64
 platform_os_get_timer_freq()
@@ -47,8 +47,8 @@ os_print_stacktrace()
                 String8 file   = string8_skip_last_slash(string8_cstring_capped(file_name, file_name + sizeof(file_name)));
                 if(file.size > 0) file.size -= 1;
 
-                b32 no_func = string8_equal(func, string8_lit("??"));
-                b32 no_file = string8_equal(file, string8_lit("??"));
+                b32 no_func = string8_equal(func, string8_comp("??"));
+                b32 no_file = string8_equal(file, string8_comp("??"));
                 if(no_func) { func = (String8){0}; }
                 if(no_file) { file = (String8){0}; }
 
@@ -95,6 +95,43 @@ internal void
 os_init()
 {
     os_install_handlers();
+}
+
+////////////////////////////////////////////////////////////////
+//
+// Process
+//
+internal FILE*
+os_popen(String8 cmd, char const *mode)
+{
+    return popen(cmd.cstr, mode);
+}
+
+internal i32
+os_pclose(FILE *stream)
+{
+    i32 status = pclose(stream);
+    if(status == -1){
+        return -1;
+    }
+    return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+}
+
+////////////////////////////////////////////////////////////////
+//
+// Filesystem
+//
+internal b32
+os_directory_create_if_not_exists(String8 path)
+{
+    if(mkdir(path.cstr, 0755) == 0){
+        return true;
+    }
+    if(errno == EEXIST){
+        return true;
+    }
+    DOT_WARNING("Failed to create directory %S: %s", path, strerror(errno));
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////

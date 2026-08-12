@@ -44,7 +44,7 @@ typedef struct RN_VK_Texture{
     VkImageView vk_image_view;
     VkExtent3D  vk_extent3d;
 
-    VkFormat    vk_format;
+    VkFormat      vk_format;
     VkImageLayout vk_image_layout;
 
     RN_VK_GpuAllocHandle alloc;
@@ -56,11 +56,11 @@ typedef struct RN_VK_Texture{
 
 typedef struct RN_VK_Buffer{
     VkBuffer            vk_buffer;
-    u64                 vk_size;
     VkBufferUsageFlags  vk_buffer_usage_flags;
 
-    RN_VK_GpuAllocHandle alloc;
-    u64                  offset;
+    RN_VK_GpuAllocHandle    alloc;
+    u64                     size;
+    u64                     offset;
 
     RN_ResourceUsageKind resource_usage; // here for now;
     DOT_DebugName16(debug_name);
@@ -169,8 +169,10 @@ typedef struct RN_VK_RenderingAttachments{
 typedef struct RN_VK_BackendCtx{
     RN_BackendCtx base;
 
+    DOT_Window       *window;
     RN_VK_Device     device;
     RN_VK_Swapchain  swapchain;
+    Arena            *swapchain_arena; // (jd) NOTE: Reset on recreation so resizing doesn't leak into permanent_arena
     RN_VK_RenderPassOutput swapchain_output;
     VkInstance      instance;
     VkSurfaceKHR    surface;
@@ -239,7 +241,7 @@ internal RN_VK_TextureHandle                rn_vk_texture_create_(RN_TextureDesc
 internal RN_VK_SamplerHandle                rn_vk_sampler_create_(RN_SamplerDesc *desc);
 internal RN_VK_BufferHandle                 rn_vk_buffer_create_(RN_BufferDesc *desc, u8 *data);
 internal RN_VK_ShaderResourceLayoutHandle   rn_vk_shader_resource_layout_create_(RN_ShaderResourceLayoutDesc *desc);
-internal RN_VK_ShaderResourceHandle                rn_vk_shader_resource_create_(RN_ShaderResourceDesc *desc);
+internal RN_VK_ShaderResourceHandle         rn_vk_shader_resource_create_(RN_ShaderResourceDesc *desc);
 internal RN_VK_PipelineHandle               rn_vk_pipeline_create_(RN_PipelineDesc *desc);
 
 internal void                               rn_vk_texture_destroy_(RN_VK_TextureHandle h);
@@ -249,4 +251,9 @@ internal void                               rn_vk_shader_resource_layout_destroy
 internal void                               rn_vk_pipeline_destroy_(RN_VK_PipelineHandle h);
 
 internal RN_VK_FrameData    *rn_vk_frame_data_get_current();
+
+internal void                               rn_vk_swapchain_create(DOT_Window *window);
+internal void                               rn_vk_swapchain_recreate(void);
+internal void                               rn_vk_swapchain_images_destroy(void);
+internal void                               rn_vk_draw_images_recreate(void);
 #endif // !RN_VK_H

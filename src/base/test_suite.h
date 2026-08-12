@@ -35,14 +35,14 @@ global ARRAY(DOT_Test, DOT_TEST_SUITE_MAX) g_dot_test_suites;
 } while(0)
 
 #define DOT_TEST_SUITE(fn) \
-    internal inline DOT_TestResults fn(void);\
+    internal inline DOT_TestResults fn(void); \
     static const DOT_Test DOT_CONCAT(__DOT_Test_, fn) = (DOT_Test){ \
         .name = #fn, \
         .file = __FILE__, \
         .line = __LINE__, \
         .test_fn = fn, \
     }; \
-    DOT_CONSTRUCTOR(dot_test_suite_register##fn)(void) \
+    DOT_CONSTRUCTOR(dot_test_suite_register##fn) \
     { \
         dot_test_suite_register(&DOT_CONCAT(__DOT_Test_, fn)); \
     } \

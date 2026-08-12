@@ -118,6 +118,7 @@ HM_FN(hash)(HM_K key)
 internal HM_T*
 HM_FN(get_or_create)(Arena *arena, HM_NAME *hashmap, HM_K key)
 {
+    DOT_ASSERT(hashmap->bucket_count > 0, "Hashmap may not have been initialized");
     u64 hash = HM_HASHER(key);
     u64 bucket_idx = HM_FN(bucket_from_hash)(hashmap, hash);
     HM_NODE *node = hashmap->node_buckets[bucket_idx];

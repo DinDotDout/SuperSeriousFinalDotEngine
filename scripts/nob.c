@@ -4,13 +4,7 @@
 // NOTE: Should probably just allow msvc or clang (not clang cl)
 
 #include "../src/third_party/nob.h/nob.h"
-Nob_Log_Level nob_minimal_log_level = NOB_ERROR;
-
-#define ARG_LIST(...)                                               \
-    (ArgList) {                                                     \
-        .items = (const char *[]){__VA_ARGS__},                     \
-        .count = (sizeof((char *[]){__VA_ARGS__}) / sizeof(char *)) \
-    }
+Nob_Log_Level nob_minimal_log_level = NOB_WARNING;
 
 #define OUTPUT_FOLDER           "build/"
 #define SRC_FOLDER              "src/dot_engine/"
@@ -33,7 +27,7 @@ typedef enum {
     PlatformKind_LinuxWayland,
     PlatformKind_LinuxX11,
     PlatformKind_Windows,
-    PlatformKind_Auto= AUTO_PLATFORM,
+    PlatformKind_Auto = AUTO_PLATFORM,
     PlatformKind_Count,
 }PlatformKind;
 
@@ -54,11 +48,6 @@ static const char *compiler_kind_str[] = {
     [CompilerKind_Clang] = "clang",
     [CompilerKind_Msvc]  = "cl.exe",
 };
-
-typedef struct{
-    const char **items;
-    int count;
-}ArgList;
 
 typedef struct {
     PlatformKind platform;
@@ -90,16 +79,16 @@ static void set_release(void){ flags.opt = OptimizationLevelKind_Release; }
 static void set_final(void)  { flags.opt = OptimizationLevelKind_Final; }
 
 static const FlagEntry flag_table[] = {
-    { "--x11",     "Use X11 backend",              set_x11     },
-    { "--wayland", "Use Wayland backend",          set_wayland },
-    { "--window",  "Use Windows backend",          set_windows },
+    { "--x11",     "Use X11 backend",               set_x11     },
+    { "--wayland", "Use Wayland backend",           set_wayland },
+    { "--windows", "Use Windows backend",           set_windows },
 
-    { "--clang",   "Use Clang compiler",           set_clang   },
-    { "--cl",      "Use MSVC compiler",            set_msvc    },
+    { "--clang",   "Use Clang compiler",            set_clang   },
+    { "--cl",      "Use MSVC compiler",             set_msvc    },
 
-    { "--debug",   "Debug build with sanitizers",  set_debug   },
-    { "--release", "Release build with debug info",set_release },
-    { "--final",   "Optimized final build",        set_final   },
+    { "--debug",   "Debug build with sanitizers",   set_debug   },
+    { "--release", "Release build with debug info", set_release },
+    { "--final",   "Optimized final build",         set_final   },
 };
 
 static void print_help(const char *prog) {
@@ -115,101 +104,85 @@ static void print_help(const char *prog) {
 // Platform config
 // ─────────────────────────────────────────────────────────────────────────────
 
-typedef struct {
-    ArgList defines;
-    ArgList libs;
-    ArgList inputs;
-} PlatformConfig;
-
-static PlatformConfig platform_cfg[] = {
-    [PlatformKind_LinuxX11] = {
-        .defines = {},
-        .libs = ARG_LIST("-lX11", "-lXcursor", "-lXrandr", "-lXfixes",),
-        .inputs = {},
-    },
-    [PlatformKind_LinuxWayland] = {
-        .defines = ARG_LIST("-DRGFW_WAYLAND"),
-        .libs = ARG_LIST("-lwayland-cursor", "-lwayland-client", "-lxkbcommon",),
-        .inputs = ARG_LIST("src/gen-wayland/xdg-shell.c",
-            "src/gen-wayland/relative-pointer-unstable-v1.c",
-            "src/gen-wayland/pointer-constraints-unstable-v1.c",
-            "src/gen-wayland/xdg-toplevel-icon-v1.c",
-            "src/gen-wayland/xdg-output-unstable-v1.c",
-            "src/gen-wayland/xdg-decoration-unstable-v1.c",
-            "src/gen-wayland/pointer-warp-v1.c",),
-    },
-    [PlatformKind_Windows] = {
-        .defines = {},
-        .libs = ARG_LIST("-lvulkan-1", "-lgdi32", "-lshell32", "-luser32",),
-        .inputs = {},
-    },
-};
+static void apply_platform_flags(Nob_Cmd *cmd, PlatformKind platform) {
+    switch(platform) {
+        case PlatformKind_LinuxX11:
+            nob_cmd_append(cmd, "-DDOT_PLATFORM_LINUX");
+            nob_cmd_append(cmd, "-lX11", "-lXcursor", "-lXrandr", "-lXfixes");
+            break;
+        case PlatformKind_LinuxWayland:
+            nob_cmd_append(cmd, "-DRGFW_WAYLAND", "-DDOT_PLATFORM_LINUX");
+            nob_cmd_append(cmd, "-lwayland-cursor", "-lwayland-client", "-lxkbcommon");
+            nob_cmd_append(cmd,
+                "src/gen-wayland/xdg-shell.c",
+                "src/gen-wayland/relative-pointer-unstable-v1.c",
+                "src/gen-wayland/pointer-constraints-unstable-v1.c",
+                "src/gen-wayland/xdg-toplevel-icon-v1.c",
+                "src/gen-wayland/xdg-output-unstable-v1.c",
+                "src/gen-wayland/xdg-decoration-unstable-v1.c",
+                "src/gen-wayland/pointer-warp-v1.c");
+            break;
+        case PlatformKind_Windows:
+            nob_cmd_append(cmd, "/DDOT_PLATFORM_WINDOWS", "/D_CRT_SECURE_NO_WARNINGS");
+            break;
+        default:
+            nob_log(NOB_ERROR, "Unsupported platform");
+            exit(1);
+    }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Compiler base + optimization flags
 // ─────────────────────────────────────────────────────────────────────────────
-typedef struct {
-    ArgList base;
-    ArgList opt[3]; // Debug, Release, Final
-} CompilerConfig;
 
-static CompilerConfig compiler_cfg[] = {
-    [CompilerKind_Clang] = {
-        .base = ARG_LIST(
-            "-std=c11",
-            "-Wall", "-Wextra", "-Wno-override-init",
-            "-Wdiv-by-zero", "-Wno-unused-function",
-            "-Werror=vla",
-            // "-Wconversion",
-            // "-Wimplicit-int-conversion",
-            // "-Wsign-conversion",
-            // "-Wno-unused-parameter",
-            "-fvisibility=hidden",
-            ),
-        .opt = {
-            [OptimizationLevelKind_Debug] =
-                ARG_LIST(
-                    "-O0",
-                    "-g",
-                    "-fsanitize=address,undefined",
-                    "-fsanitize-recover=address,undefined",
-                    "-DDEBUG",
-                ),
-            [OptimizationLevelKind_Release] =
-                ARG_LIST("-O2", "-g",
-                // "-Wno-unused-but-set-variable",
-                // "-fsanitize=address,undefined",
-                // "-fsanitize-recover=address,undefined",
-            ),
-            [OptimizationLevelKind_Final] =
-                ARG_LIST("-O3", "-DNDEBUG", "-Wno-unused-but-set-variable",),
-        },
-    },
-    [CompilerKind_Msvc] = {
-        .base = ARG_LIST("/W4", "/D", "/nologo"),
-        .opt = {
-            [OptimizationLevelKind_Debug]   = ARG_LIST("/Od", "/Zi", "/MDd",),
-            [OptimizationLevelKind_Release] = ARG_LIST("/O2", "/Zi", "/MD",),
-            [OptimizationLevelKind_Final]   = ARG_LIST("/O2", "/GL", "/DNDEBUG", "/MD",),
-        },
-    },
-};
-
-static bool program_exists(const char *name) {
-#if defined(_WIN32)
-    Nob_Cmd check = {0};
-    nob_cmd_append(&check, "where", name);
-#else
-    Nob_Cmd check = {0};
-    nob_cmd_append(&check, "which", name);
-#endif
-    bool result = nob_cmd_run_sync(check);
-    nob_cmd_free(check);
-    return result;
+static void apply_compiler_flags(Nob_Cmd *cmd, CompilerKind compiler, OptimizationLevelKind opt) {
+    switch(compiler) {
+        case CompilerKind_Clang:
+            nob_cmd_append(cmd,
+                "-std=c11",
+                "-Wall", "-Wextra", "-Wno-override-init",
+                "-Wdiv-by-zero", "-Wno-unused-function",
+                "-Werror=vla",
+                // "-Wconversion",
+                // "-Wimplicit-int-conversion",
+                // "-Wsign-conversion",
+                // "-Wno-unused-parameter",
+                "-fvisibility=hidden");
+            switch(opt) {
+                case OptimizationLevelKind_Debug:
+                    nob_cmd_append(cmd,
+                        "-O0", "-g",
+                        "-fsanitize=address,undefined",
+                        "-fsanitize-recover=address,undefined",
+                        "-DDEBUG");
+                    break;
+                case OptimizationLevelKind_Release:
+                    nob_cmd_append(cmd, "-O2", "-g");
+                    break;
+                case OptimizationLevelKind_Final:
+                    nob_cmd_append(cmd, "-O3", "-DNDEBUG", "-Wno-unused-but-set-variable");
+                    break;
+            }
+            break;
+        case CompilerKind_Msvc:
+            nob_cmd_append(cmd, "/W4", "/std:c11", "/nologo");
+            switch(opt) {
+                case OptimizationLevelKind_Debug:
+                    nob_cmd_append(cmd, "/wd4324", "/Od", "/Zi", "/MDd", "/DDEBUG");
+                    break;
+                case OptimizationLevelKind_Release:
+                    nob_cmd_append(cmd, "/O2", "/Zi", "/MD");
+                    break;
+                case OptimizationLevelKind_Final:
+                    nob_cmd_append(cmd, "/O2", "/GL", "/DNDEBUG", "/MD");
+                    break;
+            }
+            break;
+        default:
+            nob_log(NOB_ERROR, "Unsupported compiler");
+            exit(1);
+    }
 }
-
-// TODO: This prints where/which, which somehow ends up in my qf list and moves my cursor
-// disabling for now as CompilerKind_Auto is good enough
 
 typedef enum ExternalAssetKind{
     ExternalAssetKind_GitZip,
@@ -230,7 +203,7 @@ typedef struct ExternalAsset{
 }ExternalAsset;
 
 ExternalAsset assets_list[] = {
-        {.kind = ExternalAssetKind_GitZip, .git_asset = {"https://github.com/KhronosGroup/glTF-Sample-Models", "8e9a5a6ad1a2790e2333e3eb48a1ee39f9e0e31b"}},
+    {.kind = ExternalAssetKind_GitZip, .git_asset = {"https://github.com/KhronosGroup/glTF-Sample-Models", "8e9a5a6ad1a2790e2333e3eb48a1ee39f9e0e31b"}},
 };
 
 typedef struct ExternalAssets{
@@ -248,33 +221,31 @@ static const ExternalAssets assets = {
 void download_assets(void)
 {
     mkdir_if_not_exists(assets.output_path);
-    for (int i = 0; i < assets.count; ++i) {
+    for(int i = 0; i < assets.count; ++i){
         ExternalAsset *asset = &assets.items[i];
 
         char final_path[512];
         char download_path[512];
         char source_url[512];
-        if (asset->kind == ExternalAssetKind_File) {
+        if(asset->kind == ExternalAssetKind_File){
             const char *url = asset->asset.URL;
             const char *filename = strrchr(url, '/') ? strrchr(url, '/') + 1 : "asset.bin";
             snprintf(final_path, sizeof(final_path), "%s/%s", assets.output_path, filename);
             snprintf(download_path, sizeof(download_path), "%s/%s", assets.output_path, filename);
             snprintf(source_url, sizeof(source_url), "%s", url);
-        }
-        else if (asset->kind == ExternalAssetKind_GitZip) {
+        }else if(asset->kind == ExternalAssetKind_GitZip){
             const char *repo_url = asset->git_asset.URL;
             const char *repo = strrchr(repo_url, '/') ? strrchr(repo_url, '/') + 1 : "repo";
 
             snprintf(final_path, sizeof(final_path), "%s/%s", assets.output_path, repo);
             snprintf(download_path, sizeof(download_path), "%s/%s.zip", assets.output_path, repo);
             snprintf(source_url, sizeof(source_url), "%s/archive/%s.zip", repo_url, asset->git_asset.rev);
-        }
-        else {
+        }else{
             nob_log(NOB_WARNING, "Unsupported asset type\n");
             continue;
         }
 
-        if (nob_file_exists(final_path)) {
+        if(nob_file_exists(final_path)){
             nob_log(NOB_WARNING, "Already have: %s (delete it to redownload)\n", final_path);
             continue;
         }
@@ -286,13 +257,15 @@ void download_assets(void)
         nob_cmd_append(&cmd, download_path);
         nob_cmd_append(&cmd, source_url);
         nob_cmd_run(&cmd);
-        if (asset->kind == ExternalAssetKind_GitZip) {
+        if(asset->kind == ExternalAssetKind_GitZip){
             Nob_Cmd unzip_cmd = {0};
             nob_cmd_append(&unzip_cmd, "unzip");
             nob_cmd_append(&unzip_cmd, download_path);
             nob_cmd_append(&unzip_cmd, "-d");
             nob_cmd_append(&unzip_cmd, assets.output_path);
-            nob_cmd_run(&unzip_cmd);
+            if(!nob_cmd_run(&unzip_cmd)){
+                nob_log(NOB_ERROR, "Failed to unzip file");
+            }
 
             const char *repo = strrchr(asset->git_asset.URL, '/') + 1;
             char extracted[512];
@@ -326,17 +299,14 @@ int main(int argc, char **argv)
         }
     }
 
-    download_assets();
+    //download_assets();
     Nob_Cmd cmd = {0};
+    nob_log(NOB_WARNING, "using compiler %s", compiler_kind_str[flags.compiler]);
     nob_cmd_append(&cmd, compiler_kind_str[flags.compiler]);
-    CompilerConfig *ccfg = &compiler_cfg[flags.compiler];
-    nob_cmd_extend(&cmd, &ccfg->base);
-    nob_cmd_extend(&cmd, &ccfg->opt[flags.opt]);
+    nob_cc_inputs(&cmd, SRC_FOLDER "dot_engine.c");
 
-    PlatformConfig *pc = &platform_cfg[flags.platform];
-    nob_cmd_extend(&cmd, &pc->defines);
-    nob_cmd_extend(&cmd, &pc->libs);
-    nob_cmd_extend(&cmd, &pc->inputs);
+    apply_compiler_flags(&cmd, flags.compiler, flags.opt);
+    apply_platform_flags(&cmd, flags.platform);
 
     const char *vulkan_sdk = getenv("VULKAN_SDK");
     if(flags.compiler == CompilerKind_Msvc){
@@ -350,9 +320,19 @@ int main(int argc, char **argv)
         }
         nob_cmd_append(&cmd, nob_temp_sprintf("/I%s/Include", vulkan_sdk));
         nob_cmd_append(&cmd, "/D", "DOT_USE_VOLK");
+        nob_cmd_append(&cmd, "/I", ".");
         nob_cmd_append(&cmd, "/I", "src/");
-        nob_cmd_append(&cmd, nob_temp_sprintf("/link /LIBPATH:%s/Lib", vulkan_sdk));
+        // NOTE: everything after "/link" is forwarded straight to link.exe, so /Fe and /Fo (which
+        // cl.exe understands but link.exe doesn't) must be appended before it, not after.
+        nob_cc_output(&cmd, OUTPUT_FOLDER "dot_engine");
+        nob_cmd_append(&cmd, "/link");
+        // NOTE: incremental linking pads the custom "$a/$m/$z" sections used by SECTION_DECLARE
+        // (settings, plugins, reflect) with unpredictable filler, which breaks their tight-packing
+        // assumption and corrupts iteration. Must stay off.
+        nob_cmd_append(&cmd, "/INCREMENTAL:NO");
+        nob_cmd_append(&cmd, nob_temp_sprintf("/LIBPATH:%s/Lib", vulkan_sdk));
         nob_cmd_append(&cmd, "vulkan-1.lib");
+        nob_cmd_append(&cmd, "Dbghelp.lib");
     }else{
         nob_cmd_append(&cmd, "-DDOT_USE_VOLK");
         nob_cmd_append(&cmd, "-lm", "-lvulkan",  "-lpthread");
@@ -361,13 +341,11 @@ int main(int argc, char **argv)
 
 
         // nob_cmd_append(&cmd, " -Wl,-z,rosegment ");
+        nob_cc_output(&cmd, OUTPUT_FOLDER "dot_engine");
     }
 
-    nob_cc_inputs(&cmd, SRC_FOLDER "dot_engine.c");
-    nob_cc_output(&cmd, OUTPUT_FOLDER "dot_engine");
-
-    nob_log(INFO, "[*] Compiling...");
-    if (!nob_cmd_run(&cmd)) return 1;
+    nob_log(NOB_INFO, "[*] Compiling...");
+    if(!nob_cmd_run(&cmd)) return 1;
 
     return 0;
 }

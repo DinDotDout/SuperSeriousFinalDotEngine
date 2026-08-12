@@ -51,9 +51,11 @@ typedef struct RN_VK_Memory_GpuBuffer{
     VkDeviceSize    size;
     u32 vk_memory_type_idx;
     RN_VK_FreeListGpuAlloc free_list;
+    void *mapped;
 }RN_VK_Memory_GpuBuffer;
 
 typedef u64 RN_VK_GpuAllocHandle;
+
 typedef struct RN_VK_StagingAlloc{
     VkBuffer vk_buffer;
     VkDeviceSize offset;
@@ -61,16 +63,15 @@ typedef struct RN_VK_StagingAlloc{
     RN_VK_GpuAllocHandle handle;
 }RN_VK_StagingAlloc;
 
-
 typedef struct RN_VK_Memory RN_VK_Memory;
 typedef struct RN_VK_GpuAlloc{
     RN_VK_Memory_GpuBuffer *buffer;
 
-    u64 size;
-    u64 offset;
-    u32 pad;
+    VkDeviceSize size;
+    VkDeviceSize offset;
+    u32 pad; // padding in between allocs so we can pop offset+padding
 
-    VkBuffer vk_buffer; // (jd) Unused for Device local memory
+    //VkBuffer vk_buffer; // (jd) Unused for Device local memory
 
     LLNode node;
 }RN_VK_GpuAlloc;
@@ -78,7 +79,7 @@ typedef struct RN_VK_GpuAlloc{
 typedef struct RN_VK_Memory_Pool{
     RN_VK_Memory_GpuBuffer backing;
 
-    u64 used;
+    VkDeviceSize used;
     // RN_VK_GpuAlloc *next_free;
     // RN_VK_FreeListGpuAlloc free_list;
 }RN_VK_Memory_Pool;
@@ -97,29 +98,33 @@ typedef struct RN_VK_Memory_RingBuffer{
 
 struct RN_VK_Memory{
     VkDevice vk_device;
-    RN_VK_Memory_GpuBuffer *memory_kinds[RN_VK_GpuMemoryKind_Count];
+    RN_VK_Memory_GpuBuffer *pools[RN_VK_GpuMemoryKind_Count];
 };
 
 typedef struct RN_VK_Device RN_VK_Device;
 internal RN_VK_Memory  rn_vk_memory_pools_create(Arena *arena, RN_VK_Device *device);
 internal void          rn_vk_memory_pools_destroy(RN_VK_Memory *pools);
 
-internal RN_VK_Memory_GpuBuffer     *rn_vk_memory_gpu_alloc(Arena *arena, RN_VK_Device *device, RN_VK_GpuMemoryKind kind, RN_VK_GpuAllocStrategyKind alloc_strategy, u64 alloc_size);
-internal RN_VK_Memory_Pool          *rn_vk_memory_pool_get(RN_VK_Memory *pools, RN_VK_GpuMemoryKind kind);
-internal RN_VK_Memory_RingBuffer    *rn_vk_memory_ring_buffer_get(RN_VK_Memory *pools, RN_VK_GpuMemoryKind kind);
-internal RN_VK_Memory_RingBuffer    *rn_vk_ring_buffer_from_buffer(RN_VK_Memory_GpuBuffer *buffer);
-internal RN_VK_Memory_Pool          *rn_vk_memory_pool_from_buffer(RN_VK_Memory_GpuBuffer *buffer);
+internal RN_VK_Memory_GpuBuffer     *rn_vk_memory_gpu_buffer_create(Arena *arena, RN_VK_Device *device, RN_VK_GpuMemoryKind kind, RN_VK_GpuAllocStrategyKind alloc_strategy, u64 alloc_size);
+internal void                        rn_vk_memory_gpu_buffer_destroy(VkDevice dev, RN_VK_Memory_GpuBuffer *buff);
+
+internal RN_VK_Memory_Pool          *rn_vk_memory_pool_get_from_memory_kind(RN_VK_Memory *pools, RN_VK_GpuMemoryKind kind);
+internal RN_VK_Memory_RingBuffer    *rn_vk_memory_ring_buffer_get_from_memory_kind(RN_VK_Memory *pools, RN_VK_GpuMemoryKind kind);
+
+internal RN_VK_Memory_RingBuffer    *rn_vk_memory_ring_buffer_from_gpu_buffer(RN_VK_Memory_GpuBuffer *buffer);
+internal RN_VK_Memory_Pool          *rn_vk_memory_pool_from_gpu_buffer(RN_VK_Memory_GpuBuffer *buffer);
 
 // We should probably hand out handles rather than allocate this on the user
 internal RN_VK_StagingAlloc     rn_vk_memory_pools_staging_ring_buffer_push(Arena *arena, RN_VK_Memory *pools, u64 size, void *data);
 internal void                   rn_vk_memory_pools_staging_ring_buffer_pop(RN_VK_StagingAlloc *staging_alloc);
 
-internal RN_VK_GpuAlloc         *rn_vk_memory_ring_buffer_push_(Arena *arena, RN_VK_Memory_RingBuffer *ring_buffer, u64 size);
+internal RN_VK_GpuAllocHandle   rn_vk_memory_pools_dynamic_buffer_push(Arena *arena, RN_VK_Memory *pools, u64 size);
+//internal void                 rn_vk_memory_pools_dynamic_buffer_pop(RN_VK_StagingAlloc *staging_alloc);
 
 internal RN_VK_GpuAllocHandle  rn_vk_memory_gpu_image_alloc(Arena *arena, RN_VK_Memory *pools, VkImage vk_image);
-internal RN_VK_GpuAllocHandle  rn_vk_memory_gpu_buffer_alloc(Arena *arena, RN_VK_Memory *pools, RN_ResourceUsageKind usage_kind, VkBuffer vk_buffer);
+internal RN_VK_GpuAllocHandle  rn_vk_memory_gpu_buffer_alloc(Arena *arena, RN_VK_Memory *pools, VkBuffer vk_buffer);
 
-
+// internal RN_VK_GpuMemoryKind rn_vk_gpu_memory_kind_from_resource_usage(RN_ResourceUsageKind usage_kind);
 internal u32 rn_vk_memory_pools_find_memory_type(
     const VkPhysicalDeviceMemoryProperties *memory_properties,
     // u32 type_bits,

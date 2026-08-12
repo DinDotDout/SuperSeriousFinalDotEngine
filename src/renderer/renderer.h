@@ -31,13 +31,13 @@ typedef enum RN_BackendKind{
     RN_BackendKind_Null, // Headless
     RN_BackendKind_Vk,
     RN_BackendKind_Dx12,
-#if DOT_OS_WINDOWS
-    RN_BackendKind_Auto = RN_BackendKind_Dx12,
-#elif DOT_OS_POSIX
+//#if DOT_OS_WINDOWS
+//    RN_BackendKind_Auto = RN_BackendKind_Dx12,
+//#elif DOT_OS_POSIX
     RN_BackendKind_Auto = RN_BackendKind_Vk,
-#else
-    RN_BackendKind_Auto = RN_BackendKind_None,
-#endif
+//#else
+//    RN_BackendKind_Auto = RN_BackendKind_None,
+//#endif
     RN_BackendKind_Count,
 }RN_BackendKind;
 
@@ -79,7 +79,7 @@ FN(void, frame_begin, (void)) \
 FN(void, frame_end, (void)) \
 FN(void, clear_bg, (vec3 color)) \
 FN(RN_ShaderStageHandle,            shader_create,                  (String8 fb)) \
-FN(RN_TextureHandle,                texture_create,                 (RN_TextureDesc *desc, void *data)) \
+FN(RN_TextureHandle,                texture_create,                 (RN_TextureDesc *desc, void *data, RN_TextureHandle *fallback)) \
 FN(RN_SamplerHandle,                sampler_create,                 (RN_SamplerDesc *desc)) \
 FN(RN_BufferHandle,                 buffer_create,                  (RN_BufferDesc *desc, u8 *data)) \
 FN(RN_ShaderResourceHandle,         shader_resource_create,         (RN_ShaderResourceDesc *desc)) \
@@ -131,9 +131,9 @@ internal void               rn_init(Arena *arena, RN_RenderCtx *renderer, DOT_Wi
 internal void               rn_shutdown(RN_RenderCtx *renderer);
 internal RN_BackendCtx     *rn_backend_create(Arena *arena);
 
-internal RN_TextureHandle               rn_texture_create_h(RN_RenderCtx *renderer, RN_TextureDesc *desc, void *data);
+internal RN_TextureHandle               rn_texture_create_h(RN_RenderCtx *renderer, RN_TextureDesc *desc, void *data, RN_TextureHandle *fallback);
 internal RN_SamplerHandle               rn_sampler_create_h(RN_RenderCtx *renderer, RN_SamplerDesc *desc);
-internal RN_BufferHandle                rn_buffer_create_h(RN_RenderCtx *renderer, RN_BufferDesc *desc, u8 *data);
+internal RN_BufferHandle                rn_buffer_create_h(RN_RenderCtx *renderer, RN_BufferDesc *desc, void *data);
 internal RN_PipelineHandle              rn_pipeline_create_h(RN_RenderCtx *renderer, RN_PipelineDesc *desc);
 internal RN_ShaderResourceLayoutHandle  rn_shader_resource_layout_create_h(RN_RenderCtx *renderer, RN_ShaderResourceLayoutDesc *desc);
 internal RN_ShaderResourceHandle        rn_shader_resource_create(RN_RenderCtx *renderer, RN_ShaderResourceDesc *desc);
