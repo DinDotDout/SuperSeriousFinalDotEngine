@@ -1,8 +1,6 @@
 #define NOB_IMPLEMENTATION
 #define NOB_NO_ECHO
 
-#define _GNU_SOURCE
-
 // NOTE: Should probably just allow msvc or clang (not clang cl)
 
 #include "../src/third_party/nob.h/nob.h"
@@ -34,6 +32,12 @@ typedef enum {
     PlatformKind_Count,
 }PlatformKind;
 
+static const char *g_platform_kind_str[] = {
+    [PlatformKind_LinuxWayland] = "Linux Wayland",
+    [PlatformKind_LinuxX11] = "Linux X11",
+    [PlatformKind_Windows] = "Windows",
+};
+
 typedef enum {
     OptimizationLevelKind_Debug,
     OptimizationLevelKind_Release,
@@ -47,7 +51,7 @@ typedef enum {
     CompilerKind_Count,
 }CompilerKind;
 
-static const char *compiler_kind_str[] = {
+static const char *g_compiler_kind_str[] = {
     [CompilerKind_Clang] = "clang",
     [CompilerKind_Msvc]  = "cl.exe",
 };
@@ -81,7 +85,13 @@ static void set_debug(void)  { g_flags.opt = OptimizationLevelKind_Debug; }
 static void set_release(void){ g_flags.opt = OptimizationLevelKind_Release; }
 static void set_final(void)  { g_flags.opt = OptimizationLevelKind_Final; }
 
+static void set_log_all(void)  { nob_minimal_log_level = NOB_INFO; }
+static void set_log_warn(void) {nob_minimal_log_level = NOB_WARNING; }
+
+
 static const FlagEntry flag_table[] = {
+    { "--log_all", "Log All",                       set_log_all },
+    { "--log_warn","Log Warn",                      set_log_warn},
     { "--x11",     "Use X11 backend",               set_x11     },
     { "--wayland", "Use Wayland backend",           set_wayland },
     { "--windows", "Use Windows backend",           set_windows },
@@ -104,6 +114,53 @@ static void print_help(const char *prog) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Wayland protocol codegen
+// ─────────────────────────────────────────────────────────────────────────────
+
+#define WAYLAND_GEN_FOLDER "src/gen-wayland/"
+
+typedef struct {
+    const char *xml;
+    const char *stem;
+} WaylandProtocol;
+
+static const WaylandProtocol g_wayland_protocols[] = {
+    {"/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml",                             "xdg-shell"},
+    {"/usr/share/wayland-protocols/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml",     "xdg-decoration-unstable-v1"},
+    {"/usr/share/wayland-protocols/staging/xdg-toplevel-icon/xdg-toplevel-icon-v1.xml",         "xdg-toplevel-icon-v1"},
+    {"/usr/share/wayland-protocols/unstable/relative-pointer/relative-pointer-unstable-v1.xml", "relative-pointer-unstable-v1"},
+    {"/usr/share/wayland-protocols/unstable/pointer-constraints/pointer-constraints-unstable-v1.xml", "pointer-constraints-unstable-v1"},
+    {"/usr/share/wayland-protocols/unstable/xdg-output/xdg-output-unstable-v1.xml",             "xdg-output-unstable-v1"},
+    {"/usr/share/wayland-protocols/staging/pointer-warp/pointer-warp-v1.xml",                   "pointer-warp-v1"},
+};
+
+static bool
+generate_wayland_file(const char *mode, const char *xml, const char *out) {
+    if(nob_file_exists(out)) return true;
+    Nob_Cmd cmd = {0};
+    nob_cmd_append(&cmd, "wayland-scanner", mode, xml, out);
+    return nob_cmd_run(&cmd);
+}
+
+static void
+generate_wayland_protocols(void) {
+    mkdir_if_not_exists(WAYLAND_GEN_FOLDER);
+    for(size_t i = 0; i < ARRAY_LEN(g_wayland_protocols); i++){
+        const WaylandProtocol *p = &g_wayland_protocols[i];
+        const char *header = nob_temp_sprintf("%s%s.h", WAYLAND_GEN_FOLDER, p->stem);
+        const char *code   = nob_temp_sprintf("%s%s.c", WAYLAND_GEN_FOLDER, p->stem);
+        if(!generate_wayland_file("client-header", p->xml, header)){
+            nob_log(NOB_ERROR, "Failed to generate %s", header);
+            exit(1);
+        }
+        if(!generate_wayland_file("public-code", p->xml, code)){
+            nob_log(NOB_ERROR, "Failed to generate %s", code);
+            exit(1);
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Platform config
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -114,6 +171,7 @@ static void apply_platform_flags(Nob_Cmd *cmd, PlatformKind platform) {
             nob_cmd_append(cmd, "-lX11", "-lXcursor", "-lXrandr", "-lXfixes");
             break;
         case PlatformKind_LinuxWayland:
+            generate_wayland_protocols();
             nob_cmd_append(cmd, "-DRGFW_WAYLAND", "-DDOT_PLATFORM_LINUX");
             nob_cmd_append(cmd, "-lwayland-cursor", "-lwayland-client", "-lxkbcommon");
             nob_cmd_append(cmd,
@@ -305,8 +363,8 @@ main(int argc, char *argv[])
 
     //download_assets();
     Nob_Cmd cmd = {0};
-    nob_log(NOB_INFO, "using compiler %s", compiler_kind_str[g_flags.compiler]);
-    nob_cmd_append(&cmd, compiler_kind_str[g_flags.compiler]);
+    nob_log(NOB_INFO, "Using compiler %s for target %s", g_compiler_kind_str[g_flags.compiler], g_platform_kind_str[g_flags.platform]);
+    nob_cmd_append(&cmd, g_compiler_kind_str[g_flags.compiler]);
     nob_cc_inputs(&cmd, SRC_FOLDER "dot_engine.c");
 
     apply_compiler_flags(&cmd, g_flags.compiler, g_flags.opt);
