@@ -12,7 +12,7 @@ dot_test_suites_print()
     b8 succeeded = true;
     for(u32 i = 0; i < g_dot_test_suites.count; ++i){
         const DOT_Test *test = &ARRAY_GET(g_dot_test_suites, i);
-        DOT_PRINT("Suite name: %s at %s:%d", test->name, test->file, test->line);
+        DOT_PRINT(" Suite name: %s at %s:%d\n", test->name, test->file, test->line);
     }
     return succeeded;
 }
@@ -25,7 +25,7 @@ dot_test_suites_run()
     for(u32 i = 0; i < g_dot_test_suites.count; ++i){
         const DOT_Test *test = &ARRAY_GET(g_dot_test_suites, i);
         DOT_TestResults res = test->test_fn();
-        DOT_PRINT("succeeded %u/%u", res.passed, res.total_tests);
+        DOT_PRINT("Test '%s' Succeeded %u/%u\n\n", test->name, res.passed, res.total_tests);
         if(res.passed != res.total_tests){
             succeeded = false;
         }

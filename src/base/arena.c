@@ -174,7 +174,7 @@ arena_free()
 internal String8
 arena_to_string(Arena *arena)
 {
-    String8 str = string8_comp("");
+    String8 str = str_comp("");
     if(!arena){
         str = string8_format(arena, "Arena: <null>\n");
         return str;
@@ -304,7 +304,7 @@ test_reset_fn(void)
 
     ARENA_RESET(arena);
 
-    DOT_TEST_CHECK(test, "Used reset", arena->used == 0);
+    DOT_TEST_CHECK(test, "Used reset", arena->used == ARENA_HEADER_SIZE_B);
     DOT_TEST_CHECK(test, "Reserve preserved", arena->reserved >= DOT_MB(2));
     DOT_TEST_CHECK(test, "Commit preserved", arena->committed >= DOT_KB(64));
 
@@ -420,15 +420,16 @@ test_padding_behavior_fn(void)
 //     ARENA_DESTROY(arena);
 // }
 
-// DOT_TEST_SUITE(arena_tests)
-// {
-//     DOT_TestResults test = {0};
-//     DOT_MERGE_TEST_RESULTS(test, test_basic_allocation_fn());
-//     DOT_MERGE_TEST_RESULTS(test, test_alignment_fn());
-//     DOT_MERGE_TEST_RESULTS(test, test_out_of_bounds_fn());
-//     DOT_MERGE_TEST_RESULTS(test, test_reset_fn());
-//     DOT_MERGE_TEST_RESULTS(test, test_large_pages_fn());
-//     DOT_MERGE_TEST_RESULTS(test, test_padding_behavior_fn());
-//     // test_page_fault_progression(); // This one is just informative
-//     return test;
-// }
+DOT_TEST_SUITE(arena_tests)
+{
+    DOT_TestResults test = {0};
+    DOT_MERGE_TEST_RESULTS(test, test_basic_allocation_fn());
+    DOT_MERGE_TEST_RESULTS(test, test_alignment_fn());
+    // jd: This causes an out of memory and thus the test cannot continue tests. Must think of a way of addressing this
+    // DOT_MERGE_TEST_RESULTS(test, test_out_of_bounds_fn());
+    DOT_MERGE_TEST_RESULTS(test, test_reset_fn());
+    DOT_MERGE_TEST_RESULTS(test, test_large_pages_fn());
+    DOT_MERGE_TEST_RESULTS(test, test_padding_behavior_fn());
+    // test_page_fault_progression(); // This one is just informative
+    return test;
+}

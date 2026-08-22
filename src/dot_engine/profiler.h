@@ -63,7 +63,7 @@ PLUGIN_REGISTER(Profiler, 0,
 internal void
 dot_print_time_elapsed(u64 total_tsc_elapsed, DOT_ProfileAnchor *anchor){
     f64 percent = 100.0 * ((f64)anchor->tsc_elapsed_exclusive / (f64)total_tsc_elapsed);
-    printf("  %s[%llu]: %llu (%.2f%%", anchor->label, anchor->hit_count, anchor->tsc_elapsed_exclusive, percent);
+    printf("  %s[%" PRIu64 "]: %" PRIu64 " (%.2f%%", anchor->label, anchor->hit_count, anchor->tsc_elapsed_exclusive, percent);
     if(anchor->tsc_elapsed_inclusive != anchor->tsc_elapsed_exclusive){
         f64 percent_with_children = 100.0 * ((f64)anchor->tsc_elapsed_inclusive / (f64)total_tsc_elapsed);
         printf(", %.2f%% cycles with children", percent_with_children);
@@ -76,7 +76,7 @@ dot_profiler_print(){
     u64 cpu_frequency = platform_cpu_estimate_freq();
     u64 total_cpu_elapsed = g_profiler.end_tsc - g_profiler.start_tsc;
     if(cpu_frequency){
-        printf("\nTotal time: %0.4fms (CPU freq %llu)\n", 1000.0 * (f64)total_cpu_elapsed / (f64)cpu_frequency, cpu_frequency);
+        printf("\nTotal time: %0.4fms (CPU freq %" PRIu64 ")\n", 1000.0 * (f64)total_cpu_elapsed / (f64)cpu_frequency, cpu_frequency);
     }
     for(u32 idx = 0; idx < DOT_ARRAY_COUNT(g_profiler.profiler_anchors); ++idx){
         DOT_ProfileAnchor *anchor = g_profiler.profiler_anchors + idx;

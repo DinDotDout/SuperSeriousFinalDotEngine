@@ -58,33 +58,33 @@ typedef struct RN_VK_RenderSettings{
 }RN_VK_RenderSettings;
 
 global String8 rn_vk_g_instance_extensions[] = {
-    string8_lit(VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME),
-    string8_lit(VK_KHR_SURFACE_EXTENSION_NAME),
+    str_lit(VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME),
+    str_lit(VK_KHR_SURFACE_EXTENSION_NAME),
 #ifdef VK_EXT_DEBUG_UTILS_ENABLE
-    string8_lit(VK_EXT_DEBUG_UTILS_EXTENSION_NAME),
+    str_lit(VK_EXT_DEBUG_UTILS_EXTENSION_NAME),
 #endif
-    string8_lit(DOT_VK_SURFACE),
+    str_lit(DOT_VK_SURFACE),
 };
 
 global String8 rn_vk_g_validation_layers[] = {
 #ifdef VALIDATION_LAYERS_ENABLE
-        string8_lit("VK_LAYER_KHRONOS_validation"),
+        str_lit("VK_LAYER_KHRONOS_validation"),
 #endif
 };
 
 global String8 rn_vk_g_device_extensions[] = {
-            string8_lit(VK_KHR_SWAPCHAIN_EXTENSION_NAME),
-            string8_lit(VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME),
-            string8_lit(VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME),
-            string8_lit(VK_EXT_GRAPHICS_PIPELINE_LIBRARY_EXTENSION_NAME),
-            string8_lit(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME),
+            str_lit(VK_KHR_SWAPCHAIN_EXTENSION_NAME),
+            str_lit(VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME),
+            str_lit(VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME),
+            str_lit(VK_EXT_GRAPHICS_PIPELINE_LIBRARY_EXTENSION_NAME),
+            str_lit(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME),
 };
 
 read_only global RN_VK_VulkanConfig rn_vk_g_config = {
     .instance = {
-        .application_name    = string8_lit("dot_engine"),
+        .application_name    = str_lit("dot_engine"),
         .application_version = VK_MAKE_VERSION(1,0,0),
-        .engine_name         = string8_lit("dot_engine"),
+        .engine_name         = str_lit("dot_engine"),
         .engine_version      = VK_MAKE_VERSION(1,0,0),
         .api_version         = VK_API_VERSION_1_4,
 

@@ -27,8 +27,8 @@
 #if DOT_COMPILER_CLANG
 #   define DOT_ALLOW_PARTIAL_SWITCH \
         _Pragma("clang diagnostic push") \
-        _Pragma("clang diagnostic ignored \"-Wswitch-enum\"")
-        // _Pragma("clang diagnostic ignored \"-Wswitch\"")
+        _Pragma("clang diagnostic ignored \"-Wswitch-enum\"") \
+        _Pragma("clang diagnostic ignored \"-Wswitch\"")
 
 #   define DOT_RESTORE_PARTIAL_SWITCH \
         _Pragma("clang diagnostic pop")
@@ -124,7 +124,7 @@
 
 // (jd) NOTE: Should probably use something for code gen but whatever
 #define DOT_X_ENUM_ARG(prefix, v)           prefix##_##v,
-#define DOT_X_ENUM_STR(prefix, v)           string8_lit(#v),
+#define DOT_X_ENUM_STR(prefix, v)           str_lit(#v),
 #define DOT_X_ENUM_VAL_FROM_STR(prefix, v)  if(string8_equal(string8_from_##prefix[prefix##_##v], str)) return prefix##_##v;
 #define DOT_ENUM_REFLECT(enum_name, x_list) \
     typedef enum enum_name{x_list(DOT_X_ENUM_ARG) }enum_name; \
@@ -156,6 +156,7 @@
 // precise int
 typedef size_t usize;
 #include <stdint.h>
+#include <inttypes.h>
 
 typedef int8_t i8;
 typedef int16_t i16;

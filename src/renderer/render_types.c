@@ -1,4 +1,5 @@
-internal b32 rn_handle_is_valid(RN_Handle h)
+internal b32
+rn_handle_is_valid(RN_Handle h)
 {
     b32 res = h != 0;
     return(res);
@@ -349,23 +350,23 @@ rn_shader_stage_kind_from_ext(String8 ext)
     // NOTE: MSVC doesn't fold string-literal indexing (used inside DOT_FNV1A_N)
     // into an integer constant expression, so these can't be switch case
     // labels like they can under clang/gcc; compare at runtime instead.
-    if(h == DOT_FNV1A_4(RN_EXT_VERT)){       match = string8_comp(RN_EXT_VERT);  shader_kind = RN_ShaderStageKind_Vertex; }
-    else if(h == DOT_FNV1A_4(RN_EXT_FRAG)){  match = string8_comp(RN_EXT_FRAG);  shader_kind = RN_ShaderStageKind_Fragment; }
-    else if(h == DOT_FNV1A_4(RN_EXT_COMP)){  match = string8_comp(RN_EXT_COMP);  shader_kind = RN_ShaderStageKind_Compute; }
+    if(h == DOT_FNV1A_4(RN_EXT_VERT)){       match = str_comp(RN_EXT_VERT);  shader_kind = RN_ShaderStageKind_Vertex; }
+    else if(h == DOT_FNV1A_4(RN_EXT_FRAG)){  match = str_comp(RN_EXT_FRAG);  shader_kind = RN_ShaderStageKind_Fragment; }
+    else if(h == DOT_FNV1A_4(RN_EXT_COMP)){  match = str_comp(RN_EXT_COMP);  shader_kind = RN_ShaderStageKind_Compute; }
 
-    else if(h == DOT_FNV1A_4(RN_EXT_RGEN)){  match = string8_comp(RN_EXT_RGEN);  shader_kind = RN_ShaderStageKind_RayGen; }
-    else if(h == DOT_FNV1A_5(RN_EXT_RAHIT)){ match = string8_comp(RN_EXT_RAHIT); shader_kind = RN_ShaderStageKind_RayHitAny; }
-    else if(h == DOT_FNV1A_5(RN_EXT_RCHIT)){ match = string8_comp(RN_EXT_RCHIT); shader_kind = RN_ShaderStageKind_RayHitClosest; }
-    else if(h == DOT_FNV1A_5(RN_EXT_RMISS)){ match = string8_comp(RN_EXT_RMISS); shader_kind = RN_ShaderStageKind_RayHitMiss; }
-    else if(h == DOT_FNV1A_4(RN_EXT_RINT)){  match = string8_comp(RN_EXT_RINT);  shader_kind = RN_ShaderStageKind_RayHitIntersection; }
-    else if(h == DOT_FNV1A_4(RN_EXT_CALL)){  match = string8_comp(RN_EXT_CALL);  shader_kind = RN_ShaderStageKind_Callable; }
+    else if(h == DOT_FNV1A_4(RN_EXT_RGEN)){  match = str_comp(RN_EXT_RGEN);  shader_kind = RN_ShaderStageKind_RayGen; }
+    else if(h == DOT_FNV1A_5(RN_EXT_RAHIT)){ match = str_comp(RN_EXT_RAHIT); shader_kind = RN_ShaderStageKind_RayHitAny; }
+    else if(h == DOT_FNV1A_5(RN_EXT_RCHIT)){ match = str_comp(RN_EXT_RCHIT); shader_kind = RN_ShaderStageKind_RayHitClosest; }
+    else if(h == DOT_FNV1A_5(RN_EXT_RMISS)){ match = str_comp(RN_EXT_RMISS); shader_kind = RN_ShaderStageKind_RayHitMiss; }
+    else if(h == DOT_FNV1A_4(RN_EXT_RINT)){  match = str_comp(RN_EXT_RINT);  shader_kind = RN_ShaderStageKind_RayHitIntersection; }
+    else if(h == DOT_FNV1A_4(RN_EXT_CALL)){  match = str_comp(RN_EXT_CALL);  shader_kind = RN_ShaderStageKind_Callable; }
 
-    else if(h == DOT_FNV1A_4(RN_EXT_MESH)){  match = string8_comp(RN_EXT_MESH);  shader_kind = RN_ShaderStageKind_Mesh; }
-    else if(h == DOT_FNV1A_4(RN_EXT_TASK)){  match = string8_comp(RN_EXT_TASK);  shader_kind = RN_ShaderStageKind_Task; }
+    else if(h == DOT_FNV1A_4(RN_EXT_MESH)){  match = str_comp(RN_EXT_MESH);  shader_kind = RN_ShaderStageKind_Mesh; }
+    else if(h == DOT_FNV1A_4(RN_EXT_TASK)){  match = str_comp(RN_EXT_TASK);  shader_kind = RN_ShaderStageKind_Task; }
 
-    else if(h == DOT_FNV1A_4(RN_EXT_TESC)){  match = string8_comp(RN_EXT_TESC);  shader_kind = RN_ShaderStageKind_TesselationControl; }
-    else if(h == DOT_FNV1A_4(RN_EXT_TESE)){  match = string8_comp(RN_EXT_TESE);  shader_kind = RN_ShaderStageKind_TesselationEvaluation; }
-    else if(h == DOT_FNV1A_4(RN_EXT_GEOM)){  match = string8_comp(RN_EXT_GEOM);  shader_kind = RN_ShaderStageKind_Geometry; }
+    else if(h == DOT_FNV1A_4(RN_EXT_TESC)){  match = str_comp(RN_EXT_TESC);  shader_kind = RN_ShaderStageKind_TesselationControl; }
+    else if(h == DOT_FNV1A_4(RN_EXT_TESE)){  match = str_comp(RN_EXT_TESE);  shader_kind = RN_ShaderStageKind_TesselationEvaluation; }
+    else if(h == DOT_FNV1A_4(RN_EXT_GEOM)){  match = str_comp(RN_EXT_GEOM);  shader_kind = RN_ShaderStageKind_Geometry; }
 
     if(RN_ShaderStageKind_None == shader_kind){
         DOT_WARNING("Ambiguous file extension name '%S', returning RN_ShaderStageKind_Fragment! Try specifying RN_ShaderStageKind", ext);
@@ -403,23 +404,23 @@ internal String8
 rn_slang_stage_from_shader_stage_kind(RN_ShaderStageKind kind)
 {
     partial_switch_begin(kind){
-    default: return string8_comp("compute"); // fallback
-    case RN_ShaderStageKind_Vertex:                return string8_comp("vertex");
-    case RN_ShaderStageKind_Fragment:              return string8_comp("fragment");
-    case RN_ShaderStageKind_Compute:               return string8_comp("compute");
+    default: return str_comp("compute"); // fallback
+    case RN_ShaderStageKind_Vertex:                return str_comp("vertex");
+    case RN_ShaderStageKind_Fragment:              return str_comp("fragment");
+    case RN_ShaderStageKind_Compute:               return str_comp("compute");
 
-    case RN_ShaderStageKind_RayGen:                return string8_comp("raygen");
-    case RN_ShaderStageKind_RayHitAny:             return string8_comp("anyhit");
-    case RN_ShaderStageKind_RayHitClosest:         return string8_comp("closesthit");
-    case RN_ShaderStageKind_RayHitMiss:            return string8_comp("miss");
-    case RN_ShaderStageKind_RayHitIntersection:    return string8_comp("intersection");
-    case RN_ShaderStageKind_Callable:              return string8_comp("callable");
+    case RN_ShaderStageKind_RayGen:                return str_comp("raygen");
+    case RN_ShaderStageKind_RayHitAny:             return str_comp("anyhit");
+    case RN_ShaderStageKind_RayHitClosest:         return str_comp("closesthit");
+    case RN_ShaderStageKind_RayHitMiss:            return str_comp("miss");
+    case RN_ShaderStageKind_RayHitIntersection:    return str_comp("intersection");
+    case RN_ShaderStageKind_Callable:              return str_comp("callable");
 
-    case RN_ShaderStageKind_Mesh:                  return string8_comp("mesh");
-    case RN_ShaderStageKind_Task:                  return string8_comp("amplification");
+    case RN_ShaderStageKind_Mesh:                  return str_comp("mesh");
+    case RN_ShaderStageKind_Task:                  return str_comp("amplification");
 
-    case RN_ShaderStageKind_TesselationControl:    return string8_comp("hull");
-    case RN_ShaderStageKind_TesselationEvaluation: return string8_comp("domain");
-    case RN_ShaderStageKind_Geometry:              return string8_comp("geometry");
+    case RN_ShaderStageKind_TesselationControl:    return str_comp("hull");
+    case RN_ShaderStageKind_TesselationEvaluation: return str_comp("domain");
+    case RN_ShaderStageKind_Geometry:              return str_comp("geometry");
     }partial_switch_end;
 }

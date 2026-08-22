@@ -8,6 +8,7 @@
 #include <sys/mman.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
+#include <dlfcn.h> // Needs _GNU_SOURCE
 
 internal u64
 platform_os_get_timer_freq()
@@ -44,11 +45,11 @@ os_print_stacktrace()
                 String8 func = string8_from_cstring(func_name);
                 if(func.size > 0) func.size -= 1;
                 String8 module = string8_skip_last_slash(string8_from_cstring(cast(char*)info.dli_fname));
-                String8 file   = string8_skip_last_slash(string8_cstring_capped(file_name, file_name + sizeof(file_name)));
+                String8 file   = string8_skip_last_slash(string8_from_cstring_capped(file_name, file_name + sizeof(file_name)));
                 if(file.size > 0) file.size -= 1;
 
-                b32 no_func = string8_equal(func, string8_comp("??"));
-                b32 no_file = string8_equal(file, string8_comp("??"));
+                b32 no_func = string8_equal(func, str_comp("??"));
+                b32 no_file = string8_equal(file, str_comp("??"));
                 if(no_func) { func = (String8){0}; }
                 if(no_file) { file = (String8){0}; }
 
@@ -76,7 +77,6 @@ os_signal_handler(int sig, siginfo_t *_info, void *_arg)
     _exit(1);
 }
 
-
 internal void
 os_install_handlers()
 {
@@ -94,7 +94,9 @@ os_install_handlers()
 internal void
 os_init()
 {
+#if DOT_USE_HANDLERS
     os_install_handlers();
+#endif // !DOT_USE_HANDLERS
 }
 
 ////////////////////////////////////////////////////////////////

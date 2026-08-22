@@ -3,7 +3,7 @@
 
 #define DOT_COMPILED_SHADER_PATH "src/game/compiled_shaders/"
 
-internal read_only String8 g_shader_header = string8_lit(
+internal read_only String8 g_shader_header = str_lit(
 "#version 450\n"
 "#define PI 3.1415926538\n"
 );
@@ -11,7 +11,7 @@ internal read_only String8 g_shader_header = string8_lit(
 // (jd) NOTE: This allows embedding a text file. Tho it removes all line jumps
 // also doesn't allow #define, hence g_shader_header
 // This works for testing for now
-#define DOT_RAW_TEXT(x) string8_comp( \
+#define DOT_RAW_TEXT(x) str_comp( \
     "#version 450\n" \
     "#define PI 3.1415926538\n" \
     DOT_STR(x))
@@ -94,12 +94,12 @@ typedef struct RFL_ReflectMetaShader{
     global RFL_REFLECT_SECTION  RFL_ReflectMetaShader __rfl_g_reflected_##n= { \
         .meta = { \
             .kind = RFL_ReflectKind_Compound, \
-            .name = string8_comp(#n), \
+            .name = str_comp(#n), \
             .size = sizeof(n), \
             .align = DOT_ALIGNOF(n), \
             .fields = 0, \
             .hook = rfl_edit_hook_default, \
-            .parse_data = string8_comp(#__VA_ARGS__), \
+            .parse_data = str_comp(#__VA_ARGS__), \
         }, \
         .binding = b, \
         .set = s, \

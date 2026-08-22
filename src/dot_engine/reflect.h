@@ -87,19 +87,19 @@ SECTION_DECLARE(RFL_ReflectMeta, reflect);
     RFL_REFLECT_SECTION \
     static RFL_ReflectMeta __rfl_g_reflected_##n= { \
         .kind = RFL_ReflectKind_Compound, \
-        .name = string8_lit(#n), \
+        .name = str_lit(#n), \
         .size = sizeof(n), \
         .align = DOT_ALIGNOF(n), \
         .fields = 0, \
         .hook = hook_fn, \
-        .parse_data = string8_lit(#__VA_ARGS__), \
+        .parse_data = str_lit(#__VA_ARGS__), \
     }
 
 #define ReflectPrimitive(n, dk) \
     RFL_REFLECT_SECTION \
     static RFL_ReflectMeta __rfl_g_reflected_##n = { \
         .parse_data = {0}, \
-        .name = string8_lit(#n), \
+        .name = str_lit(#n), \
         .size = sizeof(n), \
         .align = DOT_ALIGNOF(n), \
         .fields = 0, \
@@ -113,8 +113,8 @@ SECTION_DECLARE(RFL_ReflectMeta, reflect);
     RFL_REFLECT_SECTION \
     static RFL_ReflectMeta __rfl_g_reflected_##n = { \
         .kind = RFL_ReflectKind_Enum, \
-        .parse_data = string8_lit(#__VA_ARGS__), \
-        .name = string8_lit(#n), \
+        .parse_data = str_lit(#__VA_ARGS__), \
+        .name = str_lit(#n), \
         .size = sizeof(n), \
         .align = DOT_ALIGNOF(n), \
         .fields = 0, \
@@ -176,7 +176,7 @@ ReflectEnum(u32, Some_enum, {
 internal b32
 rfl_is_tag(String8 tok)
 {
-    return string8_starts_with(tok, string8_comp("rfl_"));
+    return string8_starts_with(tok, str_comp("rfl_"));
 }
 
 typedef struct RFL_ParsedField{
@@ -242,7 +242,7 @@ rfl_parse_struct_fields(Arena *arena, RFL_ReflectMeta *meta)
 
         // Default hook
         // Tag → hook mapping
-        // if (string8_equal(tmp_fields[i].tag, string8_comp("rfl_color"))) {
+        // if (string8_equal(tmp_fields[i].tag, str_comp("rfl_color"))) {
             // You can add custom hooks here
         // }
 

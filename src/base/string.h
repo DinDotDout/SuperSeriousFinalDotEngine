@@ -24,8 +24,8 @@ typedef struct String8List{
     u64 total_size;
 }String8List;
 
-#define string8_comp(s)  (String8){.str = (u8*)(s), .size = sizeof(s) - 1}
-#define string8_lit(s)  {.str = (u8*)(s), .size = sizeof(s) - 1}
+#define str_comp(s)  (String8){.str = (u8*)(s), .size = sizeof(s) - 1}
+#define str_lit(s)  {.str = (u8*)(s), .size = sizeof(s) - 1}
 
 // Does not work on msvc
 
@@ -35,7 +35,7 @@ typedef struct String8List{
 #define MEMORY_COPY_STRING8(dst, s) MEM_COPY(dst, (s).str, (s).size)
 
 #define CHAR_WHITESPACES "\t\n\v\f\r "
-read_only internal String8 g_string_whitespaces = string8_lit(CHAR_WHITESPACES);
+read_only internal String8 g_string_whitespaces = str_lit(CHAR_WHITESPACES);
 DOT_STATIC_ASSERT('\r' - '\t' == 4);
 DOT_STATIC_ASSERT('\r' - '\n' == 3);
 DOT_STATIC_ASSERT('\r' - '\v' == 2);
@@ -64,7 +64,7 @@ internal String8 string8_chop_last_slash(String8 file_path);
 internal String8 string8_skip_last_slash(String8 string);
 internal b32 string8_starts_with(String8 string, String8 tok);
 
-internal String8 string8_cstring_capped(void *cstr, void *cap);
+internal String8 string8_from_cstring_capped(void *cstr, void *cap);
 
 
 

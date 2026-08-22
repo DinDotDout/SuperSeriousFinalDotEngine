@@ -37,25 +37,21 @@ b32 dot_game_init(DOT_Game *game, RN_RenderCtx *renderer,
     g_game->transient_arena = ARENA_CREATE(.name = "engine transient arena", .buffer = transient_memory, .reserve_size = transient_memory_size);
 
     // Buncha tests
-    // g_game->test_shader_module = rn_shader_module_load_from_path(game->renderer, string8_comp(DOT_GAME_SHADER_PATH"compute.glsl"));
+    // g_game->test_shader_module = rn_shader_module_load_from_path(game->renderer, str_comp(DOT_GAME_SHADER_PATH"compute.glsl"));
     // rn_create_postprocess_module(g_game->test_shader_module->shader_stage_handle);
 
-    // String8 model_path = string8_comp(DOT_GAME_ASSET_PATH"glTF-Sample-Models/2.0/DamagedHelmet/glTF-Embedded/DamagedHelmet.gltf");
-    // String8 model_path = string8_comp(DOT_GAME_ASSET_PATH"glTF-Sample-Models/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf");
-    String8 model_path = string8_comp(DOT_GAME_ASSET_PATH"glTF-Sample-Models/2.0/Cube/glTF/Cube.gltf");
-    (void)(model_path);
-    // String8 model_path = string8_comp(DOT_GAME_ASSET_PATH"glTF-Sample-Models/2.0/2CylinderEngine/glTF/2CylinderEngine.gltf");
-    model = dot_scene_load_from_path(g_game->renderer, model_path);
+    // String8 model_path = str_comp(DOT_GAME_ASSET_PATH"glTF-Sample-Models/2.0/DamagedHelmet/glTF-Embedded/DamagedHelmet.gltf");
+    // String8 model_path = str_comp(DOT_GAME_ASSET_PATH"glTF-Sample-Models/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf");
 
     RN_ShaderResourceLayoutDesc resource_layout_desc = {0};
     rn_shader_resource_layout_set_bindings(&resource_layout_desc,
-        { RN_ShaderResourceKind_UniformBufferDynamic, 0, 1, string8_comp("LocalConstants"), 0 },
-        { RN_ShaderResourceKind_UniformBufferDynamic, 1, 1, string8_comp("MaterialConstants"), 0 },
-        { RN_ShaderResourceKind_SamplerXTexture, 2, 1, string8_comp("diffuseTexture"), 0 },
-        { RN_ShaderResourceKind_SamplerXTexture, 3, 1, string8_comp("roughnessMetalnessTexture"), 0 },
-        { RN_ShaderResourceKind_SamplerXTexture, 4, 1, string8_comp("roughnessMetalnessTexture"), 0 },
-        { RN_ShaderResourceKind_SamplerXTexture, 5, 1, string8_comp("emissiveTexture"), 0 },
-        { RN_ShaderResourceKind_SamplerXTexture, 6, 1, string8_comp("occlusionTexture"), 0 },
+        { RN_ShaderResourceKind_UniformBufferDynamic, 0, 1, str_comp("LocalConstants"), 0 },
+        { RN_ShaderResourceKind_UniformBufferDynamic, 1, 1, str_comp("MaterialConstants"), 0 },
+        { RN_ShaderResourceKind_SamplerXTexture, 2, 1, str_comp("diffuseTexture"), 0 },
+        { RN_ShaderResourceKind_SamplerXTexture, 3, 1, str_comp("roughnessMetalnessTexture"), 0 },
+        { RN_ShaderResourceKind_SamplerXTexture, 4, 1, str_comp("roughnessMetalnessTexture"), 0 },
+        { RN_ShaderResourceKind_SamplerXTexture, 5, 1, str_comp("emissiveTexture"), 0 },
+        { RN_ShaderResourceKind_SamplerXTexture, 6, 1, str_comp("occlusionTexture"), 0 },
     );
     g_shader_resource_layout_h = rn_shader_resource_layout_create(renderer, &resource_layout_desc);
 
@@ -78,30 +74,33 @@ b32 dot_game_init(DOT_Game *game, RN_RenderCtx *renderer,
         .depth_comparison = RN_CompareOpKind_LessOrEqual
     );
     rn_pipeline_set_shader_state(&pipeline_desc,
-        { .path = string8_comp(DOT_GAME_SHADER_PATH"model.vert") },
-        { .path = string8_comp(DOT_GAME_SHADER_PATH"model.frag") },
+        { .path = str_comp(DOT_GAME_SHADER_PATH"model.vert") },
+        { .path = str_comp(DOT_GAME_SHADER_PATH"model.frag") },
     );
-    DOT_DebugNameSet(pipeline_desc.shader_state.debug_name, string8_comp("Cube"));
+    DOT_DebugNameSet(pipeline_desc.shader_state.debug_name, str_comp("Cube"));
 
     rn_pipeline_set_render_pass_output(&pipeline_desc, rn_swapchain_output());
     rn_pipeline_push_shader_resource_layout(&pipeline_desc, g_shader_resource_layout_h);
-
 
     RN_BufferDesc bd = {0};
     bd.resource_usage       = RN_ResourceUsageKind_Dynamic;
     bd.buffer_usage_flags   = RN_BufferUsageBit_Uniform;
     bd.size                 = sizeof(UniformData);
-    DOT_DebugNameSet(bd.debug_name, string8_comp("cube constant buffer"));
+    DOT_DebugNameSet(bd.debug_name, str_comp("cube constant buffer"));
     g_cube_ubo_h = rn_buffer_create_h(renderer, &bd, NULL);
-
     (void)g_cube_ubo_h;
+
+    String8 model_path = str_comp(DOT_GAME_ASSET_PATH"glTF-Sample-Models/2.0/Cube/glTF/Cube.gltf");
+    // (void)(model_path);
+    // String8 model_path = str_comp(DOT_GAME_ASSET_PATH"glTF-Sample-Models/2.0/2CylinderEngine/glTF/2CylinderEngine.gltf");
 
     cube_pipeline = rn_pipeline_create(renderer, &pipeline_desc);
     (void)cube_pipeline;
+    model = dot_scene_load_from_path(g_game->renderer, model_path);
 
     // TODO: put alloc somewhere it makes sense
-    RN_ShaderResourceDesc *descriptor_sets = PUSH_ARRAY(game->permanent_arena, RN_ShaderResourceDesc, model.sub_mesh_draw_count);
-    (void) descriptor_sets;
+    //RN_ShaderResourceDesc *descriptor_sets = PUSH_ARRAY(game->permanent_arena, RN_ShaderResourceDesc, model.sub_mesh_draw_count);
+    //(void) descriptor_sets;
 
     // for EACH_INDEX(i, model.sub_mesh_draw_count){
     //     DOT_Submesh *submesh = &model.sub_mesh_draw[i];
@@ -136,14 +135,14 @@ b32 dot_game_init(DOT_Game *game, RN_RenderCtx *renderer,
     //     #include "../src/game/shaders/model.frag"
     // };
     //
-    // rn_pipeline_set_shader_state(&pipeline2, RN_ShaderFormat_Source, string8_comp("Cube"),
+    // rn_pipeline_set_shader_state(&pipeline2, RN_ShaderFormat_Source, str_comp("Cube"),
     //     {RN_ShaderStageKind_Vertex,  shader_stages2[RN_ShaderStageKind_Vertex]},
     //     {RN_ShaderStageKind_Fragment, shader_stages2[RN_ShaderStageKind_Fragment]},
     // );
     // rn_pipeline_set_render_pass_ouput(&pipeline2, rn_swapchain_output());
 
     // string8_append_string8(Arena *arena, String8 a, String8 b)
-    // DOT_DebugNameSet(pipeline.shader_state.name, string8_comp("cube")),
+    // DOT_DebugNameSet(pipeline.shader_state.name, str_comp("cube")),
 
 
     // (void) pipeline;

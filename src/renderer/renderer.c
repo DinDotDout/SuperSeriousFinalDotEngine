@@ -94,7 +94,7 @@ rn_init(Arena *arena, RN_RenderCtx *renderer, DOT_Window *window)
     RN_BufferDesc null_buffer_desc = {0};
     null_buffer_desc.size = sizeof(data);
     null_buffer_desc.buffer_usage_flags = RN_BufferUsageBit_Vertex;
-    DOT_DebugNameSet(null_buffer_desc.debug_name, string8_comp("dummy attribute"));
+    DOT_DebugNameSet(null_buffer_desc.debug_name, str_comp("dummy attribute"));
     g_rn_null_buffer = rn_buffer_create_h(renderer, &null_buffer_desc, data);
 }
 

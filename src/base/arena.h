@@ -53,7 +53,7 @@ typedef struct ArenaInitParams{
     b32 large_pages;
 
     // Debug
-#ifdef DOT_DEBUG
+#if DOT_DEBUG
     char *name;
     char *reserve_file;
     int   reserve_line;
@@ -62,7 +62,7 @@ typedef struct ArenaInitParams{
 
 typedef struct ArenaOpParams{
     Arena *arena;
-#ifdef DOT_DEBUG
+#if DOT_DEBUG
     char *file;
     u32 line;
 #endif
@@ -84,7 +84,7 @@ internal void       arena_print_debug(Arena *arena);
 internal String8    arena_to_string(Arena *arena);
 
 
-#ifdef DOT_DEBUG
+#if DOT_DEBUG
 #define ARENA_DEFAULT_PARAMS(...) \
     &(ArenaInitParams){ \
         .reserve_size       = ARENA_MIN_CAPACITY,\

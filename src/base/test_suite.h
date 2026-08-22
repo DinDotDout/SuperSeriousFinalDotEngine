@@ -21,18 +21,19 @@ global ARRAY(DOT_Test, DOT_TEST_SUITE_MAX) g_dot_test_suites;
 
 #define DOT_TEST_CHECK(test, name, expr) do { \
     test.total_tests++; \
-    const char *status = "failed"; \
+    String8 status = str_lit("Failed"); \
     if (expr) { \
-        status = "passed"; \
+        status = str_comp("Passed"); \
         test.passed++; \
     } \
-    DOT_PRINT("\tCheck %s %s: %s %i %s", status, name, __FILE__, __LINE__, #expr); \
+    DOT_PRINT("\tUNIT TEST '%s' %S: %s %i %s", name, status, __FILE__, __LINE__, #expr); \
 } while(0)
 
-#define DOT_MERGE_TEST_RESULTS(into, from) do { \
-    (into).total_tests += (from).total_tests; \
-    (into).passed      += (from).passed; \
-} while(0)
+#define DOT_MERGE_TEST_RESULTS(into, from) do{ \
+    DOT_TestResults _temp = (from); \
+    (into).total_tests += _temp.total_tests; \
+    (into).passed      += _temp.passed; \
+}while(0)
 
 #define DOT_TEST_SUITE(fn) \
     internal inline DOT_TestResults fn(void); \

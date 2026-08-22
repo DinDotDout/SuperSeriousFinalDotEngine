@@ -303,7 +303,7 @@ u64_hash_from_string8(String8 string, u64 seed)
 }
 
 internal String8
-string8_cstring_capped(void *cstr, void *cap)
+string8_from_cstring_capped(void *cstr, void *cap)
 {
     u8 *start = cast(u8 *)cstr;
     u8 *end   = cast(u8 *)cap;
@@ -330,12 +330,6 @@ string8_node_next(String8Node *node)
     String8Node *next = LLNodeNext(String8Node, node);
     return(next);
 }
-
-// internal void
-// string8_node_push(String8Node *str8node, String8Node *str8pushed)
-// {
-//     str8node->node = str8pushed->node;
-// }
 
 internal void
 string8_list_push_node(Arena *arena, String8List *list, String8 string)

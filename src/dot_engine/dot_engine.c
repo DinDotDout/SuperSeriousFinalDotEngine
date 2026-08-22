@@ -1,32 +1,71 @@
 #include "dot_engine.h"
+
 DOT_SETTING_U32("Engine", g_engine_memory_size_b, DOT_MB(512));
 DOT_SETTING_U32("ThreadContext", g_per_thread_temp_arena_size_b, DOT_MB(40));
 DOT_SETTING_U32("ThreadContext", g_per_thread_temp_arena_count_b, 2);
 DOT_SETTING_U32("Game", g_game_permanent_memory_size_b, DOT_MB(20));
 DOT_SETTING_U32("Game", g_game_transient_memory_size_b, DOT_KB(32));
 
+typedef ProgramEntryFlag DOT_EngineModeKind;
+enum{
+    DOT_EngineRunModeKind_Default,
+    DOT_EngineRunModeKind_TestsRun,
+    DOT_EngineRunModeKind_TestsList,
+};
+
+global DOT_EngineModeKind g_engine_mode = DOT_EngineRunModeKind_Default;
+
+internal read_only ProgramEntryFlagCtx flag_table[] = {
+    PROGRAM_ENTRY_FLAG_CTX_INT(str_lit("-tests-run"),  str_lit("Run test suite"),  &g_engine_mode, DOT_EngineRunModeKind_TestsRun),
+    PROGRAM_ENTRY_FLAG_CTX_INT(str_lit("-tests-list"), str_lit("Show test suite"), &g_engine_mode, DOT_EngineRunModeKind_TestsList),
+};
+
+int
+entry_point(int argc, String8 arg_values[])
+{
+    b32 show_help = program_entry_flags_apply(DOT_ARRAY_COUNT(flag_table), flag_table, argc, arg_values);
+
+    if(show_help){
+        return(0);
+    }
+    b32 headless = g_engine_mode != DOT_EngineRunModeKind_Default;
+
+    DOT_Engine engine = {0};
+    dot_engine_init(&engine, headless);
+
+    partial_switch_begin(g_engine_mode){
+    case DOT_EngineRunModeKind_TestsRun:  dot_test_suites_run();    return 0;
+    case DOT_EngineRunModeKind_TestsList: dot_test_suites_print();  return 0;
+    }partial_switch_end;
+
+    dot_engine_run(&engine);
+    dot_engine_shutdown(&engine);
+
+    return(0);
+}
+
 internal void
-dot_engine_init(DOT_Engine *engine, b32 tests_only)
+dot_engine_init(DOT_Engine *engine, b32 headless)
 {
     engine->permanent_arena = ARENA_CREATE(.reserve_size = g_engine_memory_size_b, .name = "DOT_Engine Arena");
     threadctx_init(engine->permanent_arena, g_per_thread_temp_arena_count_b, g_per_thread_temp_arena_size_b, 1);
-    if(tests_only){
-        return;
-    }
     dot_settings_register_all(engine->permanent_arena);
     plugins_init();
-    dot_window_init(&engine->window);
-    rn_init(engine->permanent_arena, &engine->renderer, &engine->window);
-    // nk_dot_init(&engine->renderer, &engine->window);
 
-    engine->game = PUSH_STRUCT(engine->permanent_arena, DOT_Game);
-    u8 *permanent_memory = PUSH_SIZE(engine->permanent_arena, g_game_permanent_memory_size_b);
-    u8 *transient_memory = PUSH_SIZE(engine->permanent_arena, g_game_transient_memory_size_b);
-    dot_game_init(
-        engine->game,
-        &engine->renderer,
-        permanent_memory, g_game_permanent_memory_size_b,
-        transient_memory, g_game_transient_memory_size_b);
+    if(!headless){
+        dot_window_init(&engine->window);
+        rn_init(engine->permanent_arena, &engine->renderer, &engine->window);
+        // nk_dot_init(&engine->renderer, &engine->window);
+
+        engine->game = PUSH_STRUCT(engine->permanent_arena, DOT_Game);
+        u8 *permanent_memory = PUSH_SIZE(engine->permanent_arena, g_game_permanent_memory_size_b);
+        u8 *transient_memory = PUSH_SIZE(engine->permanent_arena, g_game_transient_memory_size_b);
+        dot_game_init(
+            engine->game,
+            &engine->renderer,
+            permanent_memory, g_game_permanent_memory_size_b,
+            transient_memory, g_game_transient_memory_size_b);
+    }
 }
 
 internal void
@@ -96,37 +135,4 @@ dot_engine_shutdown(DOT_Engine *engine)
     plugins_shutdown();
     threadctx_shutdown();
     ARENA_DESTROY(engine->permanent_arena);
-}
-
-// TODO: Make os level entry points call into actual engine code
-int
-main(int argc, char *argv[])
-{
-    platform_init();
-    Arena *a = ARENA_CREATE();
-    ARENA_RESET(a);
-    DOT_Engine engine = {0};
-    b32 tests_only = false;
-    b32 tests_list_only = false;
-    b32 any_arg = false;
-    if(argc > 1){
-        String8 arg1 = string8_from_cstring(argv[1]);
-        String8 tests = string8_comp("-tests");
-        String8 tests_list = string8_comp("-tests_list");
-        tests_only = string8_equal(arg1, tests);
-        tests_list_only = string8_equal(arg1, tests_list);
-        any_arg = tests_only || tests_list_only;
-
-    }
-    dot_engine_init(&engine, any_arg);
-    if(tests_only){
-        return(dot_test_suites_run());
-    }
-    if(tests_list_only){
-        dot_test_suites_print();
-        return(0);
-    }
-    dot_engine_run(&engine);
-    dot_engine_shutdown(&engine);
-    return(0);
 }

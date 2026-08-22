@@ -5,13 +5,6 @@
 #include "base/dot.h"
 
 DOT_DIAGNOSTIC_PUSH
-#   if DOT_COMPILER_MSVC
-        DOT_DIAGNOSTIC_IGNORE(4456)
-#   endif
-#define STB_SPRINTF_STATIC
-#define STB_SPRINTF_NOUNALIGNED
-#define STB_SPRINTF_DECORATE(name) dot_##name
-#include "third_party/stb/stb_sprintf.h"
 DOT_DIAGNOSTIC_POP
 
 DOT_DIAGNOSTIC_PUSH
@@ -21,9 +14,10 @@ DOT_DIAGNOSTIC_PUSH
     DOT_DIAGNOSTIC_ERROR("-Wvla")
     DOT_DIAGNOSTIC_ERROR("-Wconversion")
     DOT_DIAGNOSTIC_ERROR("-Wimplicit-int-conversion")
-    DOT_DIAGNOSTIC_ERROR("-Wsign-conversion")
-#elif defined(_MSC_VER)
+    DOT_DIAGNOSTIC_IGNORE("-Wsign-conversion")
+#elif DOT_COMPILER_MSVC
     DOT_DIAGNOSTIC_IGNORE(5287)
+    DOT_DIAGNOSTIC_IGNORE(4456)
     DOT_DIAGNOSTIC_IGNORE(4456)
 #endif
 
@@ -36,8 +30,15 @@ DOT_DIAGNOSTIC_PUSH
 #include "base/thread_ctx.h"
 #include "base/templates/sort_include.h"
 
-#define STB_SPRINTF_IMPLEMENTATION
-#include "third_party/stb/stb_sprintf.h"
+DOT_DIAGNOSTIC_PUSH
+    DOT_DIAGNOSTIC_IGNORE("-Wimplicit-fallthrough")
+#   define STB_SPRINTF_STATIC
+#   define STB_SPRINTF_NOUNALIGNED
+#   define STB_SPRINTF_DECORATE(name) dot_##name
+#   define STB_SPRINTF_IMPLEMENTATION
+#   include "third_party/stb/stb_sprintf.h"
+DOT_DIAGNOSTIC_POP
+
 #include "base/dot.c"
 #include "base/platform.c"
 #include "base/containters.c"
@@ -45,6 +46,7 @@ DOT_DIAGNOSTIC_PUSH
 #include "base/arena.c"
 #include "base/string.c"
 #include "base/thread_ctx.c"
+#include "base/program_entry_point.c"
 DOT_DIAGNOSTIC_POP
 
 #endif // !BASE_INC_H

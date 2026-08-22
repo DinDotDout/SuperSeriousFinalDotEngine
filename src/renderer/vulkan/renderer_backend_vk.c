@@ -450,6 +450,8 @@ rn_vk_shader_resource_layout_create_(RN_ShaderResourceLayoutDesc *desc)
 }
 
 // TODO: This needs a good revision
+// Also, shouldn't need descriptors for buffers like this in general
+// just go bindless
 internal RN_VK_ShaderResourceHandle
 rn_vk_shader_resource_create_(RN_ShaderResourceDesc* desc){
     DOT_ASSERT(desc, "Missing descriptor set desc");
@@ -461,9 +463,7 @@ rn_vk_shader_resource_create_(RN_ShaderResourceDesc* desc){
     }
 
     RN_VK_ShaderResource* set = POOL_GET(&rn_vk_ctx->shader_resource_pool, set_h);
-    RN_VK_ShaderResourceLayout* layout =
-        POOL_GET(&rn_vk_ctx->shader_resource_layout_pool,
-                 pool_handle_unpack(desc->layout_desc_h.handle));
+    RN_VK_ShaderResourceLayout* layout = POOL_GET(&rn_vk_ctx->shader_resource_layout_pool, pool_handle_unpack(desc->layout_desc_h.handle));
 
     VkDescriptorSetAllocateInfo alloc_info = {0};
     alloc_info.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -512,7 +512,18 @@ rn_vk_shader_resource_create_(RN_ShaderResourceDesc* desc){
             write_set->descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         }break;
 
-        case RN_ShaderResourceKind_SampledTexture:
+        case RN_ShaderResourceKind_SampledTexture:{
+            RN_VK_Texture* tex = POOL_GET(&rn_vk_ctx->texture_pool, pool_handle_unpack(desc->textures[i].handle));
+
+            image_infos[write_count].sampler   = VK_NULL_HANDLE;
+            image_infos[write_count].imageView = tex->vk_image_view;
+            image_infos[write_count].imageLayout = rn_vk_format_has_depth_or_stencil(tex->vk_format)
+                    ? VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
+                    : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+            write_set->pImageInfo = &image_infos[write_count];
+            write_set->descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+        }break;
         case RN_ShaderResourceKind_SamplerXTexture:{
             RN_VK_Texture* tex = POOL_GET(&rn_vk_ctx->texture_pool, pool_handle_unpack(desc->textures[i].handle));
 
@@ -532,8 +543,26 @@ rn_vk_shader_resource_create_(RN_ShaderResourceDesc* desc){
                     ? VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
                     : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-            write_set->pImageInfo    = &image_infos[write_count];
+            write_set->pImageInfo = &image_infos[write_count];
             write_set->descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        }break;
+        case RN_ShaderResourceKind_Sampler:{
+            VkSampler sampler_vk = VK_NULL_HANDLE;
+            if(rn_vk_g_default_sampler){
+                RN_VK_Sampler *default_sampler = POOL_GET(&rn_vk_ctx->sampler_pool, *rn_vk_g_default_sampler);
+                sampler_vk = default_sampler->vk_sampler;
+            }
+            if(desc->samplers[i].handle != 0){
+                RN_VK_Sampler* samp = POOL_GET(&rn_vk_ctx->sampler_pool, pool_handle_unpack(desc->samplers[i].handle));
+                sampler_vk = samp->vk_sampler;
+            }
+
+            image_infos[write_count].sampler     = sampler_vk;
+            image_infos[write_count].imageView    = VK_NULL_HANDLE;
+            image_infos[write_count].imageLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+
+            write_set->pImageInfo    = &image_infos[write_count];
+            write_set->descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
         }break;
         case RN_ShaderResourceKind_StorageTexture:{
             RN_VK_Texture* tex =
@@ -1154,7 +1183,7 @@ rn_vk_draw_images_recreate(void)
     desc.height                 = cast(u16)rn_vk_ctx->draw_extent.height;
     desc.depth                  = 1;
     desc.mip_levels             = 1;
-    DOT_DebugNameSet(desc.debug_name, string8_comp("Draw Image"));
+    DOT_DebugNameSet(desc.debug_name, str_comp("Draw Image"));
 
     for(u32 i = 0; i < rn_vk_ctx->frame_data_count; ++i){
         RN_VK_FrameData *frame_data = &rn_vk_ctx->frame_datas[i];
@@ -2050,7 +2079,7 @@ rn_vk_overlay_create_framebuffer(RN_VK_OverlayState *overlay_state)
 //         sizeof(OverlayUBO),
 //         VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 //         // VkMemory_PoolsKind_Staging,
-//         string8_comp("OverlayUBO"));
+//         str_comp("OverlayUBO"));
 //     // VkDeviceMemory       ubo_memory;
 //     // VkDeviceSize         ubo_offset;
 //

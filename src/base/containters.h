@@ -1,6 +1,6 @@
 #ifndef CONTAINERS_H
 #define CONTAINERS_H
-internal u8* raw_buffer_get(u8 raw_buffer[], i32 elem_idx, u32 elem_size);
+internal u8* raw_buffer_get(u8 raw_buffer[], u32 elem_idx, u32 elem_size);
 internal u64 array_bounds_check(u64 elem_idx, u64 capacity, char *file, int line);
 
 ////////////////////////////////////////////////////////////////
@@ -159,7 +159,7 @@ internal PoolHandle pool_handle_get_default(Pool *p);
 typedef struct MemoryPoolBlock MemoryPoolBlock;
 struct MemoryPoolBlock{
     MemoryPoolBlock *next_block;
-#ifdef DOT_DEBUG
+#if DOT_DEBUG
     u64 tag;
 #endif
     u8 memory[];

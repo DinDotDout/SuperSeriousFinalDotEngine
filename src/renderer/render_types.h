@@ -608,23 +608,23 @@ typedef struct RN_ShaderStageExtMap{
 #define RN_EXT_GEOM    "geom"
 
 read_only RN_ShaderStageExtMap rn_g_shader_stage_ext_map[] = {
-    { string8_lit(RN_EXT_VERT),  RN_ShaderStageKind_Vertex },
-    { string8_lit(RN_EXT_FRAG),  RN_ShaderStageKind_Fragment },
-    { string8_lit(RN_EXT_COMP),  RN_ShaderStageKind_Compute },
+    { str_lit(RN_EXT_VERT),  RN_ShaderStageKind_Vertex },
+    { str_lit(RN_EXT_FRAG),  RN_ShaderStageKind_Fragment },
+    { str_lit(RN_EXT_COMP),  RN_ShaderStageKind_Compute },
 
-    { string8_lit(RN_EXT_RGEN),  RN_ShaderStageKind_RayGen },
-    { string8_lit(RN_EXT_RAHIT), RN_ShaderStageKind_RayHitAny },
-    { string8_lit(RN_EXT_RCHIT), RN_ShaderStageKind_RayHitClosest },
-    { string8_lit(RN_EXT_RMISS), RN_ShaderStageKind_RayHitMiss },
-    { string8_lit(RN_EXT_RINT),  RN_ShaderStageKind_RayHitIntersection },
-    { string8_lit(RN_EXT_CALL),  RN_ShaderStageKind_Callable },
+    { str_lit(RN_EXT_RGEN),  RN_ShaderStageKind_RayGen },
+    { str_lit(RN_EXT_RAHIT), RN_ShaderStageKind_RayHitAny },
+    { str_lit(RN_EXT_RCHIT), RN_ShaderStageKind_RayHitClosest },
+    { str_lit(RN_EXT_RMISS), RN_ShaderStageKind_RayHitMiss },
+    { str_lit(RN_EXT_RINT),  RN_ShaderStageKind_RayHitIntersection },
+    { str_lit(RN_EXT_CALL),  RN_ShaderStageKind_Callable },
 
-    { string8_lit(RN_EXT_MESH),  RN_ShaderStageKind_Mesh },
-    { string8_lit(RN_EXT_TASK),  RN_ShaderStageKind_Task },
+    { str_lit(RN_EXT_MESH),  RN_ShaderStageKind_Mesh },
+    { str_lit(RN_EXT_TASK),  RN_ShaderStageKind_Task },
 
-    { string8_lit(RN_EXT_TESC),  RN_ShaderStageKind_TesselationControl },
-    { string8_lit(RN_EXT_TESE),  RN_ShaderStageKind_TesselationEvaluation },
-    { string8_lit(RN_EXT_GEOM),  RN_ShaderStageKind_Geometry },
+    { str_lit(RN_EXT_TESC),  RN_ShaderStageKind_TesselationControl },
+    { str_lit(RN_EXT_TESE),  RN_ShaderStageKind_TesselationEvaluation },
+    { str_lit(RN_EXT_GEOM),  RN_ShaderStageKind_Geometry },
 };
 
 // typedef enum RN_ShaderFormat{
@@ -674,7 +674,7 @@ typedef struct RN_Pipeline{
 // Handles
 //
 
-internal b32 rn_handle_is_valid();
+internal b32 rn_handle_is_valid(RN_Handle h);
 
 ///////////////////////////////////////////////////////////////////
 ///

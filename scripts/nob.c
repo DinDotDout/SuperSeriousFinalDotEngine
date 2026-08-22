@@ -1,10 +1,13 @@
 #define NOB_IMPLEMENTATION
 #define NOB_NO_ECHO
 
+#define _GNU_SOURCE
+
 // NOTE: Should probably just allow msvc or clang (not clang cl)
 
 #include "../src/third_party/nob.h/nob.h"
-Nob_Log_Level nob_minimal_log_level = NOB_WARNING;
+
+Nob_Log_Level nob_minimal_log_level = NOB_ERROR;
 
 #define OUTPUT_FOLDER           "build/"
 #define SRC_FOLDER              "src/dot_engine/"
@@ -53,9 +56,9 @@ typedef struct {
     PlatformKind platform;
     OptimizationLevelKind opt;
     CompilerKind compiler;
-}Flags;
+}BuildFlags;
 
-static Flags flags = {
+static BuildFlags g_flags = {
     .opt      = OptimizationLevelKind_Debug,
     .platform = PlatformKind_Auto,
     .compiler = CompilerKind_Auto,
@@ -67,16 +70,16 @@ typedef struct {
     void (*apply)(void);
 }FlagEntry;
 
-static void set_x11(void)    { flags.platform = PlatformKind_LinuxX11; }
-static void set_wayland(void){ flags.platform = PlatformKind_LinuxWayland; }
-static void set_windows(void){ flags.platform = PlatformKind_Windows; }
+static void set_x11(void)    { g_flags.platform = PlatformKind_LinuxX11; }
+static void set_wayland(void){ g_flags.platform = PlatformKind_LinuxWayland; }
+static void set_windows(void){ g_flags.platform = PlatformKind_Windows; }
 
-static void set_clang(void)  { flags.compiler = CompilerKind_Clang; }
-static void set_msvc(void)   { flags.compiler = CompilerKind_Msvc; }
+static void set_clang(void)  { g_flags.compiler = CompilerKind_Clang; }
+static void set_msvc(void)   { g_flags.compiler = CompilerKind_Msvc; }
 
-static void set_debug(void)  { flags.opt = OptimizationLevelKind_Debug; }
-static void set_release(void){ flags.opt = OptimizationLevelKind_Release; }
-static void set_final(void)  { flags.opt = OptimizationLevelKind_Final; }
+static void set_debug(void)  { g_flags.opt = OptimizationLevelKind_Debug; }
+static void set_release(void){ g_flags.opt = OptimizationLevelKind_Release; }
+static void set_final(void)  { g_flags.opt = OptimizationLevelKind_Final; }
 
 static const FlagEntry flag_table[] = {
     { "--x11",     "Use X11 backend",               set_x11     },
@@ -92,8 +95,8 @@ static const FlagEntry flag_table[] = {
 };
 
 static void print_help(const char *prog) {
-    printf("Usage: %s [flags]\n\n", prog);
-    printf("Flags:\n");
+    printf("Usage: %s [g_flags]\n\n", prog);
+    printf("g_flags:\n");
     for (size_t i = 0; i < ARRAY_LEN(flag_table); i++) {
         printf("  %-10s %s\n", flag_table[i].flag, flag_table[i].description);
     }
@@ -132,7 +135,7 @@ static void apply_platform_flags(Nob_Cmd *cmd, PlatformKind platform) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Compiler base + optimization flags
+// Compiler base + optimization g_flags
 // ─────────────────────────────────────────────────────────────────────────────
 
 static void apply_compiler_flags(Nob_Cmd *cmd, CompilerKind compiler, OptimizationLevelKind opt) {
@@ -140,7 +143,7 @@ static void apply_compiler_flags(Nob_Cmd *cmd, CompilerKind compiler, Optimizati
         case CompilerKind_Clang:
             nob_cmd_append(cmd,
                 "-std=c11",
-                "-Wall", "-Wextra", "-Wno-override-init",
+                "-Wall", "-Wextra", "-Wno-override-init", "-Wno-incompatible-pointer-types-discards-qualifiers",
                 "-Wdiv-by-zero", "-Wno-unused-function",
                 "-Werror=vla",
                 // "-Wconversion",
@@ -275,11 +278,12 @@ void download_assets(void)
     }
 }
 
-int main(int argc, char **argv)
+int
+main(int argc, char *argv[])
 {
     NOB_GO_REBUILD_URSELF(argc, argv);
     mkdir_if_not_exists(OUTPUT_FOLDER);
-    for (int i = 1; i < argc; i++) {
+    for(int i = 1; i < argc; i++){
         if(strcmp(argv[i], "--help") == 0){
             print_help(argv[0]);
             return 0;
@@ -301,16 +305,16 @@ int main(int argc, char **argv)
 
     //download_assets();
     Nob_Cmd cmd = {0};
-    nob_log(NOB_WARNING, "using compiler %s", compiler_kind_str[flags.compiler]);
-    nob_cmd_append(&cmd, compiler_kind_str[flags.compiler]);
+    nob_log(NOB_INFO, "using compiler %s", compiler_kind_str[g_flags.compiler]);
+    nob_cmd_append(&cmd, compiler_kind_str[g_flags.compiler]);
     nob_cc_inputs(&cmd, SRC_FOLDER "dot_engine.c");
 
-    apply_compiler_flags(&cmd, flags.compiler, flags.opt);
-    apply_platform_flags(&cmd, flags.platform);
+    apply_compiler_flags(&cmd, g_flags.compiler, g_flags.opt);
+    apply_platform_flags(&cmd, g_flags.platform);
 
     const char *vulkan_sdk = getenv("VULKAN_SDK");
-    if(flags.compiler == CompilerKind_Msvc){
-        if(flags.platform != PlatformKind_Windows){
+    if(g_flags.compiler == CompilerKind_Msvc){
+        if(g_flags.platform != PlatformKind_Windows){
             nob_log(NOB_ERROR, "cl is only available on windows");
             return 1;
         }

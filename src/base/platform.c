@@ -14,10 +14,10 @@
 // platform_get_file_mode_from_kind(FileModeKind kind)
 // {
 //     switch(kind){
-//     case Platform_FileModeKind_R: return string8_comp("r");
-//     case Platform_FileModeKind_W: return string8_comp("w");
-//     case Platform_FileModeKind_RW: return string8_comp("w");
-//     case Platform_FileModeKind_A: return string8_comp("a");
+//     case Platform_FileModeKind_R: return str_comp("r");
+//     case Platform_FileModeKind_W: return str_comp("w");
+//     case Platform_FileModeKind_RW: return str_comp("w");
+//     case Platform_FileModeKind_A: return str_comp("a");
 //     }
 // }
 
@@ -29,13 +29,6 @@ internal bool platform_file_exists(String8 file_path)
 #else
     return access(file_path.cstr, F_OK) == 0;
 #endif
-}
-
-internal void
-platform_init()
-{
-    os_init();
-
 }
 
 internal String8

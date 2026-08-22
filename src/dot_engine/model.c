@@ -10,7 +10,7 @@ dot_scene_from_gltf(RN_RenderCtx *renderer, const cgltf_data *gltf_data, String8
 
     DOT_Scene scene = {0};
     scene.texture_count = cast(u32)gltf_data->textures_count;
-    scene.buffer_count  = cast(u32)gltf_data->buffers_count;
+    scene.buffer_count  = cast(u32)gltf_data->buffer_views_count;
     scene.sampler_count = cast(u32)gltf_data->samplers_count;
     // scene.mesh_count    = cast(u32)gltf_data->meshes_count;
     // scene.material_count = cast(u32)gltf_data->materials_count;
@@ -27,7 +27,7 @@ dot_scene_from_gltf(RN_RenderCtx *renderer, const cgltf_data *gltf_data, String8
     // (jd) NOTE: For now we are going to assume that all images are on a separate path
     for(u64 i = 0; i < gltf_data->images_count; ++i){
         cgltf_image *image = &gltf_data->images[i];
-        String8 name = image->name ? string8_from_cstring(image->name) : string8_comp("Default");
+        String8 name = image->name ? string8_from_cstring(image->name) : str_comp("Default");
         String8 full_path = string8_format(temp.arena, "%S/%s", folder, image->uri);
         DOT_PRINT("name: %S, image uri: %S", name, full_path);
 
@@ -36,7 +36,7 @@ dot_scene_from_gltf(RN_RenderCtx *renderer, const cgltf_data *gltf_data, String8
 
     for(u64 i = 0; i < gltf_data->samplers_count; ++i){
         cgltf_sampler *sampler = &gltf_data->samplers[i];
-        String8 name = sampler->name ? string8_from_cstring(sampler->name) : string8_comp("Default");
+        String8 name = sampler->name ? string8_from_cstring(sampler->name) : str_comp("Default");
 
         RN_SamplerDesc desc = {0};
         desc.min_filter = sampler->min_filter == cgltf_filter_type_linear ? RN_SamplerFilterKind_Linear : RN_SamplerFilterKind_Nearest;
@@ -94,7 +94,7 @@ dot_scene_from_gltf(RN_RenderCtx *renderer, const cgltf_data *gltf_data, String8
         desc.resource_usage     = RN_ResourceUsageKind_GPUOnly;
         desc.buffer_usage_flags = RN_BufferUsageBit_Vertex | RN_BufferUsageBit_Index;
 
-        String8 name = buffer_view->name ? string8_from_cstring(buffer_view->name) : string8_comp("Default");
+        String8 name = buffer_view->name ? string8_from_cstring(buffer_view->name) : str_comp("Default");
         DOT_DebugNameSet(desc.debug_name, name);
 
         scene.buffers[i] = rn_buffer_create(renderer, &desc, buffer_data);
@@ -175,7 +175,7 @@ dot_scene_from_gltf(RN_RenderCtx *renderer, const cgltf_data *gltf_data, String8
             desc.buffer_usage_flags = RN_BufferUsageBit_Uniform;
             desc.resource_usage = RN_ResourceUsageKind_Dynamic;
             desc.size = sizeof(DOT_MaterialPBR);
-            DOT_DebugNameSet(desc.debug_name, string8_comp("material"));
+            DOT_DebugNameSet(desc.debug_name, str_comp("material"));
             RN_BufferHandle material_h = rn_buffer_create(renderer, &desc, NULL).handle;
             sub_mesh->buffers[DOT_PrimitiveBufferKind_Material] = material_h;
             rn_shader_resource_desc_bind_buffer(shader_resource, material_h, 1);
@@ -188,8 +188,8 @@ dot_scene_from_gltf(RN_RenderCtx *renderer, const cgltf_data *gltf_data, String8
             sub_mesh->material_data.emissive_factor    = v3(0,0,0);
             sub_mesh->material_data.occlusion_factor   = 1.0f;
 
-            RN_TextureHandle texture = {0};
-            RN_SamplerHandle sampler = {0};
+            RN_TextureHandle texture = g_rn_null_texture;
+            RN_SamplerHandle sampler = g_rn_null_sampler;
             if(gltf_material->has_pbr_metallic_roughness){
                 cgltf_pbr_metallic_roughness *pbr = &gltf_material->pbr_metallic_roughness;
 
@@ -209,8 +209,8 @@ dot_scene_from_gltf(RN_RenderCtx *renderer, const cgltf_data *gltf_data, String8
                 }
                 rn_shader_resource_desc_bind_texture_sampler(shader_resource, texture, sampler, 2);
 
-                MEMORY_ZERO_STRUCT(&texture);
-                MEMORY_ZERO_STRUCT(&sampler);
+                texture = g_rn_null_texture;
+                sampler = g_rn_null_sampler;
                 if(pbr->metallic_roughness_texture.texture){
                     DOT_ASSERT(pbr->base_color_texture.texture->image);
                     texture = scene.textures[cgltf_image_index(gltf_data, pbr->metallic_roughness_texture.texture->image)].handle;
@@ -223,8 +223,8 @@ dot_scene_from_gltf(RN_RenderCtx *renderer, const cgltf_data *gltf_data, String8
                 sub_mesh->material_data.roughness_factor   = pbr->roughness_factor;
             }
 
-            MEMORY_ZERO_STRUCT(&texture);
-            MEMORY_ZERO_STRUCT(&sampler);
+            texture = g_rn_null_texture;
+            sampler = g_rn_null_sampler;
             cgltf_texture_view *occlusion_view = &gltf_material->occlusion_texture;
             if(occlusion_view->texture && occlusion_view->texture->image){
                 texture = scene.textures[cgltf_image_index(gltf_data, occlusion_view->texture->image)].handle;
@@ -235,8 +235,8 @@ dot_scene_from_gltf(RN_RenderCtx *renderer, const cgltf_data *gltf_data, String8
             }
             rn_shader_resource_desc_bind_texture_sampler(shader_resource, texture, sampler, 4);
 
-            MEMORY_ZERO_STRUCT(&texture);
-            MEMORY_ZERO_STRUCT(&sampler);
+            texture = g_rn_null_texture;
+            sampler = g_rn_null_sampler;
             cgltf_texture_view *emissive_view = &gltf_material->emissive_texture;
             if(emissive_view->texture && occlusion_view->texture->image){
                 texture = scene.textures[cgltf_image_index(gltf_data, emissive_view->texture->image)].handle;
@@ -246,8 +246,8 @@ dot_scene_from_gltf(RN_RenderCtx *renderer, const cgltf_data *gltf_data, String8
             }
             rn_shader_resource_desc_bind_texture_sampler(shader_resource, texture, sampler, 5);
 
-            MEMORY_ZERO_STRUCT(&texture);
-            MEMORY_ZERO_STRUCT(&sampler);
+            texture = g_rn_null_texture;
+            sampler = g_rn_null_sampler;
             cgltf_texture_view *normal_view = &gltf_material->normal_texture;
             if(normal_view->texture && normal_view->texture->image){
                 texture = scene.textures[cgltf_image_index(gltf_data, normal_view->texture->image)].handle;

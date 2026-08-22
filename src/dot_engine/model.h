@@ -115,8 +115,8 @@ dot_cgltf_free(void *user, void* ptr)
     DOT_UNUSED(user, ptr);
 }
 
-internal DOT_Scene dot_scene_from_gltf(RN_RenderCtx *renderer, const cgltf_data *gltf_data, String8 gltf_path);
-internal cgltf_data * dot_gltf_load_from_path(Arena *arena, String8 path);
-internal DOT_Scene dot_scene_load_from_path(RN_RenderCtx *renderer, String8 path);
+internal DOT_Scene      dot_scene_from_gltf(RN_RenderCtx *renderer, const cgltf_data *gltf_data, String8 gltf_path);
+internal cgltf_data *   dot_gltf_load_from_path(Arena *arena, String8 path);
+internal DOT_Scene      dot_scene_load_from_path(RN_RenderCtx *renderer, String8 path);
 
 #endif // DOT_MODEL_H!

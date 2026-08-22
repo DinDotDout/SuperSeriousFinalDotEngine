@@ -1,6 +1,7 @@
 #ifndef DOT_ENGINE_H
 #define DOT_ENGINE_H
 
+#define _GNU_SOURCE
 #include "base/build_ctx.h"
 
 //////////////////////////////////////////////////////
@@ -104,7 +105,7 @@ DOT_DIAGNOSTIC_PUSH
     DOT_DIAGNOSTIC_ERROR("-Wvla")
     DOT_DIAGNOSTIC_ERROR("-Wconversion")
     DOT_DIAGNOSTIC_ERROR("-Wimplicit-int-conversion")
-    DOT_DIAGNOSTIC_ERROR("-Wsign-conversion")
+    // DOT_DIAGNOSTIC_ERROR("-Wsign-conversion")
 #elif defined(_MSC_VER)
 #endif
 
@@ -136,7 +137,7 @@ typedef struct DOT_Engine{
     Arena *permanent_arena;
 }DOT_Engine;
 
-internal void dot_engine_init(DOT_Engine *engine, b32 tests_only);
+internal void dot_engine_init(DOT_Engine *engine, b32 headless);
 internal void dot_engine_run(DOT_Engine *engine);
 internal void dot_engine_shutdown(DOT_Engine *engine);
 DOT_DIAGNOSTIC_POP

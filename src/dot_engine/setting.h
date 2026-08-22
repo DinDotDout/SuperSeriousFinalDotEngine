@@ -84,9 +84,9 @@ SECTION_DECLARE(DOT_Setting, SettingsSection);
 #define DOT_SETTING_TYPED(k, ctype, section, var, value, viz) \
     ctype var = (value); \
     SECTION_ITEM(SettingsSection, 0) static DOT_Setting DOT_CONCAT(__DOT_Setting_, var) = { \
-        .whole_name     = string8_lit(section DOT_STR("_"#var)), \
-        .scope_name     = string8_lit(section), \
-        .setting_name   = string8_lit(#var), \
+        .whole_name     = str_lit(section DOT_STR("_"#var)), \
+        .scope_name     = str_lit(section), \
+        .setting_name   = str_lit(#var), \
         .kind           =  k, \
         .visualization  = (viz), \
         .ctype##_value  = &(var), \
@@ -101,7 +101,7 @@ SECTION_DECLARE(DOT_Setting, SettingsSection);
 #define DOT_SETTING_VEC2(section, var, value)      DOT_SETTING_TYPED(DOT_SettingKind_Vec2, vec2, section, var, value, DOT_SettingVisualizationKind_Default)
 #define DOT_SETTING_VEC3(section, var, value)      DOT_SETTING_TYPED(DOT_SettingKind_Vec3, vec3, section, var, value, DOT_SettingVisualizationKind_Default)
 #define DOT_SETTING_VEC4(section, var, value)      DOT_SETTING_TYPED(DOT_SettingKind_Vec4, vec4, section, var, value, DOT_SettingVisualizationKind_Default)
-#define DOT_SETTING_STRING8(section, var, value)   DOT_SETTING_TYPED(DOT_SettingKind_String8, String8, section, var, string8_comp(value), DOT_SettingVisualizationKind_Default)
+#define DOT_SETTING_STRING8(section, var, value)   DOT_SETTING_TYPED(DOT_SettingKind_String8, String8, section, var, str_comp(value), DOT_SettingVisualizationKind_Default)
 #define DOT_SETTING_COLOR3(section, var, value)    DOT_SETTING_TYPED(DOT_SettingKind_Vec3, vec3, section, var, value, DOT_SettingVisualizationKind_ColorPicker)
 #define DOT_SETTING_COLOR4(section, var, value)    DOT_SETTING_TYPED(DOT_SettingKind_Vec4, vec4, section, var, value, DOT_SettingVisualizationKind_ColorPicker)
 

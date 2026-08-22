@@ -15,14 +15,13 @@ rn_shader_compile_from_path(u32 argument_count, String8 arguments[], String8 inp
 {
     DOT_ASSERT(arguments);
     DOT_UNUSED(argument_count);
-    os_directory_create_if_not_exists(string8_comp(DOT_COMPILED_SHADER_PATH));
+    os_directory_create_if_not_exists(str_comp(DOT_COMPILED_SHADER_PATH));
     TempArena temp = threadctx_temp_begin(0,0);
 
     String8 cmd = string8_format(temp.arena, "slangc %S -target spirv -stage %S -o %S 2>&1 -entry main", input_path, arguments[0], output_path);
     DOT_PRINT("Compiling with: %S", cmd);
 
     FILE *pipe = os_popen(cmd, "r");
-    threadctx_temp_end(temp);
 
     static char k_process_output_buffer[ 1025 ];
     b32 execute_success = true;
@@ -35,19 +34,19 @@ rn_shader_compile_from_path(u32 argument_count, String8 arguments[], String8 inp
             String8 read = str;
             read.size = bytes_read;
             DOT_PRINT("%S", read);
-            bytes_read = fread( str.str, 1, str.size, pipe );
+            bytes_read = fread(str.str, 1, str.size, pipe);
         }
 
         String8 read = str;
         read.size = bytes_read;
         DOT_PRINT("%S", read);
-        if(string8_contains(str, string8_comp("error"))){
+        if(string8_contains(str, str_comp("error"))){
             execute_success = false;
         }
         os_pclose(pipe);
     }else{
         int err = errno;
-        DOT_WARNING( "Error: %d\n", err );
+        DOT_WARNING("Error: %d\n", err);
         execute_success = false;
     }
     threadctx_temp_end(temp);
