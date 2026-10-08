@@ -23,6 +23,7 @@ platform_os_read_timer()
 internal void
 os_print_stacktrace()
 {
+#if DOT_DEBUG
     thread_local local_persist void* buffer[4096];
     USHORT frames = CaptureStackBackTrace(0, DOT_ARRAY_COUNT(buffer), buffer, NULL);
 
@@ -52,6 +53,7 @@ os_print_stacktrace()
     }
 
     free(symbol);
+#endif // !DOT_DEBUG
 }
 
 internal LONG WINAPI
@@ -75,9 +77,35 @@ os_install_handlers()
 }
 
 internal void
+os_set_working_directory_to_project_root()
+{
+    char path[MAX_PATH];
+    DWORD len = GetModuleFileNameA(NULL, path, MAX_PATH);
+    if(len == 0 || len == MAX_PATH){
+        DOT_WARNING("Could not resolve executable path (error=%lu)", GetLastError());
+        return;
+    }
+    for(i32 strip = 0; strip < 2; strip++){
+        char *slash = strrchr(path, '\\');
+        char *fwd   = strrchr(path, '/');
+        if(fwd > slash){
+            slash = fwd;
+        }
+        if(!slash){
+            return;
+        }
+        *slash = 0;
+    }
+    if(!SetCurrentDirectoryA(path)){
+        DOT_WARNING("Could not change working directory to %s (error=%lu)", path, GetLastError());
+    }
+}
+
+internal void
 os_init()
 {
     os_install_handlers();
+    os_set_working_directory_to_project_root();
 }
 
 ////////////////////////////////////////////////////////////////
@@ -94,6 +122,32 @@ internal i32
 os_pclose(FILE *stream)
 {
     return _pclose(stream);
+}
+
+////////////////////////////////////////////////////////////////
+//
+// Dynamic Library
+//
+internal void*
+os_library_open(String8 path)
+{
+    void *library = (void*)LoadLibraryA(path.cstr);
+    if(!library){
+        DOT_WARNING("Failed to load library %S: error %u", path, (u32)GetLastError());
+    }
+    return library;
+}
+
+internal void*
+os_library_symbol(void *library, char const *name)
+{
+    return (void*)GetProcAddress((HMODULE)library, name);
+}
+
+internal void
+os_library_close(void *library)
+{
+    FreeLibrary((HMODULE)library);
 }
 
 ////////////////////////////////////////////////////////////////
@@ -159,4 +213,30 @@ os_release(void *ptr, u64 size)
 {
     DOT_UNUSED(size);
     VirtualFree(ptr, 0, MEM_RELEASE);
+}
+
+DOT_STATIC_ASSERT(sizeof(SRWLOCK) <= sizeof(Mutex));
+
+internal void
+mutex_init(Mutex *mutex)
+{
+    InitializeSRWLock(cast(SRWLOCK*)mutex->h);
+}
+
+internal void
+mutex_release(Mutex *mutex)
+{
+    (void)mutex;
+}
+
+internal void
+mutex_lock(Mutex *mutex)
+{
+    AcquireSRWLockExclusive(cast(SRWLOCK*)mutex->h);
+}
+
+internal void
+mutex_unlock(Mutex *mutex)
+{
+    ReleaseSRWLockExclusive(cast(SRWLOCK*)mutex->h);
 }

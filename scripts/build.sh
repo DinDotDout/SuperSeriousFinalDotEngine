@@ -1,1 +1,1 @@
-./scripts/nob
+./scripts/nob -log_warn

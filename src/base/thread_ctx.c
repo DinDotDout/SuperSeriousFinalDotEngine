@@ -31,10 +31,12 @@ threadctx_id()
     return t_thread_ctx.thread_id - 1;
 }
 
-internal TempArena
-threadctx_temp_begin(u32 avoid_count, Arena *avoid_arenas[])
+internal Scratch
+scratch_begin(u32 avoid_count, Arena *avoid_arenas[])
 {
-    // (jd) NOTE: Spread memory load
+    DOT_ASSERT(t_thread_ctx.temp_arenas && t_thread_ctx.temp_arena_count > 0, "Thread context not initialized");
+
+    // (jd) NOTE: Spread memory load on temp arenas
     local_persist thread_local u32 next = 0;
     for(u8 tries = 0; tries < t_thread_ctx.temp_arena_count; ++tries){
         Arena *candidate_temp = t_thread_ctx.temp_arenas[next];
@@ -58,7 +60,7 @@ threadctx_temp_begin(u32 avoid_count, Arena *avoid_arenas[])
 }
 
 internal void
-threadctx_temp_end(TempArena temp)
+scratch_end(TempArena temp)
 {
     temp_arena_restore(temp);
 }

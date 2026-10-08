@@ -35,23 +35,11 @@ dot_print_debug_(const DOT_PrintDebugParams* params, const char *fmt, ...){
 internal void
 dot_debug_name_set(u64 capacity, char *ptr, String8 src)
 {
-    u64 src_size = src.size;
-    if(src_size > capacity) src_size = capacity - 1;
-    MEMORY_COPY(ptr, src.str, src_size);
-    ptr[src_size] = 0;
-}
-
-
-internal
-u32 fnv1a_runtime(String8 s)
-{
-    u32 h = FNV1A_OFFSET;
-    u8 *p = s.str;
-    u8 *end = s.str + s.size;
-
-    for (; p < end; p++) {
-        h ^= *p;
-        h *= FNV1A_PRIME;
+    if(src.size > capacity){
+        src.size = capacity - 1;
+        DOT_WARNING("Truncating name: %S", src);
     }
-    return(h);
+    MEMORY_COPY(ptr, src.str, src.size);
+    ptr[src.size] = 0;
 }
+

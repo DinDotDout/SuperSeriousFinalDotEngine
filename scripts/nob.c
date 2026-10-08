@@ -5,7 +5,7 @@
 
 #include "../src/third_party/nob.h/nob.h"
 
-Nob_Log_Level nob_minimal_log_level = NOB_ERROR;
+Nob_Log_Level nob_minimal_log_level = NOB_INFO;
 
 #define OUTPUT_FOLDER           "build/"
 #define SRC_FOLDER              "src/dot_engine/"
@@ -60,6 +60,7 @@ typedef struct {
     PlatformKind platform;
     OptimizationLevelKind opt;
     CompilerKind compiler;
+    bool use_asan;
 }BuildFlags;
 
 static BuildFlags g_flags = {
@@ -85,26 +86,30 @@ static void set_debug(void)  { g_flags.opt = OptimizationLevelKind_Debug; }
 static void set_release(void){ g_flags.opt = OptimizationLevelKind_Release; }
 static void set_final(void)  { g_flags.opt = OptimizationLevelKind_Final; }
 
-static void set_log_all(void)  { nob_minimal_log_level = NOB_INFO; }
-static void set_log_warn(void) {nob_minimal_log_level = NOB_WARNING; }
+static void set_use_asan(void)  { g_flags.use_asan = true; }
 
+static void set_log_error(void)  {  nob_minimal_log_level = NOB_ERROR; }
+static void set_log_warn(void) {  nob_minimal_log_level = NOB_WARNING; }
 
 static const FlagEntry flag_table[] = {
-    { "--log_all", "Log All",                       set_log_all },
-    { "--log_warn","Log Warn",                      set_log_warn},
-    { "--x11",     "Use X11 backend",               set_x11     },
-    { "--wayland", "Use Wayland backend",           set_wayland },
-    { "--windows", "Use Windows backend",           set_windows },
+    { "-log_error","Log None",                      set_log_error},
+    { "-log_warn","Log Warn",                      set_log_warn},
+    { "-x11",     "Use X11 backend",               set_x11     },
+    { "-wayland", "Use Wayland backend",           set_wayland },
+    { "-windows", "Use Windows backend",           set_windows },
 
-    { "--clang",   "Use Clang compiler",            set_clang   },
-    { "--cl",      "Use MSVC compiler",             set_msvc    },
+    { "-clang",   "Use Clang compiler",            set_clang   },
+    { "-cl",      "Use MSVC compiler",             set_msvc    },
 
-    { "--debug",   "Debug build with sanitizers",   set_debug   },
-    { "--release", "Release build with debug info", set_release },
-    { "--final",   "Optimized final build",         set_final   },
+    { "-debug",   "Debug build with sanitizers",   set_debug   },
+    { "-release", "Release build with debug info", set_release },
+    { "-final",   "Optimized final build",         set_final   },
+
+    { "-asan",   "Use asan",                       set_use_asan },
 };
 
-static void print_help(const char *prog) {
+static void print_help(const char *prog)
+{
     printf("Usage: %s [g_flags]\n\n", prog);
     printf("g_flags:\n");
     for (size_t i = 0; i < ARRAY_LEN(flag_table); i++) {
@@ -119,7 +124,8 @@ static void print_help(const char *prog) {
 
 #define WAYLAND_GEN_FOLDER "src/gen-wayland/"
 
-typedef struct {
+typedef struct
+{
     const char *xml;
     const char *stem;
 } WaylandProtocol;
@@ -172,8 +178,8 @@ static void apply_platform_flags(Nob_Cmd *cmd, PlatformKind platform) {
             break;
         case PlatformKind_LinuxWayland:
             generate_wayland_protocols();
-            nob_cmd_append(cmd, "-DRGFW_WAYLAND", "-DDOT_PLATFORM_LINUX");
-            nob_cmd_append(cmd, "-lwayland-cursor", "-lwayland-client", "-lxkbcommon");
+            nob_cmd_append(cmd, "-DRGFW_WAYLAND", "-DRGFW_OPENGL", "-DDOT_PLATFORM_LINUX");
+            nob_cmd_append(cmd, "-lwayland-cursor", "-lwayland-client", "-lwayland-egl", "-lxkbcommon");
             nob_cmd_append(cmd,
                 "src/gen-wayland/xdg-shell.c",
                 "src/gen-wayland/relative-pointer-unstable-v1.c",
@@ -213,9 +219,13 @@ static void apply_compiler_flags(Nob_Cmd *cmd, CompilerKind compiler, Optimizati
                 case OptimizationLevelKind_Debug:
                     nob_cmd_append(cmd,
                         "-O0", "-g",
-                        "-fsanitize=address,undefined",
-                        "-fsanitize-recover=address,undefined",
                         "-DDEBUG");
+                    if (g_flags.use_asan){
+                        nob_cmd_append(cmd,
+                            "-fsanitize=address,undefined",
+                            "-fsanitize-recover=address,undefined");
+
+                    }
                     break;
                 case OptimizationLevelKind_Release:
                     nob_cmd_append(cmd, "-O2", "-g");
@@ -245,95 +255,131 @@ static void apply_compiler_flags(Nob_Cmd *cmd, CompilerKind compiler, Optimizati
     }
 }
 
-typedef enum ExternalAssetKind{
+typedef enum ExternalAssetKind
+{
     ExternalAssetKind_GitZip,
     ExternalAssetKind_File,
 }ExternalAssetKind;
 
-typedef struct ExternalAsset{
+typedef struct ExternalAsset
+{
     ExternalAssetKind kind;
-    union {
-        struct{
+    union
+    {
+        struct
+        {
             const char *URL;
             const char *rev;
         }git_asset;
-        struct{
+        struct
+        {
             const char *URL;
         }asset;
     };
 }ExternalAsset;
 
-ExternalAsset assets_list[] = {
-    {.kind = ExternalAssetKind_GitZip, .git_asset = {"https://github.com/KhronosGroup/glTF-Sample-Models", "8e9a5a6ad1a2790e2333e3eb48a1ee39f9e0e31b"}},
-};
-
 typedef struct ExternalAssets{
-    ExternalAsset *items;
-    int count;
+    const ExternalAsset *items;
+    size_t count;
     const char* output_path;
 }ExternalAssets;
 
-static const ExternalAssets assets = {
-    .output_path = "assets",
-    .items = assets_list,
-    .count = ARRAY_LEN(assets_list),
+#define EXTERNAL_ASSETS(path, list) ((ExternalAssets){ .output_path = (path), .items = (list), .count = ARRAY_LEN(list) })
+
+static const ExternalAsset assets_list[] = {
+    {.kind = ExternalAssetKind_GitZip, .git_asset = {"https://github.com/KhronosGroup/glTF-Sample-Assets", "edc7c9e67c639d230715049ee31f9a96a6babbbe"}},
 };
 
-void download_assets(void)
+static bool
+mkdir_parents(const char *file_path)
 {
-    mkdir_if_not_exists(assets.output_path);
-    for(int i = 0; i < assets.count; ++i){
-        ExternalAsset *asset = &assets.items[i];
+    char *path = nob_temp_strdup(file_path);
+    for(char *p = path; *p; ++p){
+        if(*p == '/' && p != path){
+            *p = 0;
+            bool ok = mkdir_if_not_exists(path);
+            *p = '/';
+            if(!ok){
+                return(false);
+            }
+        }
+    }
+    return(true);
+}
 
-        char final_path[512];
-        char download_path[512];
-        char source_url[512];
-        if(asset->kind == ExternalAssetKind_File){
-            const char *url = asset->asset.URL;
-            const char *filename = strrchr(url, '/') ? strrchr(url, '/') + 1 : "asset.bin";
-            snprintf(final_path, sizeof(final_path), "%s/%s", assets.output_path, filename);
-            snprintf(download_path, sizeof(download_path), "%s/%s", assets.output_path, filename);
-            snprintf(source_url, sizeof(source_url), "%s", url);
-        }else if(asset->kind == ExternalAssetKind_GitZip){
-            const char *repo_url = asset->git_asset.URL;
-            const char *repo = strrchr(repo_url, '/') ? strrchr(repo_url, '/') + 1 : "repo";
+static bool
+extract_archive(const char *archive_path, const char *dst_dir)
+{
+    Nob_Cmd cmd = {0};
+#if defined(_WIN32)
+    nob_cmd_append(&cmd, "tar", "-xf", archive_path, "-C", dst_dir);
+#else
+    if(nob_sv_end_with(nob_sv_from_cstr(archive_path), ".zip")){
+        nob_cmd_append(&cmd, "unzip", "-q", archive_path, "-d", dst_dir);
+    }else{
+        nob_cmd_append(&cmd, "tar", "-xzf", archive_path, "-C", dst_dir);
+    }
+#endif
+    if(!nob_cmd_run(&cmd)){
+        nob_log(NOB_ERROR, "Failed to extract %s", archive_path);
+        return(false);
+    }
+    return(true);
+}
 
-            snprintf(final_path, sizeof(final_path), "%s/%s", assets.output_path, repo);
-            snprintf(download_path, sizeof(download_path), "%s/%s.zip", assets.output_path, repo);
-            snprintf(source_url, sizeof(source_url), "%s/archive/%s.zip", repo_url, asset->git_asset.rev);
-        }else{
-            nob_log(NOB_WARNING, "Unsupported asset type\n");
-            continue;
+static bool
+download_file(const char *url, const char *dst_path)
+{
+    nob_log(NOB_INFO, "downloading %s (delete it to redownload)", url);
+    Nob_Cmd cmd = {0};
+    nob_cmd_append(&cmd, "curl", "-L", "--fail", "-o", dst_path, url);
+    if(!nob_cmd_run(&cmd)){
+        nob_log(NOB_ERROR, "Failed to download %s", url);
+        return(false);
+    }
+    return(true);
+}
+
+static bool
+download_assets(ExternalAssets assets)
+{
+    if(!mkdir_parents(nob_temp_sprintf("%s/", assets.output_path))){
+        return(false);
+    }
+    bool ok = true;
+    for(size_t i = 0; ok && i < assets.count; ++i){
+        const ExternalAsset *asset = &assets.items[i];
+        size_t temp_checkpoint = nob_temp_save();
+
+        const char *final_path = NULL;
+        const char *download_path = NULL;
+        const char *source_url = NULL;
+        switch(asset->kind){
+        case ExternalAssetKind_File:{
+            source_url    = asset->asset.URL;
+            final_path    = nob_temp_sprintf("%s/%s", assets.output_path, nob_path_name(source_url));
+            download_path = final_path;
+        }break;
+        case ExternalAssetKind_GitZip:{
+            const char *repo = nob_path_name(asset->git_asset.URL);
+            source_url    = nob_temp_sprintf("%s/archive/%s.zip", asset->git_asset.URL, asset->git_asset.rev);
+            final_path    = nob_temp_sprintf("%s/%s", assets.output_path, repo);
+            download_path = nob_temp_sprintf("%s/%s.zip", assets.output_path, repo);
+        }break;
         }
 
         if(nob_file_exists(final_path)){
-            nob_log(NOB_WARNING, "Already have: %s (delete it to redownload)\n", final_path);
-            continue;
-        }
-
-        Nob_Cmd cmd = {0};
-        nob_cmd_append(&cmd, "curl");
-        nob_cmd_append(&cmd, "-L");
-        nob_cmd_append(&cmd, "-o");
-        nob_cmd_append(&cmd, download_path);
-        nob_cmd_append(&cmd, source_url);
-        nob_cmd_run(&cmd);
-        if(asset->kind == ExternalAssetKind_GitZip){
-            Nob_Cmd unzip_cmd = {0};
-            nob_cmd_append(&unzip_cmd, "unzip");
-            nob_cmd_append(&unzip_cmd, download_path);
-            nob_cmd_append(&unzip_cmd, "-d");
-            nob_cmd_append(&unzip_cmd, assets.output_path);
-            if(!nob_cmd_run(&unzip_cmd)){
-                nob_log(NOB_ERROR, "Failed to unzip file");
+            nob_log(NOB_INFO, "Already have: %s (delete it to redownload)", final_path);
+        }else{
+            ok = download_file(source_url, download_path);
+            if(ok && asset->kind == ExternalAssetKind_GitZip){
+                const char *extracted = nob_temp_sprintf("%s/%s-%s", assets.output_path, nob_path_name(asset->git_asset.URL), asset->git_asset.rev);
+                ok = extract_archive(download_path, assets.output_path) && nob_rename(extracted, final_path);
             }
-
-            const char *repo = strrchr(asset->git_asset.URL, '/') + 1;
-            char extracted[512];
-            snprintf(extracted, sizeof(extracted), "%s/%s-%s", assets.output_path, repo, asset->git_asset.rev);
-            rename(extracted, final_path);
         }
+        nob_temp_rewind(temp_checkpoint);
     }
+    return(ok);
 }
 
 int
@@ -361,7 +407,7 @@ main(int argc, char *argv[])
         }
     }
 
-    //download_assets();
+    download_assets(EXTERNAL_ASSETS("assets", assets_list));
     Nob_Cmd cmd = {0};
     nob_log(NOB_INFO, "Using compiler %s for target %s", g_compiler_kind_str[g_flags.compiler], g_platform_kind_str[g_flags.platform]);
     nob_cmd_append(&cmd, g_compiler_kind_str[g_flags.compiler]);
@@ -370,35 +416,27 @@ main(int argc, char *argv[])
     apply_compiler_flags(&cmd, g_flags.compiler, g_flags.opt);
     apply_platform_flags(&cmd, g_flags.platform);
 
-    const char *vulkan_sdk = getenv("VULKAN_SDK");
     if(g_flags.compiler == CompilerKind_Msvc){
         if(g_flags.platform != PlatformKind_Windows){
             nob_log(NOB_ERROR, "cl is only available on windows");
             return 1;
         }
-        if (!vulkan_sdk){
-            nob_log(NOB_ERROR, "unix VULKAN_SDK environment variable not set");
-            return 1;
-        }
-        nob_cmd_append(&cmd, nob_temp_sprintf("/I%s/Include", vulkan_sdk));
-        nob_cmd_append(&cmd, "/D", "DOT_USE_VOLK");
+        nob_cmd_append(&cmd, "/I", "src/third_party/vulkan-headers/include");
+        nob_cmd_append(&cmd, "/I", "src/third_party/vulkan-utility-libraries/include");
         nob_cmd_append(&cmd, "/I", ".");
         nob_cmd_append(&cmd, "/I", "src/");
-        // NOTE: everything after "/link" is forwarded straight to link.exe, so /Fe and /Fo (which
-        // cl.exe understands but link.exe doesn't) must be appended before it, not after.
         nob_cc_output(&cmd, OUTPUT_FOLDER "dot_engine");
         nob_cmd_append(&cmd, "/link");
         // NOTE: incremental linking pads the custom "$a/$m/$z" sections used by SECTION_DECLARE
         // (settings, plugins, reflect) with unpredictable filler, which breaks their tight-packing
         // assumption and corrupts iteration. Must stay off.
         nob_cmd_append(&cmd, "/INCREMENTAL:NO");
-        nob_cmd_append(&cmd, nob_temp_sprintf("/LIBPATH:%s/Lib", vulkan_sdk));
-        nob_cmd_append(&cmd, "vulkan-1.lib");
         nob_cmd_append(&cmd, "Dbghelp.lib");
     }else{
-        nob_cmd_append(&cmd, "-DDOT_USE_VOLK");
-        nob_cmd_append(&cmd, "-lm", "-lvulkan",  "-lpthread");
+        nob_cmd_append(&cmd, "-lm", "-lpthread");
         nob_cmd_append(&cmd, "-I", "src/");
+        nob_cmd_append(&cmd, "-I", "src/third_party/vulkan-headers/include");
+        nob_cmd_append(&cmd, "-I", "src/third_party/vulkan-utility-libraries/include");
         nob_cmd_append(&cmd, "-Wl,-T"LINKER_SCRIPTS_FOLDER"plugins_section.ld");
 
 

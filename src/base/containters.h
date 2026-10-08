@@ -1,12 +1,10 @@
 #ifndef CONTAINERS_H
 #define CONTAINERS_H
+
 internal u8* raw_buffer_get(u8 raw_buffer[], u32 elem_idx, u32 elem_size);
 internal u64 array_bounds_check(u64 elem_idx, u64 capacity, char *file, int line);
 
-////////////////////////////////////////////////////////////////
-///
-///NODE
-
+// (jd) Go back to regualr lists, just use a few macros
 typedef struct LLNode LLNode;
 struct LLNode{
     LLNode *next;

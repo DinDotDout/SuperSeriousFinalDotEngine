@@ -1,7 +1,7 @@
 global DOT_Game *g_game = NULL;
 
 #ifdef DOT_HOT_RELOAD
-void dot_game_init(DOT_Game *game, RN_RenderCtx *renderer,
+void dot_game_init(DOT_Game *game, RN_RenderCtx *renderer, DOT_Window *window,
     u8 permanent_memory[], usize permanent_memory_size,
     u8 transient_memory[], usize transient_memory_size) {
     g_game_api.init(game);
@@ -16,205 +16,290 @@ void dot_game_run(DOT_Game *game) {
 }
 
 #else
-typedef struct UniformData{
-    mat4 model_from_view;
-    mat4 view_from_projection;
-    vec4 eye;
-    vec4 light;
-}UniformData;
 
-DOT_Scene model;
-RN_PipelineHandle cube_pipeline = {0};
+#include "game/shaders/triangle_shared.h"
 
-// NOTE: All this shouldn't we here but I am using this as a testbed for the render api for now
-b32 dot_game_init(DOT_Game *game, RN_RenderCtx *renderer,
+RB_Pipeline g_triangle_pipeline = {0};
+RB_Pipeline g_cube_pipeline = {0};
+
+RB_GpuAddress     g_triangleMesh = {0};
+RB_GpuAddress     g_cubeMesh = {0};
+
+RB_Pipeline g_model_pipeline = {0};
+DOT_Model         g_model = {0};
+
+typedef struct DOT_Camera{
+    f32x3 position;
+    f32  yaw;
+    f32  pitch;
+    f32  fov_y;
+}DOT_Camera;
+
+DOT_Camera g_camera = {0};
+
+internal f32x3
+dot_camera_forward(DOT_Camera *camera)
+{
+    return v3(
+        sinf(camera->yaw) * cosf(camera->pitch),
+        sinf(camera->pitch),
+        -cosf(camera->yaw) * cosf(camera->pitch));
+}
+
+internal void
+dot_camera_update(DOT_Camera *camera, DOT_Window *dot_window, f32 dt)
+{
+    local_persist const f32 look_speed = 0.004f;
+    local_persist const f32 move_speed = 35.0f;
+    local_persist const f32 pitch_limit = DOT_PI*0.5f - 0.01f;
+
+    RGFW_window *window = dot_window->window;
+    if(!RGFW_window_isCaptured(window)){ return; } // UI mode (F1)
+    f32 mouse_dx = dot_window->mouse_delta.x, mouse_dy = dot_window->mouse_delta.y;
+    camera->yaw   += mouse_dx * look_speed;
+    camera->pitch  = DOT_CLAMP(camera->pitch - mouse_dy*look_speed, -pitch_limit, pitch_limit);
+
+    f32x3 forward = dot_camera_forward(camera);
+    f32x3 right   = f32x3_normalize(f32x3_cross(forward, f32x3_up));
+
+    f32x3 move = f32x3_zero;
+    if(RGFW_window_isKeyDown(window, RGFW_keyW)){ move = f32x3_add(move, forward); }
+    if(RGFW_window_isKeyDown(window, RGFW_keyS)){ move = f32x3_sub(move, forward); }
+    if(RGFW_window_isKeyDown(window, RGFW_keyD)){ move = f32x3_add(move, right); }
+    if(RGFW_window_isKeyDown(window, RGFW_keyA)){ move = f32x3_sub(move, right); }
+    if(RGFW_window_isKeyDown(window, RGFW_keyE) || RGFW_window_isMouseDown(window, RGFW_mouseLeft)){ move = f32x3_add(move, f32x3_up); }
+    if(RGFW_window_isKeyDown(window, RGFW_keyQ) || RGFW_window_isMouseDown(window, RGFW_mouseRight)){ move = f32x3_sub(move, f32x3_up); }
+
+    camera->position = f32x3_add(camera->position, f32x3_scale(f32x3_normalize(move), move_speed*dt));
+}
+
+b32
+dot_game_init(DOT_Game *game, RN_RenderCtx *renderer, DOT_Window *window,
     u8 permanent_memory[], usize permanent_memory_size,
     u8 transient_memory[], usize transient_memory_size)
 {
     g_game = game;
     g_game->renderer = renderer;
+    g_game->window   = window;
     g_game->permanent_arena = ARENA_CREATE(.name = "engine permanent arena", .buffer = permanent_memory, .reserve_size = permanent_memory_size);
     g_game->transient_arena = ARENA_CREATE(.name = "engine transient arena", .buffer = transient_memory, .reserve_size = transient_memory_size);
 
-    // Buncha tests
-    // g_game->test_shader_module = rn_shader_module_load_from_path(game->renderer, str_comp(DOT_GAME_SHADER_PATH"compute.glsl"));
-    // rn_create_postprocess_module(g_game->test_shader_module->shader_stage_handle);
-
-    // String8 model_path = str_comp(DOT_GAME_ASSET_PATH"glTF-Sample-Models/2.0/DamagedHelmet/glTF-Embedded/DamagedHelmet.gltf");
-    // String8 model_path = str_comp(DOT_GAME_ASSET_PATH"glTF-Sample-Models/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf");
-
-    RN_ShaderResourceLayoutDesc resource_layout_desc = {0};
-    rn_shader_resource_layout_set_bindings(&resource_layout_desc,
-        { RN_ShaderResourceKind_UniformBufferDynamic, 0, 1, str_comp("LocalConstants"), 0 },
-        { RN_ShaderResourceKind_UniformBufferDynamic, 1, 1, str_comp("MaterialConstants"), 0 },
-        { RN_ShaderResourceKind_SamplerXTexture, 2, 1, str_comp("diffuseTexture"), 0 },
-        { RN_ShaderResourceKind_SamplerXTexture, 3, 1, str_comp("roughnessMetalnessTexture"), 0 },
-        { RN_ShaderResourceKind_SamplerXTexture, 4, 1, str_comp("roughnessMetalnessTexture"), 0 },
-        { RN_ShaderResourceKind_SamplerXTexture, 5, 1, str_comp("emissiveTexture"), 0 },
-        { RN_ShaderResourceKind_SamplerXTexture, 6, 1, str_comp("occlusionTexture"), 0 },
-    );
-    g_shader_resource_layout_h = rn_shader_resource_layout_create(renderer, &resource_layout_desc);
-
-    RN_PipelineDesc pipeline_desc = {0};
-    rn_pipeline_set_vertex_attributes(&pipeline_desc,
-        { .location = 0, .binding = 0, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x3 }, // position
-        { .location = 1, .binding = 1, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x4 }, // tangent
-        { .location = 2, .binding = 2, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x3 }, // normal
-        { .location = 3, .binding = 3, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x2 }  // texcoord
-    );
-    rn_pipeline_set_vertex_streams(&pipeline_desc,
-        { .binding = 0, .stride = 12, .input_rate = RN_VertexInputRateKind_PerVertex}, // position
-        { .binding = 1, .stride = 16, .input_rate = RN_VertexInputRateKind_PerVertex}, // tangent
-        { .binding = 2, .stride = 12, .input_rate = RN_VertexInputRateKind_PerVertex}, // normal
-        { .binding = 3, .stride = 8, .input_rate = RN_VertexInputRateKind_PerVertex},  // texcoord
-    );
-    rn_pipeline_set_depth_stencil_state(&pipeline_desc,
-        .depth_write_enable = true,
-        .depth_enable = true,
-        .depth_comparison = RN_CompareOpKind_LessOrEqual
-    );
-    rn_pipeline_set_shader_state(&pipeline_desc,
-        { .path = str_comp(DOT_GAME_SHADER_PATH"model.vert") },
-        { .path = str_comp(DOT_GAME_SHADER_PATH"model.frag") },
-    );
-    DOT_DebugNameSet(pipeline_desc.shader_state.debug_name, str_comp("Cube"));
-
-    rn_pipeline_set_render_pass_output(&pipeline_desc, rn_swapchain_output());
-    rn_pipeline_push_shader_resource_layout(&pipeline_desc, g_shader_resource_layout_h);
-
-    RN_BufferDesc bd = {0};
-    bd.resource_usage       = RN_ResourceUsageKind_Dynamic;
-    bd.buffer_usage_flags   = RN_BufferUsageBit_Uniform;
-    bd.size                 = sizeof(UniformData);
-    DOT_DebugNameSet(bd.debug_name, str_comp("cube constant buffer"));
-    g_cube_ubo_h = rn_buffer_create_h(renderer, &bd, NULL);
-    (void)g_cube_ubo_h;
-
-    String8 model_path = str_comp(DOT_GAME_ASSET_PATH"glTF-Sample-Models/2.0/Cube/glTF/Cube.gltf");
-    // (void)(model_path);
-    // String8 model_path = str_comp(DOT_GAME_ASSET_PATH"glTF-Sample-Models/2.0/2CylinderEngine/glTF/2CylinderEngine.gltf");
-
-    cube_pipeline = rn_pipeline_create(renderer, &pipeline_desc);
-    (void)cube_pipeline;
-    model = dot_scene_load_from_path(g_game->renderer, model_path);
-
-    // TODO: put alloc somewhere it makes sense
-    //RN_ShaderResourceDesc *descriptor_sets = PUSH_ARRAY(game->permanent_arena, RN_ShaderResourceDesc, model.sub_mesh_draw_count);
-    //(void) descriptor_sets;
-
-    // for EACH_INDEX(i, model.sub_mesh_draw_count){
-    //     DOT_Submesh *submesh = &model.sub_mesh_draw[i];
-    //     submesh->buffers
-    //     RN_ShaderResourceDesc *descriptor_set = &descriptor_sets[i];
-    //     if(
-    // }
-    //
-
-    // RN_PipelineDesc pipeline2 = {0};
-    // rn_pipeline_set_depth_stencil_state(&pipeline2,
-    //     .depth_write_enable = true,
-    //     .depth_enable = true,
-    //     .depth_comparison = RN_CompareOpKind_LessOrEqual
-    // );
-    // rn_pipeline_set_vertex_attributes(&pipeline2,
-    //     { .location = 0, .binding = 0, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x3 },
-    //     { .location = 1, .binding = 1, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x4 },
-    //     { .location = 2, .binding = 2, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x3 },
-    //     { .location = 3, .binding = 3, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x2 },
-    // );
-    // rn_pipeline_set_vertex_streams(&pipeline2,
-    //     { .binding = 0, .stride = 12, .input_rate = RN_VertexInputRateKind_PerVertex},
-    //     { .binding = 1, .stride = 16, .input_rate = RN_VertexInputRateKind_PerVertex},
-    //     { .binding = 2, .stride = 12, .input_rate = RN_VertexInputRateKind_PerVertex},
-    //     { .binding = 3, .stride = 8,  .input_rate = RN_VertexInputRateKind_PerVertex},
-    // );
-    // String8 shader_stages2[2] = {
-    //     [RN_ShaderStageKind_Vertex] =
-    //     #include "../src/game/shaders/model.vert"
-    //     , [RN_ShaderStageKind_Fragment] =
-    //     #include "../src/game/shaders/model.frag"
-    // };
-    //
-    // rn_pipeline_set_shader_state(&pipeline2, RN_ShaderFormat_Source, str_comp("Cube"),
-    //     {RN_ShaderStageKind_Vertex,  shader_stages2[RN_ShaderStageKind_Vertex]},
-    //     {RN_ShaderStageKind_Fragment, shader_stages2[RN_ShaderStageKind_Fragment]},
-    // );
-    // rn_pipeline_set_render_pass_ouput(&pipeline2, rn_swapchain_output());
-
-    // string8_append_string8(Arena *arena, String8 a, String8 b)
-    // DOT_DebugNameSet(pipeline.shader_state.name, str_comp("cube")),
+    g_camera.position = v3(0.0f, 0.6f, 4.0f);
+    g_camera.fov_y     = DOT_PI * 0.4f;
+// NOTE: All this shouldn't be here but I am using this as a testbed for the render api for now
+    RB_RasterDesc triangle_raster = {
+        .raster_state.topology  = RB_PrimitiveTopologyKind_TriangleList,
+        .color_targets          = { {.format = renderer->swapchain_format} },
+        .depth_format           = renderer->depth_format,
+        .debug_name             = str_comp("Triangle"),
+    };
 
 
-    // (void) pipeline;
-    // rn_pipeline_create(renderer, &pipeline);
-    // const char *t = "src/game/" "shaders/" "model.frag";
-    // typedef struct PipelineStages{
-    // }PipelineStages;
+    g_triangle_pipeline = rn_pipeline_create(renderer,
+        str_comp(DOT_GAME_SHADER_PATH"triangle.vert"),
+        str_comp(DOT_GAME_SHADER_PATH"triangle.frag"),
+        &triangle_raster);
 
-    // const char *code[2] = {
+    f32 h = 0.5f;
+    TriangleVertex verts[] = {
+        { .position = v3( 0.0f, -h, 0.0f), .color = v3(1,0,0) },
+        { .position = v3(0.0f,   0.0f, 0.0f), .color = v3(0,1,0) },
+        { .position = v3(-h,  0.0f, 0.0f), .color = v3(0,0,1) },
 
-    // pipeline_creation.shaders.set_name( "Cube" ).add_stage( vs_code, ( uint32_t )strlen( vs_code ), VK_SHADER_STAGE_VERTEX_BIT ).add_stage( fs_code, ( uint32_t )strlen( fs_code ), VK_SHADER_STAGE_FRAGMENT_BIT );
-    // (void)shader_stages;
+        { .position = v3( 0.0f, -h, 0.0f), .color = v3(1,0,0) },
+        { .position = v3( -h,  -h, 0.0f), .color = v3(0,1,0) },
+        { .position = v3(-h,  0, 0.0f), .color = v3(0,0,1) },
 
+        { .position = v3( 0.0f, -h, 0.0f), .color = v3(1,0,0) },
+        { .position = v3( 0,  -h, h), .color = v3(0,1,0) },
+        { .position = v3(-h,  -h, h), .color = v3(0,0,1) },
 
-    // RN_PipelineDesc pipeline2 = {
-    //     .vertex_input = {
-    //         SLICE_FIELDS(RN_VertexAttribute, vertex_attributes, vertex_attribute_count,
-    //                 { .location = 0, .binding = 0, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x3 },
-    //                 { .location = 1, .binding = 1, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x4 },
-    //                 { .location = 2, .binding = 2, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x3 },
-    //                 { .location = 3, .binding = 3, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x2 },
-    //         ),
-    //         SLICE_FIELDS(RN_VertexStream, vertex_streams, vertex_stream_count,
-    //             { 0, 12, RN_VertexInputRateKind_PerVertex},
-    //             { 1, 16, RN_VertexInputRateKind_PerVertex},
-    //             { 2, 12, RN_VertexInputRateKind_PerVertex},
-    //             { 3, 8, RN_VertexInputRateKind_PerVertex},
-    //         ),
-    //     },
-    // };
-    // RN_PipelineDesc pipeline = {
-    //     .vertex_input = {
-    //         .vertex_attribute_count = 4,
-    //         .vertex_stream_count = 4,
-    //         .vertex_attributes = {
-    //             { .location = 0, .binding = 0, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x3 }, // pos
-    //             { .location = 1, .binding = 1, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x4 }, // tangent
-    //             { .location = 2, .binding = 2, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x3 }, // normal
-    //             { .location = 3, .binding = 3, .offset = 0, .vertex_component_kind = RN_FormatKind_F32x2 }, // texcoord
-    //         },
-    //         .vertex_streams = {
-    //             { 0, 12, RN_VertexInputRateKind_PerVertex},
-    //             { 1, 16, RN_VertexInputRateKind_PerVertex},
-    //             { 2, 12, RN_VertexInputRateKind_PerVertex},
-    //             { 3, 8, RN_VertexInputRateKind_PerVertex},
-    //         },
-    //     },
-    // };
-    (void)model;
+        { .position = v3( 0.0f, -h, 0.0f), .color = v3(1,0,0) },
+        { .position = v3( 0,  -h, h), .color = v3(0,1,0) },
+        { .position = v3(-h,  -h, h), .color = v3(0,0,1) },
+    };
+
+    TriangleVertex cube_verts[36] = {
+        // +X red
+        {v3( h,-h,-h), v3(1,0,0)}, {v3( h, h,-h), v3(0,1,0)}, {v3( h, h, h), v3(0,0,1)},
+        {v3( h,-h,-h), v3(1,0,0)}, {v3( h, h, h), v3(0,1,0)}, {v3( h,-h, h), v3(0,0,1)},
+        // -X dark red
+        {v3(-h,-h,-h), v3(0.5f,0,0)}, {v3(-h,-h, h), v3(0.5f,0,0)}, {v3(-h, h, h), v3(0.5f,0,0)},
+        {v3(-h,-h,-h), v3(0.5f,0,0)}, {v3(-h, h, h), v3(0.5f,0,0)}, {v3(-h, h,-h), v3(0.5f,0,0)},
+        // +Y green
+        {v3(-h, h,-h), v3(0,1,0)}, {v3(-h, h, h), v3(0,1,0)}, {v3( h, h, h), v3(0,1,0)},
+        {v3(-h, h,-h), v3(0,1,0)}, {v3( h, h, h), v3(0,1,0)}, {v3( h, h,-h), v3(0,1,0)},
+        // -Y dark green
+        {v3(-h,-h,-h), v3(0,0.5f,0)}, {v3( h,-h,-h), v3(0,0.5f,0)}, {v3( h,-h, h), v3(0,0.5f,0)},
+        {v3(-h,-h,-h), v3(0,0.5f,0)}, {v3( h,-h, h), v3(0,0.5f,0)}, {v3(-h,-h, h), v3(0,0.5f,0)},
+        // +Z blue
+        {v3(-h,-h, h), v3(0,0,1)}, {v3( h,-h, h), v3(0,0,1)}, {v3( h, h, h), v3(0,0,1)},
+        {v3(-h,-h, h), v3(0,0,1)}, {v3( h, h, h), v3(0,0,1)}, {v3(-h, h, h), v3(0,0,1)},
+        // -Z dark blue
+        {v3(-h,-h,-h), v3(0,0,0.5f)}, {v3(-h, h,-h), v3(0,0,0.5f)}, {v3( h, h,-h), v3(0,0,0.5f)},
+        {v3(-h,-h,-h), v3(0,0,0.5f)}, {v3( h, h,-h), v3(0,0,0.5f)}, {v3( h,-h,-h), v3(0,0,0.5f)},
+    };
+
+    g_triangleMesh = rn_data_alloc(renderer, sizeof(verts));
+    g_cubeMesh     = rn_data_alloc(renderer, sizeof(cube_verts));
+    rn_upload_begin(renderer);
+    rn_upload_memory(renderer, g_triangleMesh, verts, sizeof(verts));
+    rn_upload_memory(renderer, g_cubeMesh, cube_verts, sizeof(cube_verts));
+    rn_upload_end(renderer);
+
+    RN_PSOGraphics cube_pso = {
+        .vs_path = str_comp(DOT_GAME_SHADER_PATH"triangle.vert"),
+        .fs_path = str_comp(DOT_GAME_SHADER_PATH"triangle.frag"),
+        .raster_desc = {
+            .raster_state.topology  = RB_PrimitiveTopologyKind_TriangleList,
+            .raster_state.cull_mode = RB_CullModeKind_Back,
+            .color_targets          = { {.format = renderer->swapchain_format} },
+            .depth_format           = renderer->depth_format,
+            .debug_name             = str_comp("Cube"),
+        }
+    };
+
+    g_cube_pipeline = rn_graphics_pipeline_create(renderer, &cube_pso);
+
+    // (claude) glTF front faces are CCW.
+    RB_RasterDesc model_raster = {
+        .raster_state.topology  = RB_PrimitiveTopologyKind_TriangleList,
+        .raster_state.cull_mode = RB_CullModeKind_Back,
+        .color_targets          = { {.format = renderer->swapchain_format} },
+        .depth_format           = renderer->depth_format,
+        .debug_name             = str_comp("Model"),
+    };
+
+    g_model_pipeline = rn_pipeline_create(renderer,
+        str_comp(DOT_GAME_SHADER_PATH"model_bda.vert"),
+        str_comp(DOT_GAME_SHADER_PATH"model_bda.frag"),
+        &model_raster);
+
+    // String8 model_path = str_comp(DOT_GAME_ASSET_PATH"glTF-Sample-Assets/Models/Cube/glTF/Cube.gltf");
+    // String8 model_path = str_comp(DOT_GAME_ASSET_PATH"glTF-Sample-Assets/Models/Avocado/glTF/Avocado.gltf");
+    String8 model_path = str_comp(DOT_GAME_ASSET_PATH"glTF-Sample-Assets/Models/Sponza/glTF/Sponza.gltf");
+    g_model = dot_model_load_from_path(renderer, model_path);
+
     return true;
 }
 
-void dot_game_run(DOT_Game *game)
+void
+dot_game_run(DOT_Game *game)
 {
     RN_RenderCtx *renderer = game->renderer;
-    // f64 flash = fabs(sin(renderer->current_frame / 60.f));
     u32 current_frame = 0;
     f32 flash = cast(f32)((sin(cast(f32)current_frame / 1200.f)+1.f) / 2.0f);
     rn_clear_background(renderer, v3(0,0, cast(f32)flash));
 
-    // UniformData uniform_data{0};
-    // uniform_data.vp = view_projection;
-    // uniform_data.m = global_model;
-    // uniform_data.eye = vec4s{ eye.x, eye.y, eye.z, 1.0f };
-    // uniform_data.light = vec4s{ 2.0f, 2.0f, 0.0f, 1.0f };
-    //
-    // memcpy(cb_data, &uniform_data, sizeof( UniformData ) );
+    if(!renderer->current_frame_valid){ return; }
+
+    local_persist u64 last_time_ns = 0;
+    u64 now_ns = platform_get_time_ns();
+    f32 dt = last_time_ns == 0 ? 0.0f : cast(f32)(now_ns - last_time_ns) / 1e9f;
+    last_time_ns = now_ns;
+    dot_camera_update(&g_camera, game->window, dt);
+
+    f32 aspect = cast(f32)renderer->current_extent.x / cast(f32)renderer->current_extent.y;
+    mat4 view = mat4_look_at(g_camera.position, f32x3_add(g_camera.position, dot_camera_forward(&g_camera)), f32x3_up);
+    mat4 proj = mat4_perspective(g_camera.fov_y, aspect, 0.1f, 5000.0f);
+    mat4 view_proj = mat4_mul(proj, view);
+
+    RB_RenderingDesc desc = {
+        .render_extent = renderer->current_extent,
+        .color_attachments = {
+            {
+                .view     = renderer->current_view,
+                .load_op  = RB_LoadOpKind_Load,
+                .store_op = RB_StoreOpKind_Store,
+            }
+        },
+        .depth_attachment = {
+            .view        = renderer->depth_view,
+            .load_op     = RB_LoadOpKind_Clear,
+            .store_op    = RB_StoreOpKind_DontCare,
+            .clear_value = 1.0f,
+        },
+    };
+
+    // Orders this pass after the background clear (same color target) and the previous frame's
+    // use of the shared depth texture.
+    rb_barrier(renderer->current_cmd,
+        RB_StageBit_ColorOutput | RB_StageBit_DepthStencilTests,
+        RB_AccessBit_ColorWrite | RB_AccessBit_DepthStencilWrite,
+        RB_StageBit_ColorOutput | RB_StageBit_DepthStencilTests,
+        RB_AccessBit_ColorRead | RB_AccessBit_ColorWrite | RB_AccessBit_DepthStencilRead | RB_AccessBit_DepthStencilWrite);
+
+    rb_render_pass_begin(renderer->current_cmd, desc, RB_RenderingBit_None);
+    rb_set_depth_stencil_state(renderer->current_cmd,
+        (RB_DepthStencilState){
+            .depth_enable       = true,
+            .depth_write_enable = true,
+            .depth_comparison   = RB_CompareOpKind_Less,
+        }
+    );
+
+    RB_Viewport viewport = {
+        .viewport_rect = (RB_Extent2D16){
+            .x = 0,
+            .y = 0,
+            .w = cast(u16)renderer->current_extent.x,
+            .h = cast(u16)renderer->current_extent.y 
+        },
+        .max_depth = 1.0f,
+    };
+
+    rb_set_viewport(renderer->current_cmd, viewport);
+    rb_set_scissor(renderer->current_cmd,
+        (RB_Extent2D16){
+            .x = 0,
+            .y = 0,
+            .w = cast(u16)renderer->current_extent.x,
+            .h = cast(u16)renderer->current_extent.y
+        }
+    );
+
+    rb_bind_pso(renderer->current_cmd, g_triangle_pipeline);
+
+    TriangleRoot triangle_root = {0};
+    triangle_root.mvp         = mat4_identity();
+    triangle_root.vertex_addr = g_triangleMesh;
+
+    // rb_draw(renderer->current_cmd, rn_frame_push(renderer, triangle_root).gpu, 9, 1, 0, 0);
+
+    // The Avocado sample is ~6 cm tall; scale it up to sit next to the unit cube.
+    mat4 model_world = mat4_from_trs(f32x3_zero, quat_identity(), v3(20.0f, 20.0f, 20.0f));
+    rb_bind_pso(renderer->current_cmd, g_model_pipeline);
+    for EACH_INDEX(i, g_model.sub_mesh_draw_count){
+        DOT_Submesh *sub_mesh = &g_model.sub_mesh_draw[i];
+
+        DOT_ModelRoot model_root = {0};
+        model_root.mvp           = mat4_mul(view_proj, mat4_mul(model_world, sub_mesh->transform));
+        // model_root.mvp           = mat4_identity();
+        model_root.position_addr = sub_mesh->position_addr;
+        model_root.normal_addr   = sub_mesh->normal_addr;
+        model_root.texcoord_addr = sub_mesh->texcoord_addr;
+        model_root.material_addr = sub_mesh->material_addr;
+        RB_GpuRange indices = { .gpu = sub_mesh->index_addr, .size = cast(i64)(sub_mesh->index_count * sizeof(u32)) };
+        rb_draw_indexed(renderer->current_cmd, rn_frame_push(renderer, model_root).gpu, indices, RB_IndexKind_U32, sub_mesh->index_count, 1, 0, 0, 0);
+    }
+
+    rb_bind_pso(renderer->current_cmd, g_cube_pipeline);
+    TriangleRoot cube_root = {0};
+    mat4 cube_transform = mat4_from_trs(v3(1.5f, 0.5f, 0.0f), quat_identity(), f32x3_one);
+    cube_root.mvp         = mat4_mul(view_proj, cube_transform);
+    cube_root.vertex_addr = g_cubeMesh;
+    rb_draw(renderer->current_cmd, rn_frame_push(renderer, cube_root).gpu, 36, 1, 0, 0);
+
+    rb_render_pass_end(renderer->current_cmd);
 }
 
 void dot_game_shutdown(DOT_Game* game)
 {
     (void)game;
+    dot_model_destroy(game->renderer, &g_model);
+    rn_pipeline_destroy(game->renderer, g_model_pipeline);
+    rn_pipeline_destroy(game->renderer, g_cube_pipeline);
+    rn_pipeline_destroy(game->renderer, g_triangle_pipeline);
 }
 
 #endif

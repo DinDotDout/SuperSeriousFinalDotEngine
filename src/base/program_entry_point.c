@@ -6,8 +6,7 @@ int entry_point(int arg_count, String8 arg_values[]);
 typedef i32 ProgramEntryFlag;
 
 enum{
-    PROGRAM_ENTRY_MAX_flags = 32,
-    PROGRAM_ENTRY_MAX_FLAGS = PROGRAM_ENTRY_MAX_flags - 1,
+    PROGRAM_ENTRY_MAX_FLAGS = 32,
 };
 
 typedef void(*ProgramEntryFlagCtxApply)(int **dst_flag, int apply_value);
@@ -50,7 +49,7 @@ program_entry_flags_apply(i32 flags_count, ProgramEntryFlagCtx *flags, i32 arg_c
 {
     b32 show_help = false;
     for (i32 i = 1; i < arg_count; i++){
-        if(string8_compare(arg_values[i], str_comp("--help")) == 0){
+        if(string8_equal(arg_values[i], str_comp("--help"))){
             show_help = true;
             break;
         }
@@ -59,7 +58,7 @@ program_entry_flags_apply(i32 flags_count, ProgramEntryFlagCtx *flags, i32 arg_c
         ProgramEntryFlagCtx *flag = NULL;
         for(i32 f = 0; f < flags_count; f++){
             flag = &flags[f];
-            if(string8_compare(arg_values[i], flag->flag) == 0){
+            if(string8_equal(arg_values[i], flag->flag)){
                 flag_exists = true;
                 break;
             }
@@ -80,8 +79,8 @@ program_entry_flags_apply(i32 flags_count, ProgramEntryFlagCtx *flags, i32 arg_c
 int
 main(int argc, char *argv[])
 {
-    DOT_ASSERT(argc < PROGRAM_ENTRY_MAX_flags);
-    String8 flags[PROGRAM_ENTRY_MAX_flags];
+    DOT_ASSERT(argc < PROGRAM_ENTRY_MAX_FLAGS);
+    String8 flags[PROGRAM_ENTRY_MAX_FLAGS];
 
     for EACH_INDEX(i, cast(u64)argc){
         flags[i] = string8_from_cstring(argv[i]);

@@ -1,106 +1,108 @@
-internal DOT_Scene
-dot_scene_from_gltf(RN_RenderCtx *renderer, const cgltf_data *gltf_data, String8 gltf_path)
+internal RB_GpuAddress
+dot_model_upload(RN_RenderCtx *renderer, void *data, i64 size)
+{
+    RB_GpuAddress addr = rn_data_alloc(renderer, size);
+    rn_upload_memory(renderer, addr, data, size);
+    return(addr);
+}
+
+internal DOT_Model
+dot_model_from_gltf(RN_RenderCtx *renderer, const cgltf_data *gltf_data, String8 gltf_path)
 {
     DOT_ASSERT(gltf_data->scene, "No default scene");
-    DOT_ASSERT(gltf_data->textures_count <= U32_MAX); DOT_ASSERT(gltf_data->meshes_count <= U32_MAX);
-    DOT_ASSERT(gltf_data->samplers_count <= U32_MAX); DOT_ASSERT(gltf_data->buffers_count <= U32_MAX);
-    DOT_ASSERT(gltf_data->materials_count <= U32_MAX);
+    DOT_ASSERT(gltf_data->textures_count <= U32_MAX);
+    DOT_ASSERT(gltf_data->samplers_count <= U32_MAX);
 
-    TempArena temp = threadctx_temp_begin(0,0);
+    Scratch s = scratch_begin(0,0);
 
-    DOT_Scene scene = {0};
-    scene.texture_count = cast(u32)gltf_data->textures_count;
-    scene.buffer_count  = cast(u32)gltf_data->buffer_views_count;
-    scene.sampler_count = cast(u32)gltf_data->samplers_count;
-    // scene.mesh_count    = cast(u32)gltf_data->meshes_count;
-    // scene.material_count = cast(u32)gltf_data->materials_count;
+    DOT_Model model = {0};
 
-    scene.textures  = PUSH_ARRAY(renderer->permanent_arena, RN_Texture, scene.texture_count);
-    scene.buffers   = PUSH_ARRAY(renderer->permanent_arena, RN_Buffer, scene.buffer_count);
-    scene.samplers  = PUSH_ARRAY(renderer->permanent_arena, RN_Sampler, scene.sampler_count);
-    // scene.meshes    = PUSH_ARRAY(renderer->transient_arena, DOT_Mesh, scene.mesh_count);
-    // scene.materials = PUSH_ARRAY(renderer->transient_arena, DOT_MaterialPBR, scene.material_count);
-    scene.sub_mesh_draw = PUSH_ARRAY(renderer->permanent_arena, DOT_Submesh, gltf_data->nodes_count);
+    // Indexed by image (materials resolve textures through cgltf_image_index).
+    model.texture_count = cast(u32)gltf_data->images_count;
+    model.textures       = PUSH_ARRAY(renderer->permanent_arena, RB_Texture, model.texture_count);
+    u32 *texture_slots   = PUSH_ARRAY(s.arena, u32, model.texture_count);
+
+    // One submesh per primitive of the root scene's nodes (the loop below), not one per node.
+    u64 primitive_count = 0;
+    for(cgltf_size ri = 0; ri < gltf_data->scene->nodes_count; ++ri){
+        cgltf_mesh *mesh = gltf_data->scene->nodes[ri]->mesh;
+        primitive_count += mesh ? mesh->primitives_count : 0;
+    }
+    model.sub_mesh_draw = PUSH_ARRAY(renderer->permanent_arena, DOT_Submesh, primitive_count);
 
     String8 folder = string8_chop_last_slash(gltf_path);
+    String8 model_name = string8_skip_last_slash(gltf_path);
+    for(u64 c = 0; c < model_name.size; ++c){
+        if(model_name.str[c] == '.'){ model_name.size = c; break; }
+    }
 
     // (jd) NOTE: For now we are going to assume that all images are on a separate path
     for(u64 i = 0; i < gltf_data->images_count; ++i){
         cgltf_image *image = &gltf_data->images[i];
-        String8 name = image->name ? string8_from_cstring(image->name) : str_comp("Default");
-        String8 full_path = string8_format(temp.arena, "%S/%s", folder, image->uri);
+        String8 name = string8_format(s.arena, "%S:%llu", model_name, i);
+        String8 full_path = string8_format(s.arena, "%S/%s", folder, image->uri);
         DOT_PRINT("name: %S, image uri: %S", name, full_path);
 
-        scene.textures[i] = rn_texture_load_from_path(renderer, name, full_path, 0);
+        RN_BindlessTexture loaded = rn_texture_load_from_path(renderer, name, full_path, 0);
+        model.textures[i] = loaded.handle;
+        texture_slots[i]  = loaded.bindless_slot;
     }
 
+    u32 *sampler_slots = PUSH_ARRAY(s.arena, u32, gltf_data->samplers_count);
     for(u64 i = 0; i < gltf_data->samplers_count; ++i){
         cgltf_sampler *sampler = &gltf_data->samplers[i];
         String8 name = sampler->name ? string8_from_cstring(sampler->name) : str_comp("Default");
 
-        RN_SamplerDesc desc = {0};
-        desc.min_filter = sampler->min_filter == cgltf_filter_type_linear ? RN_SamplerFilterKind_Linear : RN_SamplerFilterKind_Nearest;
+        RB_SamplerDesc desc = {
+            .debug_name = name,
+            .mag_filter = sampler->mag_filter == cgltf_filter_type_linear
+                ? RB_SamplerFilterKind_Linear
+                : RB_SamplerFilterKind_Nearest,
+        };
 
         switch(sampler->min_filter){
-        case cgltf_filter_type_undefined: break;
+        case cgltf_filter_type_undefined:
         case cgltf_filter_type_nearest:
-            desc.min_filter = RN_SamplerFilterKind_Nearest;
+            desc.min_filter = RB_SamplerFilterKind_Nearest;
         break;
         case cgltf_filter_type_linear:
-            desc.min_filter = RN_SamplerFilterKind_Linear;
+            desc.min_filter = RB_SamplerFilterKind_Linear;
         break;
         case cgltf_filter_type_linear_mipmap_nearest:
-            desc.min_filter = RN_SamplerFilterKind_Linear;
-            desc.mipmap_filter = RN_SamplerMipmapFilterKind_Nearest;
+            desc.min_filter = RB_SamplerFilterKind_Linear;
+            desc.mipmap_filter = RB_SamplerMipmapFilterKind_Nearest;
         break;
         case cgltf_filter_type_linear_mipmap_linear:
-            desc.min_filter = RN_SamplerFilterKind_Linear;
-            desc.mipmap_filter = RN_SamplerMipmapFilterKind_Linear;
+            desc.min_filter = RB_SamplerFilterKind_Linear;
+            desc.mipmap_filter = RB_SamplerMipmapFilterKind_Linear;
         break;
         case cgltf_filter_type_nearest_mipmap_nearest:
-            desc.min_filter = RN_SamplerFilterKind_Nearest;
-            desc.mipmap_filter = RN_SamplerMipmapFilterKind_Nearest;
+            desc.min_filter = RB_SamplerFilterKind_Nearest;
+            desc.mipmap_filter = RB_SamplerMipmapFilterKind_Nearest;
         break;
         case cgltf_filter_type_nearest_mipmap_linear:
-            desc.min_filter = RN_SamplerFilterKind_Nearest;
-            desc.mipmap_filter = RN_SamplerMipmapFilterKind_Linear;
+            desc.min_filter = RB_SamplerFilterKind_Nearest;
+            desc.mipmap_filter = RB_SamplerMipmapFilterKind_Linear;
         break;
         }
-        desc.mag_filter = sampler->mag_filter == cgltf_filter_type_linear ? RN_SamplerFilterKind_Linear : RN_SamplerFilterKind_Nearest;
-        switch (sampler->wrap_s){
-        case cgltf_wrap_mode_clamp_to_edge  : desc.address_mode_u = RN_SamplerAddressModeKind_ClampToEdge; break;
-        case cgltf_wrap_mode_mirrored_repeat: desc.address_mode_u = RN_SamplerAddressModeKind_MirroredRepeat; break;
-        case cgltf_wrap_mode_repeat         : desc.address_mode_u = RN_SamplerAddressModeKind_Repeat; break;
+
+        switch(sampler->wrap_s){
+        case cgltf_wrap_mode_clamp_to_edge  : desc.address_mode_u = RB_SamplerAddressModeKind_ClampToEdge; break;
+        case cgltf_wrap_mode_mirrored_repeat: desc.address_mode_u = RB_SamplerAddressModeKind_MirroredRepeat; break;
+        case cgltf_wrap_mode_repeat         : desc.address_mode_u = RB_SamplerAddressModeKind_Repeat; break;
+        }
+        switch(sampler->wrap_t){
+        case cgltf_wrap_mode_clamp_to_edge  : desc.address_mode_v = RB_SamplerAddressModeKind_ClampToEdge; break;
+        case cgltf_wrap_mode_mirrored_repeat: desc.address_mode_v = RB_SamplerAddressModeKind_MirroredRepeat; break;
+        case cgltf_wrap_mode_repeat         : desc.address_mode_v = RB_SamplerAddressModeKind_Repeat; break;
         }
 
-        switch (sampler->wrap_t){
-        case cgltf_wrap_mode_clamp_to_edge  : desc.address_mode_v = RN_SamplerAddressModeKind_ClampToEdge; break;
-        case cgltf_wrap_mode_mirrored_repeat: desc.address_mode_v = RN_SamplerAddressModeKind_MirroredRepeat; break;
-        case cgltf_wrap_mode_repeat         : desc.address_mode_v = RN_SamplerAddressModeKind_Repeat; break;
-        }
-        DOT_DebugNameSet(desc.debug_name, name);
-
-        scene.samplers[i] = rn_sampler_create(renderer, &desc);
+        sampler_slots[i] = rn_sampler_bindless_slot_create(renderer, &desc);
     }
 
-    // (jd) NOTE: We already loaded buffers with cgltf_load_buffers, maybe do this ourselves?
-    for(u64 i = 0; i < gltf_data->buffer_views_count; ++i){
-        cgltf_buffer_view *buffer_view = &gltf_data->buffer_views[i];
-        cgltf_buffer *buffer = buffer_view->buffer;
-        u8 *buffer_data = cast(u8*)buffer->data + buffer_view->offset;
+    cgltf_scene *root_scene = gltf_data->scene;
 
-        RN_BufferDesc desc = {0};
-        desc.size               = buffer_view->size;
-        desc.resource_usage     = RN_ResourceUsageKind_GPUOnly;
-        desc.buffer_usage_flags = RN_BufferUsageBit_Vertex | RN_BufferUsageBit_Index;
-
-        String8 name = buffer_view->name ? string8_from_cstring(buffer_view->name) : str_comp("Default");
-        DOT_DebugNameSet(desc.debug_name, name);
-
-        scene.buffers[i] = rn_buffer_create(renderer, &desc, buffer_data);
-    }
-
-	cgltf_scene *root_scene = gltf_data->scene; // (jd) using only one for now cgltf_node** nodes;
+    rn_upload_begin(renderer);
 
     for(cgltf_size ri = 0; ri < root_scene->nodes_count; ++ri){
         cgltf_node *gltf_node = root_scene->nodes[ri];
@@ -111,158 +113,124 @@ dot_scene_from_gltf(RN_RenderCtx *renderer, const cgltf_data *gltf_data, String8
 
         cgltf_mesh *gltf_mesh = gltf_node->mesh;
 
-        vec3 node_scale = vec3_one;
-        if(gltf_node->has_scale){
-            node_scale = v3(gltf_node->scale[0], gltf_node->scale[1], gltf_node->scale[2]);
-        }
+        mat4 node_transform;
+        cgltf_node_transform_world(gltf_node, cast(cgltf_float*)&node_transform);
 
         for(u32 primitive_index = 0; primitive_index < gltf_mesh->primitives_count; ++primitive_index){
             cgltf_primitive *primitive = &gltf_mesh->primitives[primitive_index];
-	        const cgltf_accessor *index_accessor        = primitive->indices;
-            const cgltf_accessor *position_accessor     = cgltf_find_accessor(primitive, cgltf_attribute_type_position, 0);
-            const cgltf_accessor *tangent_accessor      = cgltf_find_accessor(primitive, cgltf_attribute_type_tangent, 0);
-            const cgltf_accessor *normal_accessor       = cgltf_find_accessor(primitive, cgltf_attribute_type_normal, 0);
-            const cgltf_accessor *texcoord0_accessor    = cgltf_find_accessor(primitive, cgltf_attribute_type_texcoord, 0);
+            const cgltf_accessor *index_accessor     = primitive->indices;
+            const cgltf_accessor *position_accessor  = cgltf_find_accessor(primitive, cgltf_attribute_type_position, 0);
+            const cgltf_accessor *tangent_accessor   = cgltf_find_accessor(primitive, cgltf_attribute_type_tangent, 0);
+            const cgltf_accessor *normal_accessor    = cgltf_find_accessor(primitive, cgltf_attribute_type_normal, 0);
+            const cgltf_accessor *texcoord0_accessor = cgltf_find_accessor(primitive, cgltf_attribute_type_texcoord, 0);
 
-            DOT_Submesh *sub_mesh = &scene.sub_mesh_draw[scene.sub_mesh_draw_count];
+            DOT_ASSERT(index_accessor, "No index data found");
+            DOT_ASSERT(position_accessor, "No position data found");
+            DOT_ASSERT(normal_accessor, "No normal data found - fallback generation isn't implemented");
+            DOT_ASSERT(texcoord0_accessor, "No texcoord data found - fallback generation isn't implemented");
 
-            RN_ShaderResourceDesc *shader_resource = &sub_mesh->shader_resource;
-            rn_shader_resource_desc_set_layout(shader_resource, g_shader_resource_layout_h);
-            rn_shader_resource_desc_bind_buffer(shader_resource, g_cube_ubo_h, 0);
+            DOT_Submesh *sub_mesh = &model.sub_mesh_draw[model.sub_mesh_draw_count];
+            sub_mesh->transform = node_transform;
 
-            sub_mesh->scale = node_scale;
+            DOT_ASSERT(index_accessor->count <= U32_MAX);
+            u32 index_count = cast(u32)index_accessor->count;
+            sub_mesh->index_count = index_count;
 
-            DOT_ASSERT(index_accessor->count < U32_MAX);
-            sub_mesh->index_count = cast(u32)index_accessor->count;
+            u32 *indices_u32 = PUSH_ARRAY(s.arena, u32, index_count);
+            cgltf_accessor_unpack_indices(index_accessor, indices_u32, sizeof(u32), index_count);
+            sub_mesh->index_addr = dot_model_upload(renderer, indices_u32, index_count*sizeof(u32));
 
-            if(index_accessor){
-               sub_mesh->buffers[DOT_PrimitiveBufferKind_Index] = scene.buffers[cgltf_buffer_index(gltf_data, index_accessor->buffer_view->buffer)].handle;
-               sub_mesh->buffer_offsets[DOT_PrimitiveBufferKind_Index] = cast(u32)(index_accessor->offset + index_accessor->buffer_view->offset);
-            }else{
-                DOT_ERROR("No index data found");
-            }
-            if(position_accessor){
-                sub_mesh->buffers[DOT_PrimitiveBufferKind_Position] = scene.buffers[cgltf_buffer_index(gltf_data, position_accessor->buffer_view->buffer)].handle;
-                sub_mesh->buffer_offsets[DOT_PrimitiveBufferKind_Position] = cast(u32)(position_accessor->offset + position_accessor->buffer_view->offset);
-            }else{
-                DOT_ERROR("No position data found");
-            }
-            if(normal_accessor){
-                sub_mesh->buffers[DOT_PrimitiveBufferKind_Normal] = scene.buffers[cgltf_buffer_index(gltf_data, normal_accessor->buffer_view->buffer)].handle;
-                sub_mesh->buffer_offsets[DOT_PrimitiveBufferKind_Normal] = cast(u32)(normal_accessor->offset + normal_accessor->buffer_view->offset);
-            }else{
-                DOT_TODO("Provide fallback");
-            }
+            u32 vertex_count = cast(u32)position_accessor->count;
+
+            f32x3 *positions = PUSH_ARRAY(s.arena, f32x3, vertex_count);
+            cgltf_accessor_unpack_floats(position_accessor, cast(f32 *)positions, vertex_count*3);
+            sub_mesh->position_addr = dot_model_upload(renderer, positions, cast(i64)(vertex_count*sizeof(f32x3)));
+
+            f32x3 *normals = PUSH_ARRAY(s.arena, f32x3, vertex_count);
+            cgltf_accessor_unpack_floats(normal_accessor, cast(f32*)normals, vertex_count*3);
+            sub_mesh->normal_addr = dot_model_upload(renderer, cast(f32 *)normals, cast(i64)(vertex_count*sizeof(f32x3)));
+
+            f32x2 *texcoords = PUSH_ARRAY(s.arena, f32x2, vertex_count);
+            cgltf_accessor_unpack_floats(texcoord0_accessor, cast(f32*)texcoords, vertex_count*2);
+            sub_mesh->texcoord_addr = dot_model_upload(renderer, texcoords, cast(i64)(vertex_count*sizeof(f32x2)));
 
             if(tangent_accessor){
-                sub_mesh->buffers[DOT_PrimitiveBufferKind_Tangent] = scene.buffers[cgltf_buffer_index(gltf_data, tangent_accessor->buffer_view->buffer)].handle;
-                sub_mesh->buffer_offsets[DOT_PrimitiveBufferKind_Tangent] = cast(u32)(tangent_accessor->offset + tangent_accessor->buffer_view->offset);
-                sub_mesh->material_data.flags |= DOT_MaterialFeatureBit_TangentVertexAttribute;
-            }else{
-                DOT_TODO("Provide fallback");
+                f32x4 *tangents = PUSH_ARRAY(s.arena, f32x4, vertex_count);
+                cgltf_accessor_unpack_floats(tangent_accessor, cast(f32*)tangents, vertex_count*4);
+                sub_mesh->tangent_addr = dot_model_upload(renderer, tangents, cast(i64)(vertex_count*sizeof(f32x4)));
             }
 
-            if(texcoord0_accessor){
-                sub_mesh->buffer_offsets[DOT_PrimitiveBufferKind_Texcoord] = cast(u32)(texcoord0_accessor->offset + texcoord0_accessor->buffer_view->offset);
-                sub_mesh->buffers[DOT_PrimitiveBufferKind_Texcoord] = scene.buffers[cgltf_buffer_index(gltf_data, texcoord0_accessor->buffer_view->buffer)].handle;
-                sub_mesh->material_data.flags |= DOT_MaterialFeatureBit_TexcoordVertexAttribute;
-            }else{
-                DOT_TODO("Provide fallback");
-            }
-
-            // Bind material buffer
-            RN_BufferDesc desc = {0};
-            desc.buffer_usage_flags = RN_BufferUsageBit_Uniform;
-            desc.resource_usage = RN_ResourceUsageKind_Dynamic;
-            desc.size = sizeof(DOT_MaterialPBR);
-            DOT_DebugNameSet(desc.debug_name, str_comp("material"));
-            RN_BufferHandle material_h = rn_buffer_create(renderer, &desc, NULL).handle;
-            sub_mesh->buffers[DOT_PrimitiveBufferKind_Material] = material_h;
-            rn_shader_resource_desc_bind_buffer(shader_resource, material_h, 1);
+            // Build the material
+            DOT_MaterialGpu mat_gpu = {0};
+            mat_gpu.base_color_factor = v4(1,1,1,1);
+            mat_gpu.metallic_factor   = 1.0f;
+            mat_gpu.roughness_factor  = 1.0f;
+            mat_gpu.occlusion_factor  = 1.0f;
 
             cgltf_material *gltf_material = primitive->material;
-            DOT_ASSERT(gltf_material);
-            sub_mesh->material_data.base_color_factor  = v4(1,1,1,1);
-            sub_mesh->material_data.metallic_factor    = 1.0f;
-            sub_mesh->material_data.roughness_factor   = 1.0f;
-            sub_mesh->material_data.emissive_factor    = v3(0,0,0);
-            sub_mesh->material_data.occlusion_factor   = 1.0f;
-
-            RN_TextureHandle texture = g_rn_null_texture;
-            RN_SamplerHandle sampler = g_rn_null_sampler;
-            if(gltf_material->has_pbr_metallic_roughness){
+            if(gltf_material && gltf_material->has_pbr_metallic_roughness){
                 cgltf_pbr_metallic_roughness *pbr = &gltf_material->pbr_metallic_roughness;
+                mat_gpu.base_color_factor = v4(pbr->base_color_factor[0], pbr->base_color_factor[1],
+                    pbr->base_color_factor[2], pbr->base_color_factor[3]);
+                mat_gpu.metallic_factor  = pbr->metallic_factor;
+                mat_gpu.roughness_factor = pbr->roughness_factor;
 
-                sub_mesh->material_data.base_color_factor = v4(pbr->base_color_factor[0],
-                    pbr->base_color_factor[1],
-                    pbr->base_color_factor[2],
-                    pbr->base_color_factor[3]);
-                sub_mesh->material_data.metallic_factor = pbr->metallic_factor;
-                sub_mesh->material_data.roughness_factor = pbr->roughness_factor;
-
-                if(pbr->base_color_texture.texture){
-                    DOT_ASSERT(pbr->base_color_texture.texture->image);
-                    DOT_ASSERT(pbr->base_color_texture.texture->sampler);
-                    texture = scene.textures[cgltf_image_index(gltf_data, pbr->base_color_texture.texture->image)].handle;
-                    sampler = scene.samplers[cgltf_sampler_index(gltf_data, pbr->base_color_texture.texture->sampler)].handle;
-                    sub_mesh->material_data.flags |= DOT_MaterialFeatureBit_ColorTexture;
+                if(pbr->base_color_texture.texture && pbr->base_color_texture.texture->image){
+                    u32 tex_i = cast(u32)cgltf_image_index(gltf_data, pbr->base_color_texture.texture->image);
+                    mat_gpu.tex_slots[DOT_PBRTextureKind_Diffuse] = texture_slots[tex_i];
+                    if(pbr->base_color_texture.texture->sampler){
+                        u32 samp_i = cast(u32)cgltf_sampler_index(gltf_data, pbr->base_color_texture.texture->sampler);
+                        mat_gpu.sampler_slots[DOT_PBRTextureKind_Diffuse] = sampler_slots[samp_i];
+                    }
+                    mat_gpu.flags |= DOT_MaterialFeatureBit_ColorTexture;
                 }
-                rn_shader_resource_desc_bind_texture_sampler(shader_resource, texture, sampler, 2);
-
-                texture = g_rn_null_texture;
-                sampler = g_rn_null_sampler;
-                if(pbr->metallic_roughness_texture.texture){
-                    DOT_ASSERT(pbr->base_color_texture.texture->image);
-                    texture = scene.textures[cgltf_image_index(gltf_data, pbr->metallic_roughness_texture.texture->image)].handle;
-                    sampler = scene.samplers[cgltf_sampler_index(gltf_data, pbr->metallic_roughness_texture.texture->sampler)].handle;
-                    sub_mesh->material_data.flags |= DOT_MaterialFeatureBit_RoughnessTexture;
+            }
+            if(gltf_material){
+                cgltf_texture_view *emissive_view = &gltf_material->emissive_texture;
+                mat_gpu.emissive_factor = v3(gltf_material->emissive_factor[0], gltf_material->emissive_factor[1], gltf_material->emissive_factor[2]);
+                if(emissive_view->texture && emissive_view->texture->image){
+                    u32 tex_i = cast(u32)cgltf_image_index(gltf_data, emissive_view->texture->image);
+                    mat_gpu.tex_slots[DOT_PBRTextureKind_Emissive] = texture_slots[tex_i];
+                    if(emissive_view->texture->sampler){
+                        u32 samp_i = cast(u32)cgltf_sampler_index(gltf_data, emissive_view->texture->sampler);
+                        mat_gpu.sampler_slots[DOT_PBRTextureKind_Emissive] = sampler_slots[samp_i];
+                    }
+                    mat_gpu.flags |= DOT_MaterialFeatureBit_EmissiveTexture;
                 }
-                rn_shader_resource_desc_bind_texture_sampler(shader_resource, texture, sampler, 3);
 
-                sub_mesh->material_data.metallic_factor    = pbr->metallic_factor;
-                sub_mesh->material_data.roughness_factor   = pbr->roughness_factor;
+                cgltf_texture_view *occlusion_view = &gltf_material->occlusion_texture;
+                if(occlusion_view->texture && occlusion_view->texture->image){
+                    u32 tex_i = cast(u32)cgltf_image_index(gltf_data, occlusion_view->texture->image);
+                    mat_gpu.tex_slots[DOT_PBRTextureKind_Occlusion] = texture_slots[tex_i];
+                    if(occlusion_view->texture->sampler){
+                        u32 samp_i = cast(u32)cgltf_sampler_index(gltf_data, occlusion_view->texture->sampler);
+                        mat_gpu.sampler_slots[DOT_PBRTextureKind_Occlusion] = sampler_slots[samp_i];
+                    }
+                    mat_gpu.occlusion_factor = occlusion_view->scale;
+                    mat_gpu.flags |= DOT_MaterialFeatureBit_OcclusionTexture;
+                }
+
+                cgltf_texture_view *normal_view = &gltf_material->normal_texture;
+                if(normal_view->texture && normal_view->texture->image){
+                    u32 tex_i = cast(u32)cgltf_image_index(gltf_data, normal_view->texture->image);
+                    mat_gpu.tex_slots[DOT_PBRTextureKind_Normal] = texture_slots[tex_i];
+                    if(normal_view->texture->sampler){
+                        u32 samp_i = cast(u32)cgltf_sampler_index(gltf_data, normal_view->texture->sampler);
+                        mat_gpu.sampler_slots[DOT_PBRTextureKind_Normal] = sampler_slots[samp_i];
+                    }
+                    mat_gpu.flags |= DOT_MaterialFeatureBit_NormalTexture;
+                }
             }
 
-            texture = g_rn_null_texture;
-            sampler = g_rn_null_sampler;
-            cgltf_texture_view *occlusion_view = &gltf_material->occlusion_texture;
-            if(occlusion_view->texture && occlusion_view->texture->image){
-                texture = scene.textures[cgltf_image_index(gltf_data, occlusion_view->texture->image)].handle;
-                sampler = scene.samplers[cgltf_sampler_index(gltf_data, occlusion_view->texture->sampler)].handle;
-
-                sub_mesh->material_data.occlusion_factor = occlusion_view->scale; // always valid (default = 1.0f)
-                sub_mesh->material_data.flags |= DOT_MaterialFeatureBit_OcclusionTexture;
-            }
-            rn_shader_resource_desc_bind_texture_sampler(shader_resource, texture, sampler, 4);
-
-            texture = g_rn_null_texture;
-            sampler = g_rn_null_sampler;
-            cgltf_texture_view *emissive_view = &gltf_material->emissive_texture;
-            if(emissive_view->texture && occlusion_view->texture->image){
-                texture = scene.textures[cgltf_image_index(gltf_data, emissive_view->texture->image)].handle;
-                sampler = scene.samplers[cgltf_sampler_index(gltf_data, emissive_view->texture->sampler)].handle;
-                sub_mesh->material_data.emissive_factor = v3(gltf_material->emissive_factor[0], gltf_material->emissive_factor[1], gltf_material->emissive_factor[2]); // always valid (default = 1.0f)
-                sub_mesh->material_data.flags |= DOT_MaterialFeatureBit_EmissiveTexture;
-            }
-            rn_shader_resource_desc_bind_texture_sampler(shader_resource, texture, sampler, 5);
-
-            texture = g_rn_null_texture;
-            sampler = g_rn_null_sampler;
-            cgltf_texture_view *normal_view = &gltf_material->normal_texture;
-            if(normal_view->texture && normal_view->texture->image){
-                texture = scene.textures[cgltf_image_index(gltf_data, normal_view->texture->image)].handle;
-                sampler = scene.samplers[cgltf_sampler_index(gltf_data, normal_view->texture->sampler)].handle;
-                sub_mesh->material_data.flags |= DOT_MaterialFeatureBit_NormalTexture;
-            }
-            rn_shader_resource_desc_bind_texture_sampler(shader_resource, texture, sampler, 6);
-
-            rn_shader_resource_create(renderer, shader_resource);
-            scene.sub_mesh_draw_count += 1;
+            sub_mesh->material_addr = dot_model_upload(renderer, &mat_gpu, sizeof(mat_gpu));
+            model.sub_mesh_draw_count += 1;
         }
     }
 
-    threadctx_temp_end(temp);
-    return(scene);
+    rn_upload_end(renderer);
+
+    scratch_end(s);
+    return(model);
 }
 
 internal cgltf_data *
@@ -297,16 +265,24 @@ dot_gltf_load_from_path(Arena *arena, String8 path)
 	return(gltf_data);
 }
 
-internal DOT_Scene
-dot_scene_load_from_path(RN_RenderCtx *renderer, String8 path)
+internal DOT_Model
+dot_model_load_from_path(RN_RenderCtx *renderer, String8 path)
 {
-    TempArena temp = threadctx_temp_begin(0,0);
-    cgltf_data *gltf = dot_gltf_load_from_path(temp.arena, path);
-    DOT_Scene scene = {0};
+    Scratch s = scratch_begin(0,0);
+    cgltf_data *gltf = dot_gltf_load_from_path(s.arena, path);
+    DOT_Model model = {0};
     if(gltf){
-        scene = dot_scene_from_gltf(renderer, gltf, path);
+        model = dot_model_from_gltf(renderer, gltf, path);
         // cgltf_free(gltf);
     }
-    threadctx_temp_end(temp);
-	return(scene);
+    scratch_end(s);
+	return(model);
+}
+
+internal void
+dot_model_destroy(RN_RenderCtx *renderer, DOT_Model *model)
+{
+    for EACH_INDEX(i, model->texture_count){
+        rn_texture_destroy(renderer, model->textures[i]);
+    }
 }

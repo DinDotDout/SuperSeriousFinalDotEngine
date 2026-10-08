@@ -13,20 +13,23 @@ internal void   threadctx_destroy();
 internal u32    threadctx_id();
 
 //////////////////////////////////////////////////////////
-// This is supposed to be restored with threadctx_temp_end before function exit.
+// This is supposed to be restored with scratch_end before function exit.
 // avoid is a list of arenas we want to compare the thread arenas to in case
 // our function recieves a temp as parameter.
-//
-// SLICE_ARENA_LIT has been added to just be able to do something like:
-// threadctx_temp_begin(SLICE_ARENA_LIT(a, a2, a3));
-// for the base cases of 0 we can just pass in NULL or 0 threadctx_temp_begin(0,0)
-internal TempArena  threadctx_temp_begin(u32 count, Arena *avoid_arenas[]);
-internal void       threadctx_temp_end(TempArena temp);
 
-// TODO: Implement actual threading constructs
-typedef struct ThreadCtxMutex{
-    u64 h[1];
-}ThreadCtxMutex;
+typedef TempArena Scratch;
+internal Scratch    scratch_begin(u32 count, Arena *avoid_arenas[]);
+internal void       scratch_end(TempArena temp);
 
-#define MUTEX_SCOPE(mutex) DEFER_LOOP(mutex_Lock(mutex), mutex_unlock(mutex))
+// Opaque storage for pthread_mutex_t / SRWLOCK, implemented in os_linux.c / os_windows.c.
+typedef struct Mutex{
+    u64 h[8];
+}Mutex;
+
+internal void mutex_init(Mutex *mutex);
+internal void mutex_release(Mutex *mutex);
+internal void mutex_lock(Mutex *mutex);
+internal void mutex_unlock(Mutex *mutex);
+
+#define MUTEX_SCOPE(mutex) DEFER_LOOP(mutex_lock(mutex), mutex_unlock(mutex))
 #endif // !THREAD_CTX_H

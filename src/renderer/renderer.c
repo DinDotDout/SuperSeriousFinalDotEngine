@@ -1,146 +1,364 @@
-DOT_SETTING_U32("Render", g_rn_transient_memory_size_b, DOT_MB(80));
-DOT_SETTING_U32("Render", g_rn_permanent_memory_size_b, DOT_MB(80));
-DOT_SETTING_U32("Render", g_frame_arena_size_b, DOT_KB(32));
-DOT_SETTING_U32("Render", g_cleanup_resource_pool_max, 128);
+DOT_SETTING_U32("Render", rn_gtransient_memory_size_b, DOT_MB(80));
+DOT_SETTING_U32("Render", rn_gpermanent_memory_size_b, DOT_MB(80));
+DOT_SETTING_U32("Render", rn_g_frame_arena_size_b, DOT_KB(32));
+DOT_SETTING_U32("Render", rn_g_cleanup_resource_pool_max, 128);
+DOT_SETTING_U32("Render", rn_g_texture_heap_size_b, DOT_MB(512));
+DOT_SETTING_U32("Render", rn_g_data_heap_size_b, DOT_MB(64));
+DOT_SETTING_U32("Render", rn_g_frame_heap_size_b, DOT_MB(4));   // per frame in flight
+DOT_SETTING_U32("Render", rn_g_upload_heap_size_b, DOT_MB(32)); // per frame in flight
+DOT_SETTING_U32("Render", rn_g_delete_queue_capacity, 256);
+DOT_SETTING_U32("Render", rn_g_texture_descriptor_max, 16384);
+DOT_SETTING_U32("Render", rn_g_sampler_descriptor_max, 32);
 
-DOT_SETTING_U32("Render", g_frame_overlap, 3);
-DOT_SETTING_U32("Render", g_thread_count, 1);
+DOT_SETTING_U32("RenderDevice", rn_g_device_kind, RB_DeviceKind_Auto);
+DOT_SETTING_U32("RenderDevice", rn_g_device_permanent_memory_size_b, DOT_MB(4));
+DOT_SETTING_U32("RenderDevice", rn_g_device_transient_memory_size_b, DOT_KB(512));
+DOT_SETTING_U32("RenderDevice", rn_g_timestamp_query_max, 64); // Per command buffer; 0 disables rb_write_timestamp
+DOT_SETTING_U32("RenderDevice", rn_g_frame_overlap, 3);
+DOT_SETTING_U32("RenderDevice", rn_g_swapchain_format, RB_FormatKind_RGBA8_SRGB);
+DOT_SETTING_U32("RenderDevice", rn_g_depth_stencil_format, RB_FormatKind_D32_FLOAT);
+DOT_SETTING_U32("RenderDevice", rn_g_present_mode, RB_PresentModeKind_Mailbox);
 
-DOT_SETTING_U32("Render", g_draw_texture_format, RN_TextureFormatKind_RGBA16F);
-DOT_SETTING_U32("Render", g_swapchaing_texture_format, RN_TextureFormatKind_RGBA8_SRGB);
-// DOT_SETTING_U32("Render", g_depth_stencil_format, RN_TextureFormatKind_D32F_S8_UINT);
-DOT_SETTING_U32("Render", g_depth_stencil_format, RN_TextureFormatKind_D32_SFLOAT);
-DOT_SETTING_U32("Render", g_present_mode, RN_PresentModeKind_Mailbox);
+DOT_SETTING_U32("ShaderCache", rn_g_shader_cache_bucket_count, 64);
+DOT_SETTING_U32("Shader", rn_g_shader_optimization_level, RN_ShaderOptimizationLevel_None);
+DOT_SETTING_U32("Shader", rn_g_shader_debug_info_level, RN_ShaderDebugInfoLevel_Standard);
+DOT_SETTING_U32("Shader", rn_g_shader_floating_point_mode, RN_ShaderFloatingPointMode_Default);
+DOT_SETTING_BOOL("Shader", rn_g_shader_warnings_as_errors, false);
 
-DOT_SETTING_U32("RenderBackend", g_render_backend_transient_memory_size_b, DOT_KB(512));
-DOT_SETTING_U32("RenderBackend", g_render_backend_permanent_memory_size_b, DOT_MB(4));
-
-DOT_SETTING_U32("RenderBackend", rn_g_texture_max, 512);
-DOT_SETTING_U32("RenderBackend", rn_g_buffer_max, 4096);
-DOT_SETTING_U32("RenderBackend", rn_g_sampler_max, 128);
-DOT_SETTING_U32("RenderBackend", rn_g_shader_resource_layout_max, 128);
-DOT_SETTING_U32("RenderBackend", rn_g_shader_resource_max, 128);
-DOT_SETTING_U32("RenderBackend", rn_g_shader_state_resource_max, 128);
-DOT_SETTING_U32("RenderBackend", rn_g_pipeline_max, 128);
-
-DOT_SETTING_U32("RenderBackend", g_command_buffers_per_thread, 4);
-
-DOT_SETTING_U32("ShaderCache", g_shader_cache_bucket_count, 64);
-
-#if defined(DOT_RENDER_BACKEND_ONLY_DX12)
-#   if DOT_OS_POSIX
-#       error Unavaliable backend on linux!
-#   endif
-    DOT_SETTING_U32("RenderBackend", g_backend_kind, RN_BackendKind_Dx12);
-#elif defined(DOT_RENDER_BACKEND_ONLY_VK)
-    DOT_SETTING_U32("RenderBackend", g_backend_kind, RN_BackendKind_Vk);
-#else
-    DOT_SETTING_U32("RenderBackend", g_backend_kind, RN_BackendKind_Auto);
-#endif
-
-internal RN_BackendCtx *
-rn_backend_create(Arena *arena)
-{
-    switch(g_backend_kind){
-    case RN_BackendKind_Null: return cast(RN_BackendCtx*) rn_null_create(arena);
-    case RN_BackendKind_Vk:   return cast(RN_BackendCtx*) rn_vk_create(arena);
-    case RN_BackendKind_Dx12: //base = cast(RN_BackendCtx*) rn_renderer_dx12_create(arena); break;
-    default: DOT_ERROR("Unsupported render backend");
-    }
-}
+internal u32     rn_frame_slot(RN_RenderCtx *renderer);
+internal void    rn_upload_texture(RN_RenderCtx *renderer, RB_Texture dst, void *src, i64 size, RB_TextureCopyDesc copy);
+internal String8 rn_shader_spirv_get_or_compile(RN_RenderCtx *renderer, RB_ShaderStageKind stage_kind, String8 path);
+internal void    rn_depth_target_resize(RN_RenderCtx *renderer);
+internal void    rn_depth_target_destroy(RN_RenderCtx *renderer);
+internal void    rn_resource_cleanup_list_push_texture(RN_RenderCtx *renderer, RB_Texture texture_id);
+internal void    rn_resource_cleanup_list_remove_texture(RN_RenderCtx *renderer, RB_Texture texture_id);
+internal void    rn_resource_cleanup_list_pop_all(RN_RenderCtx *renderer);
 
 internal void
-rn_init(Arena *arena, RN_RenderCtx *renderer, DOT_Window *window)
+rn_init(Arena *arena, RN_RenderCtx *renderer, PlatformNativeWindow native_window)
 {
     renderer->permanent_arena = ARENA_CREATE(
         .parent       = arena,
-        .reserve_size = g_rn_permanent_memory_size_b,
+        .reserve_size = rn_gpermanent_memory_size_b,
         .name         = "Application render permanent");
 
     renderer->transient_arena = ARENA_CREATE(
         .parent       = arena,
-        .reserve_size = g_rn_transient_memory_size_b,
+        .reserve_size = rn_gtransient_memory_size_b,
         .name         = "Application renderer transient");
 
-    TREE_INIT(renderer->permanent_arena, RN_ResourceCleanupCtx, &renderer->cleanup_tree, g_cleanup_resource_pool_max);
-    hash_map_RN_ShaderCachedData_init(renderer->permanent_arena, &renderer->shader_cache, g_shader_cache_bucket_count);
+    TREE_INIT(renderer->permanent_arena, RN_ResourceCleanupCtx, &renderer->cleanup_tree, rn_g_cleanup_resource_pool_max);
+    hm_init_string8(renderer->permanent_arena, &renderer->shader_cache, rn_g_shader_cache_bucket_count);
 
-    renderer->backend = rn_backend_create(renderer->permanent_arena);
-    renderer->frame_data_count = g_frame_overlap;
-    renderer->frame_datas    = PUSH_ARRAY(renderer->permanent_arena, FrameData, renderer->frame_data_count);
+    renderer->frame_data_count = rn_g_frame_overlap;
+    renderer->frame_datas    = PUSH_ARRAY(renderer->permanent_arena, RN_FrameData, renderer->frame_data_count);
     for(u8 i = 0; i < renderer->frame_data_count; ++i){
         renderer->frame_datas[i].temp_arena = ARENA_CREATE(
             .parent       = renderer->permanent_arena,
-            .reserve_size = g_frame_arena_size_b);
+            .reserve_size = rn_g_frame_arena_size_b);
     }
-    RENDER_BACKEND_CALL(init(window));
-    RN_TextureDesc null_texture_desc = {0};
+
+    RB_DeviceDesc device_desc = {
+        .permanent_memory_size = rn_g_device_permanent_memory_size_b,
+        .transient_memory_size = rn_g_device_transient_memory_size_b,
+        .timestamp_query_max   = rn_g_timestamp_query_max,
+        .frame_overlap         = rn_g_frame_overlap,
+        .swapchain_format      = cast(RB_FormatKind) rn_g_swapchain_format,
+        .present_mode          = cast(RB_PresentModeKind) rn_g_present_mode,
+    };
+    rb_begin(cast(RB_DeviceKind) rn_g_device_kind, renderer->permanent_arena, native_window, &device_desc);
+
+    RB_DeviceInfo device_info = rb_device_info();
+    DOT_PRINT("Render device: %s (%s)", &device_info.name, device_info.has_integrated_gpu ? "integrated" : "discrete");
+    renderer->swapchain_format = device_info.swapchain_format;
+    renderer->depth_format     = cast(RB_FormatKind) rn_g_depth_stencil_format;
+
+    renderer->texture_heap = rb_texture_heap_arena_create(rn_g_texture_heap_size_b);
+    renderer->data_heap    = rb_gpu_arena_create(rn_g_data_heap_size_b);
+    for EACH_INDEX(i, renderer->frame_data_count){
+        renderer->frame_datas[i].frame_heap  = rb_cpu_gpu_arena_create(rn_g_frame_heap_size_b);
+        renderer->frame_datas[i].upload_heap = rb_cpu_gpu_arena_create(rn_g_upload_heap_size_b);
+        renderer->frame_datas[i].frame_pool  = rb_command_pool_create();
+        renderer->frame_datas[i].upload_pool = rb_command_pool_create();
+    }
+    mutex_init(&renderer->upload_mutex);
+    renderer->upload_timeline = rb_timeline_create(0);
+    renderer->frame_timeline  = rb_timeline_create(0);
+    renderer->delete_queue    = rb_delete_queue_create(renderer->permanent_arena, renderer->frame_timeline, rn_g_delete_queue_capacity);
+    renderer->texture_descriptor_heap = rb_gpu_heap_create(RB_MemoryKind_TextureDescriptorHeap, cast(i64)(rn_g_texture_descriptor_max * device_info.texture_descriptor_size));
+    renderer->sampler_descriptor_heap = rb_gpu_heap_create(RB_MemoryKind_SamplerDescriptorHeap, cast(i64)(rn_g_sampler_descriptor_max * device_info.sampler_descriptor_size));
+    renderer->sampler_slot_descs      = PUSH_ARRAY(renderer->permanent_arena, RB_SamplerDesc, rn_g_sampler_descriptor_max);
+
+    RB_TextureDesc null_texture_desc = {0};
     null_texture_desc.width = 1;
     null_texture_desc.height = 1;
     null_texture_desc.depth = 1;
+    null_texture_desc.array_layers = 1;
     null_texture_desc.mip_levels = 1;
-    null_texture_desc.format_kind = RN_TextureFormatKind_RGBA8_UNORM;
-    null_texture_desc.dimension_kind = RN_TextureDimensionKind_2D;
-    g_rn_null_texture = rn_texture_create_h(renderer, &null_texture_desc , (u8[]){0,0,0,0}, NULL);
-
-    RN_SamplerDesc null_sampler_desc = {0};
-    null_sampler_desc.min_filter = RN_SamplerFilterKind_Linear;
-    null_sampler_desc.mag_filter = RN_SamplerFilterKind_Linear;
-    null_sampler_desc.address_mode_u = RN_SamplerAddressModeKind_Repeat;
-    null_sampler_desc.address_mode_v = RN_SamplerAddressModeKind_Repeat;
-    g_rn_null_sampler = rn_sampler_create_h(renderer, &null_sampler_desc);
-
-    vec4 data[3] = {0};
-    RN_BufferDesc null_buffer_desc = {0};
-    null_buffer_desc.size = sizeof(data);
-    null_buffer_desc.buffer_usage_flags = RN_BufferUsageBit_Vertex;
-    DOT_DebugNameSet(null_buffer_desc.debug_name, str_comp("dummy attribute"));
-    g_rn_null_buffer = rn_buffer_create_h(renderer, &null_buffer_desc, data);
+    null_texture_desc.format_kind = RB_FormatKind_RGBA8_UNORM;
+    null_texture_desc.dimension_kind = RB_TextureDimensionKind_2D;
+    renderer->null_texture = rn_texture_create(renderer, &null_texture_desc , (u8[]){0,0,0,0}, NULL);
 }
 
 internal void
 rn_shutdown(RN_RenderCtx *renderer)
 {
-    HashMap_RN_ShaderCachedData *shader_cache = &renderer->shader_cache;
-    HashMap_Iter it = hash_map_iter_init();
-    RN_ShaderCachedData *shader_stage = NULL;
-    while((shader_stage = hash_map_RN_ShaderCachedData_iter_next(shader_cache, &it))){
-        RN_ShaderStageHandle h = shader_stage->shader_stage_handle;
-        RENDER_BACKEND_CALL(shader_unload(h));
-    }
-    hash_map_RN_ShaderCachedData_end(shader_cache);
+    rb_wait_idle();
+    rn_depth_target_destroy(renderer);
     rn_resource_cleanup_list_pop_all(renderer);
-    RENDER_BACKEND_CALL(shutdown());
+    rb_delete_queue_drain(&renderer->delete_queue);
+    rb_texture_destroy(renderer->null_texture);
+
+    for EACH_INDEX(i, renderer->frame_data_count){
+        rb_cpu_gpu_arena_destroy(&renderer->frame_datas[i].frame_heap);
+        rb_cpu_gpu_arena_destroy(&renderer->frame_datas[i].upload_heap);
+        rb_command_pool_destroy(renderer->frame_datas[i].frame_pool);
+        rb_command_pool_destroy(renderer->frame_datas[i].upload_pool);
+    }
+    rb_gpu_arena_destroy(&renderer->data_heap);
+    rb_gpu_heap_destroy(renderer->texture_descriptor_heap);
+    rb_gpu_heap_destroy(renderer->sampler_descriptor_heap);
+    mutex_release(&renderer->upload_mutex);
+    rb_texture_heap_arena_destroy(&renderer->texture_heap);
+    rb_timeline_destroy(renderer->upload_timeline);
+    rb_timeline_destroy(renderer->frame_timeline);
+    rb_end();
+}
+
+// The next frame submit: the last one that can reference the resource.
+internal u64
+rn_retire_value(RN_RenderCtx *renderer)
+{
+    return(renderer->frame_value + 1);
 }
 
 void
-rn_texture_destroy(RN_RenderCtx *renderer, RN_TextureHandle handle)
+rn_texture_destroy(RN_RenderCtx *renderer, RB_Texture handle)
 {
-    RENDER_BACKEND_CALL(texture_destroy(handle));
+    if(handle.h == renderer->null_texture.h){ return; } // failed loads fall back to it
+    rn_resource_cleanup_list_remove_texture(renderer, handle);
+    rb_delete_queue_defer_texture(&renderer->delete_queue, rn_retire_value(renderer), handle);
 }
 
-void
-rn_buffer_destroy(RN_RenderCtx *renderer, RN_BufferHandle handle)
+DOT_ENGINE_API void
+rn_pipeline_destroy(RN_RenderCtx *renderer, RB_Pipeline handle)
 {
-    RENDER_BACKEND_CALL(buffer_destroy(handle));
+    rb_delete_queue_defer_pipeline(&renderer->delete_queue, rn_retire_value(renderer), handle);
 }
 
-void
-rn_sampler_destroy(RN_RenderCtx *renderer, RN_SamplerHandle handle)
+internal void
+rn_depth_target_destroy(RN_RenderCtx *renderer)
 {
-    RENDER_BACKEND_CALL(sampler_destroy(handle));
+    if(!RB_HANDLE_VALID(renderer->depth_view)){ return; }
+    rb_delete_queue_defer_render_view(&renderer->delete_queue, rn_retire_value(renderer), renderer->depth_view);
+    rb_delete_queue_defer_texture(&renderer->delete_queue, rn_retire_value(renderer), renderer->depth_texture);
+    renderer->depth_view    = (RB_RenderView){0};
+    renderer->depth_texture = (RB_Texture){0};
+    renderer->depth_extent  = (i32x2){0};
 }
 
-internal RN_TextureHandle
-rn_texture_create_h(RN_RenderCtx *renderer, RN_TextureDesc *texture_desc, void *data, RN_TextureHandle *fallback)
+internal void
+rn_depth_target_resize(RN_RenderCtx *renderer)
 {
-    RN_TextureHandle h = RENDER_BACKEND_CALL(texture_create(texture_desc, data, fallback));
-    rn_resource_cleanup_list_push_texture(renderer, h);
+    i32x2 extent = renderer->current_extent;
+    if(RB_HANDLE_VALID(renderer->depth_view) && extent.x == renderer->depth_extent.x && extent.y == renderer->depth_extent.y){
+        return;
+    }
+    rn_depth_target_destroy(renderer);
+
+    RB_TextureDesc desc = {0};
+    desc.dimension_kind = RB_TextureDimensionKind_2D;
+    desc.format_kind    = renderer->depth_format;
+    desc.width          = cast(u16) extent.x;
+    desc.height         = cast(u16) extent.y;
+    desc.depth          = 1;
+    desc.array_layers   = 1;
+    desc.mip_levels     = 1;
+    desc.debug_name     = str_comp("Depth");
+
+    renderer->depth_texture = rb_texture_create(renderer->current_cmd, &desc, (RB_TextureHeap){0}, 0);
+    renderer->depth_view    = rb_render_view_create(renderer->depth_texture, (RB_RenderViewDesc){0});
+    renderer->depth_extent  = extent;
+}
+
+internal u32
+rn_frame_slot(RN_RenderCtx *renderer)
+{
+    return(cast(u32)(renderer->frame_value % renderer->frame_data_count));
+}
+
+internal RB_GpuRange
+rn_frame_push_(RN_RenderCtx *renderer, void *data, i64 size)
+{
+    RB_GpuRange range = rb_cpu_gpu_arena_push_atomic_(&renderer->frame_datas[rn_frame_slot(renderer)].frame_heap, data, size);
+    DOT_ASSERT(range.gpu, "Frame heap exhausted (%llu bytes requested)", size);
+    return(range);
+}
+
+internal RB_GpuAddress
+rn_data_alloc(RN_RenderCtx *renderer, i64 size)
+{
+    RB_GpuRange range = rb_gpu_arena_alloc_atomic(&renderer->data_heap, size);
+    DOT_ASSERT(range.gpu, "Data heap exhausted (%llu bytes requested)", size);
+    return(range.gpu);
+}
+
+internal void
+rn_upload_begin(RN_RenderCtx *renderer)
+{
+    mutex_lock(&renderer->upload_mutex);
+    renderer->upload_cmd = rb_commands_begin(renderer->frame_datas[rn_frame_slot(renderer)].upload_pool);
+}
+
+internal RB_TimelinePoint
+rn_upload_submit_(RN_RenderCtx *renderer)
+{
+    rb_barrier(renderer->upload_cmd,
+        RB_StageBit_Transfer,    RB_AccessBit_TransferWrite,
+        RB_StageBit_AllCommands, RB_AccessBit_ShaderRead | RB_AccessBit_IndexRead | RB_AccessBit_IndirectRead);
+    renderer->upload_value += 1;
+    RB_TimelinePoint completion = { renderer->upload_timeline, renderer->upload_value };
+    rb_submit(&(RB_SubmitDesc){ .command_buffers = &renderer->upload_cmd, .command_buffer_count = 1, .completion = completion });
+    renderer->frame_datas[rn_frame_slot(renderer)].last_submit = completion;
+    return(completion);
+}
+
+// A full staging heap flushes the batch so far, waits for it, and continues in a new command buffer.
+internal RB_GpuRange
+rn_upload_stage_(RN_RenderCtx *renderer, void *src, i64 size)
+{
+    RN_FrameData *frame_data = &renderer->frame_datas[rn_frame_slot(renderer)];
+    RB_CpuGpuArena *heap = &frame_data->upload_heap;
+    DOT_ASSERT(size <= heap->size, "Upload of %M bytes exceeds the upload heap", size);
+    if(!rb_cpu_gpu_arena_fits(heap, size)){
+        rb_timeline_wait(rn_upload_submit_(renderer));
+        rb_cpu_gpu_arena_reset(heap);
+        renderer->upload_cmd = rb_commands_begin(frame_data->upload_pool);
+    }
+    return(rb_cpu_gpu_arena_push_atomic_(heap, src, size));
+}
+
+internal void
+rn_upload_memory(RN_RenderCtx *renderer, RB_GpuAddress dst, void *src, i64 size)
+{
+    RB_GpuRange staging = rn_upload_stage_(renderer, src, size);
+    rb_copy_memory(renderer->upload_cmd, staging, (RB_GpuRange){ dst, size });
+}
+
+internal void
+rn_upload_texture(RN_RenderCtx *renderer, RB_Texture dst, void *src, i64 size, RB_TextureCopyDesc copy)
+{
+    RB_GpuRange staging = rn_upload_stage_(renderer, src, size);
+    rb_copy_memory_to_texture(renderer->upload_cmd, staging, dst, copy);
+}
+
+internal RB_TimelinePoint
+rn_upload_end(RN_RenderCtx *renderer)
+{
+    RB_TimelinePoint completion = rn_upload_submit_(renderer);
+    renderer->upload_cmd = (RB_CommandBuffer){0};
+    mutex_unlock(&renderer->upload_mutex);
+    return(completion);
+}
+
+internal RB_Texture
+rn_texture_create(RN_RenderCtx *renderer, RB_TextureDesc *texture_desc, void *data, RB_Texture *fallback)
+{
+    RB_SizeAlign size_align = rb_texture_size_align(texture_desc);
+    i64 offset = rb_texture_heap_arena_place(&renderer->texture_heap, size_align);
+
+    rn_upload_begin(renderer);
+    RB_Texture h = rb_texture_create(renderer->upload_cmd, texture_desc, renderer->texture_heap.heap, offset);
+    if(RB_HANDLE_VALID(h)){
+        rn_resource_cleanup_list_push_texture(renderer, h);
+        if(data){
+            const RB_TextureFormatInfo format_info = rb_texture_format_info_from_format(texture_desc->format_kind);
+            u8 *src = cast(u8*)data;
+            u32 mip_count = DOT_MAX(texture_desc->mip_levels, 1);
+            for(u32 slice = 0; slice < texture_desc->array_layers; ++slice){
+                for(u32 mip = 0; mip < mip_count; ++mip){
+                    i64 mip_w = DOT_MAX(texture_desc->width  >> mip, 1);
+                    i64 mip_h = DOT_MAX(texture_desc->height >> mip, 1);
+                    i64 mip_d = DOT_MAX(texture_desc->depth  >> mip, 1);
+                    i64 mip_bytes = format_info.block_size * mip_w * mip_h * mip_d;
+                    rn_upload_texture(renderer, h, src, mip_bytes, (RB_TextureCopyDesc){ .slice = slice, .mip_level = mip });
+                    src += mip_bytes;
+                }
+            }
+        }
+    }
+    rn_upload_end(renderer);
+
+    if(!RB_HANDLE_VALID(h)){
+        DOT_ASSERT(fallback, "couldn't allocate texture and no fallback given");
+        return(*fallback);
+    }
     return(h);
 }
 
 // (jd) NOTE: Renderer shouldn't be doing the loading
-RN_Texture
+internal f32
+rn_mip_texel_read_(u8 *texel, u8 size_bytes)
+{
+    switch(size_bytes){
+    case 1:  return(cast(f32) *texel);
+    case 2:  return(cast(f32) *cast(u16*)texel);
+    default: return(*cast(f32*)texel);
+    }
+}
+
+internal void
+rn_mip_texel_write_(u8 *texel, u8 size_bytes, f32 value)
+{
+    switch(size_bytes){
+    case 1:  *texel           = cast(u8)(value + 0.5f);  break;
+    case 2:  *cast(u16*)texel = cast(u16)(value + 0.5f); break;
+    default: *cast(f32*)texel = value;                   break;
+    }
+}
+
+internal void *
+rn_mip_chain_build(Arena *arena, void *mip0, int width, int height, int comp, u8 size_bytes, u8 mip_levels)
+{
+    i64 texel_bytes = cast(i64) comp * size_bytes;
+    i64 total = 0;
+    for(u8 mip = 0; mip < mip_levels; ++mip){
+        total += texel_bytes * DOT_MAX(width >> mip, 1) * DOT_MAX(height >> mip, 1);
+    }
+    u8 *chain = PUSH_ARRAY(arena, u8, cast(u64) total);
+    MEMORY_COPY(chain, mip0, cast(u64)(texel_bytes * width * height));
+
+    u8 *src = chain;
+    int src_w = width;
+    int src_h = height;
+    for(u8 mip = 1; mip < mip_levels; ++mip){
+        int dst_w = DOT_MAX(src_w / 2, 1);
+        int dst_h = DOT_MAX(src_h / 2, 1);
+        u8 *dst = src + texel_bytes * src_w * src_h;
+        for(int y = 0; y < dst_h; ++y){
+            int y0 = DOT_MIN(y * 2, src_h - 1);
+            int y1 = DOT_MIN(y * 2 + 1, src_h - 1);
+            for(int x = 0; x < dst_w; ++x){
+                int x0 = DOT_MIN(x * 2, src_w - 1);
+                int x1 = DOT_MIN(x * 2 + 1, src_w - 1);
+                for(int c = 0; c < comp; ++c){
+                    i64 component = cast(i64) c * size_bytes;
+                    f32 sum = rn_mip_texel_read_(src + (cast(i64) y0 * src_w + x0) * texel_bytes + component, size_bytes)
+                            + rn_mip_texel_read_(src + (cast(i64) y0 * src_w + x1) * texel_bytes + component, size_bytes)
+                            + rn_mip_texel_read_(src + (cast(i64) y1 * src_w + x0) * texel_bytes + component, size_bytes)
+                            + rn_mip_texel_read_(src + (cast(i64) y1 * src_w + x1) * texel_bytes + component, size_bytes);
+                    rn_mip_texel_write_(dst + (cast(i64) y * dst_w + x) * texel_bytes + component, size_bytes, sum * 0.25f);
+                }
+            }
+        }
+        src   = dst;
+        src_w = dst_w;
+        src_h = dst_h;
+    }
+    return(chain);
+}
+
+RN_BindlessTexture
 rn_texture_load_from_path(RN_RenderCtx *renderer, String8 name, String8 path, u8 mip_levels)
 {
     DOT_PRINT("Creating texture with name %S, from path %S: ", name, path);
@@ -180,154 +398,172 @@ rn_texture_load_from_path(RN_RenderCtx *renderer, String8 name, String8 path, u8
         }
     }
 
-    RN_Texture res = {0};
-    res.desc.dimension_kind = RN_TextureDimensionKind_2D;
-    res.desc.format_kind    = rn_texture_format_from_info(comp, size_bytes, true);
-    res.desc.mip_levels     = mip_levels;
-    res.desc.width          = cast(u16)width;
-    res.desc.height         = cast(u16)height;
-    res.desc.depth          = 1;
+    if(data && mip_levels > 1){
+        data = rn_mip_chain_build(temp.arena, data, width, height, comp, size_bytes, mip_levels);
+    }
 
-    res.handle              = rn_texture_create_h(renderer, &res.desc, data, &g_rn_null_texture);
+    RB_TextureDesc desc = {0};
+    desc.dimension_kind = RB_TextureDimensionKind_2D;
+    desc.format_kind    = rb_texture_format_from_info(comp, size_bytes, true);
+    desc.mip_levels     = mip_levels;
+    desc.width          = cast(u16)width;
+    desc.height         = cast(u16)height;
+    desc.depth          = 1;
+    desc.array_layers   = 1;
+    desc.debug_name     = name;
+
+    RN_BindlessTexture result = rn_texture_create_bindless(renderer, &desc, data);
+
     stbi_allocator_unset();
     temp_arena_restore(temp);
-    return res;
+    return(result);
 }
 
-internal RN_SamplerHandle
-rn_sampler_create_h(RN_RenderCtx *renderer, RN_SamplerDesc *sampler_desc)
+internal RN_BindlessTexture
+rn_texture_create_bindless(RN_RenderCtx *renderer, RB_TextureDesc *desc, void *data)
 {
-    RN_SamplerHandle h = RENDER_BACKEND_CALL(sampler_create(sampler_desc));
-    rn_resource_cleanup_list_push_sampler(renderer, h);
-    return(h);
+    RN_BindlessTexture result = {0};
+    result.handle = rn_texture_create(renderer, desc, data, &renderer->null_texture);
+
+    DOT_ASSERT(renderer->next_texture_slot < rn_g_texture_descriptor_max, "Out of texture descriptor slots (%u)", rn_g_texture_descriptor_max);
+    result.bindless_slot = renderer->next_texture_slot++;
+    rb_texture_descriptor_write(renderer->texture_descriptor_heap, result.bindless_slot, result.handle, RB_TextureDescriptorKind_Sampled);
+    return(result);
 }
 
-internal RN_Sampler
-rn_sampler_create(RN_RenderCtx *renderer, RN_SamplerDesc *sampler_desc)
+internal b32
+rn_sampler_desc_match(RB_SamplerDesc *a, RB_SamplerDesc *b)
 {
-    RN_Sampler sampler = {0};
-    sampler.desc = *sampler_desc;
-    sampler.handle = rn_sampler_create_h(renderer, sampler_desc);
-
-    return(sampler);
+    b32 result = a->min_filter     == b->min_filter
+              && a->mag_filter     == b->mag_filter
+              && a->mipmap_filter  == b->mipmap_filter
+              && a->address_mode_u == b->address_mode_u
+              && a->address_mode_v == b->address_mode_v
+              && a->address_mode_w == b->address_mode_w;
+    return(result);
 }
 
-internal RN_BufferHandle
-rn_buffer_create_h(RN_RenderCtx *renderer, RN_BufferDesc *buffer_desc, void *data)
+internal u32
+rn_sampler_bindless_slot_create(RN_RenderCtx *renderer, RB_SamplerDesc *desc)
 {
-    RN_BufferHandle h = RENDER_BACKEND_CALL(buffer_create(buffer_desc, data));
-    rn_resource_cleanup_list_push_buffer(renderer, h);
-    return(h);
-}
-
-internal RN_Buffer
-rn_buffer_create(RN_RenderCtx *renderer, RN_BufferDesc *buffer_desc, u8 *data)
-{
-    RN_Buffer buffer_asset = {0};
-    buffer_asset.desc = *buffer_desc;
-    buffer_asset.handle = rn_buffer_create_h(renderer, buffer_desc, data);
-
-    return buffer_asset;
-}
-
-internal RN_PipelineHandle
-rn_pipeline_create(RN_RenderCtx *renderer, RN_PipelineDesc *pipeline_desc)
-{
-    RN_ShaderState *shader_state = &pipeline_desc->shader_state;
-    shader_state->is_graphics_pipeline = true;
-    for(u32 i = 0; i < shader_state->shader_stage_count; ++i){
-        RN_ShaderStage *stage = &shader_state->shader_stages[i];
-        stage->shader_stage_handle = rn_shader_stage_handle_get_or_create(renderer, stage);
-        if(stage->stage_kind == RN_ShaderStageKind_Compute){
-            shader_state->is_graphics_pipeline = false;
+    for(u32 slot = 0; slot < renderer->next_sampler_slot; ++slot){
+        if(rn_sampler_desc_match(&renderer->sampler_slot_descs[slot], desc)){
+            return(slot);
         }
     }
-    RN_PipelineHandle h = RENDER_BACKEND_CALL(pipeline_create(pipeline_desc));
-    return(h);
+    DOT_ASSERT(renderer->next_sampler_slot < rn_g_sampler_descriptor_max, "Out of sampler descriptor slots (%u)", rn_g_sampler_descriptor_max);
+    u32 slot = renderer->next_sampler_slot++;
+    renderer->sampler_slot_descs[slot] = *desc;
+    rb_sampler_descriptor_write(renderer->sampler_descriptor_heap, slot, desc);
+    return(slot);
 }
-internal RN_ShaderResourceHandle
-rn_shader_resource_create(RN_RenderCtx *renderer, RN_ShaderResourceDesc *desc)
+
+DOT_ENGINE_API RB_Pipeline
+rn_pipeline_create(RN_RenderCtx *renderer, String8 vs_path, String8 fs_path, RB_RasterDesc *raster)
 {
-    RN_ShaderResourceHandle h = RENDER_BACKEND_CALL(shader_resource_create(desc));
+    String8 vs_spirv = rn_shader_spirv_get_or_compile(renderer, RB_ShaderStageKind_Vertex, vs_path);
+    String8 fs_spirv = rn_shader_spirv_get_or_compile(renderer, RB_ShaderStageKind_Fragment, fs_path);
+    RB_Pipeline h = rb_pipeline_graphics_create(vs_spirv, fs_spirv, raster);
     return(h);
 }
 
-internal RN_ShaderResourceLayoutHandle
-rn_shader_resource_layout_create(RN_RenderCtx *renderer, RN_ShaderResourceLayoutDesc *desc)
-{
-    RN_ShaderResourceLayoutHandle h = RENDER_BACKEND_CALL(shader_resource_layout_create(desc));
-    // rn_resource_cleanup_list_push_buffer(renderer, h);
-    return(h);
-}
 
-internal RN_RenderPassOutput
-rn_swapchain_output()
+DOT_ENGINE_API RB_Pipeline
+rn_graphics_pipeline_create(RN_RenderCtx *renderer, RN_PSOGraphics *graphics_pso)
 {
-    RN_RenderPassOutput rpo = {0};
-    rpo.depth_stencil_format    = g_depth_stencil_format;
-    rpo.color_formats[0]        = g_swapchaing_texture_format;
-    rpo.color_format_count      = 1;
-    return(rpo);
+    String8 vs_spirv = rn_shader_spirv_get_or_compile(renderer, RB_ShaderStageKind_Vertex, graphics_pso->vs_path);
+    String8 fs_spirv = rn_shader_spirv_get_or_compile(renderer, RB_ShaderStageKind_Fragment, graphics_pso->fs_path);
+    RB_Pipeline h = rb_pipeline_graphics_create(vs_spirv, fs_spirv, &graphics_pso->raster_desc);
+    return(h);
 }
 
 void
-rn_clear_background(RN_RenderCtx *renderer, vec3 color)
+rn_clear_background(RN_RenderCtx *renderer, f32x3 color)
 {
-    RENDER_BACKEND_CALL(clear_bg(color));
+    if(!renderer->current_frame_valid){ return; }
+
+    RB_RenderingDesc desc = {
+        .render_extent = renderer->current_extent,
+        .color_attachments = { {
+                .view = renderer->current_view,
+                .load_op = RB_LoadOpKind_Clear,
+                .store_op = RB_StoreOpKind_Store,
+                .clear_color = v4(color.r, color.g, color.b, 1.0f),
+        } }
+    };
+
+    rb_render_pass_begin(renderer->current_cmd, desc, RB_RenderingBit_None);
+    rb_render_pass_end(renderer->current_cmd);
 }
 
 internal void
-rn_frame_begin(RN_RenderCtx *renderer)
+rn_frame_begin(RN_RenderCtx *renderer, i32x2 framebuffer_size)
 {
-    RENDER_BACKEND_CALL(frame_begin());
+    rb_delete_queue_tick(&renderer->delete_queue);
+
+    // Under upload_mutex so no upload batch is open on this slot's pools/heaps while they reset.
+    RN_FrameData *frame_data = &renderer->frame_datas[rn_frame_slot(renderer)];
+    MUTEX_SCOPE(&renderer->upload_mutex){
+        if(RB_HANDLE_VALID(frame_data->last_submit.semaphore)){
+            rb_timeline_wait(frame_data->last_submit);
+        }
+        rb_command_pool_reset(frame_data->frame_pool);
+        rb_command_pool_reset(frame_data->upload_pool);
+        rb_cpu_gpu_arena_reset(&frame_data->frame_heap);
+        rb_cpu_gpu_arena_reset(&frame_data->upload_heap);
+    }
+    renderer->current_cmd = rb_commands_begin(frame_data->frame_pool);
+    rb_texture_descriptor_heap_set(renderer->current_cmd, renderer->texture_descriptor_heap);
+    rb_sampler_descriptor_heap_set(renderer->current_cmd, renderer->sampler_descriptor_heap);
+    rb_drawable_extent_set(framebuffer_size);
+
+    RB_SwapchainFrame frame = rb_swapchain_frame_acquire(renderer->current_cmd);
+    renderer->current_frame_valid = RB_HANDLE_VALID(frame.view);
+    if(!renderer->current_frame_valid){
+        return;
+    }
+    renderer->current_view   = frame.view;
+    renderer->current_extent = frame.extent;
+    rn_depth_target_resize(renderer);
 }
 
 internal void
 rn_frame_end(RN_RenderCtx *renderer)
 {
-    RENDER_BACKEND_CALL(frame_end());
-}
+    if(!renderer->current_frame_valid){ return; }
 
-internal void
-rn_vk_resource_cleanup_list_push_scope()
-{
+    // Under upload_mutex so an upload batch never stages in one frame slot and submits in the next.
+    MUTEX_SCOPE(&renderer->upload_mutex){
+        RB_TimelinePoint completion = { renderer->frame_timeline, renderer->frame_value + 1 };
+        rb_submit_and_present(&(RB_SubmitDesc){ .command_buffers = &renderer->current_cmd, .command_buffer_count = 1, .completion = completion });
+        renderer->frame_datas[rn_frame_slot(renderer)].last_submit = completion;
+        renderer->frame_value = completion.value;
+    }
 }
 
 // NOTE(JD): Will start to just make enclosing scopes
 // Should extend to be a graph
 internal void
-rn_resource_cleanup_list_push_texture(RN_RenderCtx *renderer, RN_TextureHandle texture_id)
+rn_resource_cleanup_list_push_texture(RN_RenderCtx *renderer, RB_Texture texture_id)
 {
-    RN_ResourceCleanupCtx *root = TREE_GET_ROOT(&renderer->cleanup_tree);
+    DOT_UNUSED(renderer, texture_id);
+    // RN_ResourceCleanupCtx *root = TREE_GET_ROOT(&renderer->cleanup_tree);
     // TODO: We still cannot clear individual resources since this would leave holes in the tree array
-    ARRAY_PUSH(root->texture_ids, texture_id);
+    // ARRAY_PUSH(root->texture_ids, texture_id);
 }
 
 internal void
-rn_resource_cleanup_list_push_sampler(RN_RenderCtx *renderer, RN_SamplerHandle sampler_id)
+rn_resource_cleanup_list_remove_texture(RN_RenderCtx *renderer, RB_Texture texture_id)
 {
     RN_ResourceCleanupCtx *root = TREE_GET_ROOT(&renderer->cleanup_tree);
-    // TODO: We still cannot clear individual resources since this would leave holes in the tree array
-    ARRAY_PUSH(root->sampler_ids, sampler_id);
+    for EACH_INDEX(i, root->texture_ids.count){
+        if(ARRAY_GET(root->texture_ids, i).h == texture_id.h){
+            root->texture_ids.count -= 1;
+            ARRAY_GET(root->texture_ids, i) = ARRAY_GET(root->texture_ids, root->texture_ids.count);
+            return;
+        }
+    }
 }
-
-internal void
-rn_resource_cleanup_list_push_buffer(RN_RenderCtx *renderer, RN_BufferHandle buffer_id)
-{
-    RN_ResourceCleanupCtx *root = TREE_GET_ROOT(&renderer->cleanup_tree);
-    // TODO: We still cannot clear individual resources since this would leave holes in the tree array
-    ARRAY_PUSH(root->buffer_ids, buffer_id);
-}
-
-// internal void
-// rn_resource_cleanup_list_push_child(RN_VK_ResourceCleanupCtx *parent, u32 idx){
-//     ASSERT(idx < g_vk_ctx->cleanup_list_idx, "Idx must be an active resource list!");
-//     // cleanup_list
-//     RN_VK_ResourceCleanupCtx *elems = &g_vk_ctx->cleanup_list[g_vk_ctx->cleanup_list_idx];
-//     elems.
-//     RN_VK_TEXURE_MAX
-//     g_vk_ctx->cleanup_list_idx += 1;
-// }
 
 internal void
 rn_resource_cleanup_list_pop_last()
@@ -343,60 +579,53 @@ rn_resource_cleanup_list_pop_at(PoolHandle pop_start)
 internal void
 rn_resource_cleanup_list_pop_all(RN_RenderCtx *renderer)
 {
-    TempArena t = threadctx_temp_begin(0,0);
+    Scratch t = scratch_begin(0,0);
     RN_ResourceCleanupTree *tree = &renderer->cleanup_tree;
     TreeIterator it = TREE_ITER_BEGIN(t.arena, tree, tree->tree_pool.tree_root);
     for EACH_TREE_NODE(node_h, &it){
         RN_ResourceCleanupCtx *cleanup_list = TREE_GET(tree, node_h);
         for EACH_INDEX(i, cleanup_list->texture_ids.count){
-            RN_TextureHandle tex_h = ARRAY_GET(cleanup_list->texture_ids, i);
-            rn_texture_destroy(renderer, tex_h);
+            RB_Texture tex_h = ARRAY_GET(cleanup_list->texture_ids, i);
+            rb_delete_queue_defer_texture(&renderer->delete_queue, rn_retire_value(renderer), tex_h);
         }
-        for EACH_INDEX(i, cleanup_list->buffer_ids.count){
-            RN_BufferHandle buff_h = ARRAY_GET(cleanup_list->buffer_ids, i);
-            rn_buffer_destroy(renderer, buff_h);
-        }
-        for EACH_INDEX(i, cleanup_list->sampler_ids.count){
-            RN_SamplerHandle sampler_h = ARRAY_GET(cleanup_list->sampler_ids, i);
-            rn_sampler_destroy(renderer, sampler_h);
-        }
+        cleanup_list->texture_ids.count = 0;
     }
-    threadctx_temp_end(t);
+    scratch_end(t);
 }
 
-internal RN_ShaderStageHandle
-rn_shader_stage_handle_get_or_create(RN_RenderCtx *renderer, RN_ShaderStage *stage)
+internal String8
+rn_shader_spirv_get_or_compile(RN_RenderCtx *renderer, RB_ShaderStageKind stage_kind, String8 path)
 {
-    DOT_ASSERT(stage->stage_kind < RN_ShaderStageKind_Count);
-    if(stage->stage_kind == RN_ShaderStageKind_None){
-        stage->stage_kind = rn_shader_stage_kind_from_path(stage->path);
-    }
-    String8 stage_str = rn_slang_stage_from_shader_stage_kind(stage->stage_kind);
-    String8 compiled_path = rn_shader_cache_get_compiled_path(renderer->permanent_arena, stage->path);
+    DOT_ASSERT(stage_kind < RB_ShaderStageKind_Count);
+    RN_ShaderCompileOptions options = {
+        .optimization   = cast(RN_ShaderOptimizationLevel)rn_g_shader_optimization_level,
+        .debug_info     = cast(RN_ShaderDebugInfoLevel)rn_g_shader_debug_info_level,
+        .floating_point = cast(RN_ShaderFloatingPointMode)rn_g_shader_floating_point_mode,
+        .flags          = rn_g_shader_warnings_as_errors ? RN_ShaderCompileFlag_WarningsAsErrors : 0,
+    };
+    String8 compiled_path = rn_shader_cache_get_compiled_path(renderer->permanent_arena, path, &options);
 
-    b32 need_recompile = platform_file_is_newer(stage->path, compiled_path);
+    b32 need_recompile = platform_file_is_newer(path, compiled_path);
     b32 compilation_success = false;
     if(need_recompile){
-        DOT_PRINT("Recompiling %S", stage->path);
-        compilation_success = rn_shader_compile_from_path(1, &stage_str, stage->path, compiled_path);
+        DOT_PRINT("Recompiling %S", path);
+        compilation_success = rn_shader_compile_from_path(stage_kind, &options, path, compiled_path);
         if(!compilation_success){
-            DOT_WARNING("Failed to compile shader %S", stage->path); 
+            DOT_WARNING("Failed to compile shader %S", path);
         }
     }
 
-    RN_ShaderCachedData *shader_stage = hash_map_RN_ShaderCachedData_get_or_create(renderer->permanent_arena, &renderer->shader_cache, stage->path);
+    RN_ShaderCachedData *shader_stage = hm_get_or_create(renderer->permanent_arena, &renderer->shader_cache, path);
 
     b32 just_created = !rn_shader_module_is_initialized(shader_stage);
     b32 should_update_shader = (need_recompile && compilation_success) || just_created;
     if(should_update_shader){
         shader_stage->compiled_path = compiled_path;
-        shader_stage->path = stage->path;
+        shader_stage->path = path;
         shader_stage->byte_code = platform_read_entire_file(renderer->permanent_arena, compiled_path);
-        if(shader_stage->byte_code.size > 0){
-            shader_stage->shader_stage_handle = RENDER_BACKEND_CALL(shader_create(shader_stage->byte_code));
-        }else{
-            DOT_WARNING("Failed to read shader %S compilation %S", stage->path, compiled_path);
+        if(shader_stage->byte_code.size == 0){
+            DOT_WARNING("Failed to read shader %S compilation %S", path, compiled_path);
         }
     }
-    return(shader_stage->shader_stage_handle);
+    return(shader_stage->byte_code);
 }

@@ -479,7 +479,7 @@ DOT_TEST_SUITE(pool_tests)
 
 DOT_TEST_SUITE(tree_tests)
 {
-    TempArena temp = threadctx_temp_begin(0,0);
+    Scratch s = scratch_begin(0,0);
     DOT_TestResults test = {0};
     typedef struct SceneNode{
         char *name;
@@ -529,14 +529,14 @@ DOT_TEST_SUITE(tree_tests)
     wheel_fr_n->name = "Wheel_fr";
     wheel_fr_n->mesh_id = 101;
 
-    TreeIterator it = TREE_ITER_BEGIN(temp.arena, &tp, root);
+    TreeIterator it = TREE_ITER_BEGIN(s.arena, &tp, root);
     char *seen[16] = {0};
     int count = 0;
 
     for EACH_TREE_NODE(h, &it){
         seen[count++] = TREE_GET(&tp, h)->name;
     }
-    threadctx_temp_end(temp);
+    scratch_end(s);
 
     // Expected preorder visit
     //
@@ -556,23 +556,23 @@ DOT_TEST_SUITE(tree_tests)
     DOT_TEST_CHECK(test, "Test tree layout", strcmp(seen[5], "Lamp")        == 0);
 
     TREE_POP_FRONT(&tp, car); // pop wheel fl
-    it = TREE_ITER_BEGIN(temp.arena, &tp, root);
+    it = TREE_ITER_BEGIN(s.arena, &tp, root);
     count = 0;
     MEMORY_ZERO_ARRAY(seen);
     for EACH_TREE_NODE(h, &it){
         seen[count++] = TREE_GET(&tp, h)->name;
     }
-    threadctx_temp_end(temp);
+    scratch_end(s);
     DOT_TEST_CHECK(test, "Test tree layout", strcmp(seen[4], "wheel_fr") != 0);
 
     TREE_POP_FRONT(&tp, root); // pop lamp
-    it = TREE_ITER_BEGIN(temp.arena, &tp, root);
+    it = TREE_ITER_BEGIN(s.arena, &tp, root);
     count = 0;
     MEMORY_ZERO_ARRAY(seen);
     for EACH_TREE_NODE(h, &it){
         seen[count++] = TREE_GET(&tp, h)->name;
     }
-    threadctx_temp_end(temp);
+    scratch_end(s);
     DOT_TEST_CHECK(test, "Test tree layout", strcmp(seen[3], "Lamp") != 0);
 
     return test;

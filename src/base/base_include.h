@@ -26,6 +26,7 @@ DOT_DIAGNOSTIC_PUSH
 #include "base/test_suite.h"
 #include "base/arena.h"
 #include "base/string.h"
+#include "base/hashmap.h"
 #include "base/math.h"
 #include "base/thread_ctx.h"
 #include "base/templates/sort_include.h"
@@ -45,6 +46,7 @@ DOT_DIAGNOSTIC_POP
 #include "base/test_suite.c"
 #include "base/arena.c"
 #include "base/string.c"
+#include "base/hashmap.c"
 #include "base/thread_ctx.c"
 #include "base/program_entry_point.c"
 DOT_DIAGNOSTIC_POP

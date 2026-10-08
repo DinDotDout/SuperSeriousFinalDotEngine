@@ -184,11 +184,9 @@ int main(int argc, char **argv){
     if(is_msvc){
         nob_cmd_append(&cmd, "vulkan-1.lib");
         nob_cmd_append(&cmd, "/I", "src/");
-        nob_cmd_append(&cmd, "/D", "DOT_USE_VOLK");
     }else{
         nob_cmd_append(&cmd, "-lm", "-lvulkan", "-ldl", "-lpthread");
         nob_cmd_append(&cmd, "-I", "src/", "-Wl,-Tscripts/plugins_section.ld");
-        nob_cmd_append(&cmd, "-DDOT_USE_VOLK");
     }
     append_list(&cmd, pc->defines);
     append_list(&cmd, pc->libs);

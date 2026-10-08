@@ -5,6 +5,9 @@ tags
 tags.sh
 build
 src/gen-wayland/
-assets/glTF-Sample-Models.*
+src/game/compiled_shaders
+assets/glTF-Sample-Assets.*
+scripts/nob
+scripts/nob.old
 vulkan_tags
 generated_protocols

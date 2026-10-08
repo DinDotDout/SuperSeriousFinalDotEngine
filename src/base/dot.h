@@ -95,20 +95,6 @@
 #   endif
 #endif
 
-// #if defined(__GNUC__) && __GNUC__ < 5
-//     #define thread_local __thread
-// #elif DOT_COMPILER_MSVC
-//     #define thread_local       __declspec(thread)
-// #elif defined (__STDC_VERSION__) && __STDC_VERSION__ >= 201112L && !defined(__STDC_NO_THREADS__)
-//     #define thread_local       _Thread_local
-// #endif
-//
-// #ifndef STBI_THREAD_LOCAL
-//     #if defined(__GNUC__)
-//     #define thread_local       __thread
-//     #endif
-// #endif
-
 ////////////////////////////////////////////////////////////////
 //
 // Enum x Bitfield
@@ -125,7 +111,7 @@
 // (jd) NOTE: Should probably use something for code gen but whatever
 #define DOT_X_ENUM_ARG(prefix, v)           prefix##_##v,
 #define DOT_X_ENUM_STR(prefix, v)           str_lit(#v),
-#define DOT_X_ENUM_VAL_FROM_STR(prefix, v)  if(string8_equal(string8_from_##prefix[prefix##_##v], str)) return prefix##_##v;
+#define DOT_X_ENUM_VAL_FROM_STR(prefix, v)  if(string8_equal(string8_from_##prefix[prefix##_##v], str)) { return prefix##_##v; }
 #define DOT_ENUM_REFLECT(enum_name, x_list) \
     typedef enum enum_name{x_list(DOT_X_ENUM_ARG) }enum_name; \
     static const String8 string8_from_##enum_name[] = { x_list(DOT_X_ENUM_STR) }; \
@@ -209,14 +195,6 @@ typedef double f64;
 #define DOT_ARRAY_SPREAD(T, ...) (T[])__VA_ARGS__, (u64) (sizeof((T[]){__VA_ARGS__}) / sizeof(T))
 #define DOT_ARRAY_SPREAD_T(T, ...) (sizeof((T[]){__VA_ARGS__}) / sizeof(T)), (T[]){__VA_ARGS__}
 
-// #define ARRAY_FIELDS(T, field, field_count, ...) \
-//     .field = { __VA_ARGS__ }, \
-//     .field_count = sizeof((T[]){ __VA_ARGS__ }) / sizeof(T)
-
-// Some sugar to make some things a bit more evident
-// or to indicate
-#define array(T) T*
-
 ////////////////////////////////////////////////////////////////
 //
 // Debug
@@ -232,6 +210,11 @@ typedef double f64;
 #   define DEBUG_BREAK ((void)0) // Fallback: no-op
 #endif
 
+// Implemented per-platform in os_linux.c / os_windows.c (included later in this
+// translation unit via base_include.h); forward declared here so DOT_ASSERT can
+// share the same fast stacktrace path as the fatal signal handler.
+internal void os_print_stacktrace(void);
+
 ////////////////////////////////////////////////////////////////
 //
 // String concat
@@ -242,6 +225,18 @@ typedef double f64;
 #define DOT_CONCAT_2(x, y) x ## y
 #define DOT_CONCAT(x, y) DOT_CONCAT_2(x, y)
 
+////////////////////////////////////////////////////////////////
+//
+// Safe #if without #ifdef
+// defined or 1 evaluates to true, undefined or 0 evaluates to false
+// Can also be used in regular if statements
+
+#define DOT_ENABLED_PLACEHOLDER_ 0,
+#define DOT_ENABLED_PLACEHOLDER_1 0,
+#define DOT_ENABLED_SECOND(ignored, value, ...) value
+#define DOT_ENABLED_PICK(arg_or_junk) DOT_ENABLED_SECOND(arg_or_junk 1, 0, 0)
+#define DOT_ENABLED_EXPAND(value) DOT_ENABLED_PICK(DOT_ENABLED_PLACEHOLDER_##value)
+#define DOT_ENABLED(macro) DOT_ENABLED_EXPAND(macro)
 
 #define DOT_FILE_LINE (__FILE__ ": " DOT_STR(__LINE__))
 
@@ -256,11 +251,18 @@ typedef double f64;
 //
 // Static Debug
 
-#define DOT_STATIC_ASSERT(cond, ...) typedef int DOT_CONCAT(DOT_STATIC_ASSERT, __COUNTER__) [(cond) ? 1 : -1]
+# if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L)
+#   define DOT_STATIC_ASSERT(cond, ...)  _Static_assert(cond, "" __VA_ARGS__)
+# else
+#   define DOT_STATIC_ASSERT(cond, ...) typedef int DOT_CONCAT(DOT_STATIC_ASSERT, __COUNTER__) [(cond) ? 1 : -1]
+# endif
+
 // (jd) This is used as a compile time assert expression. Can be composed with other expressions
 // when we compile, signifying we didn't assert
 #define DOT_STATIC_ASSERT_EXPR(cond, ...) (0 * sizeof(char[(cond) ? 1 : -1]))
 #define DOT_STATIC_ASSERT_LITERAL_LEN(s, n) DOT_STATIC_ASSERT_EXPR(sizeof(s) - 1 == (n))
+#define DOT_IS_TYPE(x, T) _Generic((x), T: 1, default: 0)
+#define DOT_STATIC_ASSERT_TYPE(x, T) DOT_STATIC_ASSERT_EXPR(DOT_IS_TYPE(x, T))
 
 ////////////////////////////////////////////////////////////////
 //
@@ -310,19 +312,20 @@ internal void dot_set_log_level(DOT_LogLevelKind log_level);
 internal void dot_print_debug_(const DOT_PrintDebugParams* params, DOT_PRINTF_STRING const char *fmt, ...);
 
 #define DOT_PRINT_DEBUG_PARAMS_DEFAULT(...) \
-&(DOT_PrintDebugParams) { \
+&(DOT_PrintDebugParams){ \
     .print_debug_kind = DOT_LogLevelKind_Debug, \
     .file = __FILE__, \
     .line = __LINE__, \
-    __VA_ARGS__}
+    __VA_ARGS__ \
+}
 
 // --- Error Macros ---
 #define DOT_ERROR_IMPL(params, fmt, ...) \
-do { \
+do{ \
     dot_print_debug_(params, fmt, ##__VA_ARGS__); \
     DEBUG_BREAK; \
     abort(); \
-} while(0)
+}while(0)
 
 #define DOT_ERROR(...)          DOT_ERROR_IMPL(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error), __VA_ARGS__)
 #define DOT_ERROR_FL(f, l, ...) DOT_ERROR_IMPL(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error, .file = (f), .line = (l)), __VA_ARGS__)
@@ -345,6 +348,7 @@ do { \
 do { \
     if(!(cond)){ \
         dot_print_debug_(params, "%s " fmt, #cond, ##__VA_ARGS__); \
+        os_print_stacktrace(); \
         DEBUG_BREAK; \
     } \
 } while(0)
@@ -494,10 +498,12 @@ typedef struct DOT_DebugName8{
 }DOT_DebugName;
 
 #if DOT_DEBUG
+#   define DOT_DebugName32(field) DOT_DebugName32 field
 #   define DOT_DebugName16(field) DOT_DebugName16 field
 #   define DOT_DebugName8(field) DOT_DebugName8 field
 #   define DOT_DebugNameSet(field, str8) dot_debug_name_set(sizeof(field.buff), field.buff, str8)
 #else
+#   define DOT_DebugName32(field)
 #   define DOT_DebugName16(field)
 #   define DOT_DebugName8(field)
 #   define DOT_DebugNameSet(buff, str8) (void) str8
@@ -638,6 +644,8 @@ typedef struct DOT_DebugName8{
 #   include <intrin.h>
 #   if DOT_ARCH_X64
 #       define ins_atomic_u32_eval_cond_assign(x,k,c)  _InterlockedCompareExchange((long *)(x), (k), (c))
+#       define ins_atomic_u64_add_eval(x,c)            ((u64)_InterlockedExchangeAdd64((__int64 *)(x), (__int64)(c)) + (c))
+#       define ins_atomic_u64_add_eval(x,c)            ((i64)_InterlockedExchangeAdd64((__int64 *)(x), (__int64)(c)) + (c))
 #   else
 #       error "Atomic intrinsics not defined for this compiler / architecture combination."
 #   endif
@@ -645,52 +653,10 @@ typedef struct DOT_DebugName8{
 #   include <immintrin.h>
 #   include <emmintrin.h>
 #   define ins_atomic_u32_eval_cond_assign(x,k,c)  ({ u32 _new = (c); __atomic_compare_exchange_n((u32 *)(x),&_new,(k),0,__ATOMIC_SEQ_CST,__ATOMIC_SEQ_CST); _new; })
+#   define ins_atomic_u64_add_eval(x,c)            __atomic_add_fetch((u64 *)(x), (c), __ATOMIC_SEQ_CST)
+#   define ins_atomic_i64_add_eval(x,c)            __atomic_add_fetch((i64 *)(x), (c), __ATOMIC_SEQ_CST)
 #else
 #    error "Atomic intrinsics not defined for this compiler / architecture."
 #endif
-
-////////////////////////////////////////////////////////////////
-///
-// Static hash
-//
-
-#define FNV1A_OFFSET 2166136261u
-#define FNV1A_PRIME  16777619u
-
-#define DOT_STATIC_ASSERT_EXPR(cond, ...) (0 * sizeof(char[(cond) ? 1 : -1]))
-#define DOT_STATIC_ASSERT_LITERAL_LEN(s, n) DOT_STATIC_ASSERT_EXPR(sizeof(s) - 1 == (n))
-
-#define DOT_FNV1A_STEP(h, c) ((h ^ (unsigned char)(c)) * FNV1A_PRIME)
-
-#define DOT_FNV1A_1_UNCHECKED(s)  DOT_FNV1A_STEP(FNV1A_OFFSET, s[0])
-#define DOT_FNV1A_2_UNCHECKED(s)  DOT_FNV1A_STEP(DOT_FNV1A_1_UNCHECKED(s), s[1])
-#define DOT_FNV1A_3_UNCHECKED(s)  DOT_FNV1A_STEP(DOT_FNV1A_2_UNCHECKED(s), s[2])
-#define DOT_FNV1A_4_UNCHECKED(s)  DOT_FNV1A_STEP(DOT_FNV1A_3_UNCHECKED(s), s[3])
-#define DOT_FNV1A_5_UNCHECKED(s)  DOT_FNV1A_STEP(DOT_FNV1A_4_UNCHECKED(s), s[4])
-#define DOT_FNV1A_6_UNCHECKED(s)  DOT_FNV1A_STEP(DOT_FNV1A_5_UNCHECKED(s), s[5])
-#define DOT_FNV1A_7_UNCHECKED(s)  DOT_FNV1A_STEP(DOT_FNV1A_6_UNCHECKED(s), s[6])
-#define DOT_FNV1A_8_UNCHECKED(s)  DOT_FNV1A_STEP(DOT_FNV1A_7_UNCHECKED(s), s[7])
-
-#if DOT_COMPILER_MSVC
-#define DOT_FNV1A_1(s)  DOT_FNV1A_1_UNCHECKED(s)
-#define DOT_FNV1A_2(s)  DOT_FNV1A_2_UNCHECKED(s)
-#define DOT_FNV1A_3(s)  DOT_FNV1A_3_UNCHECKED(s)
-#define DOT_FNV1A_4(s)  DOT_FNV1A_4_UNCHECKED(s)
-#define DOT_FNV1A_5(s)  DOT_FNV1A_5_UNCHECKED(s)
-#define DOT_FNV1A_6(s)  DOT_FNV1A_6_UNCHECKED(s)
-#define DOT_FNV1A_7(s)  DOT_FNV1A_7_UNCHECKED(s)
-#define DOT_FNV1A_8(s)  DOT_FNV1A_8_UNCHECKED(s)
-#else
-#define DOT_FNV1A_1(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,1), DOT_FNV1A_1_UNCHECKED(s))
-#define DOT_FNV1A_2(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,2), DOT_FNV1A_2_UNCHECKED(s))
-#define DOT_FNV1A_3(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,3), DOT_FNV1A_3_UNCHECKED(s))
-#define DOT_FNV1A_4(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,4), DOT_FNV1A_4_UNCHECKED(s))
-#define DOT_FNV1A_5(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,5), DOT_FNV1A_5_UNCHECKED(s))
-#define DOT_FNV1A_6(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,6), DOT_FNV1A_6_UNCHECKED(s))
-#define DOT_FNV1A_7(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,7), DOT_FNV1A_7_UNCHECKED(s))
-#define DOT_FNV1A_8(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,8), DOT_FNV1A_8_UNCHECKED(s))
-#endif
-
-static inline u32 fnv1a_runtime(String8 s);
 
 #endif // !DOT_H

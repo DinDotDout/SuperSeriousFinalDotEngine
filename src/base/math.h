@@ -1,6 +1,6 @@
 #include <math.h>
 
-typedef union vec2{
+typedef union f32x2{
     struct{
         f32 x,y;
     };
@@ -11,9 +11,28 @@ typedef union vec2{
         f32 u,v;
     };
     f32 e[2];
-}vec2;
+}f32x2;
 
-typedef union vec3{
+typedef f32x2 f32x2;
+
+typedef struct u32x3{
+    u32 x,y,z;
+}u32x3;
+
+typedef struct u32x2{
+    u32 x,y;
+}u32x2;
+
+typedef struct i32x3{
+    i32 x,y,z;
+}i32x3;
+
+typedef struct i32x2{
+    i32 x,y;
+}i32x2;
+
+typedef union f32x3
+{
     struct{
         f32 x,y,z;
     };
@@ -21,42 +40,45 @@ typedef union vec3{
         f32 r,g,b;
     };
     struct{
-        vec2 xy;
+        f32x2 xy;
         f32 _z;
     };
     struct{
         f32 _x;
-        vec2 yz;
+        f32x2 yz;
     };
     struct{
-        vec2 rg;
+        f32x2 rg;
         f32 _b;
     };
     struct{
         f32 _r;
-        vec2 gb;
+        f32x2 gb;
     };
 
     struct{
         f32 u,v,w;
     };
     struct{
-        vec2 uv;
+        f32x2 uv;
         f32 _w;
     };
     struct{
         f32 _u;
-        vec2 vw;
+        f32x2 vw;
     };
     f32 e[3];
-}vec3;
+}f32x3;
+typedef f32x3 f32x3;
 
-global const vec3 vec3_zero     = {0};
-global const vec3 vec3_one      = { .x = 1.0f, .y = 1.0f, .z = 1.0f};
-global const vec3 vec3_right    = { .x = 1.0f, .y = 0.0f, .z = 0.0f};
-global const vec3 vec3_up       = { .x = 0.0f, .y = 1.0f, .z = 0.0f};
+global const f32x3 f32x3_zero     = {0};
+global const f32x3 f32x3_one      = { .x = 1.0f, .y = 1.0f, .z = 1.0f};
+global const f32x3 f32x3_right    = { .x = 1.0f, .y = 0.0f, .z = 0.0f};
+global const f32x3 f32x3_up       = { .x = 0.0f, .y = 1.0f, .z = 0.0f};
 
-typedef union alignas(16) vec4{
+// typedef union alignas(16) f32x4{
+typedef union f32x4
+{
     struct{
         f32 x,y,z,w;
     };
@@ -64,15 +86,15 @@ typedef union alignas(16) vec4{
         f32 r,g,b,a;
     };
     struct{
-        vec3 xyz;
+        f32x3 xyz;
         f32 _w;
     };
     struct{
-        vec3 rgb;
+        f32x3 rgb;
         f32 _a;
     };
     f32 e[4];
-}vec4;
+}f32x4;
 
 // #ifdef __AVX__
 // #  define alignmat CGLM_ALIGN(32)
@@ -80,7 +102,7 @@ typedef union alignas(16) vec4{
 // #  define alignmat CGLM_ALIGN(16)
 // #endif
 typedef union alignas(16) mat4{
-    vec4 mat4[4];
+    f32x4 mat4[4];
     struct {
         f32 m00, m01, m02, m03;
         f32 m10, m11, m12, m13;
@@ -89,42 +111,81 @@ typedef union alignas(16) mat4{
     };
 }mat4;
 
-typedef vec4 quat;
-// typedef struct quat{
-//     vec4 quat;
-// }quat;
-//
+typedef f32x4 quat;
 
 internal inline
-vec2 v2(f32 x, f32 y)
+f32x2 v2(f32 x, f32 y)
 {
-    vec2 res = {.x = x, .y = y};
+    f32x2 res = {.x = x, .y = y};
     return res;
 }
 
 internal inline
-vec3 v3(f32 x, f32 y, f32 z)
+f32x3 v3(f32 x, f32 y, f32 z)
 {
-    vec3 res = {.x = x, .y = y, .z = z};
+    f32x3 res = {.x = x, .y = y, .z = z};
+    return res;
+}
+
+internal inline f32x4
+v4(f32 x, f32 y, f32 z, f32 w)
+{
+    f32x4 res = {.x = x, .y = y, .z = z, .w = w};
     return res;
 }
 
 internal inline
-vec4 v4(f32 x, f32 y, f32 z, f32 w)
+f32x4 v4_v3_f(f32x3 v3, f32 w)
 {
-    vec4 res = {.x = x, .y = y, .z = z, .w = w};
+    f32x4 res = {.x = v3.x, .y = v3.y, .z = v3.z, .w = w};
     return res;
 }
 
-internal inline
-vec4 v4_v3_f(vec3 v3, f32 w)
+internal inline f32x3
+f32x3_add(f32x3 a, f32x3 b)
 {
-    vec4 res = {.x = v3.x, .y = v3.y, .z = v3.z, .w = w};
-    return res;
+    return v3(a.x+b.x, a.y+b.y, a.z+b.z);
+}
+
+internal inline f32x3
+f32x3_sub(f32x3 a, f32x3 b)
+{
+    return v3(a.x-b.x, a.y-b.y, a.z-b.z);
+}
+
+internal inline f32x3
+f32x3_scale(f32x3 a, f32 s)
+{
+    return v3(a.x*s, a.y*s, a.z*s);
+}
+
+internal inline f32
+f32x3_dot(f32x3 a, f32x3 b)
+{
+    return a.x*b.x + a.y*b.y + a.z*b.z;
+}
+
+internal inline f32x3
+f32x3_cross(f32x3 a, f32x3 b)
+{
+    return v3(a.y*b.z - a.z*b.y, a.z*b.x - a.x*b.z, a.x*b.y - a.y*b.x);
+}
+
+internal inline f32
+f32x3_length(f32x3 a)
+{
+    return sqrtf(f32x3_dot(a, a));
+}
+
+internal inline f32x3
+f32x3_normalize(f32x3 a)
+{
+    f32 len = f32x3_length(a);
+    return len > 0.0f ? f32x3_scale(a, 1.0f/len) : a;
 }
 
 internal inline mat4
-mat4_make(vec4 a, vec4 b,vec4 c, vec4 d)
+mat4_make(f32x4 a, f32x4 b,f32x4 c, f32x4 d)
 {
     mat4 m = {{a,b,c,d }};
     return m;
@@ -149,43 +210,30 @@ quat_make(f32 x, f32 y, f32 z, f32 w)
     return(res);
 }
 
-#define VEC2(v, a,b) (vec2){.x = v.a, .y = v.b}
-// #define VEC3(v, a,b,c) (vec3){.x = v.a, .y = v.b, .z = v.c}
-#define VEC3(v, a,b,c) {.x = v.a, .y = v.b, .z = v.c}
+#define f32x2(v, a,b) (f32x2){.x = v.a, .y = v.b}
+// #define f32x3(v, a,b,c) (f32x3){.x = v.a, .y = v.b, .z = v.c}
+#define f32x3(v, a,b,c) {.x = v.a, .y = v.b, .z = v.c}
 
-#define VEC3_UNWRAP(v) (v).x, (v).y, (v).z
+#define f32x3_UNWRAP(v) (v).x, (v).y, (v).z
 
-#define VEC4(v, a,b,c,d) (vec4){.x = v.a, .y = v.b, .z = v.c, .w = v.d}
+#define F32x4(v, a,b,c,d) (f32x4){.x = v.a, .y = v.b, .z = v.c, .w = v.d}
+
+#define DOT_PI 3.14159265358979323846f
 
 internal mat4
 mat4_mul(mat4 a, mat4 b)
 {
+    // Column-major: r column c = a * (b column c).
     mat4 r;
-
-    // Column 0
-    r.mat4[0].x = a.m00*b.m00 + a.m01*b.m10 + a.m02*b.m20 + a.m03*b.m30;
-    r.mat4[0].y = a.m10*b.m00 + a.m11*b.m10 + a.m12*b.m20 + a.m13*b.m30;
-    r.mat4[0].z = a.m20*b.m00 + a.m21*b.m10 + a.m22*b.m20 + a.m23*b.m30;
-    r.mat4[0].w = a.m30*b.m00 + a.m31*b.m10 + a.m32*b.m20 + a.m33*b.m30;
-
-    // Column 1
-    r.mat4[1].x = a.m00*b.m01 + a.m01*b.m11 + a.m02*b.m21 + a.m03*b.m31;
-    r.mat4[1].y = a.m10*b.m01 + a.m11*b.m11 + a.m12*b.m21 + a.m13*b.m31;
-    r.mat4[1].z = a.m20*b.m01 + a.m21*b.m11 + a.m22*b.m21 + a.m23*b.m31;
-    r.mat4[1].w = a.m30*b.m01 + a.m31*b.m11 + a.m32*b.m21 + a.m33*b.m31;
-
-    // Column 2
-    r.mat4[2].x = a.m00*b.m02 + a.m01*b.m12 + a.m02*b.m22 + a.m03*b.m32;
-    r.mat4[2].y = a.m10*b.m02 + a.m11*b.m12 + a.m12*b.m22 + a.m13*b.m32;
-    r.mat4[2].z = a.m20*b.m02 + a.m21*b.m12 + a.m22*b.m22 + a.m23*b.m32;
-    r.mat4[2].w = a.m30*b.m02 + a.m31*b.m12 + a.m32*b.m22 + a.m33*b.m32;
-
-    // Column 3
-    r.mat4[3].x = a.m00*b.m03 + a.m01*b.m13 + a.m02*b.m23 + a.m03*b.m33;
-    r.mat4[3].y = a.m10*b.m03 + a.m11*b.m13 + a.m12*b.m23 + a.m13*b.m33;
-    r.mat4[3].z = a.m20*b.m03 + a.m21*b.m13 + a.m22*b.m23 + a.m23*b.m33;
-    r.mat4[3].w = a.m30*b.m03 + a.m31*b.m13 + a.m32*b.m23 + a.m33*b.m33;
-
+    f32 *ra = cast(f32*)&r;
+    f32 *aa = cast(f32*)&a;
+    f32 *ba = cast(f32*)&b;
+    for(u32 c = 0; c < 4; ++c){
+        for(u32 row = 0; row < 4; ++row){
+            ra[c*4 + row] = aa[0*4 + row]*ba[c*4 + 0] + aa[1*4 + row]*ba[c*4 + 1]
+                          + aa[2*4 + row]*ba[c*4 + 2] + aa[3*4 + row]*ba[c*4 + 3];
+        }
+    }
     return r;
 }
 
@@ -222,7 +270,7 @@ mat4_from_quat(quat q)
 }
 
 internal mat4
-mat4_from_trs(vec3 translation, quat r, vec3 s)
+mat4_from_trs(f32x3 translation, quat r, f32x3 s)
 {
     mat4 R = mat4_from_quat(r);
 
@@ -239,5 +287,35 @@ internal inline quat
 quat_identity(void)
 {
     return v4(0.0f, 0.0f, 0.0f, 1.0f);
+}
+
+internal inline mat4
+mat4_look_at(f32x3 eye, f32x3 center, f32x3 up)
+{
+    f32x3 f = f32x3_normalize(f32x3_sub(center, eye));
+    f32x3 s = f32x3_normalize(f32x3_cross(f, up));
+    f32x3 u = f32x3_cross(s, f);
+
+    mat4 r = mat4_make(
+        v4(s.x, u.x, -f.x, 0.0f),
+        v4(s.y, u.y, -f.y, 0.0f),
+        v4(s.z, u.z, -f.z, 0.0f),
+        v4(-f32x3_dot(s, eye), -f32x3_dot(u, eye), f32x3_dot(f, eye), 1.0f)
+    );
+    return r;
+}
+
+internal inline mat4
+mat4_perspective(f32 fov_y_radians, f32 aspect, f32 z_near, f32 z_far)
+{
+    f32 tan_half_fov = tanf(fov_y_radians * 0.5f);
+
+    mat4 r = mat4_make(
+        v4(1.0f/(aspect*tan_half_fov), 0.0f, 0.0f, 0.0f),
+        v4(0.0f, -1.0f/tan_half_fov, 0.0f, 0.0f),
+        v4(0.0f, 0.0f, z_far/(z_near-z_far), -1.0f),
+        v4(0.0f, 0.0f, (z_far*z_near)/(z_near-z_far), 0.0f)
+    );
+    return r;
 }
 

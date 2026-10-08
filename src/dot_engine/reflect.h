@@ -76,10 +76,6 @@ struct RFL_ReflectMeta{
     String8 parse_data; // Used to fill in other data for compound types
 };
 
-#define HM_T RFL_ReflectMeta*
-#define HM_PREFIX RFL_ReflectMetaPtr
-#include "base/templates/hashmap.h"
-
 SECTION_DECLARE(RFL_ReflectMeta, reflect);
 
 #define Reflect(n, hook_fn, ...) \

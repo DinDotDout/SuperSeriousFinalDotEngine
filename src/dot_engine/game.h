@@ -13,10 +13,6 @@
 
 // global DOT_GameAPI g_game_api;
 
-// TODO: clean this up
-RN_ShaderResourceLayoutHandle g_shader_resource_layout_h = {0};
-RN_BufferHandle g_cube_ubo_h = {0};
-
 typedef struct DOT_GameConfig{
     usize permanent_memory_size;
     usize transient_memory_size;
@@ -24,12 +20,10 @@ typedef struct DOT_GameConfig{
 
 typedef struct DOT_Game{
     RN_RenderCtx *renderer;
+    DOT_Window   *window;
 
     Arena *permanent_arena;
     Arena *transient_arena;
-
-    // RN_ShaderStage *test_shader_module;
-    DOT_Scene *test_model;
 }DOT_Game;
 
 #ifdef DOT_HOT_RELOAD
@@ -52,7 +46,7 @@ struct DOT_GameVtable{
 DOT_GameVtable game_vtable;
 #endif
 
-b32 dot_game_init(DOT_Game *game, RN_RenderCtx *renderer,
+b32 dot_game_init(DOT_Game *game, RN_RenderCtx *renderer, DOT_Window *window,
     u8 permanent_memory[], usize permanent_memory_size,
     u8 transient_memory[], usize transient_memory_size);
 

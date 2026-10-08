@@ -288,8 +288,7 @@ string8_compare(String8 a, String8 b)
             return 1;
         }
     }
-    return a.size == b.size ? 0 :
-        (a.size > b.size ? 1 : -1);
+    return a.size == b.size ? 0 : (a.size > b.size ? 1 : -1);
 }
 
 internal u64

@@ -1,13 +1,13 @@
 // (joan) NOTE: split this per platform instead of keeping thing together
 #include <sys/stat.h>
-#if defined(DOT_OS_POSIX)
+#if DOT_OS_POSIX
 enum
 {
     PLATFORM_REGULAR_PAGE_SIZE  = DOT_KB(4),
     PLATFORM_LARGE_PAGE_SIZE    = DOT_MB(2),
     PLATFORM_CACHE_LINE_SIZE    = 64,
 };
-#elif defined(DOT_OS_WINDOWS)
+#elif DOT_OS_WINDOWS
 // NOTE: Windows reserve size is 64kb even though commit size is 4
 enum
 {
@@ -52,6 +52,7 @@ typedef struct String8 String8;
 typedef struct Arena Arena;
 internal bool platform_file_exists(String8 file_path);
 internal String8 platform_read_entire_file(Arena *arena, String8 path);
+internal b32 platform_write_entire_file(String8 path, void const *data, u64 size);
 b32 platform_file_is_newer(String8 a, String8 b);
  
 u64 platform_get_time_ns(void);
@@ -62,3 +63,32 @@ u64 platform_get_time_ns(void);
 //
 internal u64 platform_cpu_read_timer(void);
 internal u64 platform_cpu_estimate_freq();
+
+////////////////////////////////////////////////////////////////
+//
+// Windowing
+//
+typedef enum PlatformWindowSystemKind
+{
+    PlatformWindowSystemKind_None,
+    PlatformWindowSystemKind_Win32,
+    PlatformWindowSystemKind_Xlib,
+    PlatformWindowSystemKind_Wayland,
+    PlatformWindowSystemKind_Count,
+}PlatformWindowSystemKind;
+
+global read_only char *platfrom_window_system_str[] = {
+    [PlatformWindowSystemKind_None]     = "None",
+    [PlatformWindowSystemKind_Win32]    = "Win32",
+    [PlatformWindowSystemKind_Xlib]     = "XLib",
+    [PlatformWindowSystemKind_Wayland]  = "Wayland",
+};
+
+typedef struct PlatformNativeWindow
+{
+    PlatformWindowSystemKind kind;
+    void *display;
+    void *window;
+}PlatformNativeWindow;
+
+internal b32 platform_window_system_is_native(PlatformWindowSystemKind kind);

@@ -51,7 +51,34 @@ platform_read_entire_file(Arena *arena, String8 path)
     return file_buffer;
 }
 
-b32 platform_file_is_newer(String8 a, String8 b)
+internal b32
+platform_window_system_is_native(PlatformWindowSystemKind kind)
+{
+#if DOT_OS_WINDOWS
+    return kind == PlatformWindowSystemKind_Win32;
+#else
+    return kind == PlatformWindowSystemKind_Xlib || kind == PlatformWindowSystemKind_Wayland;
+#endif
+}
+
+internal b32
+platform_write_entire_file(String8 path, void const *data, u64 size)
+{
+    FILE *f = fopen(path.cstr, "wb");
+    if(!f){
+        DOT_WARNING("Could not open file %S %s", path, strerror(errno));
+        return false;
+    }
+    b32 result = fwrite(data, 1, size, f) == size;
+    fclose(f);
+    if(!result){
+        DOT_WARNING("Could not write file %S", path);
+    }
+    return result;
+}
+
+b32
+platform_file_is_newer(String8 a, String8 b)
 {
 #ifdef _WIN32
     struct _stat sa, sb;
