@@ -20,19 +20,40 @@ arena_create_from_memory(ArenaInitParams *params)
     uptr base = cast(uptr)params->buffer;
     uptr align = ALIGN_POW2(base, ARENA_HEADER_ALIGN);
     iptr diff = align - base;
-    // NOTE: Since we don't own the memory it must be backed and we assume it is committed (reserve == commit)
-    Arena *arena = cast(Arena*)align;
-    *arena = (Arena){
-        .base               = cast(u8*)align,
-        .reserved           = params->reserve_size - diff,
-        .committed          = params->reserve_size - diff,
-        .commit_expand_size = params->commit_expand_size,
-        .flags              = params->large_pages ? ArenaFlags_LargePages : 0,
+    u64 usable_reserved = params->reserve_size - diff;
+    if(params->sparse){
+        DOT_WARNING("Trying to create sparse non owning arena, this flag only applies to OS arenas");
+    }
+
+    // If the buffer came from a sparse parent, it is raw reserved-but-uncommitted
+    // VA space (mprotect(PROT_NONE)/PAGE_NOACCESS): we must physically commit our
+    // own initial slice and track real committed state, same as an OS-backed
+    // arena would, instead of assuming the memory is already backed.
+    b32 sparse_backing = params->parent && DOT_BITS_MATCH(params->parent->flags, ArenaFlags_Sparse);
+    u64 committed = usable_reserved; // NOTE: default assumes caller-owned memory is already backed
+    if(sparse_backing){
+        u64 page_size = params->large_pages ? PLATFORM_LARGE_PAGE_SIZE : PLATFORM_REGULAR_PAGE_SIZE;
+        u64 initial_commit = ALIGN_POW2(DOT_MAX(params->commit_size, page_size), page_size);
+        initial_commit = DOT_MIN(initial_commit, usable_reserved);
+        if(params->large_pages){
+            os_commit_large(cast(void*)align, initial_commit);
+        }else{
+            os_commit(cast(void*)align, initial_commit);
+        }
+        committed = initial_commit;
+    }
+
+    Arena *arena =              cast(Arena*)align;
+    arena->base               = cast(u8*)align,
+    arena->reserved           = usable_reserved,
+    arena->committed          = committed,
+    arena->commit_expand_size = params->commit_expand_size,
+    arena->flags              = params->large_pages ? ArenaFlags_LargePages : 0,
 #if DOT_DEBUG
-        .name               = params->name,
-        .parent             = params->parent,
+    arena->name               = params->name,
+    arena->parent             = params->parent,
 #endif
-    };
+
     ARENA_RESET(arena);
     return arena;
 }
@@ -42,7 +63,17 @@ arena_create_from_arena(ArenaInitParams *params)
 {
     DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Allocating arena from parent:");
     arena_print_debug(params->parent);
-    params->buffer = PUSH_SIZE_NO_ZERO(params->parent, params->reserve_size);
+    if(DOT_BITS_MATCH(params->parent->flags, ArenaFlags_Sparse)){
+        // Sub-arenas carved from a sparse parent commit their own memory
+        // independently via os_commit/mprotect, which only operates at page
+        // granularity: both the start and size of each slice must land on a
+        // page boundary so siblings can never share (and fight over) a page.
+        u64 page_size = params->large_pages ? PLATFORM_LARGE_PAGE_SIZE : PLATFORM_REGULAR_PAGE_SIZE;
+        params->reserve_size = ALIGN_POW2(params->reserve_size, page_size);
+        params->buffer = ARENA_PUSH(params->parent, params->reserve_size, page_size, false);
+    }else{
+        params->buffer = PUSH_SIZE_NO_ZERO(params->parent, params->reserve_size);
+    }
     Arena *arena = arena_create_from_memory(params);
     return arena;
 }
@@ -57,11 +88,18 @@ arena_create_from_os(ArenaInitParams *params)
     u64 page_size = params->large_pages ? PLATFORM_LARGE_PAGE_SIZE : PLATFORM_REGULAR_PAGE_SIZE;
 
     u64 reserved           = ALIGN_POW2(params->reserve_size, page_size);
-    u64 initial_commit     = ALIGN_POW2(DOT_MAX(params->commit_size, page_size), page_size);
     u64 commit_expand_size = ALIGN_POW2(DOT_MAX(params->commit_expand_size, page_size), page_size);
-    initial_commit         = DOT_MIN(initial_commit, reserved);
 
     void *memory = os_reserve(reserved);
+
+    u64 initial_commit;
+    if(params->sparse){
+        initial_commit = ALIGN_POW2(ARENA_HEADER_SIZE_B, page_size);
+    }else{
+        initial_commit = ALIGN_POW2(DOT_MAX(params->commit_size, page_size), page_size);
+        initial_commit = DOT_MIN(initial_commit, reserved);
+    }
+
     if(params->large_pages){
         os_commit_large(memory, initial_commit);
     }else{
@@ -71,9 +109,11 @@ arena_create_from_os(ArenaInitParams *params)
     *arena = (Arena){
         .base               = memory,
         .reserved           = reserved,
-        .committed          = initial_commit,
+        .committed          = params->sparse ? reserved : initial_commit, // Force max commited to prevent this allocating space
         .commit_expand_size = commit_expand_size,
-        .flags              = ArenaFlags_OwnsMemory | (params->large_pages ? ArenaFlags_LargePages : 0),
+        .flags              = ArenaFlags_OwnsMemory
+                             | (params->large_pages ? ArenaFlags_LargePages : 0)
+                             | (params->sparse ? ArenaFlags_Sparse : 0),
 #if DOT_DEBUG
         .name               = params->name,
         .parent             = params->parent,
@@ -137,8 +177,19 @@ arena_push(ArenaOpParams *op, u64 alloc_size, u64 alignment, b32 should_zero)
     usize required_padded = aligned_address - current_address + alloc_size;
     arena->used += required_padded;
 
+    // NOTE: sparse arenas force committed == reserved so the grow-on-demand
+    // path below never runs for them; without this check they'd have no
+    // guard at all against handing out a pointer past the reserved region.
+    if(DOT_UNLIKELY(arena->used > arena->reserved)){
+        arena_print_debug(arena);
+        DOT_ERROR_FL(op->file, op->line, "Arena '%s' exceeded reserved capacity (used=%M, reserved=%M)", arena->name, arena->used, arena->reserved);
+        arena->used -= required_padded;
+        return NULL;
+    }
+
     b32 need_more_pages = arena->used > arena->committed;
-    if(need_more_pages){
+    b32 is_sparse = DOT_BITS_MATCH(arena->flags, ArenaFlags_Sparse);
+    if(need_more_pages && !is_sparse){
         i64 needed_memory = arena->used - arena->committed;
 
         b32 large_pages = DOT_BITS_MATCH(arena->flags, ArenaFlags_LargePages);
@@ -160,7 +211,9 @@ arena_push(ArenaOpParams *op, u64 alloc_size, u64 alignment, b32 should_zero)
         arena->committed += commit_size;
     }
     ASAN_UNPOISON(mem_offset, required_padded);
-    if(should_zero){
+
+    // New pages are zeroed out + we could incurr writting into non mapped regions
+    if(should_zero && !is_sparse){
         MEMORY_ZERO(mem_offset, required_padded);
     }
     return mem_offset;
@@ -183,14 +236,15 @@ arena_to_string(Arena *arena)
     b32 large_pages = DOT_BITS_MATCH(arena->flags, ArenaFlags_LargePages);
     const u64 page_size = large_pages ? PLATFORM_LARGE_PAGE_SIZE : PLATFORM_REGULAR_PAGE_SIZE;
 
+    b32 sparse = DOT_BITS_MATCH(arena->flags, ArenaFlags_Sparse);
     const u64 committed_pages = arena->committed / page_size;
     const u64 reserved_pages  = arena->reserved / page_size;
-    str = string8_format(arena, 
+    str = string8_format(arena,
         "Arena '%s'\n "
         "  Arena parent: '%s'\n"
         "  Base:              %p\n"
         "  Used:              %M\n"
-        "  Committed:         %M (%llu pages)\n"
+        "  Committed:         %M (%llu pages)%s\n"
         "  Reserved:          %M (%llu pages)\n"
         "  Page size:         %M (%s)\n"
         "  Commit expand:     %M\n",
@@ -198,7 +252,7 @@ arena_to_string(Arena *arena)
         arena->parent ? arena->parent->name : "no parent",
         arena->base,
         arena->used,
-        arena->committed, committed_pages,
+        arena->committed, committed_pages, sparse ? " [sparse: not actually backed]" : "",
         reserved_pages, arena->reserved,
         page_size, large_pages ? "large pages" : "regular pages",
         arena->commit_expand_size
@@ -216,13 +270,14 @@ arena_print_debug(Arena* arena)
     b32 large_pages = DOT_BITS_MATCH(arena->flags, ArenaFlags_LargePages);
     const u64 page_size = large_pages ? PLATFORM_LARGE_PAGE_SIZE : PLATFORM_REGULAR_PAGE_SIZE;
 
+    b32 sparse = DOT_BITS_MATCH(arena->flags, ArenaFlags_Sparse);
     const u64 committed_pages = arena->committed / page_size;
     const u64 reserved_pages  = arena->reserved / page_size;
     DOT_PRINT("Arena '%s'", arena->name ? arena->name : "<unnamed>");
     DOT_PRINT("  Arena parent: '%s'", arena->parent ? arena->parent->name : "no parent");
     DOT_PRINT("  Base:              %p", arena->base);
     DOT_PRINT("  Used:              %M", arena->used);
-    DOT_PRINT("  Committed:         %M (%llu pages)", arena->committed, committed_pages);
+    DOT_PRINT("  Committed:         %M (%llu pages)%s", arena->committed, committed_pages, sparse ? " [sparse: not actually backed]" : "");
     DOT_PRINT("  Reserved:          %M (%llu pages)", arena->reserved,  reserved_pages);
     DOT_PRINT("  Page size:         %M (%s)", page_size, large_pages ? "large pages" : "regular pages");
     DOT_PRINT("  Commit expand:     %M\n", arena->commit_expand_size);
@@ -332,6 +387,47 @@ test_large_pages_fn(void)
 }
 
 internal inline DOT_TestResults
+test_sparse_fn(void)
+{
+    DOT_TestResults test = {0};
+
+    Arena *root = ARENA_CREATE(.reserve_size = DOT_MB(64), .sparse = true);
+
+    DOT_TEST_CHECK(test, "Sparse root created", root != NULL);
+    DOT_TEST_CHECK(test, "Sparse flag set", DOT_BITS_MATCH(root->flags, ArenaFlags_Sparse));
+    DOT_TEST_CHECK(test, "Sparse committed forced to reserved", root->committed == root->reserved);
+
+    Arena *child_a = ARENA_CREATE(.parent = root, .reserve_size = DOT_MB(16), .commit_size = DOT_KB(64));
+    Arena *child_b = ARENA_CREATE(.parent = root, .reserve_size = DOT_MB(16), .commit_size = DOT_KB(64));
+
+    DOT_TEST_CHECK(test, "Child A created", child_a != NULL);
+    DOT_TEST_CHECK(test, "Child B created", child_b != NULL);
+    DOT_TEST_CHECK(test, "Child A not itself sparse", !DOT_BITS_MATCH(child_a->flags, ArenaFlags_Sparse));
+    DOT_TEST_CHECK(test, "Child A committed tracks real memory", child_a->committed < child_a->reserved);
+    DOT_TEST_CHECK(test, "Child A committed at least commit_size", child_a->committed >= DOT_KB(64));
+
+    u8 *p = PUSH_ARRAY(child_a, u8, DOT_MB(1));
+    DOT_TEST_CHECK(test, "Child A push succeeded", p != NULL);
+    if(p){
+        p[0] = 0xAB;
+        p[DOT_MB(1) - 1] = 0xCD;
+        DOT_TEST_CHECK(test, "Child A memory is actually writable", p[0] == 0xAB && p[DOT_MB(1) - 1] == 0xCD);
+    }
+    DOT_TEST_CHECK(test, "Child A grew its own commit", child_a->committed >= child_a->used);
+
+    u8 *q = PUSH_ARRAY(child_b, u8, 64);
+    DOT_TEST_CHECK(test, "Child B push independent of A", q != NULL);
+    if(q){
+        q[0] = 0xEF;
+        DOT_TEST_CHECK(test, "Child B memory is actually writable", q[0] == 0xEF);
+    }
+    DOT_TEST_CHECK(test, "Siblings didn't overlap", (void*)p != (void*)q);
+
+    ARENA_DESTROY(root);
+    return test;
+}
+
+internal inline DOT_TestResults
 test_padding_behavior_fn(void)
 {
     DOT_TestResults test = {0};
@@ -429,6 +525,7 @@ DOT_TEST_SUITE(arena_tests)
     // DOT_MERGE_TEST_RESULTS(test, test_out_of_bounds_fn());
     DOT_MERGE_TEST_RESULTS(test, test_reset_fn());
     DOT_MERGE_TEST_RESULTS(test, test_large_pages_fn());
+    DOT_MERGE_TEST_RESULTS(test, test_sparse_fn());
     DOT_MERGE_TEST_RESULTS(test, test_padding_behavior_fn());
     // test_page_fault_progression(); // This one is just informative
     return test;

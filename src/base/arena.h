@@ -6,6 +6,14 @@
 // physically back it instead of allowing regular OS lazy page mapping. We can
 // specify initial commit size as well as how often subsequent ones will force
 // prefaulting again. Optionally, on LINUX we may use huge pages through THP
+//
+// A "sparse" arena (ArenaFlags_Sparse) reserves a large chunk of virtual
+// address space (eg 64GB) but never commits any of it itself: its committed
+// field is forced to equal reserved right away, so arena_push's grow-on-demand
+// path is never triggered on it. It exists only to be carved up: sub-arenas
+// created with .parent pointing at it (eg 8GB each) get their own slice of
+// that VA range and are the ones that actually commit pages, independently,
+// as they are used.
 
 enum
 {
@@ -19,7 +27,8 @@ enum
 typedef enum ArenaFlags{
     ArenaFlags_OwnsMemory = DOT_BIT(0),
     ArenaFlags_LargePages = DOT_BIT(1),
-    // ArenaFlags_ChainArena = DOT_BIT(2),
+    ArenaFlags_Sparse     = DOT_BIT(2), // Reserve-only: committed is forced to reserved so it never self-commits; meant to be carved into sub-arenas
+    // ArenaFlags_ChainArena = DOT_BIT(3),
 }ArenaFlags;
 
 typedef struct Arena Arena;
@@ -52,6 +61,13 @@ typedef struct ArenaInitParams{
     u64  commit_expand_size; // Commitsize after initial commit
     b32 large_pages;
 
+    // If true, this arena only reserves virtual memory (committed is forced
+    // to reserved so arena_push never grows it). Intended to be a single big
+    // VA-space source (eg 64GB) that sub-arenas carve fixed-size ranges out
+    // of via .parent; each sub-arena then commits its own memory on demand
+    // as it is used, independently of its siblings.
+    b32 sparse;
+
     // Debug
 #if DOT_DEBUG
     char *name;
@@ -75,7 +91,7 @@ internal Arena  *arena_create_from_memory(ArenaInitParams *);
 internal Arena  *arena_create_from_arena(ArenaInitParams *);
 internal Arena  *arena_create_from_os(ArenaInitParams *);
 
-internal u8*    arena_push(ArenaOpParams *, u64 alloc_size, u64 alignment, b32 should_zero);
+internal u8    *arena_push(ArenaOpParams *, u64 alloc_size, u64 alignment, b32 should_zero);
 internal void   arena_reset(ArenaOpParams *);
 internal void   arena_pop_to(ArenaOpParams *, u64 pos);
 internal void   arena_free(); // (jd) NOTE: Stub to pass to generic allocators
