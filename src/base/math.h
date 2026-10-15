@@ -76,7 +76,6 @@ global const f32x3 f32x3_one      = { .x = 1.0f, .y = 1.0f, .z = 1.0f};
 global const f32x3 f32x3_right    = { .x = 1.0f, .y = 0.0f, .z = 0.0f};
 global const f32x3 f32x3_up       = { .x = 0.0f, .y = 1.0f, .z = 0.0f};
 
-// typedef union alignas(16) f32x4{
 typedef union f32x4
 {
     struct{

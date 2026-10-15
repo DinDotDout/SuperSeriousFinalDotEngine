@@ -64,14 +64,15 @@ rn_init(Arena *arena, RN_RenderCtx *renderer, PlatformNativeWindow native_window
         .timestamp_query_max   = rn_g_timestamp_query_max,
         .frame_overlap         = rn_g_frame_overlap,
         .swapchain_format      = cast(RB_FormatKind) rn_g_swapchain_format,
+        .depth_format          = cast(RB_FormatKind) rn_g_depth_stencil_format,
         .present_mode          = cast(RB_PresentModeKind) rn_g_present_mode,
     };
     rb_begin(cast(RB_DeviceKind) rn_g_device_kind, renderer->permanent_arena, native_window, &device_desc);
 
     RB_DeviceInfo device_info = rb_device_info();
-    DOT_PRINT("Render device: %s (%s)", &device_info.name, device_info.has_integrated_gpu ? "integrated" : "discrete");
+    DOT_PRINT("Render device: %S (%s)", device_info.name,device_info.has_integrated_gpu ? "integrated" : "discrete");
     renderer->swapchain_format = device_info.swapchain_format;
-    renderer->depth_format     = cast(RB_FormatKind) rn_g_depth_stencil_format;
+    renderer->depth_format     = device_info.depth_format;
 
     renderer->texture_heap = rb_texture_heap_arena_create(rn_g_texture_heap_size_b);
     renderer->data_heap    = rb_gpu_arena_create(rn_g_data_heap_size_b);

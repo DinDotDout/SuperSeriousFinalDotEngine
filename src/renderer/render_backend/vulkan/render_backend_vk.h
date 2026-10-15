@@ -28,6 +28,7 @@ typedef struct RB_VK_Device{
     // (jd) Resolved Settings
     f32 timestamp_period_ns;
     b8  mesh_shaders;
+    b8  memory_budget;
     u32 timestamp_query_count; // 0 = timestamps off
     u32 texture_memory_type;
     u64 texture_heap_alignment;
@@ -193,6 +194,7 @@ typedef struct RB_VK_BackendCtx{
     RB_DeviceDesc    desc;
 
     RB_VK_Device     device;
+    VkFormat         depth_format;
 
     RB_VK_Swapchain  swapchain;
 

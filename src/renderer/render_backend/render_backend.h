@@ -220,7 +220,8 @@ enum
     RB_IMAGE_OUTPUTS_MAX = 8, // Maximum number of images/render_targets/fbo attachments usable.
 };
 
-typedef enum RB_ShaderStageKind{
+typedef enum RB_ShaderStageKind
+{
     RB_ShaderStageKind_None ,
     RB_ShaderStageKind_Vertex,
     RB_ShaderStageKind_Fragment,
@@ -241,7 +242,8 @@ typedef enum RB_ShaderStageKind{
     RB_ShaderStageKind_Count,
 }RB_ShaderStageKind;
 
-typedef enum RB_FrontFaceSortModeKind{
+typedef enum RB_FrontFaceSortModeKind
+{
     RB_FrontFaceSortKind_CounterClockwise,
     RB_FrontFaceSortKind_Clockwise,
 }RB_FrontFaceSortModeKind;
@@ -254,7 +256,8 @@ enum{
     RB_CullModeKind_Always,
 };
 
-typedef enum RB_FillModeKind{
+typedef enum RB_FillModeKind
+{
     RB_FillModeKind_Solid,
     RB_FillModeKind_Wireframe,
     RB_FillModeKind_Point,
@@ -262,14 +265,16 @@ typedef enum RB_FillModeKind{
     RB_FillModeKind_Count,
 }RB_FillModeKind;
 
-typedef enum RB_PrimitiveTopologyKind{
+typedef enum RB_PrimitiveTopologyKind
+{
     RB_PrimitiveTopologyKind_TriangleList,
     RB_PrimitiveTopologyKind_TriangleStrip,
     RB_PrimitiveTopologyKind_LineList,
     RB_PrimitiveTopologyKind_PointList,
 }RB_PrimitiveTopologyKind;
 
-typedef struct RB_RasterState{
+typedef struct RB_RasterState
+{
     RB_CullModeKind cull_mode;
 
     f32 depth_bias_constant;
@@ -280,7 +285,8 @@ typedef struct RB_RasterState{
     RB_PrimitiveTopologyKind topology;
 }RB_RasterState;
 
-typedef enum RB_CompareOpKind{
+typedef enum RB_CompareOpKind
+{
     RB_CompareOpKind_Always,
     RB_CompareOpKind_Never,
     RB_CompareOpKind_Less,
@@ -291,7 +297,8 @@ typedef enum RB_CompareOpKind{
     RB_CompareOpKind_GreaterOrEqual,
 }RB_CompareOpKind;
 
-typedef enum RB_StencilOpKind{
+typedef enum RB_StencilOpKind
+{
     RB_StencilOpKind_Keep,
     RB_StencilOpKind_Zero,
     RB_StencilOpKind_Replace,
@@ -302,7 +309,8 @@ typedef enum RB_StencilOpKind{
     RB_StencilOpKind_DecrementAndWrap,
 }RB_StencilOpKind;
 
-typedef struct RB_StencilState{
+typedef struct RB_StencilState
+{
     RB_StencilOpKind fail;
     RB_StencilOpKind pass;
     RB_StencilOpKind depth_fail;
@@ -314,15 +322,16 @@ typedef struct RB_StencilState{
     u32 reference_mask;
 }RB_StencilState;
 
-typedef struct RB_DepthStencilState{
+typedef struct RB_DepthStencilState
+{
     RB_StencilState front;
     RB_StencilState back;
     RB_CompareOpKind   depth_comparison;
     union{
         struct {
-            b8 depth_enable : 1;
-            b8 depth_write_enable : 1;
-            b8 stencil_enable : 1;
+            b8 depth_enable         : 1;
+            b8 depth_write_enable   : 1;
+            b8 stencil_enable       : 1;
         };
         u8 depth_stencil_bits;
     };
@@ -370,7 +379,8 @@ enum{
         | RB_ColorWriteBit_Alpha
 };
 
-typedef struct RB_BlendState{
+typedef struct RB_BlendState
+{
     RB_BlendFactorKind src_color;
     RB_BlendFactorKind dst_color;
     RB_BlendOpKind     blend_op;
@@ -380,17 +390,18 @@ typedef struct RB_BlendState{
     RB_BlendOpKind     alpha_blend_op;
 
     RB_ColorWriteFlags color_write_mask;
-    b8 blend_enabled : 1;
-    b8 separate_blend : 1;
-    // b8 pad : 6;
+    b8 blend_enabled    : 1;
+    b8 separate_blend   : 1;
 }RB_BlendState;
 
-typedef struct RB_ColorTargetDesc{
+typedef struct RB_ColorTargetDesc
+{
     RB_FormatKind format;
     RB_BlendState blend;
 }RB_ColorTargetDesc;
 
-typedef struct RB_RasterDesc {
+typedef struct RB_RasterDesc
+{
     RB_RasterState       raster_state;
 
     RB_ColorTargetDesc   color_targets[RB_IMAGE_OUTPUTS_MAX];
@@ -416,7 +427,8 @@ typedef enum RB_StoreOpKind
     RB_StoreOpKind_DontCare,
 }RB_StoreOpKind;
 
-typedef struct RB_ColorAttachment{
+typedef struct RB_ColorAttachment
+{
     RB_RenderView  view;
     RB_LoadOpKind  load_op;
     RB_StoreOpKind store_op;
@@ -455,12 +467,14 @@ enum
     RB_RenderingBit_Resuming   = DOT_BIT(1),
 };
 
-typedef struct RB_Extent2D16{
+typedef struct RB_Extent2D16
+{
     i16 x, y;
     u16 w,h;
 }RB_Extent2D16;
 
-typedef struct RB_Viewport{
+typedef struct RB_Viewport
+{
     RB_Extent2D16 viewport_rect;
     f32 min_depth;
     f32 max_depth;
@@ -591,6 +605,7 @@ typedef struct RB_DeviceDesc
     u32                timestamp_query_max; // Per command buffer; 0 disables rb_write_timestamp
     u32                frame_overlap;
     RB_FormatKind      swapchain_format;
+    RB_FormatKind      depth_format;
     RB_PresentModeKind present_mode;
 }RB_DeviceDesc;
 
@@ -608,6 +623,7 @@ typedef struct RB_DeviceInfo
     u64 texture_descriptor_size;
     u64 sampler_descriptor_size;
     RB_FormatKind swapchain_format;
+    RB_FormatKind depth_format;
     f32 timestamp_period_ns;
     b8  mesh_shaders;
 }RB_DeviceInfo;
@@ -619,7 +635,6 @@ typedef struct RB_DeviceInfo
 X(init,                             void,                   (Arena *arena, PlatformNativeWindow window, RB_DeviceDesc const *desc))\
 X(end,                              void,                   (void))\
 X(device_info,                      RB_DeviceInfo,          (void))\
-X(supports_texture_format,          b32,                    (RB_FormatKind format, RB_TextureUsageFlags usage))\
 X(drawable_extent,                  i32x2,                  (void))\
 X(drawable_extent_set,              void,                   (i32x2 extent))\
 X(wait_idle,                        void,                   (void))\
@@ -627,41 +642,40 @@ X(timeline_create,                  RB_TimelineSemaphore,   (u64 initial_value))
 X(timeline_destroy,                 void,                   (RB_TimelineSemaphore sema))\
 X(timeline_completed_value,         u64,                    (RB_TimelineSemaphore sema))\
 X(timeline_wait,                    void,                   (RB_TimelinePoint point))\
-X(swapchain_frame_acquire,          RB_SwapchainFrame,      (RB_CommandBuffer cmd))\
 X(command_pool_create,              RB_CommandPool,         (void))\
 X(command_pool_destroy,             void,                   (RB_CommandPool pool))\
 X(command_pool_reset,               void,                   (RB_CommandPool pool))\
 X(commands_begin,                   RB_CommandBuffer,       (RB_CommandPool pool))\
-X(submit,                           void,                   (RB_SubmitDesc *desc))\
-X(submit_and_present,               void,                   (RB_SubmitDesc *desc))\
+X(gpu_heap_create,                  RB_GpuHeap,             (RB_MemoryKind kind, i64 bytes))\
+X(gpu_heap_destroy,                 void,                   (RB_GpuHeap heap))\
+X(gpu_heap_address,                 RB_GpuAddress,          (RB_GpuHeap heap))\
+X(gpu_heap_write,                   void,                   (RB_GpuHeap heap, i64 offset, void *data, i64 size))\
+X(texture_descriptor_write,         void,                   (RB_GpuHeap heap, u32 index, RB_Texture texture, RB_TextureDescriptorKind kind))\
+X(sampler_descriptor_write,         void,                   (RB_GpuHeap heap, u32 index, RB_SamplerDesc *desc))\
+X(texture_heap_create,              RB_TextureHeap,         (i64 bytes))\
+X(texture_heap_destroy,             void,                   (RB_TextureHeap heap))\
+X(texture_create,                   RB_Texture,             (RB_CommandBuffer cmd, RB_TextureDesc *desc, RB_TextureHeap heap, i64 offset))\
+X(texture_destroy,                  void,                   (RB_Texture texture_handle))\
+X(texture_size_align,               RB_SizeAlign,           (RB_TextureDesc *desc))\
+X(render_view_create,               RB_RenderView,          (RB_Texture texture, RB_RenderViewDesc desc))\
+X(render_view_destroy,              void,                   (RB_RenderView view))\
+X(pipeline_graphics_create,         RB_Pipeline,            (String8 vs_spirv, String8 fs_spirv, RB_RasterDesc *raster))\
+X(pipeline_mesh_create,             RB_Pipeline,            (String8 ts_spirv, String8 ms_spirv, String8 fs_spirv, RB_RasterDesc *raster))\
+X(pipeline_compute_create,          RB_Pipeline,            (String8 cs_spirv))\
+X(pipeline_destroy,                 void,                   (RB_Pipeline pipeline))\
+X(swapchain_frame_acquire,          RB_SwapchainFrame,      (RB_CommandBuffer cmd))\
+X(barrier,                          void,                   (RB_CommandBuffer cmd, RB_StageFlags before_stage, RB_AccessFlags before_access, RB_StageFlags after_stage, RB_AccessFlags after_access))\
+X(copy_memory,                      void,                   (RB_CommandBuffer cmd, RB_GpuRange src, RB_GpuRange dst))\
+X(copy_memory_to_texture,           void,                   (RB_CommandBuffer cmd, RB_GpuRange src, RB_Texture dst, RB_TextureCopyDesc copy))\
+X(copy_texture_to_memory,           void,                   (RB_CommandBuffer cmd, RB_Texture src, RB_GpuRange dst, RB_TextureCopyDesc copy))\
+X(write_timestamp,                  void,                   (RB_CommandBuffer cmd, RB_GpuAddress dst, RB_StageFlags stage))\
+X(texture_descriptor_heap_set,      void,                   (RB_CommandBuffer cmd, RB_GpuHeap heap))\
+X(sampler_descriptor_heap_set,      void,                   (RB_CommandBuffer cmd, RB_GpuHeap heap))\
 X(render_pass_begin,                void,                   (RB_CommandBuffer cmd, RB_RenderingDesc desc, RB_RenderingFlags flags))\
 X(render_pass_end,                  void,                   (RB_CommandBuffer cmd))\
 X(set_viewport,                     void,                   (RB_CommandBuffer cmd, RB_Viewport viewport))\
 X(set_scissor,                      void,                   (RB_CommandBuffer cmd, RB_Extent2D16 scissor))\
 X(set_depth_stencil_state,          void,                   (RB_CommandBuffer cmd, RB_DepthStencilState state))\
-X(barrier,                          void,                   (RB_CommandBuffer cmd, RB_StageFlags before_stage, RB_AccessFlags before_access, RB_StageFlags after_stage, RB_AccessFlags after_access))\
-X(gpu_heap_create,                  RB_GpuHeap,             (RB_MemoryKind kind, i64 bytes))\
-X(gpu_heap_destroy,                 void,                   (RB_GpuHeap heap))\
-X(gpu_heap_address,                 RB_GpuAddress,          (RB_GpuHeap heap))\
-X(gpu_heap_write,                   void,                   (RB_GpuHeap heap, i64 offset, void *data, i64 size))\
-X(texture_heap_create,              RB_TextureHeap,         (i64 bytes))\
-X(texture_heap_destroy,             void,                   (RB_TextureHeap heap))\
-X(texture_size_align,               RB_SizeAlign,           (RB_TextureDesc *desc))\
-X(texture_create,                   RB_Texture,             (RB_CommandBuffer cmd, RB_TextureDesc *desc, RB_TextureHeap heap, i64 offset))\
-X(copy_memory,                      void,                   (RB_CommandBuffer cmd, RB_GpuRange src, RB_GpuRange dst))\
-X(copy_memory_to_texture,           void,                   (RB_CommandBuffer cmd, RB_GpuRange src, RB_Texture dst, RB_TextureCopyDesc copy))\
-X(copy_texture_to_memory,           void,                   (RB_CommandBuffer cmd, RB_Texture src, RB_GpuRange dst, RB_TextureCopyDesc copy))\
-X(write_timestamp,                  void,                   (RB_CommandBuffer cmd, RB_GpuAddress dst, RB_StageFlags stage))\
-X(render_view_create,               RB_RenderView,          (RB_Texture texture, RB_RenderViewDesc desc))\
-X(render_view_destroy,              void,                   (RB_RenderView view))\
-X(texture_descriptor_write,         void,                   (RB_GpuHeap heap, u32 index, RB_Texture texture, RB_TextureDescriptorKind kind))\
-X(sampler_descriptor_write,         void,                   (RB_GpuHeap heap, u32 index, RB_SamplerDesc *desc))\
-X(texture_descriptor_heap_set,      void,                   (RB_CommandBuffer cmd, RB_GpuHeap heap))\
-X(sampler_descriptor_heap_set,      void,                   (RB_CommandBuffer cmd, RB_GpuHeap heap))\
-X(pipeline_graphics_create,         RB_Pipeline,            (String8 vs_spirv, String8 fs_spirv, RB_RasterDesc *raster))\
-X(pipeline_mesh_create,             RB_Pipeline,            (String8 ts_spirv, String8 ms_spirv, String8 fs_spirv, RB_RasterDesc *raster))\
-X(pipeline_compute_create,          RB_Pipeline,            (String8 cs_spirv))\
-X(pipeline_destroy,                 void,                   (RB_Pipeline pipeline))\
 X(bind_pso,                         void,                   (RB_CommandBuffer cmd, RB_Pipeline pso))\
 X(draw,                             void,                   (RB_CommandBuffer cmd, RB_GpuAddress root, u32 vertex_count, u32 instance_count, u32 first_vertex, u32 first_instance))\
 X(draw_indexed,                     void,                   (RB_CommandBuffer cmd, RB_GpuAddress root, RB_GpuRange indices, RB_IndexKind index_kind, u32 index_count, u32 instance_count, u32 first_index, i32 vertex_offset, u32 first_instance))\
@@ -671,7 +685,8 @@ X(draw_meshlets,                    void,                   (RB_CommandBuffer cm
 X(draw_meshlets_indirect,           void,                   (RB_CommandBuffer cmd, RB_GpuAddress root, RB_GpuRange args, u32 draw_count, u32 stride))\
 X(dispatch,                         void,                   (RB_CommandBuffer cmd, RB_GpuAddress root, u32 group_x, u32 group_y, u32 group_z))\
 X(dispatch_indirect,                void,                   (RB_CommandBuffer cmd, RB_GpuAddress root, RB_GpuRange args))\
-X(texture_destroy,                  void,                   (RB_Texture texture_handle))\
+X(submit,                           void,                   (RB_SubmitDesc *desc))\
+X(submit_and_present,               void,                   (RB_SubmitDesc *desc))\
 
 /*
     Points every rb_<name> at the chosen backend, then runs its init. Asserts if kind's backend

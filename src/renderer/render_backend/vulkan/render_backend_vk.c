@@ -1,81 +1,12 @@
-#if DOT_DEBUG
+////////////////////////////////////////////////////////////////
+/// RB_VK_CONFIG
+
+#if DOT_ENABLED(DOT_DEBUG)
 #   define RB_VK_VALIDATION_LAYERS_ENABLE 1
-#   define VK_EXT_DEBUG_UTILS_ENABLE 1
+#   define RB_VK_DEBUG_UTILS_ENABLE 1
 #else
 #   define RB_VK_VALIDATION_LAYERS_ENABLE 0
-#   define VK_EXT_DEBUG_UTILS_ENABLE 0
-#endif
-
-////////////////////////////////////////////////////////////////
-/// RB_VK_CHECK
-
-internal inline String8
-rb_vk_string8_from_vk_result(VkResult input_value)
-{
-    switch(input_value){
-    case VK_SUCCESS                                             : return str_comp("VK_SUCCESS");
-    case VK_NOT_READY                                           : return str_comp("VK_NOT_READY");
-    case VK_TIMEOUT                                             : return str_comp("VK_TIMEOUT");
-    case VK_EVENT_SET                                           : return str_comp("VK_EVENT_SET");
-    case VK_EVENT_RESET                                         : return str_comp("VK_EVENT_RESET");
-    case VK_INCOMPLETE                                          : return str_comp("VK_INCOMPLETE");
-    case VK_ERROR_OUT_OF_HOST_MEMORY                            : return str_comp("VK_ERROR_OUT_OF_HOST_MEMORY");
-    case VK_ERROR_OUT_OF_DEVICE_MEMORY                          : return str_comp("VK_ERROR_OUT_OF_DEVICE_MEMORY");
-    case VK_ERROR_INITIALIZATION_FAILED                         : return str_comp("VK_ERROR_INITIALIZATION_FAILED");
-    case VK_ERROR_DEVICE_LOST                                   : return str_comp("VK_ERROR_DEVICE_LOST");
-    case VK_ERROR_MEMORY_MAP_FAILED                             : return str_comp("VK_ERROR_MEMORY_MAP_FAILED");
-    case VK_ERROR_LAYER_NOT_PRESENT                             : return str_comp("VK_ERROR_LAYER_NOT_PRESENT");
-    case VK_ERROR_EXTENSION_NOT_PRESENT                         : return str_comp("VK_ERROR_EXTENSION_NOT_PRESENT");
-    case VK_ERROR_FEATURE_NOT_PRESENT                           : return str_comp("VK_ERROR_FEATURE_NOT_PRESENT");
-    case VK_ERROR_INCOMPATIBLE_DRIVER                           : return str_comp("VK_ERROR_INCOMPATIBLE_DRIVER");
-    case VK_ERROR_TOO_MANY_OBJECTS                              : return str_comp("VK_ERROR_TOO_MANY_OBJECTS");
-    case VK_ERROR_FORMAT_NOT_SUPPORTED                          : return str_comp("VK_ERROR_FORMAT_NOT_SUPPORTED");
-    case VK_ERROR_FRAGMENTED_POOL                               : return str_comp("VK_ERROR_FRAGMENTED_POOL");
-    case VK_ERROR_UNKNOWN                                       : return str_comp("VK_ERROR_UNKNOWN");
-    case VK_ERROR_VALIDATION_FAILED                             : return str_comp("VK_ERROR_VALIDATION_FAILED");
-    case VK_ERROR_OUT_OF_POOL_MEMORY                            : return str_comp("VK_ERROR_OUT_OF_POOL_MEMORY");
-    case VK_ERROR_INVALID_EXTERNAL_HANDLE                       : return str_comp("VK_ERROR_INVALID_EXTERNAL_HANDLE");
-    case VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS                : return str_comp("VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS");
-    case VK_ERROR_FRAGMENTATION                                 : return str_comp("VK_ERROR_FRAGMENTATION");
-    case VK_PIPELINE_COMPILE_REQUIRED                           : return str_comp("VK_PIPELINE_COMPILE_REQUIRED");
-    case VK_ERROR_NOT_PERMITTED                                 : return str_comp("VK_ERROR_NOT_PERMITTED");
-    case VK_ERROR_SURFACE_LOST_KHR                              : return str_comp("VK_ERROR_SURFACE_LOST_KHR");
-    case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR                      : return str_comp("VK_ERROR_NATIVE_WINDOW_IN_USE_KHR");
-    case VK_SUBOPTIMAL_KHR                                      : return str_comp("VK_SUBOPTIMAL_KHR");
-    case VK_ERROR_OUT_OF_DATE_KHR                               : return str_comp("VK_ERROR_OUT_OF_DATE_KHR");
-    case VK_ERROR_INCOMPATIBLE_DISPLAY_KHR                      : return str_comp("VK_ERROR_INCOMPATIBLE_DISPLAY_KHR");
-    case VK_ERROR_INVALID_SHADER_NV                             : return str_comp("VK_ERROR_INVALID_SHADER_NV");
-    case VK_ERROR_IMAGE_USAGE_NOT_SUPPORTED_KHR                 : return str_comp("VK_ERROR_IMAGE_USAGE_NOT_SUPPORTED_KHR");
-    case VK_ERROR_VIDEO_PICTURE_LAYOUT_NOT_SUPPORTED_KHR        : return str_comp("VK_ERROR_VIDEO_PICTURE_LAYOUT_NOT_SUPPORTED_KHR");
-    case VK_ERROR_VIDEO_PROFILE_OPERATION_NOT_SUPPORTED_KHR     : return str_comp("VK_ERROR_VIDEO_PROFILE_OPERATION_NOT_SUPPORTED_KHR");
-    case VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR        : return str_comp("VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR");
-    case VK_ERROR_VIDEO_PROFILE_CODEC_NOT_SUPPORTED_KHR         : return str_comp("VK_ERROR_VIDEO_PROFILE_CODEC_NOT_SUPPORTED_KHR");
-    case VK_ERROR_VIDEO_STD_VERSION_NOT_SUPPORTED_KHR           : return str_comp("VK_ERROR_VIDEO_STD_VERSION_NOT_SUPPORTED_KHR");
-    case VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT  : return str_comp("VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT");
-    case VK_ERROR_PRESENT_TIMING_QUEUE_FULL_EXT                 : return str_comp("VK_ERROR_PRESENT_TIMING_QUEUE_FULL_EXT");
-    case VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT           : return str_comp("VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT");
-    case VK_THREAD_IDLE_KHR                                     : return str_comp("VK_THREAD_IDLE_KHR");
-    case VK_THREAD_DONE_KHR                                     : return str_comp("VK_THREAD_DONE_KHR");
-    case VK_OPERATION_DEFERRED_KHR                              : return str_comp("VK_OPERATION_DEFERRED_KHR");
-    case VK_OPERATION_NOT_DEFERRED_KHR                          : return str_comp("VK_OPERATION_NOT_DEFERRED_KHR");
-    case VK_ERROR_INVALID_VIDEO_STD_PARAMETERS_KHR              : return str_comp("VK_ERROR_INVALID_VIDEO_STD_PARAMETERS_KHR");
-    case VK_ERROR_COMPRESSION_EXHAUSTED_EXT                     : return str_comp("VK_ERROR_COMPRESSION_EXHAUSTED_EXT");
-    case VK_INCOMPATIBLE_SHADER_BINARY_EXT                      : return str_comp("VK_INCOMPATIBLE_SHADER_BINARY_EXT");
-    case VK_PIPELINE_BINARY_MISSING_KHR                         : return str_comp("VK_PIPELINE_BINARY_MISSING_KHR");
-    case VK_ERROR_NOT_ENOUGH_SPACE_KHR                          : return str_comp("VK_ERROR_NOT_ENOUGH_SPACE_KHR");
-    case VK_RESULT_MAX_ENUM                                     :
-    default                                                     : return str_comp("Unhandled VkResult");
-    }
-}
-
-#ifdef NDEBUG 
-#   define RB_VK_CHECK(x) x
-#else
-#   define RB_VK_CHECK(x) \
-        do{ \
-            VkResult err = x; \
-            if(err < 0){ DOT_ERROR("Detected Vulkan error: %S\n", rb_vk_string8_from_vk_result(err)); } \
-        }while (0)
+#   define RB_VK_DEBUG_UTILS_ENABLE 0
 #endif
 
 typedef enum RB_VK_DeviceFeatureKind
@@ -86,8 +17,10 @@ typedef enum RB_VK_DeviceFeatureKind
     RB_VK_DeviceFeature_DeviceAddressCommands, RB_VK_DeviceFeature_DescriptorHeap,
     RB_VK_DeviceFeature_ShaderUntypedPointers, RB_VK_DeviceFeature_ShaderDrawParameters,
     RB_VK_DeviceFeature_ExtendedDynamicState, RB_VK_DeviceFeature_MeshShader,
-    RB_VK_DeviceFeature_UnifiedImageLayouts, RB_VK_DeviceFeature_COUNT,
+    RB_VK_DeviceFeature_UnifiedImageLayouts, RB_VK_DeviceFeature_MemoryBudget,
+    RB_VK_DeviceFeature_COUNT,
 }RB_VK_DeviceFeatureKind;
+
 typedef struct RB_VK_DeviceFeature
 {
     String8 extension;
@@ -118,19 +51,56 @@ typedef struct RB_VK_VulkanConfig
     String8 *validation_layers;
 }RB_VK_VulkanConfig;
 
+////////////////////////////////////////////////////////////////
+/// RB_VK_MEMORY
+
+enum
+{
+    RB_VK_MEMORY_TYPE_ALWAYS_FORBIDDEN = VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT
+        | VK_MEMORY_PROPERTY_PROTECTED_BIT
+        | VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD
+        | VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD,
+};
+
+typedef struct RB_VK_GpuMemoryProperties
+{
+    VkMemoryPropertyFlags required;
+    VkMemoryPropertyFlags preferred;
+    VkMemoryPropertyFlags forbidden;
+    VkBufferUsageFlags usage;
+}RB_VK_GpuMemoryProperties;
+
+typedef struct RB_VK_DescriptorHeapLayout
+{
+    u64 descriptor_size;
+    u64 reserved_alignment;
+    u64 reserved_size;
+    u64 heap_alignment;
+}RB_VK_DescriptorHeapLayout;
+
+////////////////////////////////////////////////////////////////
+/// RB_VK_TEXTURE
+
+internal VkDeviceMemory rb_vk_image_memory_alloc(VkImage vk_image);
+internal b8             rb_vk_image_create_info_supported(VkImageCreateInfo *info);
+internal void           rb_vk_texture_memory_select(void);
+
+////////////////////////////////////////////////////////////////
+/// RB_VK_GLOBALS
+
+global RB_VK_BackendCtx *rb_vk_g_ctx;
+
 global read_only String8 rb_vk_g_instance_extensions[] = {
     str_lit(VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME),
     str_lit(VK_KHR_SURFACE_EXTENSION_NAME),
     str_lit(VK_KHR_SURFACE_MAINTENANCE_1_EXTENSION_NAME),
-#ifdef VK_EXT_DEBUG_UTILS_ENABLE
+#if RB_VK_DEBUG_UTILS_ENABLE
     str_lit(VK_EXT_DEBUG_UTILS_EXTENSION_NAME),
 #endif
 };
 
 global read_only String8 rb_vk_g_validation_layers[] = {
-#ifdef RB_VK_VALIDATION_LAYERS_ENABLE
     str_lit("VK_LAYER_KHRONOS_validation"),
-#endif
 };
 
 read_only global RB_VK_VulkanConfig rb_vk_g_config = {
@@ -144,7 +114,7 @@ read_only global RB_VK_VulkanConfig rb_vk_g_config = {
         .extension_count     = DOT_ARRAY_COUNT(rb_vk_g_instance_extensions),
         .extensions          = rb_vk_g_instance_extensions,
     },
-    .validation_layer_count = DOT_ARRAY_COUNT(rb_vk_g_validation_layers),
+    .validation_layer_count = RB_VK_VALIDATION_LAYERS_ENABLE ? DOT_ARRAY_COUNT(rb_vk_g_validation_layers) : 0,
     .validation_layers      = rb_vk_g_validation_layers,
     .device = {
         .core_features = {
@@ -241,37 +211,85 @@ read_only global RB_VK_VulkanConfig rb_vk_g_config = {
                     .unifiedImageLayouts = VK_TRUE,
                 },
             },
+            [RB_VK_DeviceFeature_MemoryBudget] = {
+                .extension = str_lit(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME),
+                .optional = true,
+            },
         },
     },
 };
 
-enum { RB_VK_REBAR_MIN_HEAP_SIZE = DOT_MB(256) };
+////////////////////////////////////////////////////////////////
+/// RB_VK_CHECK
 
-typedef struct RB_VK_GpuMemoryProperties
+#ifdef NDEBUG
+#   define RB_VK_CHECK(x) x
+#else
+#   define RB_VK_CHECK(x) \
+        do{ \
+            VkResult err = x; \
+            if(err < 0){ DOT_ERROR("Detected Vulkan error: %S\n", rb_vk_string8_from_vk_result(err)); } \
+        }while (0)
+#endif
+
+internal inline String8
+rb_vk_string8_from_vk_result(VkResult input_value)
 {
-    VkMemoryPropertyFlags required;
-    VkMemoryPropertyFlags preferred;
-    VkMemoryPropertyFlags forbidden;
-    VkBufferUsageFlags usage;
-    b8 needs_rebar;
-}RB_VK_GpuMemoryProperties;
-
-enum
-{
-    RB_VK_MEMORY_TYPE_ALWAYS_FORBIDDEN = VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT
-        | VK_MEMORY_PROPERTY_PROTECTED_BIT
-        | VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD
-        | VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD,
-};
-
-#define RB_VK_ADDRESS_FLAGS VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR
-
-internal VkDeviceMemory rb_vk_image_memory_alloc(VkImage vk_image);
-internal b8             rb_vk_image_create_info_supported(VkImageCreateInfo *info);
-internal void           rb_vk_texture_memory_select(void);
-
-
-global RB_VK_BackendCtx *rb_vk_g_ctx;
+    switch(input_value){
+    case VK_SUCCESS                                             : return str_comp("VK_SUCCESS");
+    case VK_NOT_READY                                           : return str_comp("VK_NOT_READY");
+    case VK_TIMEOUT                                             : return str_comp("VK_TIMEOUT");
+    case VK_EVENT_SET                                           : return str_comp("VK_EVENT_SET");
+    case VK_EVENT_RESET                                         : return str_comp("VK_EVENT_RESET");
+    case VK_INCOMPLETE                                          : return str_comp("VK_INCOMPLETE");
+    case VK_ERROR_OUT_OF_HOST_MEMORY                            : return str_comp("VK_ERROR_OUT_OF_HOST_MEMORY");
+    case VK_ERROR_OUT_OF_DEVICE_MEMORY                          : return str_comp("VK_ERROR_OUT_OF_DEVICE_MEMORY");
+    case VK_ERROR_INITIALIZATION_FAILED                         : return str_comp("VK_ERROR_INITIALIZATION_FAILED");
+    case VK_ERROR_DEVICE_LOST                                   : return str_comp("VK_ERROR_DEVICE_LOST");
+    case VK_ERROR_MEMORY_MAP_FAILED                             : return str_comp("VK_ERROR_MEMORY_MAP_FAILED");
+    case VK_ERROR_LAYER_NOT_PRESENT                             : return str_comp("VK_ERROR_LAYER_NOT_PRESENT");
+    case VK_ERROR_EXTENSION_NOT_PRESENT                         : return str_comp("VK_ERROR_EXTENSION_NOT_PRESENT");
+    case VK_ERROR_FEATURE_NOT_PRESENT                           : return str_comp("VK_ERROR_FEATURE_NOT_PRESENT");
+    case VK_ERROR_INCOMPATIBLE_DRIVER                           : return str_comp("VK_ERROR_INCOMPATIBLE_DRIVER");
+    case VK_ERROR_TOO_MANY_OBJECTS                              : return str_comp("VK_ERROR_TOO_MANY_OBJECTS");
+    case VK_ERROR_FORMAT_NOT_SUPPORTED                          : return str_comp("VK_ERROR_FORMAT_NOT_SUPPORTED");
+    case VK_ERROR_FRAGMENTED_POOL                               : return str_comp("VK_ERROR_FRAGMENTED_POOL");
+    case VK_ERROR_UNKNOWN                                       : return str_comp("VK_ERROR_UNKNOWN");
+    case VK_ERROR_VALIDATION_FAILED                             : return str_comp("VK_ERROR_VALIDATION_FAILED");
+    case VK_ERROR_OUT_OF_POOL_MEMORY                            : return str_comp("VK_ERROR_OUT_OF_POOL_MEMORY");
+    case VK_ERROR_INVALID_EXTERNAL_HANDLE                       : return str_comp("VK_ERROR_INVALID_EXTERNAL_HANDLE");
+    case VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS                : return str_comp("VK_ERROR_INVALID_OPAQUE_CAPTURE_ADDRESS");
+    case VK_ERROR_FRAGMENTATION                                 : return str_comp("VK_ERROR_FRAGMENTATION");
+    case VK_PIPELINE_COMPILE_REQUIRED                           : return str_comp("VK_PIPELINE_COMPILE_REQUIRED");
+    case VK_ERROR_NOT_PERMITTED                                 : return str_comp("VK_ERROR_NOT_PERMITTED");
+    case VK_ERROR_SURFACE_LOST_KHR                              : return str_comp("VK_ERROR_SURFACE_LOST_KHR");
+    case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR                      : return str_comp("VK_ERROR_NATIVE_WINDOW_IN_USE_KHR");
+    case VK_SUBOPTIMAL_KHR                                      : return str_comp("VK_SUBOPTIMAL_KHR");
+    case VK_ERROR_OUT_OF_DATE_KHR                               : return str_comp("VK_ERROR_OUT_OF_DATE_KHR");
+    case VK_ERROR_INCOMPATIBLE_DISPLAY_KHR                      : return str_comp("VK_ERROR_INCOMPATIBLE_DISPLAY_KHR");
+    case VK_ERROR_INVALID_SHADER_NV                             : return str_comp("VK_ERROR_INVALID_SHADER_NV");
+    case VK_ERROR_IMAGE_USAGE_NOT_SUPPORTED_KHR                 : return str_comp("VK_ERROR_IMAGE_USAGE_NOT_SUPPORTED_KHR");
+    case VK_ERROR_VIDEO_PICTURE_LAYOUT_NOT_SUPPORTED_KHR        : return str_comp("VK_ERROR_VIDEO_PICTURE_LAYOUT_NOT_SUPPORTED_KHR");
+    case VK_ERROR_VIDEO_PROFILE_OPERATION_NOT_SUPPORTED_KHR     : return str_comp("VK_ERROR_VIDEO_PROFILE_OPERATION_NOT_SUPPORTED_KHR");
+    case VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR        : return str_comp("VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR");
+    case VK_ERROR_VIDEO_PROFILE_CODEC_NOT_SUPPORTED_KHR         : return str_comp("VK_ERROR_VIDEO_PROFILE_CODEC_NOT_SUPPORTED_KHR");
+    case VK_ERROR_VIDEO_STD_VERSION_NOT_SUPPORTED_KHR           : return str_comp("VK_ERROR_VIDEO_STD_VERSION_NOT_SUPPORTED_KHR");
+    case VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT  : return str_comp("VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT");
+    case VK_ERROR_PRESENT_TIMING_QUEUE_FULL_EXT                 : return str_comp("VK_ERROR_PRESENT_TIMING_QUEUE_FULL_EXT");
+    case VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT           : return str_comp("VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT");
+    case VK_THREAD_IDLE_KHR                                     : return str_comp("VK_THREAD_IDLE_KHR");
+    case VK_THREAD_DONE_KHR                                     : return str_comp("VK_THREAD_DONE_KHR");
+    case VK_OPERATION_DEFERRED_KHR                              : return str_comp("VK_OPERATION_DEFERRED_KHR");
+    case VK_OPERATION_NOT_DEFERRED_KHR                          : return str_comp("VK_OPERATION_NOT_DEFERRED_KHR");
+    case VK_ERROR_INVALID_VIDEO_STD_PARAMETERS_KHR              : return str_comp("VK_ERROR_INVALID_VIDEO_STD_PARAMETERS_KHR");
+    case VK_ERROR_COMPRESSION_EXHAUSTED_EXT                     : return str_comp("VK_ERROR_COMPRESSION_EXHAUSTED_EXT");
+    case VK_INCOMPATIBLE_SHADER_BINARY_EXT                      : return str_comp("VK_INCOMPATIBLE_SHADER_BINARY_EXT");
+    case VK_PIPELINE_BINARY_MISSING_KHR                         : return str_comp("VK_PIPELINE_BINARY_MISSING_KHR");
+    case VK_ERROR_NOT_ENOUGH_SPACE_KHR                          : return str_comp("VK_ERROR_NOT_ENOUGH_SPACE_KHR");
+    case VK_RESULT_MAX_ENUM                                     :
+    default                                                     : return str_comp("Unhandled VkResult");
+    }
+}
 
 ////////////////////////////////////////////////////////////////
 /// Instance / device selection
@@ -400,7 +418,6 @@ rb_vk_physical_device_swapchain_support(
         swapchain_support_details.surface_formats[it] = (VkSurfaceFormat2KHR){
             .sType = VK_STRUCTURE_TYPE_SURFACE_FORMAT_2_KHR,
         };
-
     }
     vkGetPhysicalDeviceSurfaceFormats2KHR(gpu, &surface_info, &swapchain_support_details.format_count, swapchain_support_details.surface_formats);
 
@@ -408,6 +425,7 @@ rb_vk_physical_device_swapchain_support(
     vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &swapchain_support_details.present_modes_count, NULL);
     swapchain_support_details.present_modes = PUSH_ARRAY(s.arena, VkPresentModeKHR, swapchain_support_details.present_modes_count);
     vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &swapchain_support_details.present_modes_count, swapchain_support_details.present_modes);
+
     b32 has_support = swapchain_support_details.format_count > 0 && swapchain_support_details.present_modes_count > 0;
     if(has_support && details != NULL){
         VkSurfaceCapabilitiesKHR surface_capabilities = swapchain_support_details.surface_capabilities.surfaceCapabilities;
@@ -418,8 +436,9 @@ rb_vk_physical_device_swapchain_support(
         }
 
         VkColorSpaceKHR  preferred_colorspace   = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-        VkSurfaceFormat2KHR desired_format = swapchain_support_details.surface_formats[0]; // Keep this one if none found
-        VkSurfaceFormat2KHR *surface_formats = swapchain_support_details.surface_formats;
+        VkSurfaceFormat2KHR desired_format      = swapchain_support_details.surface_formats[0]; // Keep this one if none found
+        VkSurfaceFormat2KHR *surface_formats    = swapchain_support_details.surface_formats;
+
         for(u32 i = 0; i < swapchain_support_details.format_count; ++i){
             VkSurfaceFormat2KHR desiredVk_format = surface_formats[i];
             if (desiredVk_format.surfaceFormat.format == details->preferred_format &&
@@ -889,18 +908,6 @@ rb_vk_image_memory_requirements(VkDevice vk_device, VkImage vk_image)
     return(reqs);
 }
 
-internal VkCommandBufferSubmitInfo
-rb_vk_command_buffer_submit_info(VkCommandBuffer cmd)
-{
-	VkCommandBufferSubmitInfo info = {
-	    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
-	    .pNext = NULL,
-	    .commandBuffer = cmd,
-	    .deviceMask = 0,
-    };
-	return info;
-}
-
 internal inline VKAPI_ATTR u32 VKAPI_CALL
 rb_vk_debug_callback(
     VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
@@ -919,7 +926,7 @@ rb_vk_debug_callback(
 internal inline VKAPI_ATTR void VKAPI_CALL
 rb_vk_resource_set_name(VkObjectType type, u64 handle, String8 name)
 {
-    if(VK_EXT_DEBUG_UTILS_ENABLE){ return; }
+    if(!RB_VK_DEBUG_UTILS_ENABLE){ return; }
 
     Scratch s = scratch_begin(0,0);
     String8 tmp = string8_copy(s.arena, name);
@@ -1053,14 +1060,6 @@ rb_vk_texture_create(RB_CommandBuffer cmd_h, RB_TextureDesc *desc, RB_TextureHea
     RB_Texture h = RB_HANDLE_PACK(RB_Texture, texture);
     return(h);
 }
-
-typedef struct RB_VK_DescriptorHeapLayout
-{
-    u64 descriptor_size;
-    u64 reserved_alignment;
-    u64 reserved_size;
-    u64 heap_alignment;
-}RB_VK_DescriptorHeapLayout;
 
 internal RB_VK_DescriptorHeapLayout
 rb_vk_descriptor_heap_layout(RB_MemoryKind kind)
@@ -1530,18 +1529,18 @@ rb_vk_swapchain_create(void)
         for(u32 i = 0; i < swapchain->swapchain_image_count; ++i){
             swapchain_images[i].vk_image = vk_swapchain_images[i];
             RB_VK_CHECK(vkCreateImageView(device,
-                    &(VkImageViewCreateInfo) {
-                        .sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                        .image      = swapchain_images[i].vk_image,
-                        .viewType   = VK_IMAGE_VIEW_TYPE_2D,
-                        .format     = swapchain->image_format,
-                        .components = {
+                &(VkImageViewCreateInfo) {
+                    .sType      = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                    .image      = swapchain_images[i].vk_image,
+                    .viewType   = VK_IMAGE_VIEW_TYPE_2D,
+                    .format     = swapchain->image_format,
+                    .components = {
                         .r = VK_COMPONENT_SWIZZLE_IDENTITY,
                         .g = VK_COMPONENT_SWIZZLE_IDENTITY,
                         .b = VK_COMPONENT_SWIZZLE_IDENTITY,
                         .a = VK_COMPONENT_SWIZZLE_IDENTITY,
-                        },
-                        .subresourceRange = {
+                    },
+                    .subresourceRange = {
                         .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
                         .baseMipLevel   = 0,
                         .levelCount     = 1,
@@ -1549,7 +1548,9 @@ rb_vk_swapchain_create(void)
                         .layerCount     = 1,
                     },
                 },
-            NULL, &swapchain_images[i].vk_image_view));
+                NULL,
+                &swapchain_images[i].vk_image_view
+            ));
 
             RB_VK_RenderView *view = &swapchain->render_views[i];
             view->vk_image        = swapchain_images[i].vk_image;
@@ -1690,7 +1691,7 @@ rb_vk_init(Arena *arena, PlatformNativeWindow window, RB_DeviceDesc const *desc)
     }
 
     VkDebugUtilsMessengerCreateInfoEXT *debug_utils_info_ptr = NULL;
-    if(VK_EXT_DEBUG_UTILS_ENABLE){
+    if(RB_VK_DEBUG_UTILS_ENABLE){
         VkDebugUtilsMessengerCreateInfoEXT debug_utils_info = {
             .sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
 
@@ -1801,7 +1802,8 @@ rb_vk_init(Arena *arena, PlatformNativeWindow window, RB_DeviceDesc const *desc)
                 features = next;
             }
         }
-        device->mesh_shaders = feature_enabled[RB_VK_DeviceFeature_MeshShader];
+        device->mesh_shaders  = feature_enabled[RB_VK_DeviceFeature_MeshShader];
+        device->memory_budget = feature_enabled[RB_VK_DeviceFeature_MemoryBudget];
 
         VkDeviceCreateInfo device_create_info = {
             .sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
@@ -1848,6 +1850,19 @@ rb_vk_init(Arena *arena, PlatformNativeWindow window, RB_DeviceDesc const *desc)
     }
 
     {
+        VkFormat preferred = rb_vk_format_from_format_kind(desc->depth_format);
+        VkFormatProperties props = {0};
+        vkGetPhysicalDeviceFormatProperties(rb_vk_g_ctx->device.vk_gpu, preferred, &props);
+        VkFormatFeatureFlags need = VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
+        if(DOT_BITS_MATCH(props.optimalTilingFeatures, need)){
+            rb_vk_g_ctx->depth_format = preferred;
+        }else{
+            DOT_WARNING("Depth format %S unsupported, falling back to D16_UNORM", string8_from_RB_FormatKind[desc->depth_format]);
+            rb_vk_g_ctx->depth_format = VK_FORMAT_D16_UNORM;
+        }
+    }
+
+    {
         VkDevice device = rb_vk_g_ctx->device.vk_device;
         {
             rb_vk_g_ctx->present_context_count = desc->frame_overlap;
@@ -1888,6 +1903,7 @@ rb_vk_device_info(void)
     rb_info.driver_version     = properties->driverVersion;
     rb_info.api_version        = properties->apiVersion;
     rb_info.swapchain_format   = rb_vk_format_kind_from_vk_format(rb_vk_g_ctx->swapchain.image_format);
+    rb_info.depth_format       = rb_vk_format_kind_from_vk_format(rb_vk_g_ctx->depth_format);
     rb_info.texture_heap_alignment  = rb_vk_g_ctx->device.texture_heap_alignment;
     rb_info.texture_descriptor_size = rb_vk_g_ctx->heap_properties.imageDescriptorSize;
     rb_info.sampler_descriptor_size = rb_vk_g_ctx->heap_properties.samplerDescriptorSize;
@@ -1895,25 +1911,6 @@ rb_vk_device_info(void)
     rb_info.mesh_shaders        = rb_vk_g_ctx->device.mesh_shaders;
     rb_info.name = string8_from_cstring(properties->deviceName);
     return(rb_info);
-}
-
-internal b32
-rb_vk_supports_texture_format(RB_FormatKind format, RB_TextureUsageFlags usage)
-{
-    if(format == RB_FormatKind_None){ return(false); }
-    VkFormatProperties props = {0};
-    vkGetPhysicalDeviceFormatProperties(rb_vk_g_ctx->device.vk_gpu, rb_vk_format_from_format_kind(format), &props);
-    VkFormatFeatureFlags have = props.optimalTilingFeatures;
-
-    VkImageUsageFlags image_usage = rb_vk_image_usage_from_texture_usage(format, usage);
-    VkFormatFeatureFlags need = 0;
-    if(image_usage & VK_IMAGE_USAGE_SAMPLED_BIT)                  need |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
-    if(image_usage & VK_IMAGE_USAGE_STORAGE_BIT)                  need |= VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT;
-    if(image_usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)         need |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
-    if(image_usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) need |= VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
-    if(image_usage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT)             need |= VK_FORMAT_FEATURE_TRANSFER_SRC_BIT;
-    if(image_usage & VK_IMAGE_USAGE_TRANSFER_DST_BIT)             need |= VK_FORMAT_FEATURE_TRANSFER_DST_BIT;
-    return(DOT_BITS_MATCH(have, need));
 }
 
 internal i32x2
@@ -2206,7 +2203,7 @@ rb_vk_pipeline_stage_flags2_from_rb_stage(RB_StageFlags stage)
 }
 
 internal VkAccessFlags2
-rb_vk_access_flags2_from_rb_access(RB_AccessFlags access)
+rb_vk_access_flags_from_rb_access(RB_AccessFlags access)
 {
     VkAccessFlags2 flags = 0;
     if(DOT_BITS_ANY(access, RB_AccessBit_TransferRead))      flags |= VK_ACCESS_2_TRANSFER_READ_BIT;
@@ -2232,9 +2229,9 @@ rb_vk_barrier(RB_CommandBuffer cmd_h, RB_StageFlags before_stage, RB_AccessFlags
     VkMemoryBarrier2 barrier = {0};
     barrier.sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
     barrier.srcStageMask  = rb_vk_pipeline_stage_flags2_from_rb_stage(before_stage);
-    barrier.srcAccessMask = rb_vk_access_flags2_from_rb_access(before_access);
+    barrier.srcAccessMask = rb_vk_access_flags_from_rb_access(before_access);
     barrier.dstStageMask  = rb_vk_pipeline_stage_flags2_from_rb_stage(after_stage);
-    barrier.dstAccessMask = rb_vk_access_flags2_from_rb_access(after_access);
+    barrier.dstAccessMask = rb_vk_access_flags_from_rb_access(after_access);
 
     VkDependencyInfo dep_info = {0};
     dep_info.sType              = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
@@ -2329,8 +2326,10 @@ rb_vk_render_pass_begin(RB_CommandBuffer cmd_h, RB_RenderingDesc desc, RB_Render
 
     VkRenderingAttachmentInfo color_infos[RB_IMAGE_OUTPUTS_MAX] = {0};
     u32 color_attachement_count = 0;
-    for(; color_attachement_count < RB_IMAGE_OUTPUTS_MAX && RB_HANDLE_VALID(desc.color_attachments[color_attachement_count].view); ++color_attachement_count){
+    for(; color_attachement_count < RB_IMAGE_OUTPUTS_MAX; ++color_attachement_count){
         RB_ColorAttachment *att = &desc.color_attachments[color_attachement_count];
+        if(!RB_HANDLE_VALID(att->view)){ break; }
+
         RB_VK_RenderView *view = RB_HANDLE_UNPACK(RB_VK_RenderView*, att->view);
         cmd->active_color_attachments[color_attachement_count] = view;
         DOT_ASSERT(!view->swapchain_image || view->swapchain_image->vk_layout == VK_IMAGE_LAYOUT_GENERAL, "Rendering to a swapchain image that wasn't acquired");
@@ -2434,7 +2433,7 @@ rb_vk_index_buffer_bind(RB_VK_CommandBuffer *cmd, RB_GpuRange indices, RB_IndexK
     bind_info.sType                = VK_STRUCTURE_TYPE_BIND_INDEX_BUFFER_3_INFO_KHR;
     bind_info.addressRange.address = indices.gpu;
     bind_info.addressRange.size    = cast(u64)indices.size;
-    bind_info.addressFlags         = RB_VK_ADDRESS_FLAGS;
+    bind_info.addressFlags         = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR;
     bind_info.indexType            = index_kind == RB_IndexKind_U16 ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32;
     vkCmdBindIndexBuffer3KHR(cmd->vk_cmd, &bind_info);
 }
@@ -2467,7 +2466,7 @@ rb_vk_draw_indirect(RB_CommandBuffer cmd_h, RB_GpuAddress root, RB_GpuRange args
     info.addressRange.address = args.gpu;
     info.addressRange.size    = cast(u64)args.size;
     info.addressRange.stride  = stride ? stride : sizeof(RB_DrawIndirectArgs);
-    info.addressFlags         = RB_VK_ADDRESS_FLAGS;
+    info.addressFlags         = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR;
     info.drawCount            = draw_count;
     vkCmdDrawIndirect2KHR(cmd->vk_cmd, &info);
 }
@@ -2484,7 +2483,7 @@ rb_vk_draw_indexed_indirect(RB_CommandBuffer cmd_h, RB_GpuAddress root, RB_GpuRa
     info.addressRange.address = args.gpu;
     info.addressRange.size    = cast(u64)args.size;
     info.addressRange.stride  = stride ? stride : sizeof(RB_DrawIndexedIndirectArgs);
-    info.addressFlags         = RB_VK_ADDRESS_FLAGS;
+    info.addressFlags         = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR;
     info.drawCount            = draw_count;
     vkCmdDrawIndexedIndirect2KHR(cmd->vk_cmd, &info);
 }
@@ -2510,7 +2509,7 @@ rb_vk_draw_meshlets_indirect(RB_CommandBuffer cmd_h, RB_GpuAddress root, RB_GpuR
     info.addressRange.address = args.gpu;
     info.addressRange.size    = cast(u64)args.size;
     info.addressRange.stride  = stride ? stride : sizeof(RB_DrawMeshletsIndirectArgs);
-    info.addressFlags         = RB_VK_ADDRESS_FLAGS;
+    info.addressFlags         = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR;
     info.drawCount            = draw_count;
     vkCmdDrawMeshTasksIndirect2EXT(cmd->vk_cmd, &info);
 }
@@ -2535,7 +2534,7 @@ rb_vk_dispatch_indirect(RB_CommandBuffer cmd_h, RB_GpuAddress root, RB_GpuRange 
     info.sType                = VK_STRUCTURE_TYPE_DISPATCH_INDIRECT_2_INFO_KHR;
     info.addressRange.address = args.gpu;
     info.addressRange.size    = cast(u64)args.size;
-    info.addressFlags         = RB_VK_ADDRESS_FLAGS;
+    info.addressFlags         = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR;
     vkCmdDispatchIndirect2KHR(cmd->vk_cmd, &info);
 }
 
@@ -2561,7 +2560,7 @@ rb_vk_timestamps_copy(VkCommandBuffer vk_cmd, RB_VK_CommandBuffer *owner)
         dst_range.address = owner->timestamp_dsts[i];
         dst_range.size    = sizeof(u64);
         dst_range.stride  = sizeof(u64);
-        vkCmdCopyQueryPoolResultsToMemoryKHR(vk_cmd, owner->timestamp_pool, i, 1, &dst_range, RB_VK_ADDRESS_FLAGS,
+        vkCmdCopyQueryPoolResultsToMemoryKHR(vk_cmd, owner->timestamp_pool, i, 1, &dst_range, VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR,
             VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
     }
 }
@@ -2600,7 +2599,11 @@ rb_vk_commands_end_for_submit(RB_CommandBuffer *cmds, u32 count, VkCommandBuffer
             }
         }
         RB_VK_CHECK(vkEndCommandBuffer(cmd->vk_cmd));
-        out_infos[i] = rb_vk_command_buffer_submit_info(cmd->vk_cmd);
+
+        out_infos[i] = (VkCommandBufferSubmitInfo){
+	        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+	        .commandBuffer = cmd->vk_cmd,
+        };
     }
 }
 
@@ -2643,7 +2646,8 @@ rb_vk_submit_and_present(RB_SubmitDesc *desc)
 
     u32 count = desc->command_buffer_count;
     DOT_ASSERT(count > 0, "Presenting needs at least one command buffer");
-#if !defined(NDEBUG)
+
+#if DOT_ENABLED(DOT_DEBUG)
     b32 contains_swapchain = false;
     for(u32 i = 0; i < count; ++i){
         RB_VK_CommandBuffer *cmd = RB_HANDLE_UNPACK(RB_VK_CommandBuffer*, desc->command_buffers[i]);
@@ -2651,6 +2655,7 @@ rb_vk_submit_and_present(RB_SubmitDesc *desc)
     }
     DOT_ASSERT(contains_swapchain, "The presenting submission must include the command buffer passed to rb_swapchain_frame_acquire");
 #endif
+
     RB_VK_CommandBuffer *last = RB_HANDLE_UNPACK(RB_VK_CommandBuffer*, desc->command_buffers[count - 1]);
     DOT_ASSERT(!last->in_render_pass && !last->ends_suspending, "Present needs every render pass ended");
     rb_vk_image_transition(last->vk_cmd, swapchain_image->vk_image, VK_IMAGE_ASPECT_COLOR_BIT, swapchain_image->vk_layout, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
@@ -2741,7 +2746,7 @@ rb_vk_end()
     vkDestroySwapchainKHR(device, rb_vk_g_ctx->swapchain.swapchain, NULL);
     vkDestroySurfaceKHR(rb_vk_g_ctx->instance, rb_vk_g_ctx->surface, NULL);
     vkDestroyDevice(rb_vk_g_ctx->device.vk_device, NULL);
-    if(VK_EXT_DEBUG_UTILS_ENABLE){
+    if(RB_VK_DEBUG_UTILS_ENABLE){
         PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT = cast(PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(rb_vk_g_ctx->instance, "vkDestroyDebugUtilsMessengerEXT");
         if(vkDestroyDebugUtilsMessengerEXT){
             vkDestroyDebugUtilsMessengerEXT(rb_vk_g_ctx->instance, rb_vk_g_ctx->debug_messenger, NULL);
@@ -2788,10 +2793,9 @@ rb_vk_gpu_memory_properties_from_memory_kind(RB_MemoryKind mem_kind)
         props.forbidden = rb_vk_g_ctx->device.is_integrated_gpu ? 0 : VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
     break;
     case RB_MemoryKind_CpuToGpu:
-        props.required  = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
-            | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+        props.required  = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
             | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-        props.needs_rebar = true;
+        props.preferred = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
     break;
     case RB_MemoryKind_Readback:
         props.required  = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
@@ -2812,10 +2816,16 @@ rb_vk_gpu_memory_properties_from_memory_kind(RB_MemoryKind mem_kind)
 }
 
 internal u32
-rb_vk_find_memory_type(u32 type_bits, RB_VK_GpuMemoryProperties properties)
+rb_vk_find_memory_type(u32 type_bits, RB_VK_GpuMemoryProperties properties, u64 size)
 {
-    VkPhysicalDeviceMemoryProperties memory_properties;
-    vkGetPhysicalDeviceMemoryProperties(rb_vk_g_ctx->device.vk_gpu, &memory_properties);
+    VkPhysicalDeviceMemoryBudgetPropertiesEXT budget = {0};
+    budget.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT;
+
+    VkPhysicalDeviceMemoryProperties2 memory_properties2 = {0};
+    memory_properties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
+    memory_properties2.pNext = rb_vk_g_ctx->device.memory_budget ? &budget : NULL;
+    vkGetPhysicalDeviceMemoryProperties2(rb_vk_g_ctx->device.vk_gpu, &memory_properties2);
+    VkPhysicalDeviceMemoryProperties memory_properties = memory_properties2.memoryProperties;
 
     i64 best = -1;
     for(u32 i = 0; i < memory_properties.memoryTypeCount; ++i){
@@ -2827,24 +2837,26 @@ rb_vk_find_memory_type(u32 type_bits, RB_VK_GpuMemoryProperties properties)
         if(DOT_BITS_ANY(flags, RB_VK_MEMORY_TYPE_ALWAYS_FORBIDDEN))
             continue;
 
-        u32 heap_idx = memory_properties.memoryTypes[i].heapIndex;
-        VkDeviceSize heap_size = memory_properties.memoryHeaps[heap_idx].size;
-        if(properties.needs_rebar && heap_size <= RB_VK_REBAR_MIN_HEAP_SIZE){
-            continue;
-        }
-
         if(DOT_BITS_ANY(flags, properties.forbidden))
             continue;
 
         if(!DOT_BITS_MATCH(flags, properties.required))
             continue;
 
-
-        if(DOT_BITS_MATCH(flags, properties.preferred)){
-            return cast(u32)i;
+        if(properties.preferred && DOT_BITS_MATCH(flags, properties.preferred)){
+            u32 heap_idx = memory_properties.memoryTypes[i].heapIndex;
+            VkDeviceSize available = memory_properties.memoryHeaps[heap_idx].size;
+            if(rb_vk_g_ctx->device.memory_budget){
+                VkDeviceSize used     = budget.heapUsage[heap_idx];
+                VkDeviceSize capacity = budget.heapBudget[heap_idx];
+                available = used < capacity ? capacity - used : 0;
+            }
+            if(available >= size){
+                return cast(u32)i;
+            }
+            continue;
         }
 
-        // Fallback: first that matches required
         if(best < 0)
             best = cast(u32)i;
     }
@@ -2896,12 +2908,9 @@ rb_vk_gpu_heap_create(RB_MemoryKind kind, i64 bytes)
 
     vkGetDeviceBufferMemoryRequirements(vk_device, &device_buffer_reqs, &mem_reqs2);
 
-    u32 memory_type_idx = rb_vk_find_memory_type(mem_reqs2.memoryRequirements.memoryTypeBits, props);
+    u32 memory_type_idx = rb_vk_find_memory_type(mem_reqs2.memoryRequirements.memoryTypeBits, props, mem_reqs2.memoryRequirements.size);
     if(memory_type_idx == U32_MAX){
-        DOT_ERROR("No suitable memory type for gpu alloc kind %d - if this is "
-            "CpuToGpu, the GPU/driver/BIOS likely doesn't expose a "
-            "DEVICE_LOCAL+HOST_VISIBLE (ReBAR) heap at all or is disabled",
-            kind);
+        DOT_ERROR("No suitable memory type for gpu alloc kind %d", kind);
     }
 
     VkMemoryAllocateFlagsInfo alloc_flags_info = {0};
@@ -2943,7 +2952,6 @@ rb_vk_gpu_heap_address(RB_GpuHeap heap)
     return(vk_gpu_heap->gpu_base);
 }
 
-// Write-only copy into host-visible (write-combined) memory; the CPU pointer never leaves the backend.
 internal void
 rb_vk_gpu_heap_write(RB_GpuHeap heap, i64 offset, void *data, i64 size)
 {
@@ -2960,7 +2968,7 @@ rb_vk_image_memory_alloc(VkImage vk_image)
     VkMemoryRequirements2 reqs = rb_vk_image_memory_requirements(vk_device, vk_image);
 
     RB_VK_GpuMemoryProperties props = rb_vk_gpu_memory_properties_from_memory_kind(RB_MemoryKind_GpuOnly);
-    u32 memory_type_idx = rb_vk_find_memory_type(reqs.memoryRequirements.memoryTypeBits, props);
+    u32 memory_type_idx = rb_vk_find_memory_type(reqs.memoryRequirements.memoryTypeBits, props, reqs.memoryRequirements.size);
     if(memory_type_idx == U32_MAX){
         DOT_ERROR("No suitable device-local memory type for image");
     }
@@ -3053,7 +3061,7 @@ rb_vk_texture_memory_select(void)
     }
 
     RB_VK_GpuMemoryProperties props = rb_vk_gpu_memory_properties_from_memory_kind(RB_MemoryKind_GpuOnly);
-    u32 memory_type_idx = rb_vk_find_memory_type(type_bits, props);
+    u32 memory_type_idx = rb_vk_find_memory_type(type_bits, props, 0);
     if(memory_type_idx == U32_MAX){
         DOT_ERROR("No device-local memory type among those every texture format accepts");
     }
@@ -3095,10 +3103,10 @@ rb_vk_copy_memory(RB_CommandBuffer cmd_h, RB_GpuRange src, RB_GpuRange dst)
     region.sType            = VK_STRUCTURE_TYPE_DEVICE_MEMORY_COPY_KHR;
     region.srcRange.address = src.gpu;
     region.srcRange.size    = cast(u64)src.size;
-    region.srcFlags         = RB_VK_ADDRESS_FLAGS;
+    region.srcFlags         = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR;
     region.dstRange.address = dst.gpu;
     region.dstRange.size    = cast(u64)src.size;
-    region.dstFlags         = RB_VK_ADDRESS_FLAGS;
+    region.dstFlags         = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR;
 
     VkCopyDeviceMemoryInfoKHR copy_info = {0};
     copy_info.sType       = VK_STRUCTURE_TYPE_COPY_DEVICE_MEMORY_INFO_KHR;
@@ -3120,7 +3128,7 @@ rb_vk_texture_copy_region(RB_VK_Texture *texture, RB_GpuRange memory, RB_Texture
         .sType                           = VK_STRUCTURE_TYPE_DEVICE_MEMORY_IMAGE_COPY_KHR,
         .addressRange.address            = memory.gpu,
         .addressRange.size               = cast(u64)memory.size,
-        .addressFlags                    = RB_VK_ADDRESS_FLAGS,
+        .addressFlags                    = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR,
         .imageSubresource.aspectMask     = texture->vk_aspect,
         .imageSubresource.mipLevel       = copy.mip_level,
         .imageSubresource.baseArrayLayer = copy.slice,

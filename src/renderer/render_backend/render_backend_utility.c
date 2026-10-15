@@ -4,7 +4,7 @@ rb_gpu_bump_atomic_(i64 *used, i64 capacity, i64 size)
 {
     i64 reserved = ALIGN_POW2(size, cast(i64)RB_GPU_ARENA_ALIGN);
     i64 end = ins_atomic_i64_add_eval(used, reserved);
-    return(end <= capacity ? end - reserved : I64_MAX);
+    return(end <= capacity ? end - reserved : -1);
 }
 
 internal RB_CpuGpuArena
@@ -30,7 +30,7 @@ rb_cpu_gpu_arena_push_atomic_(RB_CpuGpuArena *arena, void *data, i64 size)
     DOT_ASSERT(data && size > 0);
     RB_GpuRange range = {0};
     i64 offset = rb_gpu_bump_atomic_(&arena->used, arena->size, size);
-    if(offset != I64_MAX){
+    if(offset >= 0){
         rb_gpu_heap_write(arena->heap, offset, data, size);
         range.gpu  = arena->gpu_base + cast(u64)offset;
         range.size = size;
@@ -68,7 +68,7 @@ rb_gpu_arena_alloc_atomic(RB_GpuArena *arena, i64 size)
     DOT_ASSERT(size > 0);
     RB_GpuRange range = {0};
     i64 offset = rb_gpu_bump_atomic_(&arena->used, arena->size, size);
-    if(offset != I64_MAX){
+    if(offset >= 0){
         range.gpu  = arena->gpu_base + cast(u64)offset;
         range.size = size;
     }
