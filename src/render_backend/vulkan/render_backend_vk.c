@@ -1,3 +1,6 @@
+#define VOLK_IMPLEMENTATION
+#include "third_party/volk/volk.h"
+
 ////////////////////////////////////////////////////////////////
 /// RB_VK_CONFIG
 

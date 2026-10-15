@@ -32,7 +32,7 @@ internal read_only RGFW_mouseButton dot_window_rgfw_mouse_buttons[DOT_MouseButto
 internal void
 dot_window_init(DOT_Window *window, String8 window_name)
 {
-    i32 init_result = RGFW_init(window_name.cstr, RGFW_initVulkan);
+    i32 init_result = RGFW_init(window_name.cstr, 0);
     DOT_ASSERT(init_result >= 0, "RGFW_init failed (%d)", init_result);
     RGFW_windowFlags flags = RGFW_windowAllowDND;
     switch(cast(DOT_WindowModeKind) dot_g_window_mode){

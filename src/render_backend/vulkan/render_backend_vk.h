@@ -1,7 +1,15 @@
 #ifndef RB_VK_H
 #define RB_VK_H
 
-#include <vulkan/vulkan_core.h>
+#define VK_NO_PROTOTYPES
+#if defined(DOT_PLATFORM_LINUX)
+#   define VK_USE_PLATFORM_WAYLAND_KHR
+#   define VK_USE_PLATFORM_XLIB_KHR
+#elif DOT_OS_WINDOWS
+#   define VK_USE_PLATFORM_WIN32_KHR
+#endif
+
+#include "third_party/volk/volk.h"
 
 ////////////////////////////////////////////////////////////////
 /// RB_VK_HANDLES

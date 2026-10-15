@@ -373,7 +373,7 @@ rn_texture_load_from_path(RN_RenderCtx *renderer, String8 name, String8 path, u8
     int width = 0;
     int height = 0;
     int comp = 0;
-    stbi_allocator alloc = {.stbi_alloc = arena_push, .stbi_free = arena_free, .arena = temp.arena};
+    stbi_allocator alloc = {.stbi_alloc = arena_push, .stbi_realloc = arena_realloc, .stbi_free = arena_free, .arena = temp.arena};
     stbi_allocator_set(&alloc);
     stbi_info_from_memory(file_data.str, cast(int)file_data.size, &width, &height, &comp);
     comp = comp == 3 ? STBI_rgb_alpha : comp;

@@ -92,6 +92,7 @@ internal Arena  *arena_create_from_arena(ArenaInitParams *);
 internal Arena  *arena_create_from_os(ArenaInitParams *);
 
 internal u8    *arena_push(ArenaOpParams *, u64 alloc_size, u64 alignment, b32 should_zero);
+internal void  *arena_realloc(Arena *arena, void *ptr, u64 old_size, u64 new_size); // (jd) Only used by libraries not supporting native arenas
 internal void   arena_reset(ArenaOpParams *);
 internal void   arena_pop_to(ArenaOpParams *, u64 pos);
 internal void   arena_free(); // (jd) NOTE: Stub to pass to generic allocators

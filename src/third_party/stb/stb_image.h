@@ -670,24 +670,6 @@ typedef unsigned char validate_uint32[sizeof(stbi__uint32)==4 ? 1 : -1];
    #define stbi_lrot(x,y)  (((x) << (y)) | ((x) >> (-(y) & 31)))
 #endif
 
-#if defined(STBI_MALLOC) && defined(STBI_FREE) && (defined(STBI_REALLOC) || defined(STBI_REALLOC_SIZED))
-// ok
-#elif !defined(STBI_MALLOC) && !defined(STBI_FREE) && !defined(STBI_REALLOC) && !defined(STBI_REALLOC_SIZED)
-// ok
-#else
-#error "Must define all or none of STBI_MALLOC, STBI_FREE, and STBI_REALLOC (or STBI_REALLOC_SIZED)."
-#endif
-
-#ifndef STBI_MALLOC
-#define STBI_MALLOC(sz)           malloc(sz)
-#define STBI_REALLOC(p,newsz)     realloc(p,newsz)
-#define STBI_FREE(p)              free(p)
-#endif
-
-#ifndef STBI_REALLOC_SIZED
-#define STBI_REALLOC_SIZED(p,oldsz,newsz) STBI_REALLOC(p,newsz)
-#endif
-
 // x86/x64 detection
 #if defined(__x86_64__) || defined(_M_X64)
 #define STBI__X64_TARGET
@@ -984,7 +966,7 @@ static int stbi__err(const char *str)
 
 typedef struct stbi_allocator{
     u8 *(*stbi_alloc)(ArenaOpParams *, usize, usize, b32);
-    u8 *(*stbi_realloc)();
+    void *(*stbi_realloc)(Arena *, void *, u64, u64);
     void (*stbi_free)(); // (jd) NOTE: Do nothing on free
     Arena *arena;
 }stbi_allocator;
@@ -1005,18 +987,16 @@ static void stbi_allocator_unset()
 
 static void *stbi__malloc(size_t size)
 {
-    ArenaOpParams params = {.arena = g_allocator->arena, .file = __FILE__, .line = __LINE__};
     STBI_ASSERT(g_allocator);
+    ArenaOpParams params = {.arena = g_allocator->arena, .file = __FILE__, .line = __LINE__};
     void *alloc = g_allocator->stbi_alloc(&params, size, ARENA_MAX_ALIGNMENT, true);
     return alloc;
 }
 
-static void stbi__realloc(void *ptr, size_t size)
+static void *stbi__realloc_sized(void *ptr, size_t old_size, size_t new_size)
 {
-    STBI_NOTUSED(ptr);
-    STBI_NOTUSED(size);
     STBI_ASSERT(g_allocator);
-    g_allocator->stbi_realloc();
+    return g_allocator->stbi_realloc(g_allocator->arena, ptr, old_size, new_size);
 }
 
 static void stbi__free(void *ptr)
@@ -4327,7 +4307,7 @@ static int stbi__zexpand(stbi__zbuf *z, char *zout, int n)  // need to make room
       if(limit > UINT_MAX / 2) return stbi__err("outofmem", "Out of memory");
       limit *= 2;
    }
-   q = (char *) STBI_REALLOC_SIZED(z->zout_start, old_limit, limit);
+   q = (char *) stbi__realloc_sized(z->zout_start, old_limit, limit);
    STBI_NOTUSED(old_limit);
    if (q == NULL) return stbi__err("outofmem", "Out of memory");
    z->zout_start = q;
@@ -5232,7 +5212,7 @@ static int stbi__parse_png_file(stbi__png *z, int scan, int req_comp)
                while (ioff + c.length > idata_limit)
                   idata_limit *= 2;
                STBI_NOTUSED(idata_limit_old);
-               p = (stbi_uc *) STBI_REALLOC_SIZED(z->idata, idata_limit_old, idata_limit); if (p == NULL) return stbi__err("outofmem", "Out of memory");
+               p = (stbi_uc *) stbi__realloc_sized(z->idata, idata_limit_old, idata_limit); if (p == NULL) return stbi__err("outofmem", "Out of memory");
                z->idata = p;
             }
             if (!stbi__getn(s, z->idata+ioff,c.length)) return stbi__err("outofdata","Corrupt PNG");
@@ -7036,7 +7016,7 @@ static void *stbi__load_gif_main(stbi__context *s, int **delays, int *x, int *y,
             stride = g.w * g.h * 4;
 
             if (out) {
-               void *tmp = (stbi_uc*) STBI_REALLOC_SIZED( out, out_size, layers * stride );
+               void *tmp = (stbi_uc*) stbi__realloc_sized( out, out_size, layers * stride );
                if (!tmp)
                   return stbi__load_gif_main_outofmem(&g, out, delays);
                else {
@@ -7045,7 +7025,7 @@ static void *stbi__load_gif_main(stbi__context *s, int **delays, int *x, int *y,
                }
 
                if (delays) {
-                  int *new_delays = (int*) STBI_REALLOC_SIZED( *delays, delays_size, sizeof(int) * layers );
+                  int *new_delays = (int*) stbi__realloc_sized( *delays, delays_size, sizeof(int) * layers );
                   if (!new_delays)
                      return stbi__load_gif_main_outofmem(&g, out, delays);
                   *delays = new_delays;

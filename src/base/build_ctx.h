@@ -7,6 +7,10 @@
 #   define DOT_DEBUG 1
 #endif
 
+#ifndef DOT_DEBUG_ALLOCATORS
+#   define DOT_DEBUG_ALLOCATORS 0
+#endif
+
 #if defined(_WIN32)
 #   define DOT_OS_WINDOWS 1
 #elif defined(__unix__) || defined(__APPLE__) || defined(__linux__)

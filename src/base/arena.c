@@ -137,6 +137,14 @@ arena_reset(ArenaOpParams *op)
     arena_pop_to(op, 0);
 }
 
+internal void *
+arena_realloc(Arena *arena, void *ptr, u64 old_size, u64 new_size)
+{
+    void *result = PUSH_SIZE_NO_ZERO(arena, new_size);
+    if(ptr && result){ MEMORY_COPY(result, ptr, DOT_MIN(old_size, new_size)); }
+    return(result);
+}
+
 internal void
 arena_destroy(ArenaOpParams *op)
 {
