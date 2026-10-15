@@ -1,15 +1,6 @@
 #ifndef HASHMAP_H
 #define HASHMAP_H
 
-typedef enum HashMapOpKind
-{
-    HashMapOpKind_Hash,
-    HashMapOpKind_Equal,
-}HashMapOpKind;
-
-typedef u64 HashMapHashEq(HashMapOpKind op, void *a, void *b, u64 key_size);
-
-
 ////////////////////////////////////////////////////////////////
 /// Static hashing
 
@@ -27,16 +18,6 @@ typedef u64 HashMapHashEq(HashMapOpKind op, void *a, void *b, u64 key_size);
 #define DOT_FNV1A_7_UNCHECKED(s)  DOT_FNV1A_STEP(DOT_FNV1A_6_UNCHECKED(s), s[6])
 #define DOT_FNV1A_8_UNCHECKED(s)  DOT_FNV1A_STEP(DOT_FNV1A_7_UNCHECKED(s), s[7])
 
-#if DOT_COMPILER_MSVC
-#define DOT_FNV1A_1(s)  DOT_FNV1A_1_UNCHECKED(s)
-#define DOT_FNV1A_2(s)  DOT_FNV1A_2_UNCHECKED(s)
-#define DOT_FNV1A_3(s)  DOT_FNV1A_3_UNCHECKED(s)
-#define DOT_FNV1A_4(s)  DOT_FNV1A_4_UNCHECKED(s)
-#define DOT_FNV1A_5(s)  DOT_FNV1A_5_UNCHECKED(s)
-#define DOT_FNV1A_6(s)  DOT_FNV1A_6_UNCHECKED(s)
-#define DOT_FNV1A_7(s)  DOT_FNV1A_7_UNCHECKED(s)
-#define DOT_FNV1A_8(s)  DOT_FNV1A_8_UNCHECKED(s)
-#else
 #define DOT_FNV1A_1(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,1), DOT_FNV1A_1_UNCHECKED(s))
 #define DOT_FNV1A_2(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,2), DOT_FNV1A_2_UNCHECKED(s))
 #define DOT_FNV1A_3(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,3), DOT_FNV1A_3_UNCHECKED(s))
@@ -45,7 +26,18 @@ typedef u64 HashMapHashEq(HashMapOpKind op, void *a, void *b, u64 key_size);
 #define DOT_FNV1A_6(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,6), DOT_FNV1A_6_UNCHECKED(s))
 #define DOT_FNV1A_7(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,7), DOT_FNV1A_7_UNCHECKED(s))
 #define DOT_FNV1A_8(s)  (DOT_STATIC_ASSERT_LITERAL_LEN(s,8), DOT_FNV1A_8_UNCHECKED(s))
-#endif
+
+////////////////////////////////////////////////////////////////
+/// Dynamic hashing
+
+typedef enum HashMapOpKind
+{
+    HashMapOpKind_Hash,
+    HashMapOpKind_Equal,
+}HashMapOpKind;
+
+typedef u64 HashMapHashEq(HashMapOpKind op, void *a, void *b, u64 key_size);
+
 
 internal u64 hash_fnv1a_u64(void *data, u64 size);
 internal u64 hash_djb2_u64(void *data, u64 size);
@@ -90,7 +82,15 @@ typedef struct HashMapIter
     HashMapNode *node;
 }HashMapIter;
 
-#define HashMap(K, V) struct{ \
+internal void  hm_init_(Arena *arena, HashMapCtx *ctx, u32 bucket_count, u64 key_size, u64 value_size, HashMapHashEq *hasheq);
+internal u64   hm_hash_(HashMapCtx *ctx, void *key);
+internal void *hm_get_(HashMapCtx *ctx, void *key);
+internal void *hm_get_or_create_(Arena *arena, HashMapCtx *ctx, void *key, void *default_value);
+internal void *hm_iter_next_(HashMapCtx *ctx, HashMapIter *it);
+
+#define HashMap(K, V) \
+struct \
+{ \
     HashMapCtx ctx; \
     K         *key_type; \
     V          default_value; \
@@ -107,11 +107,5 @@ typedef struct HashMapIter
 #define hm_get_or_create(arena, hm, k)            HASH_MAP_CAST_(hm, hm_get_or_create_((arena), &(hm)->ctx, HASH_MAP_KEY_(hm, k), &(hm)->default_value))
 #define hm_iter_next(hm, it)                      HASH_MAP_CAST_(hm, hm_iter_next_(&(hm)->ctx, (it)))
 #define hm_count(hm) ((hm)->ctx.count)
-
-internal void  hm_init_(Arena *arena, HashMapCtx *ctx, u32 bucket_count, u64 key_size, u64 value_size, HashMapHashEq *hasheq);
-internal u64   hm_hash_(HashMapCtx *ctx, void *key);
-internal void *hm_get_(HashMapCtx *ctx, void *key);
-internal void *hm_get_or_create_(Arena *arena, HashMapCtx *ctx, void *key, void *default_value);
-internal void *hm_iter_next_(HashMapCtx *ctx, HashMapIter *it);
 
 #endif // !HASHMAP_H
