@@ -1,5 +1,6 @@
 # SuperSeriousFinalDotEngine
 
-compile in scripts/build_linux.sh
-RGFW wayland seems to block for 1 second on the event loop each time unless there is an actual event and breaks the loop.
-Defaulting to using x11 for now.
+Build: <clang|cl> scripts/nob.c -o scripts/nob<.exe>
+then every time you run ./scripts/nob it will rebuild itself if needed andd build the engine
+
+engine will be at build/dot_engine
