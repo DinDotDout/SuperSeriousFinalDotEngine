@@ -2,12 +2,14 @@
 #define SHADER_SHARED_H
 
 #ifdef __SLANG__
+#include "base/reflect_shared.h"
+
 typedef float    f32;
 typedef uint     u32;
 typedef float2   f32x2;
 typedef float3   f32x3;
 typedef float4   f32x4;
-typedef float4x4 mat4;
+typedef float4x4 f32x4x4;
 typedef uint64_t RB_GpuAddress;
 
 // The only push constant: the address of this draw's root (see rb_draw*).

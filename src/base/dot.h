@@ -16,7 +16,7 @@
 // va_start, va_end
 #include <stdarg.h>
 
-#include <threads.h>
+#include "base/base_types.h"
 
 #if DOT_COMPILER_CLANG || (DOT_COMPILER_GCC && __GNUC__ >= 7)
 #   define DOT_FALLTHROUGH __attribute__((fallthrough))
@@ -41,6 +41,10 @@
 
 #   define DOT_RESTORE_PARTIAL_SWITCH _Pragma("GCC diagnostic pop")
 #elif DOT_COMPILER_MSVC
+// 4061: enumerator not handled by a case label (switch has default)
+// 4062: enumerator not handled by a case label (switch has no default)
+// 4063: case label is not a valid value of the switched enum
+// 4065: switch has a default but no case labels
 #   define DOT_ALLOW_PARTIAL_SWITCH \
         __pragma(warning(push)) \
         __pragma(warning(disable: 4061 4062 4063 4065))
@@ -133,34 +137,6 @@
         DOT_ERROR("Invalid enum name"); \
     }
 
-////////////////////////////////////////////////////////////////
-//
-// Sane type renames
-
-// size_t
-#include <stddef.h>
-// precise int
-typedef size_t usize;
-#include <stdint.h>
-#include <inttypes.h>
-
-typedef int8_t i8;
-typedef int16_t i16;
-typedef int32_t i32;
-typedef int64_t i64;
-typedef uint8_t u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
-typedef uintptr_t uptr;
-typedef ptrdiff_t iptr;
-
-typedef u32 b32;
-typedef u16 b16;
-typedef u8  b8;
-
-typedef float f32;
-typedef double f64;
 
 #define U64_MAX 0xffffffffffffffffull
 #define U32_MAX 0xffffffff
@@ -251,18 +227,22 @@ internal void os_print_stacktrace(void);
 //
 // Static Debug
 
+// (jd) DOT_STATIC_ASSERT_EXPR is used as a compile time assert expression. Can be composed with other expressions
 # if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L)
 #   define DOT_STATIC_ASSERT(cond, ...)  _Static_assert(cond, "" __VA_ARGS__)
+#   define DOT_STATIC_ASSERT_EXPR(cond, ...) (0 * sizeof(struct { DOT_STATIC_ASSERT(cond, __VA_ARGS__); char _dummy; }))
 # else
 #   define DOT_STATIC_ASSERT(cond, ...) typedef int DOT_CONCAT(DOT_STATIC_ASSERT, __COUNTER__) [(cond) ? 1 : -1]
+#   define DOT_STATIC_ASSERT_EXPR(cond, ...) (0 * sizeof(char[(cond) ? 1 : -1]))
 # endif
-
-// (jd) This is used as a compile time assert expression. Can be composed with other expressions
-// when we compile, signifying we didn't assert
-#define DOT_STATIC_ASSERT_EXPR(cond, ...) (0 * sizeof(char[(cond) ? 1 : -1]))
-#define DOT_STATIC_ASSERT_LITERAL_LEN(s, n) DOT_STATIC_ASSERT_EXPR(sizeof(s) - 1 == (n))
-#define DOT_IS_TYPE(x, T) _Generic((x), T: 1, default: 0)
-#define DOT_STATIC_ASSERT_TYPE(x, T) DOT_STATIC_ASSERT_EXPR(DOT_IS_TYPE(x, T))
+#define DOT_STATIC_ASSERT_LITERAL_LEN(s, n) DOT_STATIC_ASSERT_EXPR(sizeof(s) - 1 == (n), "string literal length is not " #n)
+#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L)
+#   define DOT_STATIC_ASSERT_TYPE(x, T, ...) DOT_STATIC_ASSERT_EXPR(_Generic((x), T: 1, default: 0), __VA_ARGS__)
+#elif DOT_COMPILER_CLANG || DOT_COMPILER_GCC
+#   define DOT_STATIC_ASSERT_TYPE(x, T, ...) DOT_STATIC_ASSERT_EXPR(__builtin_types_compatible_p(TYPEOF(x), T), __VA_ARGS__)
+#else
+#   define DOT_STATIC_ASSERT_TYPE(x, T, ...) 0
+#endif
 
 ////////////////////////////////////////////////////////////////
 //
@@ -352,8 +332,8 @@ do { \
         DEBUG_BREAK; \
     } \
 } while(0)
-#define DOT_ASSERT(cond, ...)           DOT_ASSERT_IMPL((cond), DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error), __VA_ARGS__)
-#define DOT_ASSERT_FL(cond, f, l, ...)  DOT_ASSERT_IMPL((cond), DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error, .file = (f), .line = (l)), __VA_ARGS__)
+#define DOT_ASSERT(cond, ...)           DOT_ASSERT_IMPL((cond), DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error), "" __VA_ARGS__)
+#define DOT_ASSERT_FL(cond, f, l, ...)  DOT_ASSERT_IMPL((cond), DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error, .file = (f), .line = (l)), "" __VA_ARGS__)
 #else
 #define DOT_PRINT(...) ((void)0)
 #define DOT_PRINT_FL(f, l, ...) do{((void)f); ((void)l);}while(0)
@@ -486,7 +466,6 @@ do { \
 //
 // Removalble debug field names
 
-typedef struct String8 String8;
 internal void dot_debug_name_set(u64 capacity, char *ptr, String8 src);
 
 typedef struct DOT_DebugName16{
@@ -595,7 +574,7 @@ typedef struct DOT_DebugName8{
 // #pragma section(".#name", read)
 // #pragma comment(linker, "/merge:.#name=.data")
 
-#if DOT_COMPILER_MSVC
+#if DOT_OS_WINDOWS
 // For some reason #name "$a" doesn't work with __declspec(allocate)
 #   define SECTION_NAME_JOIN(a, b) DOT_STR(a##b)
 // (jd) NOTE: `extern T __start_##name[]` never actually defines storage for the symbol (it's just
@@ -621,8 +600,13 @@ typedef struct DOT_DebugName8{
         static T *__stop_##name  = &DOT_CONCAT(__dot_section_end_, name)
 
 // priority doesn't work on windows. Nothing depends on it for now tho
-#   define SECTION_ITEM(name, priority) \
-        __declspec(allocate(SECTION_NAME_JOIN(name, $m)))
+#   if DOT_COMPILER_MSVC
+#       define SECTION_ITEM(name, priority) \
+            __declspec(allocate(SECTION_NAME_JOIN(name, $m)))
+#   else
+#       define SECTION_ITEM(name, priority) \
+            __declspec(allocate(SECTION_NAME_JOIN(name, $m))) __attribute__((no_sanitize("address"), used))
+#   endif
 #else
 #   define SECTION_DECLARE(T, name) \
         extern T __start_##name[]; \
@@ -645,7 +629,7 @@ typedef struct DOT_DebugName8{
 #   if DOT_ARCH_X64
 #       define ins_atomic_u32_eval_cond_assign(x,k,c)  _InterlockedCompareExchange((long *)(x), (k), (c))
 #       define ins_atomic_u64_add_eval(x,c)            ((u64)_InterlockedExchangeAdd64((__int64 *)(x), (__int64)(c)) + (c))
-#       define ins_atomic_u64_add_eval(x,c)            ((i64)_InterlockedExchangeAdd64((__int64 *)(x), (__int64)(c)) + (c))
+#       define ins_atomic_i64_add_eval(x,c)            ((i64)_InterlockedExchangeAdd64((__int64 *)(x), (__int64)(c)) + (c))
 #   else
 #       error "Atomic intrinsics not defined for this compiler / architecture combination."
 #   endif

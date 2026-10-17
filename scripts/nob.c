@@ -124,21 +124,6 @@ static void print_help(const char *prog)
 
 #define WAYLAND_GEN_FOLDER "src/gen-wayland/"
 
-typedef struct
-{
-    const char *xml;
-    const char *stem;
-} WaylandProtocol;
-
-static const WaylandProtocol g_wayland_protocols[] = {
-    {"/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml",                             "xdg-shell"},
-    {"/usr/share/wayland-protocols/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml",     "xdg-decoration-unstable-v1"},
-    {"/usr/share/wayland-protocols/staging/xdg-toplevel-icon/xdg-toplevel-icon-v1.xml",         "xdg-toplevel-icon-v1"},
-    {"/usr/share/wayland-protocols/unstable/relative-pointer/relative-pointer-unstable-v1.xml", "relative-pointer-unstable-v1"},
-    {"/usr/share/wayland-protocols/unstable/pointer-constraints/pointer-constraints-unstable-v1.xml", "pointer-constraints-unstable-v1"},
-    {"/usr/share/wayland-protocols/unstable/xdg-output/xdg-output-unstable-v1.xml",             "xdg-output-unstable-v1"},
-    {"/usr/share/wayland-protocols/staging/pointer-warp/pointer-warp-v1.xml",                   "pointer-warp-v1"},
-};
 
 static bool
 generate_wayland_file(const char *mode, const char *xml, const char *out) {
@@ -150,6 +135,21 @@ generate_wayland_file(const char *mode, const char *xml, const char *out) {
 
 static void
 generate_wayland_protocols(void) {
+    typedef struct
+    {
+        const char *xml;
+        const char *stem;
+    }WaylandProtocol;
+
+    static const WaylandProtocol g_wayland_protocols[] = {
+        {"/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml",                             "xdg-shell"},
+        {"/usr/share/wayland-protocols/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml",     "xdg-decoration-unstable-v1"},
+        {"/usr/share/wayland-protocols/staging/xdg-toplevel-icon/xdg-toplevel-icon-v1.xml",         "xdg-toplevel-icon-v1"},
+        {"/usr/share/wayland-protocols/unstable/relative-pointer/relative-pointer-unstable-v1.xml", "relative-pointer-unstable-v1"},
+        {"/usr/share/wayland-protocols/unstable/pointer-constraints/pointer-constraints-unstable-v1.xml", "pointer-constraints-unstable-v1"},
+        {"/usr/share/wayland-protocols/unstable/xdg-output/xdg-output-unstable-v1.xml",             "xdg-output-unstable-v1"},
+        {"/usr/share/wayland-protocols/staging/pointer-warp/pointer-warp-v1.xml",                   "pointer-warp-v1"},
+    };
     mkdir_if_not_exists(WAYLAND_GEN_FOLDER);
     for(size_t i = 0; i < ARRAY_LEN(g_wayland_protocols); i++){
         const WaylandProtocol *p = &g_wayland_protocols[i];
@@ -190,7 +190,8 @@ static void apply_platform_flags(Nob_Cmd *cmd, PlatformKind platform) {
                 "src/gen-wayland/pointer-warp-v1.c");
             break;
         case PlatformKind_Windows:
-            nob_cmd_append(cmd, "/DDOT_PLATFORM_WINDOWS", "/D_CRT_SECURE_NO_WARNINGS");
+            nob_cmd_append(cmd, "-DDOT_PLATFORM_WINDOWS");
+            nob_cmd_append(cmd, "-D_CRT_SECURE_NO_WARNINGS"); // allow fopen/sprintf/... without the "use _s variant" deprecation warnings
             break;
         default:
             nob_log(NOB_ERROR, "Unsupported platform");
@@ -214,7 +215,7 @@ static void apply_compiler_flags(Nob_Cmd *cmd, CompilerKind compiler, Optimizati
                 // "-Wimplicit-int-conversion",
                 // "-Wsign-conversion",
                 // "-Wno-unused-parameter",
-                "-fvisibility=hidden");
+                "-fvisibility=hidden"); // symbols are not exported unless marked DOT_ENGINE_API
             switch(opt) {
                 case OptimizationLevelKind_Debug:
                     nob_cmd_append(cmd,
@@ -236,16 +237,22 @@ static void apply_compiler_flags(Nob_Cmd *cmd, CompilerKind compiler, Optimizati
             }
             break;
         case CompilerKind_Msvc:
-            nob_cmd_append(cmd, "/W4", "/std:c11", "/nologo");
+            nob_cmd_append(cmd, "/W4", "/std:c11", "/nologo"); // /std:c11 also enables the conforming preprocessor
+            nob_cmd_append(cmd, "/wd4116");                     // unnamed type definition in parentheses
+            nob_cmd_append(cmd, "/wd4324");                     // structure was padded due to alignment specifier
             switch(opt) {
                 case OptimizationLevelKind_Debug:
-                    nob_cmd_append(cmd, "/wd4324", "/Od", "/Zi", "/MDd", "/DDEBUG");
+                    nob_cmd_append(cmd, "/Od", "/Zi", "/DDEBUG");
+                    nob_cmd_append(cmd, "/MTd"); // static debug CRT, the debug CRT dlls only ship with Visual Studio
                     break;
                 case OptimizationLevelKind_Release:
-                    nob_cmd_append(cmd, "/O2", "/Zi", "/MD");
+                    nob_cmd_append(cmd, "/O2", "/Zi");
+                    nob_cmd_append(cmd, "/MD");  // dll CRT (vcruntime140.dll + ucrtbase.dll)
                     break;
                 case OptimizationLevelKind_Final:
-                    nob_cmd_append(cmd, "/O2", "/GL", "/DNDEBUG", "/MD");
+                    nob_cmd_append(cmd, "/O2", "/DNDEBUG");
+                    nob_cmd_append(cmd, "/GL");  // whole program optimization
+                    nob_cmd_append(cmd, "/MD");
                     break;
             }
             break;
@@ -407,41 +414,53 @@ main(int argc, char *argv[])
         }
     }
 
+    if(g_flags.compiler == CompilerKind_Msvc && g_flags.platform != PlatformKind_Windows){
+        nob_log(NOB_ERROR, "cl can only target windows (use -windows)");
+        return 1;
+    }
+
+    const char *msvc_sysroot = NULL;
+#if !defined(_WIN32)
+    if(g_flags.compiler == CompilerKind_Clang && g_flags.platform == PlatformKind_Windows){
+        msvc_sysroot = getenv("MSVC_SYSROOT");
+        if(!msvc_sysroot || !nob_file_exists(msvc_sysroot)){
+            nob_log(NOB_ERROR, "MSVC_SYSROOT must point to an msvc-wine install to target windows from this host");
+            return 1;
+        }
+    }
+#endif
+
     download_assets(EXTERNAL_ASSETS("assets", assets_list));
     Nob_Cmd cmd = {0};
     nob_log(NOB_INFO, "Using compiler %s for target %s", g_compiler_kind_str[g_flags.compiler], g_platform_kind_str[g_flags.platform]);
     nob_cmd_append(&cmd, g_compiler_kind_str[g_flags.compiler]);
-    nob_cc_inputs(&cmd, SRC_FOLDER "dot_engine.c");
+    nob_cmd_append(&cmd, SRC_FOLDER "dot_engine.c");
 
     apply_compiler_flags(&cmd, g_flags.compiler, g_flags.opt);
     apply_platform_flags(&cmd, g_flags.platform);
 
+    nob_cmd_append(&cmd, "-I", "src/");
+    nob_cmd_append(&cmd, "-I", "src/third_party/vulkan-headers/include");
+    nob_cmd_append(&cmd, "-I", "src/third_party/vulkan-utility-libraries/include");
+
     if(g_flags.compiler == CompilerKind_Msvc){
-        if(g_flags.platform != PlatformKind_Windows){
-            nob_log(NOB_ERROR, "cl is only available on windows");
-            return 1;
+        nob_cmd_append(&cmd, "/Fe:" OUTPUT_FOLDER "dot_engine.exe", "/Fo:" OUTPUT_FOLDER "dot_engine.obj");
+        nob_cmd_append(&cmd, "/link");           // everything after this goes to link.exe, keep it last
+        nob_cmd_append(&cmd, "/INCREMENTAL:NO"); // incremental linking pads the SECTION_DECLARE "$a/$m/$z" sections and breaks iteration
+        nob_cmd_append(&cmd, "dbghelp.lib");
+    }else if(g_flags.platform == PlatformKind_Windows){
+        nob_cmd_append(&cmd, "--target=x86_64-pc-windows-msvc"); // plain clang driver emitting MSVC-ABI code, not clang-cl
+        nob_cmd_append(&cmd, "-fuse-ld=lld");                    // link with lld-link instead of link.exe
+        if(msvc_sysroot){
+            nob_cmd_append(&cmd, "-Xmicrosoft-windows-sys-root", msvc_sysroot); // Windows SDK + CRT location when not on windows
         }
-        nob_cmd_append(&cmd, "/I", "src/third_party/vulkan-headers/include");
-        nob_cmd_append(&cmd, "/I", "src/third_party/vulkan-utility-libraries/include");
-        nob_cmd_append(&cmd, "/I", ".");
-        nob_cmd_append(&cmd, "/I", "src/");
-        nob_cc_output(&cmd, OUTPUT_FOLDER "dot_engine");
-        nob_cmd_append(&cmd, "/link");
-        // NOTE: incremental linking pads the custom "$a/$m/$z" sections used by SECTION_DECLARE
-        // (settings, plugins, reflect) with unpredictable filler, which breaks their tight-packing
-        // assumption and corrupts iteration. Must stay off.
-        nob_cmd_append(&cmd, "/INCREMENTAL:NO");
-        nob_cmd_append(&cmd, "Dbghelp.lib");
+        nob_cmd_append(&cmd, "-ldbghelp");
+        nob_cmd_append(&cmd, "-o", OUTPUT_FOLDER "dot_engine.exe");
     }else{
         nob_cmd_append(&cmd, "-lm", "-lpthread");
-        nob_cmd_append(&cmd, "-I", "src/");
-        nob_cmd_append(&cmd, "-I", "src/third_party/vulkan-headers/include");
-        nob_cmd_append(&cmd, "-I", "src/third_party/vulkan-utility-libraries/include");
-        nob_cmd_append(&cmd, "-Wl,-T"LINKER_SCRIPTS_FOLDER"plugins_section.ld");
-
-
+        nob_cmd_append(&cmd, "-Wl,-T" LINKER_SCRIPTS_FOLDER "plugins_section.ld"); // provides __start_/__stop_ for the SECTION_DECLARE sections
         // nob_cmd_append(&cmd, " -Wl,-z,rosegment ");
-        nob_cc_output(&cmd, OUTPUT_FOLDER "dot_engine");
+        nob_cmd_append(&cmd, "-o", OUTPUT_FOLDER "dot_engine");
     }
 
     nob_log(NOB_INFO, "[*] Compiling...");

@@ -17,6 +17,39 @@ char_is_slash(u8 c)
   return (c == '/' || c == '\\');
 }
 
+internal b32
+char_is_digit(u8 c)
+{
+    return c >= '0' && c <= '9';
+}
+
+internal b32
+char_is_alpha(u8 c)
+{
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+}
+
+internal b32
+char_is_alnum(u8 c)
+{
+    return char_is_alpha(c) || char_is_digit(c);
+}
+
+internal b32
+char_is_hex_digit(u8 c)
+{
+    return char_is_digit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+}
+
+internal u32
+char_hex_value(u8 c)
+{
+    if(char_is_digit(c)){ return cast(u32)(c - '0'); }
+    if(c >= 'a' && c <= 'f'){ return cast(u32)(c - 'a' + 10); }
+    if(c >= 'A' && c <= 'F'){ return cast(u32)(c - 'A' + 10); }
+    return 0;
+}
+
 internal String8
 string8_append_string8(Arena *arena, String8 a, String8 b)
 {

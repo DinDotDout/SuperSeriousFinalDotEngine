@@ -190,9 +190,8 @@ arena_push(ArenaOpParams *op, u64 alloc_size, u64 alignment, b32 should_zero)
     // guard at all against handing out a pointer past the reserved region.
     if(DOT_UNLIKELY(arena->used > arena->reserved)){
         arena_print_debug(arena);
-        DOT_ERROR_FL(op->file, op->line, "Arena '%s' exceeded reserved capacity (used=%M, reserved=%M)", arena->name, arena->used, arena->reserved);
         arena->used -= required_padded;
-        return NULL;
+        DOT_ERROR_FL(op->file, op->line, "Arena '%s' exceeded reserved capacity (used=%M, reserved=%M)", arena->name, arena->used, arena->reserved);
     }
 
     b32 need_more_pages = arena->used > arena->committed;

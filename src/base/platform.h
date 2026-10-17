@@ -48,8 +48,6 @@ enum
 #   define NO_ASAN
 #endif
 
-typedef struct String8 String8;
-typedef struct Arena Arena;
 internal bool platform_file_exists(String8 file_path);
 internal String8 platform_read_entire_file(Arena *arena, String8 path);
 internal b32 platform_write_entire_file(String8 path, void const *data, u64 size);

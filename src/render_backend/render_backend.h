@@ -21,6 +21,7 @@ RB_HANDLE_DEFINE(RB_TextureHeap);
 /// RB_MEMORY
 
 typedef u64 RB_GpuAddress;
+ReflectPrimitive(RB_GpuAddress, RFL_Kind_Uint);
 typedef struct RB_GpuRange
 {
     RB_GpuAddress gpu;
@@ -627,6 +628,42 @@ typedef struct RB_DeviceInfo
     f32 timestamp_period_ns;
     b8  mesh_shaders;
 }RB_DeviceInfo;
+
+////////////////////////////////////////////////////////////////
+/// RB_DEBUG_MESSAGE
+
+typedef enum RB_DebugSeverity
+{
+    RB_DebugSeverity_Info,
+    RB_DebugSeverity_Warning,
+    RB_DebugSeverity_Error,
+    RB_DebugSeverity_Count,
+}RB_DebugSeverity;
+
+typedef u32 RB_DebugCategoryFlags;
+enum
+{
+    RB_DebugCategoryBit_General     = 1 << 0,
+    RB_DebugCategoryBit_Validation  = 1 << 1,
+    RB_DebugCategoryBit_Performance = 1 << 2,
+};
+
+typedef struct RB_DebugMessage
+{
+    RB_DeviceKind         device_kind;
+    RB_DebugSeverity      severity;
+    RB_DebugCategoryFlags categories;
+    i64                   id;
+    String8               id_name;
+    String8               text;
+    void                 *native;
+}RB_DebugMessage;
+
+typedef void RB_DebugMessageFn(RB_DebugMessage *msg, void *user_data);
+
+internal void rb_debug_message_set(RB_DebugMessageFn *fn, void *user_data);
+internal void rb_debug_message_emit(RB_DebugMessage *msg);
+internal void rb_debug_message_default(RB_DebugMessage *msg, void *user_data);
 
 ////////////////////////////////////////////////////////////////
 /// RB_PROCEDURES

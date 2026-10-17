@@ -15,12 +15,18 @@
 typedef enum RB_VK_DeviceFeatureKind
 { 
     RB_VK_DeviceFeature_Vulkan12,
-    RB_VK_DeviceFeature_Vulkan13, RB_VK_DeviceFeature_Vulkan14,
-    RB_VK_DeviceFeature_Swapchain, RB_VK_DeviceFeature_SwapchainMaintenance1,
-    RB_VK_DeviceFeature_DeviceAddressCommands, RB_VK_DeviceFeature_DescriptorHeap,
-    RB_VK_DeviceFeature_ShaderUntypedPointers, RB_VK_DeviceFeature_ShaderDrawParameters,
-    RB_VK_DeviceFeature_ExtendedDynamicState, RB_VK_DeviceFeature_MeshShader,
-    RB_VK_DeviceFeature_UnifiedImageLayouts, RB_VK_DeviceFeature_MemoryBudget,
+    RB_VK_DeviceFeature_Vulkan13,
+    RB_VK_DeviceFeature_Vulkan14,
+    RB_VK_DeviceFeature_Swapchain,
+    RB_VK_DeviceFeature_SwapchainMaintenance1,
+    RB_VK_DeviceFeature_DeviceAddressCommands,
+    RB_VK_DeviceFeature_DescriptorHeap,
+    RB_VK_DeviceFeature_ShaderUntypedPointers,
+    RB_VK_DeviceFeature_ShaderDrawParameters,
+    RB_VK_DeviceFeature_ExtendedDynamicState,
+    RB_VK_DeviceFeature_MeshShader,
+    RB_VK_DeviceFeature_UnifiedImageLayouts,
+    RB_VK_DeviceFeature_MemoryBudget,
     RB_VK_DeviceFeature_COUNT,
 }RB_VK_DeviceFeatureKind;
 
@@ -393,14 +399,16 @@ rb_vk_physical_device_swapchain_support(
     RB_VK_SwapchainDetails *details)
 {
     Scratch s = scratch_begin(0,0);
-    typedef struct SwapchainSupportDetails{
+
+    typedef struct SwapchainSupportDetails
+    {
         VkSurfaceCapabilities2KHR surface_capabilities;
 
-        VkSurfaceFormat2KHR* surface_formats;
         u32 format_count;
+        VkSurfaceFormat2KHR* surface_formats;
 
-        VkPresentModeKHR* present_modes;
         u32 present_modes_count;
+        VkPresentModeKHR* present_modes;
     }SwapchainSupportDetails;
 
     SwapchainSupportDetails swapchain_support_details = {
@@ -918,11 +926,23 @@ rb_vk_debug_callback(
     const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
     void* user_data)
 {
-    DOT_UNUSED(message_type, user_data);
-    if(message_severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT){
-        DOT_WARNING("MessageID: %s %i\nMessage: %s\n\n", callback_data->pMessageIdName, callback_data->messageIdNumber, callback_data->pMessage);
-        os_print_stacktrace();
-    }
+    DOT_UNUSED(user_data);
+    RB_DebugMessage msg = {
+        .device_kind = RB_DeviceKind_Vk,
+        .severity    = RB_DebugSeverity_Info,
+        .id          = callback_data->messageIdNumber,
+        .native      = cast(void*)callback_data,
+    };
+    if(message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT){           msg.severity = RB_DebugSeverity_Error;
+    }else if(message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT){   msg.severity = RB_DebugSeverity_Warning; }
+
+    if(message_type & VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT){     msg.categories |= RB_DebugCategoryBit_General; }
+    if(message_type & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT){  msg.categories |= RB_DebugCategoryBit_Validation; }
+    if(message_type & VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT){ msg.categories |= RB_DebugCategoryBit_Performance; }
+
+    if(callback_data->pMessageIdName){  msg.id_name = string8_from_cstring(cast(char*)callback_data->pMessageIdName); }
+    if(callback_data->pMessage){        msg.text = string8_from_cstring(cast(char*)callback_data->pMessage); }
+    rb_debug_message_emit(&msg);
     return VK_FALSE;
 }
 
@@ -1618,7 +1638,6 @@ rb_vk_surface_extension_name(PlatformWindowSystemKind kind)
 #endif
     }partial_switch_end;
     DOT_ERROR("No Vulkan surface support for window system %u", kind);
-    return(NULL);
 }
 
 internal VkResult
@@ -1655,7 +1674,6 @@ rb_vk_surface_create(PlatformNativeWindow window, VkSurfaceKHR *surface)
 #endif
     }partial_switch_end;
     DOT_ERROR("No Vulkan surface support for window system %u", window.kind);
-    return(VK_ERROR_INITIALIZATION_FAILED);
 }
 
 internal void
@@ -1685,17 +1703,20 @@ rb_vk_init(Arena *arena, PlatformNativeWindow window, RB_DeviceDesc const *desc)
 
     volkInitialize();
     // rb_vk_g_ctx->vk_allocator = VkAllocatorParams(ctx_arena);
+    u32 validation_layer_count = rb_vk_g_config.validation_layer_count;
     if(!rb_vk_all_layers(&rb_vk_g_config)){
-        DOT_ERROR("Could not find all requested layers");
+        DOT_WARNING("Could not find all requested layers, continuing without validation layers");
+        validation_layer_count = 0;
     }
 
     if(!rb_vk_instance_all_required_extensions(&rb_vk_g_config)){
         DOT_ERROR("Could not find all requested instance extensions");
     }
 
+    VkDebugUtilsMessengerCreateInfoEXT debug_utils_info = {0};
     VkDebugUtilsMessengerCreateInfoEXT *debug_utils_info_ptr = NULL;
     if(RB_VK_DEBUG_UTILS_ENABLE){
-        VkDebugUtilsMessengerCreateInfoEXT debug_utils_info = {
+        debug_utils_info = (VkDebugUtilsMessengerCreateInfoEXT){
             .sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
 
             .messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
@@ -1720,9 +1741,9 @@ rb_vk_init(Arena *arena, PlatformNativeWindow window, RB_DeviceDesc const *desc)
         {
             .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
 
-            .enabledLayerCount      = rb_vk_g_config.validation_layer_count,
+            .enabledLayerCount      = validation_layer_count,
             .ppEnabledLayerNames    = cstr_array_from_string8_array(s.arena,
-                rb_vk_g_config.validation_layer_count,
+                validation_layer_count,
                 rb_vk_g_config.validation_layers),
 
             .enabledExtensionCount      = instance_extension_count,
@@ -1744,7 +1765,6 @@ rb_vk_init(Arena *arena, PlatformNativeWindow window, RB_DeviceDesc const *desc)
     volkLoadInstance(rb_vk_g_ctx->instance);
 
     if(debug_utils_info_ptr){
-        PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT = cast(PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(rb_vk_g_ctx->instance, "vkCreateDebugUtilsMessengerEXT");
         if(vkCreateDebugUtilsMessengerEXT){
             RB_VK_CHECK(vkCreateDebugUtilsMessengerEXT(rb_vk_g_ctx->instance, debug_utils_info_ptr, NULL, &rb_vk_g_ctx->debug_messenger));
         }
@@ -2279,7 +2299,7 @@ rb_vk_set_depth_stencil_state(RB_CommandBuffer cmd_h, RB_DepthStencilState state
 
     vkCmdSetStencilTestEnable(vk_cmd, state.stencil_enable ? VK_TRUE : VK_FALSE);
     RB_StencilState *faces[2] = { &state.front, &state.back };
-    VkStencilFaceFlagBits face_bits[2] = { VK_STENCIL_FACE_FRONT_BIT, VK_STENCIL_FACE_BACK_BIT };
+    VkStencilFaceFlags face_bits[2] = { VK_STENCIL_FACE_FRONT_BIT, VK_STENCIL_FACE_BACK_BIT };
     for(u32 i = 0; i < 2; ++i){
         RB_StencilState *s = faces[i];
         vkCmdSetStencilOp(vk_cmd, face_bits[i],
@@ -2750,7 +2770,6 @@ rb_vk_end()
     vkDestroySurfaceKHR(rb_vk_g_ctx->instance, rb_vk_g_ctx->surface, NULL);
     vkDestroyDevice(rb_vk_g_ctx->device.vk_device, NULL);
     if(RB_VK_DEBUG_UTILS_ENABLE){
-        PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT = cast(PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(rb_vk_g_ctx->instance, "vkDestroyDebugUtilsMessengerEXT");
         if(vkDestroyDebugUtilsMessengerEXT){
             vkDestroyDebugUtilsMessengerEXT(rb_vk_g_ctx->instance, rb_vk_g_ctx->debug_messenger, NULL);
         }

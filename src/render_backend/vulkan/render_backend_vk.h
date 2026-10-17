@@ -1,7 +1,6 @@
 #ifndef RB_VK_H
 #define RB_VK_H
 
-#define VK_NO_PROTOTYPES
 #if defined(DOT_PLATFORM_LINUX)
 #   define VK_USE_PLATFORM_WAYLAND_KHR
 #   define VK_USE_PLATFORM_XLIB_KHR
@@ -20,7 +19,8 @@ typedef VkSemaphore RB_VK_TimelineSemaphore;
 ////////////////////////////////////////////////////////////////
 /// RB_VK_DEVICE
 
-typedef struct RB_VK_Device{
+typedef struct RB_VK_Device
+{
     VkDevice         vk_device;
     VkPhysicalDevice vk_gpu;
     b32              is_integrated_gpu;
@@ -89,7 +89,8 @@ struct RB_VK_Texture
 /// RB_VK_PIPELINE
 
 typedef struct RB_VK_Pipeline RB_VK_Pipeline;
-struct RB_VK_Pipeline{
+struct RB_VK_Pipeline
+{
     RB_VK_Pipeline      *next;
     VkPipeline           vk_pipeline;
     VkPipelineBindPoint  vk_bind_point;
@@ -100,7 +101,8 @@ struct RB_VK_Pipeline{
 
 typedef struct RB_VK_SwapchainImage RB_VK_SwapchainImage;
 typedef struct RB_VK_RenderView RB_VK_RenderView;
-struct RB_VK_RenderView{
+struct RB_VK_RenderView
+{
     RB_VK_RenderView  *next; // free list; only meaningful once destroyed
     VkImage            vk_image;
     VkImageView        vk_image_view;
@@ -114,7 +116,8 @@ struct RB_VK_RenderView{
 /// RB_VK_COMMANDS
 
 typedef struct RB_VK_CommandBuffer RB_VK_CommandBuffer;
-struct RB_VK_CommandBuffer{
+struct RB_VK_CommandBuffer
+{
     RB_VK_CommandBuffer *next;
     VkCommandBuffer      vk_cmd;
 
@@ -137,7 +140,8 @@ struct RB_VK_CommandBuffer{
 };
 
 typedef struct RB_VK_CommandPool RB_VK_CommandPool;
-struct RB_VK_CommandPool{
+struct RB_VK_CommandPool
+{
     RB_VK_CommandPool   *next;
     VkCommandPool        vk_pool;
     RB_VK_CommandBuffer *first;
@@ -148,8 +152,8 @@ struct RB_VK_CommandPool{
 ////////////////////////////////////////////////////////////////
 /// RB_VK_SWAPCHAIN
 
-typedef struct RB_VK_SwapchainDetails{
-    // IN
+typedef struct RB_VK_SwapchainDetails
+{
     i32x2 frame_buffer_size;
     VkFormat preferred_format;
     VkPresentModeKHR preferred_present_mode;
@@ -175,7 +179,8 @@ typedef struct RB_VK_PresentContext
     VkFence     presented;
 }RB_VK_PresentContext;
 
-typedef struct RB_VK_Swapchain{
+typedef struct RB_VK_Swapchain
+{
     VkSwapchainKHR swapchain;
     VkExtent2D     extent;
     VkFormat       image_format;
@@ -194,7 +199,8 @@ typedef struct RB_VK_Swapchain{
 ////////////////////////////////////////////////////////////////
 /// RB_VK_CONTEXT
 
-typedef struct RB_VK_BackendCtx{
+typedef struct RB_VK_BackendCtx
+{
     Arena            *permanent_arena;
     Arena            *transient_arena;
 

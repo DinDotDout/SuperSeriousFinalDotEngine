@@ -5,7 +5,7 @@ DOT_DIAGNOSTIC_PUSH
 #if DOT_COMPILER_CLANG || DOT_COMPILER_GCC
     DOT_DIAGNOSTIC_IGNORE("-Wunused-parameter")
 #elif DOT_COMPILER_MSVC
-    DOT_DIAGNOSTIC_IGNORE(4100)
+    DOT_DIAGNOSTIC_IGNORE(4100) // unreferenced formal parameter
 #endif
 
 #define X(name, ret, params) internal ret rb_null_##name params;

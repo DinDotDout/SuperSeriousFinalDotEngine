@@ -6,13 +6,13 @@
 // String
 //
 
-typedef struct String8{
+struct String8{
     union{
         u8 *str;
         char *cstr;
     };
     u64 size;
-}String8;
+};
 
 typedef struct String8Node{
     LLNode node;
@@ -42,6 +42,11 @@ DOT_STATIC_ASSERT('\r' - '\f' == 1);
 
 internal b32 char_is_slash(u8 c);
 internal b32 char_is_whitespace(u8 c);
+internal b32 char_is_digit(u8 c);
+internal b32 char_is_alpha(u8 c);
+internal b32 char_is_alnum(u8 c);
+internal b32 char_is_hex_digit(u8 c);
+internal u32 char_hex_value(u8 c);
 
 internal String8 string8(u8 *s, u64 size);
 internal String8 string8_copy(Arena *arena, String8 string);

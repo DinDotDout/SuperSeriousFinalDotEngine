@@ -1,6 +1,8 @@
 #ifndef RENDERER_INCLUDE_H
 #define RENDERER_INCLUDE_H
 
+#include "base/base_include.h"
+
 // (jd) TODO: Should eventually move defining those flags to nob.c build config
 #define RB_BACKEND_VK
 #define RB_BACKEND_SINGLE

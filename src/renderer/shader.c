@@ -19,7 +19,7 @@ rn_shader_module_is_initialized(RN_ShaderCachedData *shader_module)
 
 // (jd) didn't really need to do the hash thing but I wanted to test this for
 // where it may matter MSVC doesn't fold string-literal indexing (used inside
-// DOT_FNV1A_N) into an integer constant expression, so these can't be switch
+// STATIC_FNV1A_N) into an integer constant expression, so these can't be switch
 // case labels like they can under clang/gcc; compare at runtime instead.
 RB_ShaderStageKind
 rn_shader_stage_kind_from_ext(String8 ext)
@@ -31,23 +31,23 @@ rn_shader_stage_kind_from_ext(String8 ext)
 
     u64 h = hash_fnv1a_u64(ext.str, ext.size);
 
-    if(h == DOT_FNV1A_4(RN_EXT_VERT)){       match = str_comp(RN_EXT_VERT);  shader_kind = RB_ShaderStageKind_Vertex; }
-    else if(h == DOT_FNV1A_4(RN_EXT_FRAG)){  match = str_comp(RN_EXT_FRAG);  shader_kind = RB_ShaderStageKind_Fragment; }
-    else if(h == DOT_FNV1A_4(RN_EXT_COMP)){  match = str_comp(RN_EXT_COMP);  shader_kind = RB_ShaderStageKind_Compute; }
+    if(h == STATIC_FNV1A(RN_EXT_VERT)){       match = str_comp(RN_EXT_VERT);  shader_kind = RB_ShaderStageKind_Vertex; }
+    else if(h == STATIC_FNV1A(RN_EXT_FRAG)){  match = str_comp(RN_EXT_FRAG);  shader_kind = RB_ShaderStageKind_Fragment; }
+    else if(h == STATIC_FNV1A(RN_EXT_COMP)){  match = str_comp(RN_EXT_COMP);  shader_kind = RB_ShaderStageKind_Compute; }
 
-    else if(h == DOT_FNV1A_4(RN_EXT_RGEN)){  match = str_comp(RN_EXT_RGEN);  shader_kind = RB_ShaderStageKind_RayGen; }
-    else if(h == DOT_FNV1A_5(RN_EXT_RAHIT)){ match = str_comp(RN_EXT_RAHIT); shader_kind = RB_ShaderStageKind_RayHitAny; }
-    else if(h == DOT_FNV1A_5(RN_EXT_RCHIT)){ match = str_comp(RN_EXT_RCHIT); shader_kind = RB_ShaderStageKind_RayHitClosest; }
-    else if(h == DOT_FNV1A_5(RN_EXT_RMISS)){ match = str_comp(RN_EXT_RMISS); shader_kind = RB_ShaderStageKind_RayHitMiss; }
-    else if(h == DOT_FNV1A_4(RN_EXT_RINT)){  match = str_comp(RN_EXT_RINT);  shader_kind = RB_ShaderStageKind_RayHitIntersection; }
-    else if(h == DOT_FNV1A_4(RN_EXT_CALL)){  match = str_comp(RN_EXT_CALL);  shader_kind = RB_ShaderStageKind_Callable; }
+    else if(h == STATIC_FNV1A(RN_EXT_RGEN)){  match = str_comp(RN_EXT_RGEN);  shader_kind = RB_ShaderStageKind_RayGen; }
+    else if(h == STATIC_FNV1A(RN_EXT_RAHIT)){ match = str_comp(RN_EXT_RAHIT); shader_kind = RB_ShaderStageKind_RayHitAny; }
+    else if(h == STATIC_FNV1A(RN_EXT_RCHIT)){ match = str_comp(RN_EXT_RCHIT); shader_kind = RB_ShaderStageKind_RayHitClosest; }
+    else if(h == STATIC_FNV1A(RN_EXT_RMISS)){ match = str_comp(RN_EXT_RMISS); shader_kind = RB_ShaderStageKind_RayHitMiss; }
+    else if(h == STATIC_FNV1A(RN_EXT_RINT)){  match = str_comp(RN_EXT_RINT);  shader_kind = RB_ShaderStageKind_RayHitIntersection; }
+    else if(h == STATIC_FNV1A(RN_EXT_CALL)){  match = str_comp(RN_EXT_CALL);  shader_kind = RB_ShaderStageKind_Callable; }
 
-    else if(h == DOT_FNV1A_4(RN_EXT_MESH)){  match = str_comp(RN_EXT_MESH);  shader_kind = RB_ShaderStageKind_Mesh; }
-    else if(h == DOT_FNV1A_4(RN_EXT_TASK)){  match = str_comp(RN_EXT_TASK);  shader_kind = RB_ShaderStageKind_Task; }
+    else if(h == STATIC_FNV1A(RN_EXT_MESH)){  match = str_comp(RN_EXT_MESH);  shader_kind = RB_ShaderStageKind_Mesh; }
+    else if(h == STATIC_FNV1A(RN_EXT_TASK)){  match = str_comp(RN_EXT_TASK);  shader_kind = RB_ShaderStageKind_Task; }
 
-    else if(h == DOT_FNV1A_4(RN_EXT_TESC)){  match = str_comp(RN_EXT_TESC);  shader_kind = RB_ShaderStageKind_TesselationControl; }
-    else if(h == DOT_FNV1A_4(RN_EXT_TESE)){  match = str_comp(RN_EXT_TESE);  shader_kind = RB_ShaderStageKind_TesselationEvaluation; }
-    else if(h == DOT_FNV1A_4(RN_EXT_GEOM)){  match = str_comp(RN_EXT_GEOM);  shader_kind = RB_ShaderStageKind_Geometry; }
+    else if(h == STATIC_FNV1A(RN_EXT_TESC)){  match = str_comp(RN_EXT_TESC);  shader_kind = RB_ShaderStageKind_TesselationControl; }
+    else if(h == STATIC_FNV1A(RN_EXT_TESE)){  match = str_comp(RN_EXT_TESE);  shader_kind = RB_ShaderStageKind_TesselationEvaluation; }
+    else if(h == STATIC_FNV1A(RN_EXT_GEOM)){  match = str_comp(RN_EXT_GEOM);  shader_kind = RB_ShaderStageKind_Geometry; }
 
     if(RB_ShaderStageKind_None == shader_kind){
         DOT_WARNING("Ambiguous file extension name '%S', returning RB_ShaderStageKind_Fragment! Try specifying RB_ShaderStageKind", ext);

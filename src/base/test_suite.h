@@ -37,7 +37,7 @@ global ARRAY(DOT_Test, DOT_TEST_SUITE_MAX) g_dot_test_suites;
 
 #define DOT_TEST_SUITE(fn) \
     internal inline DOT_TestResults fn(void); \
-    static const DOT_Test DOT_CONCAT(__DOT_Test_, fn) = (DOT_Test){ \
+    static const DOT_Test DOT_CONCAT(__DOT_Test_, fn) = { \
         .name = #fn, \
         .file = __FILE__, \
         .line = __LINE__, \

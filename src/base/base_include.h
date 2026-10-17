@@ -16,9 +16,9 @@ DOT_DIAGNOSTIC_PUSH
     DOT_DIAGNOSTIC_ERROR("-Wimplicit-int-conversion")
     DOT_DIAGNOSTIC_IGNORE("-Wsign-conversion")
 #elif DOT_COMPILER_MSVC
-    DOT_DIAGNOSTIC_IGNORE(5287)
-    DOT_DIAGNOSTIC_IGNORE(4456)
-    DOT_DIAGNOSTIC_IGNORE(4456)
+    DOT_DIAGNOSTIC_IGNORE(5287) // operands are different enum types
+    DOT_DIAGNOSTIC_IGNORE(4456) // declaration hides previous local declaration
+    DOT_DIAGNOSTIC_IGNORE(4456) // declaration hides previous local declaration
 #endif
 
 #include "base/platform.h"
@@ -29,11 +29,14 @@ DOT_DIAGNOSTIC_PUSH
 #include "base/string.h"
 #include "base/hashmap.h"
 #include "base/math.h"
+#include "base/reflect.h"
 #include "base/thread_ctx.h"
 #include "base/templates/sort_include.h"
 
 DOT_DIAGNOSTIC_PUSH
+#if DOT_COMPILER_CLANG || DOT_COMPILER_GCC
     DOT_DIAGNOSTIC_IGNORE("-Wimplicit-fallthrough")
+#endif
 #   define STB_SPRINTF_STATIC
 #   define STB_SPRINTF_NOUNALIGNED
 #   define STB_SPRINTF_DECORATE(name) dot_##name
@@ -49,6 +52,7 @@ DOT_DIAGNOSTIC_POP
 #include "base/debug_alloc.c"
 #include "base/string.c"
 #include "base/hashmap.c"
+#include "base/reflect.c"
 #include "base/thread_ctx.c"
 #include "base/program_entry_point.c"
 DOT_DIAGNOSTIC_POP

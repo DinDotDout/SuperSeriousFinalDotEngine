@@ -49,7 +49,7 @@ program_entry_flags_apply(i32 flags_count, ProgramEntryFlagCtx *flags, i32 arg_c
 {
     b32 show_help = false;
     for (i32 i = 1; i < arg_count; i++){
-        if(string8_equal(arg_values[i], str_comp("--help"))){
+        if(string8_equal(arg_values[i], str_comp("-help"))){
             show_help = true;
             break;
         }

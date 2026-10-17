@@ -70,12 +70,6 @@ ui_render_draw(UI_Render *ui, RN_RenderCtx *renderer, struct nk_context *ctx, i3
             { NK_VERTEX_LAYOUT_END }
         };
 
-        // NOTE: NK_ALIGNOF expands to an inline `struct{...}` (Nuklear'state offsetof-based
-        // alignof trick); MSVC flags that shape with C4116 even though it'state well-defined.
-        DOT_DIAGNOSTIC_PUSH
-#       if DOT_COMPILER_MSVC
-            DOT_DIAGNOSTIC_IGNORE(4116)
-#       endif
         struct nk_convert_config config = {
             .vertex_layout        = vertex_layout,
             .vertex_size          = sizeof(UI_RenderVertex),
@@ -88,7 +82,6 @@ ui_render_draw(UI_Render *ui, RN_RenderCtx *renderer, struct nk_context *ctx, i3
             .shape_AA             = NK_ANTI_ALIASING_ON,
             .line_AA              = NK_ANTI_ALIASING_ON,
         };
-        DOT_DIAGNOSTIC_POP
 
         nk_buffer_init_fixed(&vbuf, ui->vertex_buf, UI_RENDER_MAX_VERTEX_BUFFER);
         nk_buffer_init_fixed(&ebuf, ui->index_buf,  UI_RENDER_MAX_ELEMENT_BUFFER);

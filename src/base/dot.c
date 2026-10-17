@@ -16,7 +16,7 @@ print_log_level_kind(DOT_LogLevelKind debug_kind){
 internal void
 dot_print_debug_(const DOT_PrintDebugParams* params, const char *fmt, ...){
     if(params->print_debug_kind < g_log_level) return;
-    thread_local static char buf[DOT_MAX_LOG_LEVEL_LENGTH];
+    local_persist thread_local char buf[DOT_MAX_LOG_LEVEL_LENGTH];
     FILE* out = params->print_debug_kind == DOT_LogLevelKind_Debug ? stdout : stderr;
 
     va_list args;

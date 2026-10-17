@@ -13,8 +13,6 @@ typedef union f32x2{
     f32 e[2];
 }f32x2;
 
-typedef f32x2 f32x2;
-
 typedef struct u32x3{
     u32 x,y,z;
 }u32x3;
@@ -69,7 +67,6 @@ typedef union f32x3
     };
     f32 e[3];
 }f32x3;
-typedef f32x3 f32x3;
 
 global const f32x3 f32x3_zero     = {0};
 global const f32x3 f32x3_one      = { .x = 1.0f, .y = 1.0f, .z = 1.0f};
@@ -100,15 +97,15 @@ typedef union f32x4
 // #else
 // #  define alignmat CGLM_ALIGN(16)
 // #endif
-typedef union alignas(16) mat4{
-    f32x4 mat4[4];
+typedef union f32x4x4{
+    f32x4 cols[4];
     struct {
-        f32 m00, m01, m02, m03;
-        f32 m10, m11, m12, m13;
-        f32 m20, m21, m22, m23;
-        f32 m30, m31, m32, m33;
+        f32 m00, m10, m20, m30;
+        f32 m01, m11, m21, m31;
+        f32 m02, m12, m22, m32;
+        f32 m03, m13, m23, m33;
     };
-}mat4;
+}f32x4x4;
 
 typedef f32x4 quat;
 
@@ -134,7 +131,7 @@ v4(f32 x, f32 y, f32 z, f32 w)
 }
 
 internal inline
-f32x4 v4_v3_f(f32x3 v3, f32 w)
+f32x4 f32x4_f32x3(f32x3 v3, f32 w)
 {
     f32x4 res = {.x = v3.x, .y = v3.y, .z = v3.z, .w = w};
     return res;
@@ -183,17 +180,17 @@ f32x3_normalize(f32x3 a)
     return len > 0.0f ? f32x3_scale(a, 1.0f/len) : a;
 }
 
-internal inline mat4
-mat4_make(f32x4 a, f32x4 b,f32x4 c, f32x4 d)
+internal inline f32x4x4
+f32x4x4_make(f32x4 a, f32x4 b,f32x4 c, f32x4 d)
 {
-    mat4 m = {{a,b,c,d }};
+    f32x4x4 m = {{a,b,c,d }};
     return m;
 }
 
-internal inline mat4
-mat4_identity()
+internal inline f32x4x4
+f32x4x4_identity()
 {
-    mat4 id = mat4_make(
+    f32x4x4 id = f32x4x4_make(
         v4(1,0,0,0),
         v4(0,1,0,0),
         v4(0,0,1,0),
@@ -219,11 +216,11 @@ quat_make(f32 x, f32 y, f32 z, f32 w)
 
 #define DOT_PI 3.14159265358979323846f
 
-internal mat4
-mat4_mul(mat4 a, mat4 b)
+internal f32x4x4
+f32x4x4_mul(f32x4x4 a, f32x4x4 b)
 {
     // Column-major: r column c = a * (b column c).
-    mat4 r;
+    f32x4x4 r;
     f32 *ra = cast(f32*)&r;
     f32 *aa = cast(f32*)&a;
     f32 *ba = cast(f32*)&b;
@@ -236,8 +233,8 @@ mat4_mul(mat4 a, mat4 b)
     return r;
 }
 
-internal mat4
-mat4_from_quat(quat q)
+internal f32x4x4
+f32x4x4_from_quat(quat q)
 {
     float x = q.x, y = q.y, z = q.z, w = q.w;
 
@@ -250,7 +247,7 @@ mat4_from_quat(quat q)
     float wx = w * x;
     float wy = w * y;
     float wz = w * z;
-    mat4 ret = mat4_make(quat_make(1.0f - 2.0f*(yy + zz),
+    f32x4x4 ret = f32x4x4_make(quat_make(1.0f - 2.0f*(yy + zz),
             2.0f*(xy + wz),
             2.0f*(xz - wy),
             0.0f),
@@ -268,17 +265,17 @@ mat4_from_quat(quat q)
     return(ret);
 }
 
-internal mat4
-mat4_from_trs(f32x3 translation, quat r, f32x3 s)
+internal f32x4x4
+f32x4x4_from_trs(f32x3 translation, quat r, f32x3 s)
 {
-    mat4 R = mat4_from_quat(r);
+    f32x4x4 R = f32x4x4_from_quat(r);
 
     // scale columns
-    R.mat4[0].x *= s.x; R.mat4[0].y *= s.x; R.mat4[0].z *= s.x;
-    R.mat4[1].x *= s.y; R.mat4[1].y *= s.y; R.mat4[1].z *= s.y;
-    R.mat4[2].x *= s.z; R.mat4[2].y *= s.z; R.mat4[2].z *= s.z;
+    R.cols[0].x *= s.x; R.cols[0].y *= s.x; R.cols[0].z *= s.x;
+    R.cols[1].x *= s.y; R.cols[1].y *= s.y; R.cols[1].z *= s.y;
+    R.cols[2].x *= s.z; R.cols[2].y *= s.z; R.cols[2].z *= s.z;
 
-    R.mat4[3] = v4_v3_f(translation, 1.0f);
+    R.cols[3] = f32x4_f32x3(translation, 1.0f);
     return R;
 }
 
@@ -288,14 +285,14 @@ quat_identity(void)
     return v4(0.0f, 0.0f, 0.0f, 1.0f);
 }
 
-internal inline mat4
-mat4_look_at(f32x3 eye, f32x3 center, f32x3 up)
+internal inline f32x4x4
+f32x4x4_look_at(f32x3 eye, f32x3 center, f32x3 up)
 {
     f32x3 f = f32x3_normalize(f32x3_sub(center, eye));
     f32x3 s = f32x3_normalize(f32x3_cross(f, up));
     f32x3 u = f32x3_cross(s, f);
 
-    mat4 r = mat4_make(
+    f32x4x4 r = f32x4x4_make(
         v4(s.x, u.x, -f.x, 0.0f),
         v4(s.y, u.y, -f.y, 0.0f),
         v4(s.z, u.z, -f.z, 0.0f),
@@ -304,12 +301,12 @@ mat4_look_at(f32x3 eye, f32x3 center, f32x3 up)
     return r;
 }
 
-internal inline mat4
-mat4_perspective(f32 fov_y_radians, f32 aspect, f32 z_near, f32 z_far)
+internal inline f32x4x4
+f32x4x4_perspective(f32 fov_y_radians, f32 aspect, f32 z_near, f32 z_far)
 {
     f32 tan_half_fov = tanf(fov_y_radians * 0.5f);
 
-    mat4 r = mat4_make(
+    f32x4x4 r = f32x4x4_make(
         v4(1.0f/(aspect*tan_half_fov), 0.0f, 0.0f, 0.0f),
         v4(0.0f, -1.0f/tan_half_fov, 0.0f, 0.0f),
         v4(0.0f, 0.0f, z_far/(z_near-z_far), -1.0f),

@@ -16,6 +16,32 @@
 #   undef X
 #endif
 
+global RB_DebugMessageFn *rb_g_debug_message_fn = rb_debug_message_default;
+global void              *rb_g_debug_message_user_data;
+
+internal void
+rb_debug_message_default(RB_DebugMessage *msg, void *user_data)
+{
+    DOT_UNUSED(user_data);
+    if(msg->severity >= RB_DebugSeverity_Warning){
+        DOT_WARNING("MessageID: %S %lld\nMessage: %S\n\n", msg->id_name, msg->id, msg->text);
+        os_print_stacktrace();
+    }
+}
+
+internal void
+rb_debug_message_set(RB_DebugMessageFn *fn, void *user_data)
+{
+    rb_g_debug_message_fn = fn ? fn : rb_debug_message_default;
+    rb_g_debug_message_user_data = fn ? user_data : 0;
+}
+
+internal void
+rb_debug_message_emit(RB_DebugMessage *msg)
+{
+    rb_g_debug_message_fn(msg, rb_g_debug_message_user_data);
+}
+
 internal void
 rb_begin(RB_DeviceKind kind, Arena *arena, PlatformNativeWindow window, RB_DeviceDesc const *desc)
 {

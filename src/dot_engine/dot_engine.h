@@ -3,6 +3,7 @@
 
 #define _GNU_SOURCE
 #include "base/build_ctx.h"
+#include "base/base_types.h"
 
 //////////////////////////////////////////////////////
 /// THIRD PARTY
@@ -10,12 +11,14 @@
 DOT_DIAGNOSTIC_PUSH
 #if DOT_COMPILER_MSVC
 DOT_DIAGNOSTIC_IGNORE(4244) // conversion from 'u64' to 'u32', possible loss of data
-DOT_DIAGNOSTIC_IGNORE(4116) // enum operands of different types
 DOT_DIAGNOSTIC_IGNORE(5287) // operands are different enum types
+DOT_DIAGNOSTIC_IGNORE(4701) // potentially uninitialized local variable used
+DOT_DIAGNOSTIC_IGNORE(4702) // unreachable code
 #endif
 
+#define RGFW_INT_DEFINED // Included in base_types already
+#define RGFW_NO_INCLUDE_VULKAN
 #define RGFW_IMPLEMENTATION
-//#define RGFW_INT_DEFINED
 #define RGFWDEF static inline
 #include "third_party/RGFW/RGFW.h"
 
@@ -29,6 +32,9 @@ DOT_DIAGNOSTIC_IGNORE(5287) // operands are different enum types
 #include "third_party/Nuklear/nuklear.h"
 DOT_DIAGNOSTIC_POP
 
+//////////////////////////////////////////////////////
+/// DOT
+
 #if DOT_OS_WINDOWS
 #  if DOT_ENGINE_IMPORT
 #    define DOT_ENGINE_API __declspec(dllimport)
@@ -39,9 +45,6 @@ DOT_DIAGNOSTIC_POP
 #   define DOT_ENGINE_API __attribute__((visibility("default")))
 #endif
 
-//////////////////////////////////////////////////////
-/// DOT
-//
 #include "base/base_include.h"
 
 #if DOT_DEBUG_ALLOCATORS
@@ -77,12 +80,13 @@ DOT_DIAGNOSTIC_PUSH
 #include "game/shaders/model_shared.h"
 #include "dot_engine/model.h"
 #include "dot_engine/game.h"
-#include "dot_engine/reflect.h"
+#include "dot_engine/reflect_ui.h"
 
 #define DOT_PROFILER_IMPL
 #include "dot_engine/profiler.h"
 #include "dot_engine/window.c"
 #include "dot_engine/ui_input.c"
+#include "dot_engine/reflect_ui.c"
 
 #include "dot_engine/model.c"
 #include "dot_engine/game.c"

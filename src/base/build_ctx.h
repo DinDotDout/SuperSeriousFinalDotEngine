@@ -13,7 +13,9 @@
 
 #if defined(_WIN32)
 #   define DOT_OS_WINDOWS 1
+#   define DOT_OS_POSIX 0
 #elif defined(__unix__) || defined(__APPLE__) || defined(__linux__)
+#   define DOT_OS_WINDOWS 0
 #   define DOT_OS_POSIX 1
 #else
 #   error "Unsupported platform"
@@ -23,14 +25,14 @@
 //
 // Compiler
 
-#if defined(_MSC_VER)
-#   define DOT_COMPILER_CLANG 0
-#   define DOT_COMPILER_GCC 0
-#   define DOT_COMPILER_MSVC 1
-#elif defined(__clang__)
+#if defined(__clang__)
 #   define DOT_COMPILER_GCC 0
 #   define DOT_COMPILER_MSVC 0
 #   define DOT_COMPILER_CLANG 1
+#elif defined(_MSC_VER)
+#   define DOT_COMPILER_CLANG 0
+#   define DOT_COMPILER_GCC 0
+#   define DOT_COMPILER_MSVC 1
 #elif defined(__GNUC__)
 #   define DOT_COMPILER_MSVC 0
 #   define DOT_COMPILER_CLANG 0
@@ -39,7 +41,7 @@
 #   error Unknown compiler
 #endif
 
-#if DOT_COMPILER_CLANG || DOT_COMPILER_CLANG
+#if DOT_COMPILER_CLANG || DOT_COMPILER_GCC
 #   if defined(__amd64__) || defined(__amd64) || defined(__x86_64__) || defined(__x86_64)
 #      define DOT_ARCH_X64 1
 #   elif defined(i386) || defined(__i386) || defined(__i386__)

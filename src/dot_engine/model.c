@@ -113,7 +113,7 @@ dot_model_from_gltf(RN_RenderCtx *renderer, const cgltf_data *gltf_data, String8
 
         cgltf_mesh *gltf_mesh = gltf_node->mesh;
 
-        mat4 node_transform;
+        f32x4x4 node_transform;
         cgltf_node_transform_world(gltf_node, cast(cgltf_float*)&node_transform);
 
         for(u32 primitive_index = 0; primitive_index < gltf_mesh->primitives_count; ++primitive_index){

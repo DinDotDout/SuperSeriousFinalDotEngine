@@ -31,7 +31,6 @@ typedef enum ArenaFlags{
     // ArenaFlags_ChainArena = DOT_BIT(3),
 }ArenaFlags;
 
-typedef struct Arena Arena;
 struct Arena{
     u64 used;
     u8 *base;

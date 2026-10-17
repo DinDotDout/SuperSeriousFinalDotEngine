@@ -28,12 +28,12 @@ RB_GpuAddress     g_cubeMesh = {0};
 RB_Pipeline g_model_pipeline = {0};
 DOT_Model         g_model = {0};
 
-typedef struct DOT_Camera{
+Reflect(DOT_Camera, {
     f32x3 position;
-    f32  yaw;
-    f32  pitch;
-    f32  fov_y;
-}DOT_Camera;
+    f32   yaw;
+    f32   pitch;
+    f32   fov_y;
+});
 
 DOT_Camera g_camera = {0};
 
@@ -200,9 +200,9 @@ dot_game_run(DOT_Game *game)
     dot_camera_update(&g_camera, game->window, dt);
 
     f32 aspect = cast(f32)renderer->current_extent.x / cast(f32)renderer->current_extent.y;
-    mat4 view = mat4_look_at(g_camera.position, f32x3_add(g_camera.position, dot_camera_forward(&g_camera)), f32x3_up);
-    mat4 proj = mat4_perspective(g_camera.fov_y, aspect, 0.1f, 5000.0f);
-    mat4 view_proj = mat4_mul(proj, view);
+    f32x4x4 view = f32x4x4_look_at(g_camera.position, f32x3_add(g_camera.position, dot_camera_forward(&g_camera)), f32x3_up);
+    f32x4x4 proj = f32x4x4_perspective(g_camera.fov_y, aspect, 0.1f, 5000.0f);
+    f32x4x4 view_proj = f32x4x4_mul(proj, view);
 
     RB_RenderingDesc desc = {
         .render_extent = renderer->current_extent,
@@ -261,20 +261,20 @@ dot_game_run(DOT_Game *game)
     rb_bind_pso(renderer->current_cmd, g_triangle_pipeline);
 
     TriangleRoot triangle_root = {0};
-    triangle_root.mvp         = mat4_identity();
+    triangle_root.mvp         = f32x4x4_identity();
     triangle_root.vertex_addr = g_triangleMesh;
 
     // rb_draw(renderer->current_cmd, rn_frame_push(renderer, triangle_root).gpu, 9, 1, 0, 0);
 
     // The Avocado sample is ~6 cm tall; scale it up to sit next to the unit cube.
-    mat4 model_world = mat4_from_trs(f32x3_zero, quat_identity(), v3(20.0f, 20.0f, 20.0f));
+    f32x4x4 model_world = f32x4x4_from_trs(f32x3_zero, quat_identity(), v3(20.0f, 20.0f, 20.0f));
     rb_bind_pso(renderer->current_cmd, g_model_pipeline);
     for EACH_INDEX(i, g_model.sub_mesh_draw_count){
         DOT_Submesh *sub_mesh = &g_model.sub_mesh_draw[i];
 
         DOT_ModelRoot model_root = {0};
-        model_root.mvp           = mat4_mul(view_proj, mat4_mul(model_world, sub_mesh->transform));
-        // model_root.mvp           = mat4_identity();
+        model_root.mvp           = f32x4x4_mul(view_proj, f32x4x4_mul(model_world, sub_mesh->transform));
+        // model_root.mvp           = f32x4x4_identity();
         model_root.position_addr = sub_mesh->position_addr;
         model_root.normal_addr   = sub_mesh->normal_addr;
         model_root.texcoord_addr = sub_mesh->texcoord_addr;
@@ -285,8 +285,8 @@ dot_game_run(DOT_Game *game)
 
     rb_bind_pso(renderer->current_cmd, g_cube_pipeline);
     TriangleRoot cube_root = {0};
-    mat4 cube_transform = mat4_from_trs(v3(1.5f, 0.5f, 0.0f), quat_identity(), f32x3_one);
-    cube_root.mvp         = mat4_mul(view_proj, cube_transform);
+    f32x4x4 cube_transform  = f32x4x4_from_trs(v3(1.5f, 0.5f, 0.0f), quat_identity(), f32x3_one);
+    cube_root.mvp           = f32x4x4_mul(view_proj, cube_transform);
     cube_root.vertex_addr = g_cubeMesh;
     rb_draw(renderer->current_cmd, rn_frame_push(renderer, cube_root).gpu, 36, 1, 0, 0);
 

@@ -2,7 +2,7 @@
 #define DOT_MODEL_H
 
 typedef struct DOT_Submesh{
-    mat4 transform;
+    f32x4x4 transform;
 
     RB_GpuAddress index_addr;
     RB_GpuAddress position_addr;
