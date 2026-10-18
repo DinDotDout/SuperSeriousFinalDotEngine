@@ -1,3 +1,25 @@
+// Recursive descent grammar for the stringized Reflect/ReflectEnum bodies:
+//
+//   enum_body   = '{' [ enum_value { ',' enum_value } [ ',' ] ] '}'
+//   enum_value  = { tag } IDENT [ '=' expr ]
+//
+//   struct_body = '{' { decl } '}'
+//   decl        = { tag } [ "const" ] [ "struct" | "union" ] IDENT declarator { ',' declarator } ';'
+//   declarator  = { '*' } IDENT [ '[' expr ']' ]
+//
+//   expr        = and   { '|' and }
+//   and         = shift { '&' shift }
+//   shift       = add   { ( '<<' | '>>' ) add }
+//   add         = mul   { ( '+' | '-' ) mul }
+//   mul         = unary { ( '*' | '/' | '%' ) unary }
+//   unary       = '-' unary | '~' unary | '(' expr ')' | INT | IDENT
+//
+//   tag         = IDENT starting with "rfl_"
+//   INT         = decimal or 0x hex, with any u/l suffixes ignored
+//   IDENT       = an enum value or ReflectConst name when used in expr
+//
+// Nested struct/union bodies are rejected; a decl's tag applies to every declarator in it.
+
 global RFL_Registry rfl_g_registry;
 
 ReflectPrimitive(i8,    RFL_TypeKind_Int);

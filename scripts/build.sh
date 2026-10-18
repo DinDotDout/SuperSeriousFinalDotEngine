@@ -1,1 +1,1 @@
-./scripts/nob -log_warn
+./scripts/nob -log_warn -wayland
