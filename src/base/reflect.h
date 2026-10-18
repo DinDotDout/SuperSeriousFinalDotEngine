@@ -1,20 +1,6 @@
 #ifndef REFLECT_H
 #define REFLECT_H
 
-#include "base/reflect_shared.h"
-
-typedef u32 RFL_Kind;
-enum
-{
-    RFL_Kind_Int,
-    RFL_Kind_Uint,
-    RFL_Kind_Float,
-    RFL_Kind_Bool,
-    RFL_Kind_Enum,
-    RFL_Kind_Struct,
-    RFL_Kind_Const,
-};
-
 typedef u32 RFL_ResolveState;
 enum
 {
@@ -42,9 +28,21 @@ typedef struct RFL_EnumValue
     i64     value;
 }RFL_EnumValue;
 
+typedef u32 RFL_TypeKind;
+enum
+{
+    RFL_TypeKind_Int,
+    RFL_TypeKind_Uint,
+    RFL_TypeKind_Float,
+    RFL_TypeKind_Bool,
+    RFL_TypeKind_Enum,
+    RFL_TypeKind_Struct,
+    RFL_TypeKind_Const,
+};
+
 struct alignas(16) RFL_Type
 {
-    RFL_Kind          kind;
+    RFL_TypeKind          kind;
     u32               size;
     u32               align;
     u32               line;
@@ -94,7 +92,7 @@ SECTION_DECLARE(RFL_Type, ReflectSection);
     typedef struct T __VA_ARGS__ T; \
     RFL_MARKER(T); \
     RFL_SECTION_ITEM static RFL_Type rfl_g_type_##T = { \
-        .kind  = RFL_Kind_Struct, \
+        .kind  = RFL_TypeKind_Struct, \
         .name  = str_lit(#T), \
         .body  = str_lit(#__VA_ARGS__), \
         .file  = __FILE__, \
@@ -108,7 +106,7 @@ SECTION_DECLARE(RFL_Type, ReflectSection);
     enum __VA_ARGS__; \
     RFL_MARKER(T); \
     RFL_SECTION_ITEM static RFL_Type rfl_g_type_##T = { \
-        .kind  = RFL_Kind_Enum, \
+        .kind  = RFL_TypeKind_Enum, \
         .name  = str_lit(#T), \
         .body  = str_lit(#__VA_ARGS__), \
         .file  = __FILE__, \
@@ -131,7 +129,7 @@ SECTION_DECLARE(RFL_Type, ReflectSection);
 #define ReflectExtern(T, ...) \
     RFL_MARKER(T); \
     RFL_SECTION_ITEM static RFL_Type rfl_g_type_##T = { \
-        .kind  = RFL_Kind_Struct, \
+        .kind  = RFL_TypeKind_Struct, \
         .name  = str_lit(#T), \
         .body  = str_lit(#__VA_ARGS__), \
         .file  = __FILE__, \
@@ -142,7 +140,7 @@ SECTION_DECLARE(RFL_Type, ReflectSection);
 
 #define ReflectConst(c) \
     RFL_SECTION_ITEM static RFL_Type rfl_g_const_##c = { \
-        .kind        = RFL_Kind_Const, \
+        .kind        = RFL_TypeKind_Const, \
         .name        = str_lit(#c), \
         .file        = __FILE__, \
         .line        = __LINE__, \
@@ -153,7 +151,7 @@ SECTION_DECLARE(RFL_Type, ReflectSection);
 #define rfl_any(T, ptr) ((RFL_Any){ .type = ((void)DOT_STATIC_ASSERT_TYPE(*(ptr), T, "rfl_any: pointer is not a " #T "*"), reflect_type(T)), .data = (ptr) })
 
 internal void      rfl_init(Arena *arena);
-internal RFL_Type *rfl_lookup(String8 name);
+internal RFL_Type *rfl_lookup_type(String8 name);
 internal RFL_Any   rfl_any_field(RFL_Any v, RFL_Field *field, u32 index);
 
 #endif // !REFLECT_H

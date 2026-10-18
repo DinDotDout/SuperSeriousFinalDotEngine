@@ -24,7 +24,7 @@ internal void
 rfl_ui_int(struct nk_context *ctx, char *label, RFL_Any v)
 {
     Scratch s = scratch_begin(0,0);
-    b32 is_signed = v.type->kind == RFL_Kind_Int;
+    b32 is_signed = v.type->kind == RFL_TypeKind_Int;
     i64 value = rfl_ui_int_read(v.data, v.type->size, is_signed);
     if(v.type->size > 4){
         nk_label(ctx, cstr_format(s.arena, "%s: 0x%llx", label, value), NK_TEXT_LEFT);
@@ -114,7 +114,7 @@ rfl_ui_color(struct nk_context *ctx, char *label, RFL_Any v)
 internal b32
 rfl_ui_is_scalar(RFL_Type *type)
 {
-    return type->kind == RFL_Kind_Int || type->kind == RFL_Kind_Uint || type->kind == RFL_Kind_Float;
+    return type->kind == RFL_TypeKind_Int || type->kind == RFL_TypeKind_Uint || type->kind == RFL_TypeKind_Float;
 }
 
 internal b32
@@ -135,7 +135,7 @@ rfl_ui_struct_is_compact(RFL_Type *type)
 internal void
 rfl_ui_scalar(struct nk_context *ctx, char *label, RFL_Any v)
 {
-    if(v.type->kind == RFL_Kind_Float){
+    if(v.type->kind == RFL_TypeKind_Float){
         rfl_ui_float(ctx, label, v);
     }else{
         rfl_ui_int(ctx, label, v);
@@ -178,7 +178,7 @@ rfl_ui_field(struct nk_context *ctx, RFL_Any parent, RFL_Field *field)
 internal void
 rfl_ui_inspect(struct nk_context *ctx, RFL_Any v)
 {
-    if(v.type->kind != RFL_Kind_Struct){
+    if(v.type->kind != RFL_TypeKind_Struct){
         Scratch s = scratch_begin(0,0);
         rfl_ui_any(ctx, cstr_format(s.arena, "%S", v.type->name), v);
         scratch_end(s);
@@ -193,20 +193,20 @@ internal void
 rfl_ui_any(struct nk_context *ctx, char *label, RFL_Any v)
 {
     switch(v.type->kind){
-    case RFL_Kind_Int:
-    case RFL_Kind_Uint:
-    case RFL_Kind_Float:
+    case RFL_TypeKind_Int:
+    case RFL_TypeKind_Uint:
+    case RFL_TypeKind_Float:
         nk_layout_row_dynamic(ctx, RFL_UI_ROW_HEIGHT, 1);
         rfl_ui_scalar(ctx, label, v);
         break;
-    case RFL_Kind_Bool:
+    case RFL_TypeKind_Bool:
         nk_layout_row_dynamic(ctx, RFL_UI_ROW_HEIGHT, 1);
         rfl_ui_bool(ctx, label, v);
         break;
-    case RFL_Kind_Enum:
+    case RFL_TypeKind_Enum:
         rfl_ui_enum(ctx, label, v);
         break;
-    case RFL_Kind_Struct:
+    case RFL_TypeKind_Struct:
         if(rfl_ui_struct_is_compact(v.type)){
             nk_layout_row_dynamic(ctx, RFL_UI_ROW_HEIGHT, 1);
             nk_label(ctx, label, NK_TEXT_LEFT);

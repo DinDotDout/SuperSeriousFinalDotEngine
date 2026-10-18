@@ -135,12 +135,10 @@ dot_engine_run(DOT_Engine *engine)
         if(nk_begin(ctx, "Inspector", nk_rect(300, 50, 320, 400),
                 NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE |
                 NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE)){
-            local_persist RFL_TestStruct reflect_test = {.color = {.r = 1.0f, .g = 0.5f}, .kind = RFL_TestKind_C};
             if(nk_tree_push(ctx, NK_TREE_TAB, "Camera", NK_MAXIMIZED)){
                 rfl_ui_inspect(ctx, rfl_any(DOT_Camera, &g_camera));
                 nk_tree_pop(ctx);
             }
-            rfl_ui_any(ctx, "Reflect test", rfl_any(RFL_TestStruct, &reflect_test));
         }
         nk_end(ctx);
 

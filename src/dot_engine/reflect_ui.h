@@ -1,6 +1,9 @@
 #ifndef REFLECT_UI_H
 #define REFLECT_UI_H
 
+#define rfl_color
+#define rfl_skip
+
 enum
 {
     RFL_UI_ROW_HEIGHT = 22,

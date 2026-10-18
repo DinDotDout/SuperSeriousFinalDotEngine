@@ -2,7 +2,12 @@
 #define SHADER_SHARED_H
 
 #ifdef __SLANG__
-#include "base/reflect_shared.h"
+#define rfl_color
+#define rfl_skip
+
+#define Reflect(T, ...)          struct T __VA_ARGS__
+#define ReflectEnum(B, T, ...)   typedef B T; enum __VA_ARGS__
+#define ReflectConst(name)
 
 typedef float    f32;
 typedef uint     u32;
