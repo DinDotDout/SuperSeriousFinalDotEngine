@@ -23,10 +23,30 @@ internal void
 rb_debug_message_default(RB_DebugMessage *msg, void *user_data)
 {
     DOT_UNUSED(user_data);
-    if(msg->severity >= RB_DebugSeverity_Warning){
-        DOT_WARNING("MessageID: %S %lld\nMessage: %S\n\n", msg->id_name, msg->id, msg->text);
-        os_print_stacktrace();
+    if(msg->severity < RB_DebugSeverity_Warning){
+        return;
     }
+
+    Scratch s = scratch_begin(0,0);
+    String8 mssg = string8_format(s.arena, "MessageID: %S %lld\nMessage: %S\n\n", msg->id_name, msg->id, msg->text);
+
+    partial_switch_begin(msg->severity){
+    case RB_DebugSeverity_Error:{
+        // Validation errors are our bug, so panic. Loader/general ones are environmental: log and go on.
+        if(msg->categories & RB_DebugCategoryBit_Validation){
+            DOT_ERROR("%S", mssg);
+        }else{
+			DOT_WARNING("%S", mssg);
+			os_print_stacktrace();
+		}
+    }break;
+    case RB_DebugSeverity_Warning:{
+        DOT_WARNING("%S", mssg);
+    }break;
+    default: break;
+    }partial_switch_end;
+
+    scratch_end(s);
 }
 
 internal void

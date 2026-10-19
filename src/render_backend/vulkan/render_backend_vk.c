@@ -317,9 +317,22 @@ rb_vk_all_layers(const RB_VK_VulkanConfig *vk_config)
         const String8 layer_name = vk_config->validation_layers[i];
         for(u64 j = 0; j < available_layer_count; ++j){
             if(string8_equal(layer_name, string8_from_cstring(available_layers[j].layerName))){
-                DOT_PRINT("Found Layer %S", layer_name);
-                found = true;
-                break;
+                u32 layer_spec = available_layers[j].specVersion;
+                b32 valid_spec = !(layer_spec < VK_HEADER_VERSION_COMPLETE);
+                if(valid_spec){
+                    found = true;
+                    DOT_PRINT("Found Layer %S", layer_name);
+                    break;
+                }else{
+                    DOT_WARNING("Layer %S targets Vulkan %u.%u.%u but our headers are %u.%u.%u; " "it cannot forward the extensions we use",
+                        layer_name,
+                        VK_API_VERSION_MAJOR(layer_spec),
+                        VK_API_VERSION_MINOR(layer_spec),
+                        VK_API_VERSION_PATCH(layer_spec),
+                        VK_API_VERSION_MAJOR(VK_HEADER_VERSION_COMPLETE),
+                        VK_API_VERSION_MINOR(VK_HEADER_VERSION_COMPLETE),
+                        VK_API_VERSION_PATCH(VK_HEADER_VERSION_COMPLETE));
+                }
             }
         }
         if(!found){
