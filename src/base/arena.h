@@ -17,11 +17,11 @@
 
 enum
 {
-    ARENA_HEADER_SIZE_B = PLATFORM_CACHE_LINE_SIZE,
-    ARENA_HEADER_ALIGN  = PLATFORM_CACHE_LINE_SIZE,
+    ARENA_HEADER_SIZE_B     = PLATFORM_CACHE_LINE_SIZE,
+    ARENA_HEADER_ALIGN      = PLATFORM_CACHE_LINE_SIZE,
 
-    ARENA_MAX_ALIGNMENT = 8,
-    ARENA_MIN_CAPACITY  = DOT_KB(16),
+    ARENA_DEFAULT_ALIGNMENT = 8,
+    ARENA_MIN_CAPACITY      = DOT_KB(16),
 };
 
 typedef enum ArenaFlags{
@@ -91,6 +91,7 @@ internal Arena  *arena_create_from_arena(ArenaInitParams *);
 internal Arena  *arena_create_from_os(ArenaInitParams *);
 
 internal u8    *arena_push(ArenaOpParams *, u64 alloc_size, u64 alignment, b32 should_zero);
+internal u8    *arena_push_copy(ArenaOpParams *op, void const *data, u64 size, u64 alignment);
 internal void  *arena_realloc(Arena *arena, void *ptr, u64 old_size, u64 new_size); // (jd) Only used by libraries not supporting native arenas
 internal void   arena_reset(ArenaOpParams *);
 internal void   arena_pop_to(ArenaOpParams *, u64 pos);
@@ -140,19 +141,21 @@ internal String8    arena_to_string(Arena *arena);
 
 #define ARENA_PUSH(a, sz, align, z) arena_push(ARENA_OP_PARAMS(.arena = (a)), (sz), (align), (z))
 
-#define PUSH_SIZE_NO_ZERO(arena, size)      ARENA_PUSH(arena, size, ARENA_MAX_ALIGNMENT, false)
-#define PUSH_SIZE(arena, size)              ARENA_PUSH(arena, size, ARENA_MAX_ALIGNMENT, true)
+#define PUSH_SIZE_NO_ZERO(arena, size)      ARENA_PUSH(arena, size, ARENA_DEFAULT_ALIGNMENT, false)
+#define PUSH_SIZE(arena, size)              ARENA_PUSH(arena, size, ARENA_DEFAULT_ALIGNMENT, true)
 
 #define PUSH_ARRAY_ALIGNED(arena, T, count, alignment)          (T*)ARENA_PUSH(arena, sizeof(T) * (count), alignment, true)
 #define PUSH_ARRAY_NO_ZERO_ALIGNED(arena, T, count, alignment)  (T*)ARENA_PUSH(arena, sizeof(T) * (count), alignment, false)
-#define PUSH_ARRAY(arena, T, count)                             (T*)ARENA_PUSH(arena, sizeof(T) * (count), DOT_MAX(ARENA_MAX_ALIGNMENT, DOT_ALIGNOF(T)), true)
-#define PUSH_ARRAY_NO_ZERO(arena, T, count)                     (T*)ARENA_PUSH(arena, sizeof(T) * (count), DOT_MAX(ARENA_MAX_ALIGNMENT, DOT_ALIGNOF(T)), false)
+#define PUSH_ARRAY(arena, T, count)                             (T*)ARENA_PUSH(arena, sizeof(T) * (count), DOT_MAX(ARENA_DEFAULT_ALIGNMENT, DOT_ALIGNOF(T)), true)
+#define PUSH_ARRAY_NO_ZERO(arena, T, count)                     (T*)ARENA_PUSH(arena, sizeof(T) * (count), DOT_MAX(ARENA_DEFAULT_ALIGNMENT, DOT_ALIGNOF(T)), false)
 
 // (jd) NOTE: This is used to bypass type checking in certain cases we are sure the types will match
-#define PUSH_ARRAY_UNTYPED(arena, elem_0_t, count)              (void*) ARENA_PUSH(arena, sizeof(elem_0_t) * (count), DOT_MAX(ARENA_MAX_ALIGNMENT, DOT_ALIGNOF(elem_0_t)), true)
+#define PUSH_ARRAY_UNTYPED(arena, elem_0_t, count)              (void*) ARENA_PUSH(arena, sizeof(elem_0_t) * (count), DOT_MAX(ARENA_DEFAULT_ALIGNMENT, DOT_ALIGNOF(elem_0_t)), true)
 
 #define PUSH_STRUCT_NO_ZERO(arena, T) (T*)PUSH_ARRAY_NO_ZERO(arena, T, 1)
 #define PUSH_STRUCT(arena, T) (T*)PUSH_ARRAY(arena, T, 1)
+
+#define PUSH_COPY(a, ...) (TYPEOF((__VA_ARGS__)))arena_push_copy(ARENA_OP_PARAMS(.arena = (a)), (__VA_ARGS__), sizeof(*(__VA_ARGS__)), DOT_ALIGNOF(TYPEOF(*(__VA_ARGS__))))
 
 //////////////////////////////////////////////////////////
 /// TempArena

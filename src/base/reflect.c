@@ -1,24 +1,31 @@
-// Recursive descent grammar for the stringized Reflect/ReflectEnum bodies:
+// Recursive descent grammar for the stringized Reflect/ReflectEnum bodies.
 //
-//   enum_body   = '{' [ enum_value { ',' enum_value } [ ',' ] ] '}'
-//   enum_value  = { tag } IDENT [ '=' expr ]
+//   enum_body   = '{' [ enum_value { ',' enum_value } [ ',' ] ] '}'          rfl_parse_enum
+//   enum_value  = { tag } IDENT [ '=' expr ]                                 (inlined in rfl_parse_enum)
 //
-//   struct_body = '{' { decl } '}'
-//   decl        = { tag } [ "const" ] [ "struct" | "union" ] IDENT declarator { ',' declarator } ';'
-//   declarator  = { '*' } IDENT [ '[' expr ']' ]
+//   struct_body = '{' { decl } '}'                                           rfl_parse_struct
+//   decl        = { tag } [ "const" ] [ "struct" | "union" ]
+//                 IDENT declarator { ',' declarator } ';'                    (inlined in rfl_parse_struct)
+//   declarator  = { '*' } IDENT [ '[' expr ']' ]                             (inlined in rfl_parse_struct)
 //
-//   expr        = and   { '|' and }
-//   and         = shift { '&' shift }
-//   shift       = add   { ( '<<' | '>>' ) add }
-//   add         = mul   { ( '+' | '-' ) mul }
-//   mul         = unary { ( '*' | '/' | '%' ) unary }
-//   unary       = '-' unary | '~' unary | '(' expr ')' | INT | IDENT
+//   expr        = and   { '|' and }                                          rfl_parse_expr
+//   and         = shift { '&' shift }                                        rfl_parse_expr_and
+//   shift       = add   { ( '<<' | '>>' ) add }                              rfl_parse_expr_shift
+//   add         = mul   { ( '+' | '-' ) mul }                                rfl_parse_expr_add
+//   mul         = unary { ( '*' | '/' | '%' ) unary }                        rfl_parse_expr_mul
+//                 (the unary after '/' or '%' goes through                   rfl_parse_expr_divisor)
+//   unary       = '-' unary | '~' unary | '(' expr ')' | i32 | IDENT         rfl_parse_expr_unary
 //
-//   tag         = IDENT starting with "rfl_"
-//   INT         = decimal or 0x hex, with any u/l suffixes ignored
-//   IDENT       = an enum value or ReflectConst name when used in expr
+//   tag         = IDENT starting with "rfl_"                                 rfl_parse_tags
+//   i32         = decimal or 0x hex, with any u/l suffixes ignored           rfl_lex_int
+//   IDENT       = name token                                                 rfl_lex_next_token, rfl_expect_identifier
+//                 in expr: an enum value or ReflectConst name                rfl_lookup_constant_value
 //
-// Nested struct/union bodies are rejected; a decl's tag applies to every declarator in it.
+// Token helpers used throughout: rfl_token_is_punct (peek), rfl_accept_punct ('[ x ]', '{ x }'),
+// rfl_expect_punct (required token), rfl_expect_body_end (nothing after the closing '}').
+//
+// Nested struct/union bodies are rejected. Only the last tag of a decl is kept, and it
+// applies to every declarator in that decl.
 
 global RFL_Registry rfl_g_registry;
 
@@ -61,118 +68,189 @@ enum
     RFL_TokenKind_Punct,
 };
 
-// A punctuator is its character constant: '*' or '<<'. Single chars are just the
-// char. Two-char constants are packed in whatever order the compiler uses; the
-// check below detects it, and rfl_punct_pack builds lexed tokens the same way.
-// Clang and GCC warn on multi-char constants by default: silenced here up to the body parsers.
+// A punctuator is its character constant: '*' or '<<'. Two-char constants are packed
+// first char high on MSVC, Clang and GCC; the lexer builds '<<' / '>>' the same way.
 typedef u16 RFL_Punct;
-
-DOT_DIAGNOSTIC_PUSH
-#if DOT_COMPILER_CLANG || DOT_COMPILER_GCC
-    DOT_DIAGNOSTIC_IGNORE("-Wmultichar")
-#endif
-
-#if 'ab' == (('a' << 8) | 'b')
-    #define RFL_PUNCT_FIRST_CHAR_HIGH 1 // MSVC, Clang, GCC
-#elif 'ab' == (('b' << 8) | 'a')
-    #define RFL_PUNCT_FIRST_CHAR_HIGH 0
-#else
-    #error "Unknown multi-character constant layout"
-#endif
-
-// Packs two lexed chars the way the compiler packs 'ab'.
-internal RFL_Punct
-rfl_punct_pack(u8 first, u8 second)
-{
-#if RFL_PUNCT_FIRST_CHAR_HIGH
-    return cast(RFL_Punct)((first << 8) | second);
-#else
-    return cast(RFL_Punct)(first | (second << 8));
-#endif
-}
 
 typedef struct RFL_Token
 {
     RFL_TokenKind kind;
     String8       text;
-    i64           value;
-    RFL_Punct     punct;
+    union{
+        i64           value;
+        RFL_Punct     punct;
+    };
 }RFL_Token;
+
+typedef struct RFL_EnumValueArray
+{
+    RFL_EnumValue *v;
+    u32            count;
+}RFL_EnumValueArray;
+
+typedef struct RFL_FieldArray
+{
+    RFL_Field *v;
+    u32        count;
+}RFL_FieldArray;
+
+typedef u32 RFL_ParserMode;
+enum
+{
+    RFL_ParserMode_Scan,
+    RFL_ParserMode_Evaluate,
+};
 
 typedef struct RFL_Parser
 {
-    RFL_Type  *type;
-    u64        pos;
-    RFL_Token  tok;
-    b32        evaluate;
+    RFL_Type       *type;
+    u64             pos;
+    RFL_Token       tok;
+    RFL_ParserMode  mode;
 }RFL_Parser;
 
 internal void rfl_resolve_type(RFL_Type *type);
 
+// Clang and GCC warn on multi-char constants by default: silenced here up to the body parsers.
+DOT_DIAGNOSTIC_PUSH
+#if DOT_COMPILER_CLANG || DOT_COMPILER_GCC
+    DOT_DIAGNOSTIC_IGNORE("-Wmultichar")
+#endif
+
+#if 'ab' != (('a' << 8) | 'b')
+    #error "Expected multi-char constants packed first char high (MSVC, Clang, GCC)"
+#endif
+
+////////////////////////////////
+// Character classes: one flag byte per character, filled once by rfl_char_flags_init.
+// Index 0 has no flags, so a loop over a class stops at the end of the body (rfl_peek returns 0).
+
+typedef u8 RFL_CharFlags;
+enum
+{
+    RFL_Char_Space      = 1 << 0,
+    RFL_Char_Digit      = 1 << 1,
+    RFL_Char_HexDigit   = 1 << 2,
+    RFL_Char_IdentStart = 1 << 3, // a-z A-Z _
+    RFL_Char_Ident      = 1 << 4, // a-z A-Z 0-9 _
+    RFL_Char_IntSuffix  = 1 << 5, // u U l L
+};
+
+global RFL_CharFlags rfl_g_char_flags[256];
+
+internal void
+rfl_char_flags_init(void)
+{
+    RFL_CharFlags *flags = rfl_g_char_flags;
+    for(u32 c = 'a'; c <= 'z'; ++c){ flags[c] |= RFL_Char_IdentStart | RFL_Char_Ident; }
+    for(u32 c = 'A'; c <= 'Z'; ++c){ flags[c] |= RFL_Char_IdentStart | RFL_Char_Ident; }
+    for(u32 c = '0'; c <= '9'; ++c){ flags[c] |= RFL_Char_Digit | RFL_Char_HexDigit | RFL_Char_Ident; }
+    for(u32 c = 'a'; c <= 'f'; ++c){ flags[c] |= RFL_Char_HexDigit; }
+    for(u32 c = 'A'; c <= 'F'; ++c){ flags[c] |= RFL_Char_HexDigit; }
+    flags['_'] |= RFL_Char_IdentStart | RFL_Char_Ident;
+    flags[' '] = flags['\t'] = flags['\n'] = flags['\r'] = flags['\v'] = flags['\f'] = RFL_Char_Space;
+    flags['u'] |= RFL_Char_IntSuffix;
+    flags['U'] |= RFL_Char_IntSuffix;
+    flags['l'] |= RFL_Char_IntSuffix;
+    flags['L'] |= RFL_Char_IntSuffix;
+}
+
 ////////////////////////////////
 // Lexer: turns the stringized body into tokens, one at a time.
+
+// The char `offset` past the cursor, or 0 past the end of the body.
+internal u8
+rfl_peek_at(RFL_Parser *parser, u64 offset)
+{
+    String8 body = parser->type->body;
+    u64 at = parser->pos + offset;
+    return(at < body.size ? body.str[at] : 0);
+}
+
+internal u8
+rfl_peek(RFL_Parser *parser)
+{
+    return(rfl_peek_at(parser, 0));
+}
+
+internal b32
+rfl_peek_is(RFL_Parser *parser, RFL_CharFlags mask)
+{
+    return((rfl_g_char_flags[rfl_peek(parser)] & mask) != 0);
+}
+
+internal void
+rfl_skip_while(RFL_Parser *parser, RFL_CharFlags mask)
+{
+    while(rfl_peek_is(parser, mask)){
+        parser->pos += 1;
+    }
+}
+
+internal u64
+rfl_lex_digits(RFL_Parser *parser, RFL_CharFlags digit_mask, u64 base)
+{
+    u64 number = 0;
+    while(rfl_peek_is(parser, digit_mask)){
+        number = number * base + char_hex_value(rfl_peek(parser));
+        parser->pos += 1;
+    }
+    return(number);
+}
+
+internal RFL_Token
+rfl_lex_int(RFL_Parser *parser)
+{
+    RFL_Token token = {.kind = RFL_TokenKind_Int};
+    if(rfl_peek(parser) == '0' && (rfl_peek_at(parser, 1) | 0x20) == 'x'){ // 'x' or 'X'
+        parser->pos += 2;
+        token.value  = cast(i64)rfl_lex_digits(parser, RFL_Char_HexDigit, 16);
+    }else{
+        token.value  = cast(i64)rfl_lex_digits(parser, RFL_Char_Digit, 10);
+    }
+    rfl_skip_while(parser, RFL_Char_IntSuffix);
+    return(token);
+}
+
+internal RFL_Token
+rfl_lex_punct(RFL_Parser *parser)
+{
+    RFL_Token token = {.kind = RFL_TokenKind_Punct};
+    u8 symbol = rfl_peek(parser);
+    parser->pos += 1;
+    token.punct = symbol;
+    if((symbol == '<' || symbol == '>') && rfl_peek(parser) == symbol){
+        parser->pos += 1;
+        token.punct = cast(RFL_Punct)((symbol << 8) | symbol); // same as '<<' / '>>'
+    }
+    return(token);
+}
 
 // Reads the next token from the body into parser->tok.
 internal void
 rfl_lex_next_token(RFL_Parser *parser)
 {
-    String8 body = parser->type->body;
-    while(parser->pos < body.size && char_is_whitespace(body.str[parser->pos])){
-        parser->pos += 1;
-    }
+    rfl_skip_while(parser, RFL_Char_Space);
+    u64 token_start = parser->pos;
 
     RFL_Token token = {0};
-    u64 token_start = parser->pos;
-    if(parser->pos >= body.size){
-        token.kind = RFL_TokenKind_End;
-    }else if(char_is_digit(body.str[parser->pos])){
-        u64 number = 0;
-        if(body.str[parser->pos] == '0' && parser->pos + 1 < body.size && (body.str[parser->pos + 1] == 'x' || body.str[parser->pos + 1] == 'X')){
-            parser->pos += 2;
-            while(parser->pos < body.size && char_is_hex_digit(body.str[parser->pos])){
-                number = number * 16 + char_hex_value(body.str[parser->pos]);
-                parser->pos += 1;
-            }
-        }else{
-            while(parser->pos < body.size && char_is_digit(body.str[parser->pos])){
-                number = number * 10 + cast(u64)(body.str[parser->pos] - '0');
-                parser->pos += 1;
-            }
-        }
-        // Skip integer suffixes (u, l, ul, ull...).
-        while(parser->pos < body.size && (body.str[parser->pos] == 'u' || body.str[parser->pos] == 'U' || body.str[parser->pos] == 'l' || body.str[parser->pos] == 'L')){
-            parser->pos += 1;
-        }
-        token.kind  = RFL_TokenKind_Int;
-        token.value = cast(i64)number;
-    }else if(char_is_alpha(body.str[parser->pos]) || body.str[parser->pos] == '_'){
-        // Identifier: a type name, field name, keyword or constant.
-        while(parser->pos < body.size && (char_is_alnum(body.str[parser->pos]) || body.str[parser->pos] == '_')){
-            parser->pos += 1;
-        }
-        token.kind = RFL_TokenKind_Ident;
-    }else{
-        u8 symbol = body.str[parser->pos];
-        parser->pos += 1;
-        token.punct = symbol;
-        if((symbol == '<' || symbol == '>') && parser->pos < body.size && body.str[parser->pos] == symbol){
-            parser->pos += 1;
-            token.punct = rfl_punct_pack(symbol, symbol); // matches '<<' / '>>'
-        }
-        token.kind = RFL_TokenKind_Punct;
-    }
-    token.text  = string8(body.str + token_start, parser->pos - token_start);
+    if(!rfl_peek(parser))                            { token.kind = RFL_TokenKind_End; }
+    else if(rfl_peek_is(parser, RFL_Char_Digit))     { token = rfl_lex_int(parser); }
+    else if(rfl_peek_is(parser, RFL_Char_IdentStart)){ token.kind = RFL_TokenKind_Ident; rfl_skip_while(parser, RFL_Char_Ident); }
+    else                                             { token = rfl_lex_punct(parser); }
+
+    token.text  = string8(parser->type->body.str + token_start, parser->pos - token_start);
     parser->tok = token;
 }
 
-// evaluate = false only counts entries (constants read as 0);
-// evaluate = true computes real values.
+// Evaluate computes real values. Scan only walks the body (constants read as 0);
+// rfl_register_enum_constants uses it before any value can be computed.
 internal RFL_Parser
-rfl_parser_begin(RFL_Type *type, b32 evaluate)
+rfl_parser_begin(RFL_Type *type, RFL_ParserMode mode)
 {
-    RFL_Parser parser = {.type = type, .evaluate = evaluate};
+    RFL_Parser parser = {.type = type, .mode = mode};
     rfl_lex_next_token(&parser);
-    return parser;
+    return(parser);
 }
 
 ////////////////////////////////
@@ -185,7 +263,7 @@ rfl_parser_begin(RFL_Type *type, b32 evaluate)
 internal b32
 rfl_token_is_punct(RFL_Parser *parser, RFL_Punct punct)
 {
-    return parser->tok.punct == punct;
+    return(parser->tok.kind == RFL_TokenKind_Punct && parser->tok.punct == punct);
 }
 
 internal b32
@@ -195,21 +273,16 @@ rfl_accept_punct(RFL_Parser *parser, RFL_Punct punct)
     if(matched){
         rfl_lex_next_token(parser);
     }
-    return matched;
+    return(matched);
 }
 
 internal void
 rfl_expect_punct(RFL_Parser *parser, RFL_Punct punct)
 {
     if(!rfl_accept_punct(parser, punct)){
-        char text[2] = {cast(char)punct, 0};
-        int  length  = 1;
-        if(punct > 0xFF){ // two chars, unpacked in the compiler's order
-            text[0] = cast(char)(RFL_PUNCT_FIRST_CHAR_HIGH ? punct >> 8 : punct & 0xFF);
-            text[1] = cast(char)(RFL_PUNCT_FIRST_CHAR_HIGH ? punct & 0xFF : punct >> 8);
-            length  = 2;
-        }
-        DOT_ERROR_FL(parser->type->file, cast(int)parser->type->line, "Reflect %S: expected '%.*s', got '%S'", parser->type->name, length, text, parser->tok.text);
+        char text[2] = {cast(char)(punct >> 8), cast(char)punct}; // reading order
+        i32  skip    = punct <= 0xFF;                             // single char: empty high byte
+        DOT_ERROR_FL(parser->type->file, cast(i32)parser->type->line, "Reflect %S: expected '%.*s', got '%S'", parser->type->name, 2 - skip, text + skip, parser->tok.text);
     }
 }
 
@@ -217,18 +290,18 @@ internal String8
 rfl_expect_identifier(RFL_Parser *parser)
 {
     if(parser->tok.kind != RFL_TokenKind_Ident){
-        DOT_ERROR_FL(parser->type->file, cast(int)parser->type->line, "Reflect %S: expected a name, got '%S'", parser->type->name, parser->tok.text);
+        DOT_ERROR_FL(parser->type->file, cast(i32)parser->type->line, "Reflect %S: expected a name, got '%S'", parser->type->name, parser->tok.text);
     }
     String8 identifier = parser->tok.text;
     rfl_lex_next_token(parser);
-    return identifier;
+    return(identifier);
 }
 
 internal void
 rfl_expect_body_end(RFL_Parser *parser)
 {
     if(parser->tok.kind != RFL_TokenKind_End){
-        DOT_ERROR_FL(parser->type->file, cast(int)parser->type->line, "Reflect %S: unexpected '%S' after the body", parser->type->name, parser->tok.text);
+        DOT_ERROR_FL(parser->type->file, cast(i32)parser->type->line, "Reflect %S: unexpected '%S' after the body", parser->type->name, parser->tok.text);
     }
 }
 
@@ -241,7 +314,7 @@ rfl_parse_tags(RFL_Parser *parser)
         tag = parser->tok.text;
         rfl_lex_next_token(parser);
     }
-    return tag;
+    return(tag);
 }
 
 ////////////////////////////////
@@ -255,15 +328,15 @@ rfl_lookup_constant_value(RFL_Parser *parser, String8 name)
 {
     RFL_Const *constant = hm_get(&rfl_g_registry.consts, name);
     if(!constant){
-        DOT_ERROR_FL(parser->type->file, cast(int)parser->type->line, "Reflect %S: unknown constant '%S'; reflect its enum with ReflectEnum or add ReflectConst(%S)", parser->type->name, name, name);
+        DOT_ERROR_FL(parser->type->file, cast(i32)parser->type->line, "Reflect %S: unknown constant '%S'; reflect its enum with ReflectEnum or add ReflectConst(%S)", parser->type->name, name, name);
     }
     if(!constant->known){
         if(constant->owner->resolve_state == RFL_ResolveState_InProgress){
-            DOT_ERROR_FL(parser->type->file, cast(int)parser->type->line, "Reflect %S: constant '%S' used before its value is defined", parser->type->name, name);
+            DOT_ERROR_FL(parser->type->file, cast(i32)parser->type->line, "Reflect %S: constant '%S' used before its value is defined", parser->type->name, name);
         }
         rfl_resolve_type(constant->owner);
     }
-    return constant->value;
+    return(constant->value);
 }
 
 internal i64 rfl_parse_expr(RFL_Parser *parser);
@@ -271,20 +344,20 @@ internal i64 rfl_parse_expr(RFL_Parser *parser);
 internal i64
 rfl_parse_expr_unary(RFL_Parser *parser)
 {
-    if(rfl_accept_punct(parser, '-')){ return -rfl_parse_expr_unary(parser); }
-    if(rfl_accept_punct(parser, '~')){ return ~rfl_parse_expr_unary(parser); }
+    if(rfl_accept_punct(parser, '-')){ return(-rfl_parse_expr_unary(parser)); }
+    if(rfl_accept_punct(parser, '~')){ return(~rfl_parse_expr_unary(parser)); }
     if(rfl_accept_punct(parser, '(')){
         i64 inner = rfl_parse_expr(parser);
         rfl_expect_punct(parser, ')');
-        return inner;
+        return(inner);
     }
     if(parser->tok.kind == RFL_TokenKind_Int){
         i64 number = parser->tok.value;
         rfl_lex_next_token(parser);
-        return number;
+        return(number);
     }
     String8 constant_name = rfl_expect_identifier(parser);
-    return parser->evaluate ? rfl_lookup_constant_value(parser, constant_name) : 0;
+    return(parser->mode == RFL_ParserMode_Evaluate ? rfl_lookup_constant_value(parser, constant_name) : 0);
 }
 
 // Right-hand side of / or %; errors on zero.
@@ -292,10 +365,10 @@ internal i64
 rfl_parse_expr_divisor(RFL_Parser *parser)
 {
     i64 divisor = rfl_parse_expr_unary(parser);
-    if(parser->evaluate && divisor == 0){
-        DOT_ERROR_FL(parser->type->file, cast(int)parser->type->line, "Reflect %S: division by zero", parser->type->name);
+    if(parser->mode == RFL_ParserMode_Evaluate && divisor == 0){
+        DOT_ERROR_FL(parser->type->file, cast(i32)parser->type->line, "Reflect %S: division by zero", parser->type->name);
     }
-    return divisor ? divisor : 1;
+    return(divisor ? divisor : 1);
 }
 
 internal i64
@@ -306,7 +379,7 @@ rfl_parse_expr_mul(RFL_Parser *parser)
         if(rfl_accept_punct(parser, '*')){      result *= rfl_parse_expr_unary(parser); }
         else if(rfl_accept_punct(parser, '/')){ result /= rfl_parse_expr_divisor(parser); }
         else if(rfl_accept_punct(parser, '%')){ result %= rfl_parse_expr_divisor(parser); }
-        else{ return result; }
+        else{ return(result); }
     }
 }
 
@@ -317,7 +390,7 @@ rfl_parse_expr_add(RFL_Parser *parser)
     for(;;){
         if(rfl_accept_punct(parser, '+')){      result += rfl_parse_expr_mul(parser); }
         else if(rfl_accept_punct(parser, '-')){ result -= rfl_parse_expr_mul(parser); }
-        else{ return result; }
+        else{ return(result); }
     }
 }
 
@@ -328,7 +401,7 @@ rfl_parse_expr_shift(RFL_Parser *parser)
     for(;;){
         if(rfl_accept_punct(parser, '<<')){      result = cast(i64)(cast(u64)result << rfl_parse_expr_add(parser)); }
         else if(rfl_accept_punct(parser, '>>')){ result = result >> rfl_parse_expr_add(parser); }
-        else{ return result; }
+        else{ return(result); }
     }
 }
 
@@ -339,7 +412,7 @@ rfl_parse_expr_and(RFL_Parser *parser)
     while(rfl_accept_punct(parser, '&')){
         result &= rfl_parse_expr_shift(parser);
     }
-    return result;
+    return(result);
 }
 
 // Entry point for a whole expression (lowest precedence: |).
@@ -350,19 +423,22 @@ rfl_parse_expr(RFL_Parser *parser)
     while(rfl_accept_punct(parser, '|')){
         result |= rfl_parse_expr_and(parser);
     }
-    return result;
+    return(result);
 }
 
 ////////////////////////////////
-// Body parsers. Called twice per type:
-//   out == 0: count entries (and, for enums, register constant names).
-//   out != 0: fill out[] with the real entries.
+// Body parsers. One pass each: entries are pushed into `scratch` as they're parsed, and the
+// caller copies the result to the permanent arena. A nested resolve (an expression naming
+// another enum's constant) begins and ends its own scratch on the same scratch arena before
+// this parse pushes again, so the entries stay contiguous.
 
-internal u32
-rfl_parse_enum(RFL_Parser *parser, RFL_EnumValue *out_values)
+// When evaluating, each value is published to its constant right away, so later values
+// in the same enum can refer to earlier ones.
+internal RFL_EnumValueArray
+rfl_parse_enum(Arena *arena, RFL_Parser *parser)
 {
-    u32 value_count = 0;
-    i64 next_value  = 0;
+    RFL_EnumValueArray values = {0};
+    i64 next_value = 0;
     rfl_expect_punct(parser, '{');
     while(!rfl_token_is_punct(parser, '}')){
         rfl_parse_tags(parser);
@@ -371,33 +447,30 @@ rfl_parse_enum(RFL_Parser *parser, RFL_EnumValue *out_values)
         if(rfl_accept_punct(parser, '=')){
             value = rfl_parse_expr(parser);
         }
-        if(out_values){
+        if(parser->mode == RFL_ParserMode_Evaluate){
             RFL_Const *constant = hm_get(&rfl_g_registry.consts, value_name);
             constant->value = value;
             constant->known = true;
-            out_values[value_count] = (RFL_EnumValue){.name = value_name, .value = value};
-        }else{
-            RFL_Const *constant = hm_get_or_create(rfl_g_registry.arena, &rfl_g_registry.consts, value_name);
-            if(constant->owner || constant->known){
-                DOT_ERROR_FL(parser->type->file, cast(int)parser->type->line, "Reflect %S: constant '%S' is already defined", parser->type->name, value_name);
-            }
-            constant->owner = parser->type;
         }
-        next_value   = value + 1;
-        value_count += 1;
+        RFL_EnumValue *entry = PUSH_COPY(arena, &(RFL_EnumValue){.name = value_name, .value = value});
+        if(values.count == 0){
+            values.v = entry;
+        }
+        values.count += 1;
+        next_value    = value + 1;
         if(!rfl_accept_punct(parser, ',')){
             break;
         }
     }
     rfl_expect_punct(parser, '}');
     rfl_expect_body_end(parser);
-    return value_count;
+    return(values);
 }
 
-internal u32
-rfl_parse_struct(RFL_Parser *parser, RFL_Field *out_fields)
+internal RFL_FieldArray
+rfl_parse_struct(Arena *arena, RFL_Parser *parser)
 {
-    u32 field_count = 0;
+    RFL_FieldArray fields = {0};
     rfl_expect_punct(parser, '{');
     while(!rfl_token_is_punct(parser, '}')){
         // One declaration: [tags] [const] [struct|union] Type a, *b, c[N];
@@ -408,7 +481,7 @@ rfl_parse_struct(RFL_Parser *parser, RFL_Field *out_fields)
         }
         if(string8_equal(type_name, str_comp("struct")) || string8_equal(type_name, str_comp("union"))){
             if(rfl_token_is_punct(parser, '{')){
-                DOT_ERROR_FL(parser->type->file, cast(int)parser->type->line, "Reflect %S: nested struct/union bodies are not supported", parser->type->name);
+                DOT_ERROR_FL(parser->type->file, cast(i32)parser->type->line, "Reflect %S: nested struct/union bodies are not supported", parser->type->name);
             }
             type_name = rfl_expect_identifier(parser);
         }
@@ -423,21 +496,22 @@ rfl_parse_struct(RFL_Parser *parser, RFL_Field *out_fields)
             if(rfl_accept_punct(parser, '[')){
                 i64 array_size = rfl_parse_expr(parser);
                 rfl_expect_punct(parser, ']');
-                if(parser->evaluate && array_size <= 0){
-                    DOT_ERROR_FL(parser->type->file, cast(int)parser->type->line, "Reflect %S: array '%S' has size %lld", parser->type->name, field_name, array_size);
+                if(parser->mode == RFL_ParserMode_Evaluate && array_size <= 0){
+                    DOT_ERROR_FL(parser->type->file, cast(i32)parser->type->line, "Reflect %S: array '%S' has size %lld", parser->type->name, field_name, array_size);
                 }
                 array_count = cast(u32)array_size;
             }
-            if(out_fields){
-                out_fields[field_count] = (RFL_Field){
-                    .name          = field_name,
-                    .type_name     = type_name,
-                    .tag           = tag,
-                    .array_count   = array_count,
-                    .pointer_depth = pointer_depth,
-                };
+            RFL_Field *field = PUSH_COPY(arena, &(RFL_Field){
+                .name          = field_name,
+                .type_name     = type_name,
+                .tag           = tag,
+                .array_count   = array_count,
+                .pointer_depth = pointer_depth,
+            });
+            if(fields.count == 0){
+                fields.v = field;
             }
-            field_count += 1;
+            fields.count += 1;
             if(!rfl_accept_punct(parser, ',')){
                 break;
             }
@@ -446,9 +520,8 @@ rfl_parse_struct(RFL_Parser *parser, RFL_Field *out_fields)
     }
     rfl_expect_punct(parser, '}');
     rfl_expect_body_end(parser);
-    return field_count;
+    return(fields);
 }
-
 DOT_DIAGNOSTIC_POP
 
 ////////////////////////////////
@@ -457,40 +530,73 @@ DOT_DIAGNOSTIC_POP
 //   struct: build the field list, compute offsets, check against the compiler.
 
 internal RFL_Type *
-rfl_lookup_type(String8 name)
+rfl_type_lookup(String8 name)
 {
     RFL_Type **type_slot = hm_get(&rfl_g_registry.types, name);
-    return type_slot ? *type_slot : 0;
+    return(type_slot ? *type_slot : 0);
+}
+
+// Claims every constant name in an enum before any value is computed, so an enum can
+// refer to another enum's constants regardless of resolve order.
+internal void
+rfl_register_enum_constants(RFL_Type *type)
+{
+    Scratch scratch = scratch_begin(0,0);
+    RFL_Parser parser = rfl_parser_begin(type, RFL_ParserMode_Scan);
+
+    RFL_EnumValueArray values = rfl_parse_enum(scratch.arena, &parser);
+
+    for(u32 value_index = 0; value_index < values.count; ++value_index){
+        String8 name = values.v[value_index].name;
+        RFL_Const *constant = hm_get_or_create(rfl_g_registry.arena, &rfl_g_registry.consts, name);
+        if(constant->owner || constant->known){
+            DOT_ERROR_FL(type->file, cast(i32)type->line, "Reflect %S: constant '%S' is already defined", type->name, name);
+        }
+        constant->owner = type;
+    }
+    scratch_end(scratch);
 }
 
 internal void
 rfl_resolve_enum(RFL_Type *type)
 {
-    type->values = PUSH_ARRAY(rfl_g_registry.arena, RFL_EnumValue, type->value_count);
-    RFL_Parser parser = rfl_parser_begin(type, true);
-    rfl_parse_enum(&parser, type->values);
+    Scratch scratch = scratch_begin(0,0);
+
+    RFL_Parser parser           = rfl_parser_begin(type, RFL_ParserMode_Evaluate);
+    RFL_EnumValueArray values   = rfl_parse_enum(scratch.arena, &parser);
+
+    type->value_count = values.count;
+    type->values      = PUSH_ARRAY(rfl_g_registry.arena, RFL_EnumValue, values.count);
+    MEMORY_COPY(type->values, values.v, values.count * sizeof(RFL_EnumValue));
+
+    scratch_end(scratch);
 }
 
 internal void
 rfl_resolve_struct(RFL_Type *type)
 {
-    RFL_Parser count_parser = rfl_parser_begin(type, false);
-    type->field_count = rfl_parse_struct(&count_parser, 0);
-    type->fields = PUSH_ARRAY(rfl_g_registry.arena, RFL_Field, type->field_count);
-    RFL_Parser fill_parser = rfl_parser_begin(type, true);
-    rfl_parse_struct(&fill_parser, type->fields);
+    Scratch scratch = scratch_begin(0,0);
+
+    RFL_Parser parser       = rfl_parser_begin(type, RFL_ParserMode_Evaluate);
+    RFL_FieldArray fields   = rfl_parse_struct(scratch.arena, &parser);
+
+    type->field_count = fields.count;
+    type->fields      = PUSH_ARRAY(rfl_g_registry.arena, RFL_Field, fields.count);
+    MEMORY_COPY(type->fields, fields.v, fields.count * sizeof(RFL_Field));
+
+    scratch_end(scratch);
 
     // Lay the fields out the way a C compiler does.
     u32 offset       = 0;
     u32 struct_align = 1;
     for(u32 field_index = 0; field_index < type->field_count; ++field_index){
         RFL_Field *field = &type->fields[field_index];
-        field->type = rfl_lookup_type(field->type_name);
+        field->type = rfl_type_lookup(field->type_name);
         u32 field_size  = cast(u32)sizeof(void*);
         u32 field_align = cast(u32)DOT_ALIGNOF(void*);
         if(field->pointer_depth == 0){
             if(!field->type){
-                DOT_ERROR_FL(type->file, cast(int)type->line, "Reflect %S: field '%S' has unknown type '%S'; reflect it with Reflect, ReflectEnum, ReflectPrimitive or ReflectExtern", type->name, field->name, field->type_name);
+                DOT_ERROR_FL(type->file, cast(i32)type->line, "Reflect %S: field '%S' has unknown type '%S'; reflect it with Reflect, ReflectEnum, ReflectPrimitive or ReflectExtern", type->name, field->name, field->type_name);
             }
             rfl_resolve_type(field->type);
             field_size  = field->type->size;
@@ -503,7 +609,7 @@ rfl_resolve_struct(RFL_Type *type)
     }
     u32 struct_size = ALIGN_POW2(offset, struct_align);
     if(struct_size != type->size || struct_align != type->align){
-        DOT_ERROR_FL(type->file, cast(int)type->line, "Reflect %S: parsed layout is size %u align %u, the compiler says size %u align %u", type->name, struct_size, struct_align, type->size, type->align);
+        DOT_ERROR_FL(type->file, cast(i32)type->line, "Reflect %S: parsed layout is size %u align %u, the compiler says size %u align %u", type->name, struct_size, struct_align, type->size, type->align);
     }
 }
 
@@ -515,7 +621,7 @@ rfl_resolve_type(RFL_Type *type)
         return;
     }
     if(type->resolve_state == RFL_ResolveState_InProgress){
-        DOT_ERROR_FL(type->file, cast(int)type->line, "Reflect %S: type contains itself", type->name);
+        DOT_ERROR_FL(type->file, cast(i32)type->line, "Reflect %S: type contains itself", type->name);
     }
     type->resolve_state = RFL_ResolveState_InProgress;
     switch(type->kind){
@@ -527,14 +633,16 @@ rfl_resolve_type(RFL_Type *type)
 }
 
 ////////////////////////////////
-// Init: three passes over every Reflect* entry in the linker section.
+// Init: build the char table, then three passes over every Reflect* entry in the linker section.
 //   1. Register type names and ReflectConst values.
-//   2. Count each enum's values and register their names.
+//   2. Register every enum's constant names.
 //   3. Resolve every type.
 
 internal void
 rfl_init(Arena *arena)
 {
+    rfl_char_flags_init();
+
     rfl_g_registry.arena = arena;
     hm_init_string8(arena, &rfl_g_registry.types, RFL_TYPE_BUCKETS_MAX);
     hm_init_string8(arena, &rfl_g_registry.consts, RFL_CONST_BUCKETS_MAX);
@@ -543,7 +651,7 @@ rfl_init(Arena *arena)
         if(type->kind == RFL_TypeKind_Const){
             RFL_Const *constant = hm_get_or_create(arena, &rfl_g_registry.consts, type->name);
             if(constant->owner || constant->known){
-                DOT_ERROR_FL(type->file, cast(int)type->line, "ReflectConst %S: constant is already defined", type->name);
+                DOT_ERROR_FL(type->file, cast(i32)type->line, "ReflectConst %S: constant is already defined", type->name);
             }
             constant->value = type->const_value;
             constant->known = true;
@@ -551,15 +659,14 @@ rfl_init(Arena *arena)
         }
         RFL_Type **type_slot = hm_get_or_create(arena, &rfl_g_registry.types, type->name);
         if(*type_slot){
-            DOT_ERROR_FL(type->file, cast(int)type->line, "Reflect %S: already reflected at %s:%u", type->name, (*type_slot)->file, (*type_slot)->line);
+            DOT_ERROR_FL(type->file, cast(i32)type->line, "Reflect %S: already reflected at %s:%u", type->name, (*type_slot)->file, (*type_slot)->line);
         }
         *type_slot = type;
     }
 
     for EACH_IN_SECTION(ReflectSection, RFL_Type, type){
         if(type->kind == RFL_TypeKind_Enum){
-            RFL_Parser count_parser = rfl_parser_begin(type, false);
-            type->value_count = rfl_parse_enum(&count_parser, 0);
+            rfl_register_enum_constants(type);
         }
     }
 
@@ -580,7 +687,7 @@ rfl_any_field(RFL_Any value, RFL_Field *field, u32 element_index)
         .type = field->type,
         .data = cast(u8*)value.data + field->offset + element_index * field->type->size,
     };
-    return result;
+    return(result);
 }
 
 /////////////////////////////////////////////// Test suite
@@ -656,13 +763,13 @@ DOT_TEST_SUITE(rfl_tests)
     DOT_TEST_CHECK(test, "extern fields",    s->fields[3].type->field_count == 3 && string8_equal(s->fields[3].type->fields[2].name, str_comp("z")));
     DOT_TEST_CHECK(test, "extern offsets",   s->fields[3].type->fields[2].offset == offsetof(f32x3, z));
     DOT_TEST_CHECK(test, "extern nested",    s->fields[9].type->fields[0].type == reflect_type(f32x4) && s->fields[9].type->fields[0].array_count == 4);
-    DOT_TEST_CHECK(test, "lookup",           rfl_lookup_type(str_comp("RFL_TestStruct")) == s);
-    DOT_TEST_CHECK(test, "lookup missing",   rfl_lookup_type(str_comp("RFL_Missing")) == 0);
+    DOT_TEST_CHECK(test, "lookup",           rfl_type_lookup(str_comp("RFL_TestStruct")) == s);
+    DOT_TEST_CHECK(test, "lookup missing",   rfl_type_lookup(str_comp("RFL_Missing")) == 0);
 
     RFL_TestStruct value = {.slots[3] = 42};
     RFL_Any any  = rfl_any(RFL_TestStruct, &value);
     RFL_Any slot = rfl_any_field(any, &s->fields[4], 3);
     DOT_TEST_CHECK(test, "any field",        slot.type == reflect_type(u32) && *cast(u32*)slot.data == 42);
 
-    return test;
+    return(test);
 }

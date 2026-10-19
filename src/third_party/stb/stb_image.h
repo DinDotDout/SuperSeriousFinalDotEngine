@@ -989,7 +989,7 @@ static void *stbi__malloc(size_t size)
 {
     STBI_ASSERT(g_allocator);
     ArenaOpParams params = {.arena = g_allocator->arena, .file = __FILE__, .line = __LINE__};
-    void *alloc = g_allocator->stbi_alloc(&params, size, ARENA_MAX_ALIGNMENT, true);
+    void *alloc = g_allocator->stbi_alloc(&params, size, ARENA_DEFAULT_ALIGNMENT, true);
     return alloc;
 }
 

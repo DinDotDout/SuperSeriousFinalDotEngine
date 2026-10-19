@@ -1,14 +1,6 @@
 #ifndef REFLECT_H
 #define REFLECT_H
 
-typedef u32 RFL_ResolveState;
-enum
-{
-    RFL_ResolveState_None,
-    RFL_ResolveState_InProgress,
-    RFL_ResolveState_Done,
-};
-
 typedef struct RFL_Type RFL_Type;
 
 typedef struct RFL_Field
@@ -28,6 +20,14 @@ typedef struct RFL_EnumValue
     i64     value;
 }RFL_EnumValue;
 
+typedef u32 RFL_ResolveState;
+enum
+{
+    RFL_ResolveState_None,
+    RFL_ResolveState_InProgress,
+    RFL_ResolveState_Done,
+};
+
 typedef u32 RFL_TypeKind;
 enum
 {
@@ -42,19 +42,23 @@ enum
 
 struct alignas(16) RFL_Type
 {
-    RFL_TypeKind          kind;
+    RFL_TypeKind      kind;
     u32               size;
     u32               align;
-    u32               line;
     String8           name;
-    String8           body;
-    char             *file;
-    RFL_Field        *fields;
-    RFL_EnumValue    *values;
+
     u32               field_count;
+    RFL_Field        *fields;
+
     u32               value_count;
-    RFL_ResolveState  resolve_state;
+    RFL_EnumValue    *values;
+
     i64               const_value;
+
+    String8           body;
+    u32               line;
+    char             *file;
+    RFL_ResolveState  resolve_state;
 };
 
 typedef struct RFL_Any
@@ -84,7 +88,6 @@ typedef struct RFL_Registry
 }RFL_Registry;
 
 SECTION_DECLARE(RFL_Type, ReflectSection);
-
 #define RFL_SECTION_ITEM SECTION_ITEM(ReflectSection, 0)
 #define RFL_MARKER(T) enum { T##_is_not_reflected_use_Reflect = 0 }
 
@@ -151,7 +154,7 @@ SECTION_DECLARE(RFL_Type, ReflectSection);
 #define rfl_any(T, ptr) ((RFL_Any){ .type = ((void)DOT_STATIC_ASSERT_TYPE(*(ptr), T, "rfl_any: pointer is not a " #T "*"), reflect_type(T)), .data = (ptr) })
 
 internal void      rfl_init(Arena *arena);
-internal RFL_Type *rfl_lookup_type(String8 name);
+internal RFL_Type *rfl_type_lookup(String8 name);
 internal RFL_Any   rfl_any_field(RFL_Any v, RFL_Field *field, u32 index);
 
 #endif // !REFLECT_H

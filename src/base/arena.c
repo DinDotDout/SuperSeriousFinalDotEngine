@@ -226,6 +226,14 @@ arena_push(ArenaOpParams *op, u64 alloc_size, u64 alignment, b32 should_zero)
     return mem_offset;
 }
 
+internal u8 *
+arena_push_copy(ArenaOpParams *op, void const *data, u64 size, u64 alignment)
+{
+    u8 *result = arena_push(op, size, alignment, false);
+    MEMORY_COPY_NO_ALIAS(result, data, size);
+    return result;
+}
+
 internal void
 arena_free()
 {
