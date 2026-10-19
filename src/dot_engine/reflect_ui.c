@@ -24,7 +24,7 @@ internal void
 rfl_ui_int(struct nk_context *ctx, char *label, RFL_Any v)
 {
     Scratch s = scratch_begin(0,0);
-    b32 is_signed = v.type->kind == RFL_TypeKind_Int;
+    b32 is_signed = v.type->kind == RFL_TypeKind_I32;
     i64 value = rfl_ui_int_read(v.data, v.type->size, is_signed);
     if(v.type->size > 4){
         nk_label(ctx, cstr_format(s.arena, "%s: 0x%llx", label, value), NK_TEXT_LEFT);
@@ -47,9 +47,13 @@ rfl_ui_float(struct nk_context *ctx, char *label, RFL_Any v)
     Scratch s = scratch_begin(0,0);
     char *name = cstr_format(s.arena, "#%s", label);
     if(v.type->size == sizeof(f64)){
-        nk_property_double(ctx, name, -DBL_MAX, cast(f64*)v.data, DBL_MAX, 0.1, 0.005f);
+        f64 *value = cast(f64*)v.data;
+        f64 step = *value == 0.0 ? 0.1 : DOT_MAX(fabs(*value) * 0.1, 1e-6);
+        nk_property_double(ctx, name, -DBL_MAX, value, DBL_MAX, step, cast(f32)(step * 0.05));
     }else{
-        nk_property_float(ctx, name, -FLT_MAX, cast(f32*)v.data, FLT_MAX, 0.1f, 0.005f);
+        f32 *value = cast(f32*)v.data;
+        f32 step = *value == 0.0f ? 0.1f : DOT_MAX(fabsf(*value) * 0.1f, 1e-6f);
+        nk_property_float(ctx, name, -FLT_MAX, value, FLT_MAX, step, step * 0.05f);
     }
     scratch_end(s);
 }
@@ -114,7 +118,7 @@ rfl_ui_color(struct nk_context *ctx, char *label, RFL_Any v)
 internal b32
 rfl_ui_is_scalar(RFL_Type *type)
 {
-    return type->kind == RFL_TypeKind_Int || type->kind == RFL_TypeKind_Uint || type->kind == RFL_TypeKind_Float;
+    return type->kind == RFL_TypeKind_I32 || type->kind == RFL_TypeKind_U32 || type->kind == RFL_TypeKind_F32;
 }
 
 internal b32
@@ -135,7 +139,7 @@ rfl_ui_struct_is_compact(RFL_Type *type)
 internal void
 rfl_ui_scalar(struct nk_context *ctx, char *label, RFL_Any v)
 {
-    if(v.type->kind == RFL_TypeKind_Float){
+    if(v.type->kind == RFL_TypeKind_F32){
         rfl_ui_float(ctx, label, v);
     }else{
         rfl_ui_int(ctx, label, v);
@@ -164,13 +168,7 @@ rfl_ui_field(struct nk_context *ctx, RFL_Any parent, RFL_Field *field)
             nk_tree_pop(ctx);
         }
     }else{
-        RFL_Any v = rfl_any_field(parent, field, 0);
-        b32 is_color = string8_equal(field->tag, str_comp("rfl_color")) && (v.type == reflect_type(f32x3) || v.type == reflect_type(f32x4));
-        if(is_color){
-            rfl_ui_color(ctx, label, v);
-        }else{
-            rfl_ui_any(ctx, label, v);
-        }
+        rfl_ui_any(ctx, label, rfl_any_field(parent, field, 0));
     }
     scratch_end(s);
 }
@@ -192,10 +190,14 @@ rfl_ui_inspect(struct nk_context *ctx, RFL_Any v)
 internal void
 rfl_ui_any(struct nk_context *ctx, char *label, RFL_Any v)
 {
+    if(v.type == reflect_type(f32rgb) || v.type == reflect_type(f32rgba)){
+        rfl_ui_color(ctx, label, v);
+        return;
+    }
     switch(v.type->kind){
-    case RFL_TypeKind_Int:
-    case RFL_TypeKind_Uint:
-    case RFL_TypeKind_Float:
+    case RFL_TypeKind_I32:
+    case RFL_TypeKind_U32:
+    case RFL_TypeKind_F32:
         nk_layout_row_dynamic(ctx, RFL_UI_ROW_HEIGHT, 1);
         rfl_ui_scalar(ctx, label, v);
         break;

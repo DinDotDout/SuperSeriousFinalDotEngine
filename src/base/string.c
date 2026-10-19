@@ -41,6 +41,18 @@ char_is_hex_digit(u8 c)
     return char_is_digit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }
 
+internal u8
+char_to_lower(u8 c)
+{
+    return(cast(u8)(c | (cast(u8)(c - 'A') < 26) << 5));
+}
+
+internal b32
+char_equal_no_case(u8 a, u8 b)
+{
+    return char_to_lower(a) == char_to_lower(b);
+}
+
 internal u32
 char_hex_value(u8 c)
 {

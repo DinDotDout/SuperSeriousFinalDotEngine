@@ -29,26 +29,26 @@
 
 global RFL_Registry rfl_g_registry;
 
-ReflectPrimitive(i8,    RFL_TypeKind_Int);
-ReflectPrimitive(i16,   RFL_TypeKind_Int);
-ReflectPrimitive(i32,   RFL_TypeKind_Int);
-ReflectPrimitive(i64,   RFL_TypeKind_Int);
-ReflectPrimitive(int,   RFL_TypeKind_Int);
-ReflectPrimitive(iptr,  RFL_TypeKind_Int);
+ReflectPrimitive(i8,    RFL_TypeKind_I32);
+ReflectPrimitive(i16,   RFL_TypeKind_I32);
+ReflectPrimitive(i32,   RFL_TypeKind_I32);
+ReflectPrimitive(i64,   RFL_TypeKind_I32);
+ReflectPrimitive(int,   RFL_TypeKind_I32);
+ReflectPrimitive(iptr,  RFL_TypeKind_I32);
 
-ReflectPrimitive(u8,    RFL_TypeKind_Uint);
-ReflectPrimitive(u16,   RFL_TypeKind_Uint);
-ReflectPrimitive(u32,   RFL_TypeKind_Uint);
-ReflectPrimitive(u64,   RFL_TypeKind_Uint);
-ReflectPrimitive(usize, RFL_TypeKind_Uint);
-ReflectPrimitive(uptr,  RFL_TypeKind_Uint);
+ReflectPrimitive(u8,    RFL_TypeKind_U32);
+ReflectPrimitive(u16,   RFL_TypeKind_U32);
+ReflectPrimitive(u32,   RFL_TypeKind_U32);
+ReflectPrimitive(u64,   RFL_TypeKind_U32);
+ReflectPrimitive(usize, RFL_TypeKind_U32);
+ReflectPrimitive(uptr,  RFL_TypeKind_U32);
 
 ReflectPrimitive(b8,    RFL_TypeKind_Bool);
 ReflectPrimitive(b16,   RFL_TypeKind_Bool);
 ReflectPrimitive(b32,   RFL_TypeKind_Bool);
 
-ReflectPrimitive(f32,   RFL_TypeKind_Float);
-ReflectPrimitive(f64,   RFL_TypeKind_Float);
+ReflectPrimitive(f32,   RFL_TypeKind_F32);
+ReflectPrimitive(f64,   RFL_TypeKind_F32);
 
 ReflectExtern(f32x2,   { f32 x, y; });
 ReflectExtern(f32x3,   { f32 x, y, z; });
@@ -64,7 +64,7 @@ enum
 {
     RFL_TokenKind_End,
     RFL_TokenKind_Ident,
-    RFL_TokenKind_Int,
+    RFL_TokenKind_I32,
     RFL_TokenKind_Punct,
 };
 
@@ -77,7 +77,7 @@ typedef struct RFL_Token
     RFL_TokenKind kind;
     String8       text;
     union{
-        i64           value;
+        i64           i32_value;
         RFL_Punct     punct;
     };
 }RFL_Token;
@@ -133,7 +133,7 @@ enum
     RFL_Char_HexDigit   = 1 << 2,
     RFL_Char_IdentStart = 1 << 3, // a-z A-Z _
     RFL_Char_Ident      = 1 << 4, // a-z A-Z 0-9 _
-    RFL_Char_IntSuffix  = 1 << 5, // u U l L
+    RFL_Char_I32Suffix  = 1 << 5, // u U l L
 };
 
 global RFL_CharFlags rfl_g_char_flags[256];
@@ -149,10 +149,7 @@ rfl_char_flags_init(void)
     for(u32 c = 'A'; c <= 'F'; ++c){ flags[c] |= RFL_Char_HexDigit; }
     flags['_'] |= RFL_Char_IdentStart | RFL_Char_Ident;
     flags[' '] = flags['\t'] = flags['\n'] = flags['\r'] = flags['\v'] = flags['\f'] = RFL_Char_Space;
-    flags['u'] |= RFL_Char_IntSuffix;
-    flags['U'] |= RFL_Char_IntSuffix;
-    flags['l'] |= RFL_Char_IntSuffix;
-    flags['L'] |= RFL_Char_IntSuffix;
+    flags['u'] |= RFL_Char_I32Suffix; flags['U'] |= RFL_Char_I32Suffix; flags['l'] |= RFL_Char_I32Suffix; flags['L'] |= RFL_Char_I32Suffix;
 }
 
 ////////////////////////////////
@@ -201,14 +198,14 @@ rfl_lex_digits(RFL_Parser *parser, RFL_CharFlags digit_mask, u64 base)
 internal RFL_Token
 rfl_lex_int(RFL_Parser *parser)
 {
-    RFL_Token token = {.kind = RFL_TokenKind_Int};
-    if(rfl_peek(parser) == '0' && (rfl_peek_at(parser, 1) | 0x20) == 'x'){ // 'x' or 'X'
+    RFL_Token token = {.kind = RFL_TokenKind_I32};
+    if(rfl_peek(parser) == '0' && char_to_lower(rfl_peek_at(parser, 1) == 'x')){
         parser->pos += 2;
-        token.value  = cast(i64)rfl_lex_digits(parser, RFL_Char_HexDigit, 16);
+        token.i32_value = cast(i64)rfl_lex_digits(parser, RFL_Char_HexDigit, 16);
     }else{
-        token.value  = cast(i64)rfl_lex_digits(parser, RFL_Char_Digit, 10);
+        token.i32_value = cast(i64)rfl_lex_digits(parser, RFL_Char_Digit, 10);
     }
-    rfl_skip_while(parser, RFL_Char_IntSuffix);
+    rfl_skip_while(parser, RFL_Char_I32Suffix);
     return(token);
 }
 
@@ -351,8 +348,8 @@ rfl_parse_expr_unary(RFL_Parser *parser)
         rfl_expect_punct(parser, ')');
         return(inner);
     }
-    if(parser->tok.kind == RFL_TokenKind_Int){
-        i64 number = parser->tok.value;
+    if(parser->tok.kind == RFL_TokenKind_I32){
+        i64 number = parser->tok.i32_value;
         rfl_lex_next_token(parser);
         return(number);
     }
@@ -698,12 +695,13 @@ DOT_TEST_SUITE(rfl_tests)
 
     #define RFL_TEST_SCALE 2
     #define rfl_test_tag
+    #define rfl_test_other_tag
     ReflectConst(RFL_TEST_SCALE);
 
     ReflectEnum(u32, RFL_TestKind, {
         RFL_TestKind_A,
         RFL_TestKind_B = 5,
-        RFL_TestKind_C,
+        rfl_test_tag RFL_TestKind_C,
         RFL_TestKind_Count,
         });
 
@@ -714,12 +712,13 @@ DOT_TEST_SUITE(rfl_tests)
         RFL_TestFlagBit_Neg  = -(2 + 1),
         RFL_TestFlagBit_Far  = RFL_TestKind_Count << 1,
         RFL_TestFlagBit_Mask = 0xF0 & ~0x30,
+        RFL_TestFlagBit_Hex  = 0X0A,
         });
 
     Reflect(RFL_TestStruct, {
         u8 a;
-        f32 x, y;
-        rfl_test_tag f32x3 color;
+        rfl_test_tag f32 x, y;
+        rfl_test_tag rfl_test_other_tag f32x3 color;
         u32 slots[RFL_TestKind_Count * RFL_TEST_SCALE];
         struct RFL_TestStruct *next, **list;
         u64 big;
@@ -741,6 +740,7 @@ DOT_TEST_SUITE(rfl_tests)
     DOT_TEST_CHECK(test, "flags negate",     flags->values[3].value == RFL_TestFlagBit_Neg);
     DOT_TEST_CHECK(test, "flags other enum", flags->values[4].value == RFL_TestFlagBit_Far);
     DOT_TEST_CHECK(test, "flags and/not",    flags->values[5].value == RFL_TestFlagBit_Mask);
+    DOT_TEST_CHECK(test, "flags upper hex",  flags->values[6].value == RFL_TestFlagBit_Hex);
 
     RFL_Type *s = reflect_type(RFL_TestStruct);
     DOT_TEST_CHECK(test, "struct fields",    s->field_count == 10);
@@ -754,8 +754,12 @@ DOT_TEST_SUITE(rfl_tests)
     DOT_TEST_CHECK(test, "offset big",       s->fields[7].offset == offsetof(RFL_TestStruct, big));
     DOT_TEST_CHECK(test, "offset kind",      s->fields[8].offset == offsetof(RFL_TestStruct, kind));
     DOT_TEST_CHECK(test, "offset m",         s->fields[9].offset == offsetof(RFL_TestStruct, m));
-    DOT_TEST_CHECK(test, "tag",              string8_equal(s->fields[3].tag, str_comp("rfl_test_tag")));
-    DOT_TEST_CHECK(test, "no tag",           s->fields[2].tag.size == 0);
+    DOT_TEST_CHECK(test, "no tag",           s->fields[0].tag.size == 0);
+    DOT_TEST_CHECK(test, "tag",              string8_equal(s->fields[1].tag, str_comp("rfl_test_tag")));
+    DOT_TEST_CHECK(test, "tag declarators",  string8_equal(s->fields[2].tag, str_comp("rfl_test_tag")));
+    DOT_TEST_CHECK(test, "tag last wins",    string8_equal(s->fields[3].tag, str_comp("rfl_test_other_tag")));
+    DOT_TEST_CHECK(test, "tag not leaked",   s->fields[4].tag.size == 0);
+    DOT_TEST_CHECK(test, "enum tag skipped", string8_equal(kind->values[2].name, str_comp("RFL_TestKind_C")));
     DOT_TEST_CHECK(test, "array count",      s->fields[4].array_count == RFL_TestKind_Count * RFL_TEST_SCALE);
     DOT_TEST_CHECK(test, "pointer depth",    s->fields[5].pointer_depth == 1 && s->fields[6].pointer_depth == 2);
     DOT_TEST_CHECK(test, "self pointer",     s->fields[5].type == s);

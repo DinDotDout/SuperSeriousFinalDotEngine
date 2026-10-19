@@ -31,9 +31,9 @@ enum
 typedef u32 RFL_TypeKind;
 enum
 {
-    RFL_TypeKind_Int,
-    RFL_TypeKind_Uint,
-    RFL_TypeKind_Float,
+    RFL_TypeKind_I32,
+    RFL_TypeKind_U32,
+    RFL_TypeKind_F32,
     RFL_TypeKind_Bool,
     RFL_TypeKind_Enum,
     RFL_TypeKind_Struct,
@@ -91,55 +91,32 @@ SECTION_DECLARE(RFL_Type, ReflectSection);
 #define RFL_SECTION_ITEM SECTION_ITEM(ReflectSection, 0)
 #define RFL_MARKER(T) enum { T##_is_not_reflected_use_Reflect = 0 }
 
-#define Reflect(T, ...) \
-    typedef struct T __VA_ARGS__ T; \
-    RFL_MARKER(T); \
-    RFL_SECTION_ITEM static RFL_Type rfl_g_type_##T = { \
-        .kind  = RFL_TypeKind_Struct, \
-        .name  = str_lit(#T), \
-        .body  = str_lit(#__VA_ARGS__), \
-        .file  = __FILE__, \
-        .line  = __LINE__, \
-        .size  = sizeof(T), \
-        .align = DOT_ALIGNOF(T), \
-    }
-
-#define ReflectEnum(B, T, ...) \
-    typedef B T; \
-    enum __VA_ARGS__; \
-    RFL_MARKER(T); \
-    RFL_SECTION_ITEM static RFL_Type rfl_g_type_##T = { \
-        .kind  = RFL_TypeKind_Enum, \
-        .name  = str_lit(#T), \
-        .body  = str_lit(#__VA_ARGS__), \
-        .file  = __FILE__, \
-        .line  = __LINE__, \
-        .size  = sizeof(T), \
-        .align = DOT_ALIGNOF(T), \
-    }
-
-#define ReflectPrimitive(T, k) \
+#define RFL_DEFINE_TYPE(T, k, body_text) \
     RFL_MARKER(T); \
     RFL_SECTION_ITEM static RFL_Type rfl_g_type_##T = { \
         .kind  = (k), \
         .name  = str_lit(#T), \
+        .body  = str_lit(body_text), \
         .file  = __FILE__, \
         .line  = __LINE__, \
         .size  = sizeof(T), \
         .align = DOT_ALIGNOF(T), \
     }
 
+#define Reflect(T, ...) \
+    typedef struct T __VA_ARGS__ T; \
+    RFL_DEFINE_TYPE(T, RFL_TypeKind_Struct, #__VA_ARGS__)
+
+#define ReflectEnum(size_type, T, ...) \
+    typedef size_type T; \
+    enum __VA_ARGS__; \
+    RFL_DEFINE_TYPE(T, RFL_TypeKind_Enum, #__VA_ARGS__)
+
+#define ReflectPrimitive(T, k) \
+    RFL_DEFINE_TYPE(T, k, "")
+
 #define ReflectExtern(T, ...) \
-    RFL_MARKER(T); \
-    RFL_SECTION_ITEM static RFL_Type rfl_g_type_##T = { \
-        .kind  = RFL_TypeKind_Struct, \
-        .name  = str_lit(#T), \
-        .body  = str_lit(#__VA_ARGS__), \
-        .file  = __FILE__, \
-        .line  = __LINE__, \
-        .size  = sizeof(T), \
-        .align = DOT_ALIGNOF(T), \
-    }
+    RFL_DEFINE_TYPE(T, RFL_TypeKind_Struct, #__VA_ARGS__)
 
 #define ReflectConst(c) \
     RFL_SECTION_ITEM static RFL_Type rfl_g_const_##c = { \

@@ -46,6 +46,8 @@ internal b32 char_is_digit(u8 c);
 internal b32 char_is_alpha(u8 c);
 internal b32 char_is_alnum(u8 c);
 internal b32 char_is_hex_digit(u8 c);
+internal u8  char_to_lower(u8 c);
+internal b32 char_equal_no_case(u8 a, u8 b);
 internal u32 char_hex_value(u8 c);
 
 internal String8 string8(u8 *s, u64 size);

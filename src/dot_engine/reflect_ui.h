@@ -1,8 +1,13 @@
 #ifndef REFLECT_UI_H
 #define REFLECT_UI_H
 
-#define rfl_color
 #define rfl_skip
+
+typedef f32x3 f32rgb;
+typedef f32x4 f32rgba;
+
+ReflectExtern(f32rgb,  { f32 r, g, b; });
+ReflectExtern(f32rgba, { f32 r, g, b, a; });
 
 enum
 {
