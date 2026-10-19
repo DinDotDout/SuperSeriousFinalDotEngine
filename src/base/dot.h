@@ -418,17 +418,14 @@ do { \
 
 #elif DOT_COMPILER_MSVC
 #   define alignas(a) __declspec(align(a))
-#   if _MSC_VER >= 1939 && defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202000L
-    // MSVC 19.39+ (VS 2022 17.9+)
+#   if _MSC_VER >= 1939
+    // MSVC 19.39+ (VS 2022 17.9+) accepts __typeof__ in every C mode
 #   define TYPEOF(x) __typeof__(x)
 #   else
-#   define TYPEOF(x) __typeof__(x)
-//#   error "no typeof"
-
+#   error "typeof is not supported on this compiler. Upgrade MSVC to 17.9+ or use GCC/Clang."
 #   endif
 #else
-    // #define TYPEOF(x) "typeof is not supported on this compiler. Upgrade MSVC to 17.9+ or use GCC/Clang."
-    // #error "typeof is not supported on this compiler. Upgrade MSVC to 17.9+ or use GCC/Clang."
+#   error "typeof is not supported on this compiler. Upgrade MSVC to 17.9+ or use GCC/Clang."
 #endif
 
 #ifndef DOT_SWAP
@@ -458,7 +455,7 @@ do { \
 
 #define MEMORY_COPY_NO_ALIAS(dst, src, size)    memcpy((dst), (src), (size))
 #define MEMORY_COPY(dst, src, size)             memmove((dst), (src), (size))
-#define MEMORY_COPY_STRUCT(dst,src)             MEMORY_COPY((dst),(src),sizeof(*(dst)))
+#define MEMORY_COPY_STRUCT(dst,src)             MEMORY_COPY_NO_ALIAS((dst),(src),sizeof(*(dst)))
 #define MEMORY_COPY_ARRAY(dst,src)              MEMORY_COPY((dst),(src),sizeof(dst))
 // #define MemoryCopyTyped(dst,src,c) MEMORY_COPY((dst),(ssrc),sizeof(*(dst))*(c))
 
