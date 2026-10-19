@@ -508,21 +508,24 @@ rb_vk_pick_best_device(const RB_VK_VulkanConfig *vk_config, VkInstance instance,
     DOT_PRINT("device count %i", device_count);
 
     RB_VK_Device best_device = {0};
+    VkPhysicalDeviceProperties best_properties = {0};
     i32 best_score = -1;
 
     for(u32 i = 0; i < device_count; i++){
         b32 is_integrated_gpu = true;
         VkPhysicalDevice dev = devices[i];
+        VkPhysicalDeviceProperties device_properties;
+        vkGetPhysicalDeviceProperties(dev, &device_properties);
+        DOT_PRINT("Checking device \"%s\"", device_properties.deviceName);
         // We to first ensure we have what we want before even rating the device
         b8 feature_enabled[RB_VK_DeviceFeature_COUNT];
         if (!rb_vk_physical_device_all_required_extensions(vk_config, dev, feature_enabled)
             || !rb_vk_physical_device_swapchain_support(dev, surface, NULL)){
+            DOT_PRINT("Skipping device \"%s\"", device_properties.deviceName);
             continue;
         }
 
-        VkPhysicalDeviceProperties device_properties;
         VkPhysicalDeviceFeatures device_features;
-        vkGetPhysicalDeviceProperties(dev, &device_properties);
         vkGetPhysicalDeviceFeatures(dev, &device_features);
 
         u32 queue_count = 0;
@@ -569,8 +572,9 @@ rb_vk_pick_best_device(const RB_VK_VulkanConfig *vk_config, VkInstance instance,
         if(device_features.geometryShader){
             score += 10;
         }
-        DOT_PRINT("graphics family: %d; present family: %i; score: %i", graphics_idx, present_idx, score);
+        DOT_PRINT("\"%s\" graphics family: %d; present family: %i; score: %i", device_properties.deviceName, graphics_idx, present_idx, score);
         if(score > best_score){
+            best_properties = device_properties;
             best_device.is_integrated_gpu = is_integrated_gpu;
             best_device.vk_gpu = dev;
             best_device.graphics_queue_idx = graphics_idx;
@@ -583,9 +587,10 @@ rb_vk_pick_best_device(const RB_VK_VulkanConfig *vk_config, VkInstance instance,
         DOT_ERROR("No suitable GPU found");
     }
 
-    DOT_PRINT("best_device  graphics family: %d; present family: %i; score: %i",
-              best_device.graphics_queue_idx, best_device.present_queue_idx,
-              best_score);
+    DOT_PRINT("best_device \"%s\" graphics family: %d; present family: %i; score: %i",
+        best_properties.deviceName, best_device.graphics_queue_idx, best_device.present_queue_idx,
+        best_score);
+
     scratch_end(s);
     return best_device;
 }
