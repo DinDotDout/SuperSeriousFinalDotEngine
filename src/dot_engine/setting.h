@@ -1,11 +1,6 @@
 #ifndef SETTING_H 
 #define SETTING_H
-
-#if DOT_COMPILER_MSVC
-#   pragma section(".SettingsSection", read)
-#   pragma comment(linker, "/merge:.SettingsSection=.data")
-#endif
-
+//
 // (jd) NOTE: This isn't really a limit but performance will degrade and become a linear search if load
 // factor is high enough
 enum{ SETTINGS_SCOPE_BUCKETS_MAX = 32 };
@@ -31,7 +26,8 @@ DOT_ENUM_REFLECT_TYPED(u8, DOT_SettingKind, DOT_SETTING_KINDS);
 DOT_ENUM_REFLECT_TYPED(u8, DOT_SettingVisualizationKind, DOT_SETTING_VISUALIZATION_KINDS);
 
 typedef struct DOT_Setting DOT_Setting;
-struct alignas(16) DOT_Setting{
+struct alignas(16) DOT_Setting
+{
     String8 scope_name;
     String8 setting_name;
 
@@ -47,8 +43,6 @@ struct alignas(16) DOT_Setting{
         f32x2  *f32x2_value;
         f32x3  *f32x3_value;
         f32x4  *f32x4_value;
-        // mat3    mat3_value;
-        // mat4    mat4_value;
         String8 *String8_value;
     };
 
@@ -58,15 +52,18 @@ struct alignas(16) DOT_Setting{
     DOT_Setting *next_setting;
 };
 
-typedef struct DOT_SettingScope{
+typedef struct DOT_SettingScope
+{
     String8 scope_name;
     DOT_Setting *setting;
 }DOT_SettingScope;
 
-typedef struct DOT_Settings{
+typedef struct DOT_Settings
+{
     HashMap(String8, DOT_SettingScope) setting_scopes;
     HashMap(String8, DOT_Setting*) settings;
 }DOT_Settings;
+
 global DOT_Settings g_settings = {0};
 
 SECTION_DECLARE(DOT_Setting, SettingsSection);
@@ -74,7 +71,7 @@ SECTION_DECLARE(DOT_Setting, SettingsSection);
 #define DOT_SETTING(T, section, name, value) DOT_SETTING_TYPED(T, section, name, value, DOT_SettingVisualizationKind_Default)
 #define DOT_SETTING_TYPED(k, ctype, section, var, value, viz) \
     ctype var = (value); \
-    SECTION_ITEM(SettingsSection, 0) static DOT_Setting DOT_CONCAT(__DOT_Setting_, var) = { \
+    SECTION_ITEM(SettingsSection) static DOT_Setting DOT_CONCAT(__DOT_Setting_, var) = { \
         .whole_name     = str_lit(section DOT_STR("_"#var)), \
         .scope_name     = str_lit(section), \
         .setting_name   = str_lit(#var), \

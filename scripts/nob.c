@@ -10,8 +10,6 @@ Nob_Log_Level nob_minimal_log_level = NOB_INFO;
 #define OUTPUT_FOLDER           "build/"
 #define SRC_FOLDER              "src/dot_engine/"
 
-#define LINKER_SCRIPTS_FOLDER   "scripts/"
-
 #if defined(_WIN32)
 #   define AUTO_PLATFORM PlatformKind_Windows
 #   define AUTO_COMPILER CompilerKind_Msvc
@@ -450,8 +448,6 @@ main(int argc, char *argv[])
         nob_cmd_append(&cmd, "-o", OUTPUT_FOLDER "dot_engine.exe");
     }else{
         nob_cmd_append(&cmd, "-lm", "-lpthread");
-        nob_cmd_append(&cmd, "-Wl,-T" LINKER_SCRIPTS_FOLDER "plugins_section.ld"); // provides __start_/__stop_ for the SECTION_DECLARE sections
-        // nob_cmd_append(&cmd, " -Wl,-z,rosegment ");
         nob_cmd_append(&cmd, "-o", OUTPUT_FOLDER "dot_engine");
     }
 

@@ -536,82 +536,40 @@ typedef struct DOT_DebugName8{
 #   define DOT_CONSTRUCTOR(fn) \
         __attribute__((constructor)) static void fn(void)
 #endif
-//
-// #if DOT_COMPILER_MSVC
-//     typedef void (__cdecl *DOT_CRTINIT)(void);
-//
-//     #pragma section(".CRT$XCU", read)
-//
-//     #define DOT_CONSTRUCTOR(fn)                     \
-//         static void __cdecl fn(void);               \
-//         __declspec(allocate(".CRT$XCU"))            \
-//         DOT_CRTINIT fn##_ = fn;                     \
-//         static void __cdecl fn(void)
-// #else
-//     #define DOT_CONSTRUCTOR(fn)                     \
-//         __attribute__((constructor)) static void fn(void)
-// #endif
 
 ////////////////////////////////////////////////////////////////
 //
 // Custom section
-// This requires a custom linker script akin to
-//
-// // plugins_section.ld
-// SECTIONS
-// {
-//   .DOT_plugins : {
-//     PROVIDE_HIDDEN(__start_DOT_plugins = .);
-//     KEEP(*(SORT_BY_INIT_PRIORITY(.DOT_plugins.*)))
-//     PROVIDE_HIDDEN(__stop_DOT_plugins = .);
-//   }
-// } INSERT AFTER .data;
-
-// (jd) NOTE: This need to be placed in manually for the section we want above declare section
-// #pragma section(".#name", read)
-// #pragma comment(linker, "/merge:.#name=.data")
 
 #if DOT_OS_WINDOWS
 // For some reason #name "$a" doesn't work with __declspec(allocate)
 #   define SECTION_NAME_JOIN(a, b) DOT_STR(a##b)
-// (jd) NOTE: `extern T __start_##name[]` never actually defines storage for the symbol (it's just
-// a declaration), so the linker had nothing to resolve it to. Instead we place one real, zeroed
-// T-sized marker at each end of the section ($a and $z) and derive __start_/__stop_ from their
-// addresses.
-//
-// (jd) NOTE: Each `__declspec(allocate(...))` variable becomes its own COMDAT, and MSVC pads
-// every COMDAT in one of these custom sections up to 16 bytes. That means consecutive items in
-// "$m" actually sit `DOT_ALIGN_UP(sizeof(T), 16)` apart, not `sizeof(T)` apart. Iteration (see
-// EACH_IN_SECTION) walks the array with `sizeof(T)`-strided pointer arithmetic, so T must already
-// be a multiple of 16 bytes or the walk silently drifts off the real items. Use `alignas(16)` on T
-// if this fires.
 #   define SECTION_DECLARE(T, name) \
-        DOT_STATIC_ASSERT(sizeof(T) % 16 == 0, "T must be 16-byte sized for MSVC section iteration to stay aligned"); \
+        DOT_STATIC_ASSERT(sizeof(T) % 16 == 0, "T must be 16-byte sized for section iteration to stay aligned, add alignas(16) to T"); \
         __pragma(data_seg(#name "$a")) \
         __pragma(data_seg(#name "$m")) \
         __pragma(data_seg(#name "$z")) \
         __pragma(data_seg()) \
+        __pragma(comment(linker, "/merge:" #name "=.data")) \
         __declspec(allocate(SECTION_NAME_JOIN(name, $a))) static T DOT_CONCAT(__dot_section_begin_, name) = {0}; \
         __declspec(allocate(SECTION_NAME_JOIN(name, $z))) static T DOT_CONCAT(__dot_section_end_, name) = {0}; \
         static T *__start_##name = &DOT_CONCAT(__dot_section_begin_, name) + 1; \
         static T *__stop_##name  = &DOT_CONCAT(__dot_section_end_, name)
 
-// priority doesn't work on windows. Nothing depends on it for now tho
 #   if DOT_COMPILER_MSVC
-#       define SECTION_ITEM(name, priority) \
+#       define SECTION_ITEM(name) \
             __declspec(allocate(SECTION_NAME_JOIN(name, $m)))
 #   else
-#       define SECTION_ITEM(name, priority) \
+#       define SECTION_ITEM(name) \
             __declspec(allocate(SECTION_NAME_JOIN(name, $m))) __attribute__((no_sanitize("address"), used))
 #   endif
 #else
 #   define SECTION_DECLARE(T, name) \
-        extern T __start_##name[]; \
-        extern T __stop_##name[];
+        DOT_STATIC_ASSERT(sizeof(T) % 16 == 0, "T must be 16-byte sized for section iteration to stay aligned, add alignas(16) to T"); \
+        extern T __start_##name[] __attribute__((weak)), __stop_##name[] __attribute__((weak))
 
-#   define SECTION_ITEM(name, priority) \
-        DOT_STATIC_ASSERT(priority == 0, "priority != 0 doesn't work on windows"); \
-        __attribute__((no_sanitize("address"), used, section("." #name "." #priority)))
+#   define SECTION_ITEM(name) \
+        __attribute__((no_sanitize("address"), used, retain, section(#name)))
 #endif
 
 #define REGISTER_IN_SECTION(name, type, symbol, ...) \

@@ -21,7 +21,8 @@ RB_HANDLE_DEFINE(RB_TextureHeap);
 /// RB_MEMORY
 
 typedef u64 RB_GpuAddress;
-ReflectPrimitive(RB_GpuAddress, RFL_TypeKind_Uint);
+ReflectPrimitive(RB_GpuAddress, RFL_TypeKind_U32);
+
 typedef struct RB_GpuRange
 {
     RB_GpuAddress gpu;

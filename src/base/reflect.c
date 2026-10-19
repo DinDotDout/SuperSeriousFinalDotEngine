@@ -199,7 +199,7 @@ internal RFL_Token
 rfl_lex_int(RFL_Parser *parser)
 {
     RFL_Token token = {.kind = RFL_TokenKind_I32};
-    if(rfl_peek(parser) == '0' && char_to_lower(rfl_peek_at(parser, 1) == 'x')){
+    if(rfl_peek(parser) == '0' && char_to_lower(rfl_peek_at(parser, 1)) == 'x'){
         parser->pos += 2;
         token.i32_value = cast(i64)rfl_lex_digits(parser, RFL_Char_HexDigit, 16);
     }else{

@@ -88,7 +88,7 @@ typedef struct RFL_Registry
 }RFL_Registry;
 
 SECTION_DECLARE(RFL_Type, ReflectSection);
-#define RFL_SECTION_ITEM SECTION_ITEM(ReflectSection, 0)
+#define RFL_SECTION_ITEM SECTION_ITEM(ReflectSection)
 #define RFL_MARKER(T) enum { T##_is_not_reflected_use_Reflect = 0 }
 
 #define RFL_DEFINE_TYPE(T, k, body_text) \
@@ -127,7 +127,7 @@ SECTION_DECLARE(RFL_Type, ReflectSection);
         .const_value = cast(i64)(c), \
     }
 
-#define reflect_type(T) ((void)T##_is_not_reflected_use_Reflect, &rfl_g_type_##T)
+#define reflect_type(T) ((void)T##_is_not_reflected_use_Reflect, rfl_g_type_##T.canonical)
 #define rfl_any(T, ptr) ((RFL_Any){ .type = ((void)DOT_STATIC_ASSERT_TYPE(*(ptr), T, "rfl_any: pointer is not a " #T "*"), reflect_type(T)), .data = (ptr) })
 
 internal void      rfl_init(Arena *arena);

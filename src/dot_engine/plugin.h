@@ -1,14 +1,8 @@
 #ifndef PLUGIN_H
 #define PLUGIN_H
-#if DOT_COMPILER_MSVC
-#   pragma section(".plugin", read)
-#   pragma comment(linker, "/merge:.plugin=.data")
-#endif
 
 // NOTE: This is kind of magic but this will place whatever we tag as PLUGIN_SECTION in
-// a section specifically created for "ONLY" Plugin structs. Priority will determine the
-// ordering of how the plugins are placed in the section in case we have cross plugin
-// init dependencies.
+// a section specifically created for "ONLY" Plugin structs.
 // We can then iterate over the section and run all init plugins whenever we want
 
 typedef struct Plugin Plugin;
@@ -28,8 +22,8 @@ struct Plugin{
 };
 SECTION_DECLARE(const Plugin, PluginsSection);
 
-#define PLUGIN_REGISTER(n, priority, ...) \
-    SECTION_ITEM(PluginsSection, priority) static const Plugin DOT_CONCAT(__DOT_Plugin_, n) = { \
+#define PLUGIN_REGISTER(n, ...) \
+    SECTION_ITEM(PluginsSection) static const Plugin DOT_CONCAT(__DOT_Plugin_, n) = { \
         .name = #n, \
         .file = __FILE__, \
         .line = __LINE__, \
