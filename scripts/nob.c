@@ -264,7 +264,7 @@ static void apply_compiler_flags(Nob_Cmd *cmd, CompilerKind compiler, Optimizati
 
 typedef enum ExternalAssetKind
 {
-    ExternalAssetKind_GitZip,
+    ExternalAssetKind_GitTarGz,
     ExternalAssetKind_File,
 }ExternalAssetKind;
 
@@ -294,7 +294,7 @@ typedef struct ExternalAssets{
 #define EXTERNAL_ASSETS(path, list) ((ExternalAssets){ .output_path = (path), .items = (list), .count = ARRAY_LEN(list) })
 
 static const ExternalAsset assets_list[] = {
-    {.kind = ExternalAssetKind_GitZip, .git_asset = {"https://github.com/KhronosGroup/glTF-Sample-Assets", "edc7c9e67c639d230715049ee31f9a96a6babbbe"}},
+    {.kind = ExternalAssetKind_GitTarGz, .git_asset = {"https://github.com/KhronosGroup/glTF-Sample-Assets", "edc7c9e67c639d230715049ee31f9a96a6babbbe"}},
 };
 
 static bool
@@ -318,15 +318,7 @@ static bool
 extract_archive(const char *archive_path, const char *dst_dir)
 {
     Nob_Cmd cmd = {0};
-#if defined(_WIN32)
-    nob_cmd_append(&cmd, "tar", "-xf", archive_path, "-C", dst_dir);
-#else
-    if(nob_sv_end_with(nob_sv_from_cstr(archive_path), ".zip")){
-        nob_cmd_append(&cmd, "unzip", "-q", archive_path, "-d", dst_dir);
-    }else{
-        nob_cmd_append(&cmd, "tar", "-xzf", archive_path, "-C", dst_dir);
-    }
-#endif
+    nob_cmd_append(&cmd, "tar", "-xzf", archive_path, "-C", dst_dir);
     if(!nob_cmd_run(&cmd)){
         nob_log(NOB_ERROR, "Failed to extract %s", archive_path);
         return(false);
@@ -367,11 +359,11 @@ download_assets(ExternalAssets assets)
             final_path    = nob_temp_sprintf("%s/%s", assets.output_path, nob_path_name(source_url));
             download_path = final_path;
         }break;
-        case ExternalAssetKind_GitZip:{
+        case ExternalAssetKind_GitTarGz:{
             const char *repo = nob_path_name(asset->git_asset.URL);
-            source_url    = nob_temp_sprintf("%s/archive/%s.zip", asset->git_asset.URL, asset->git_asset.rev);
+            source_url    = nob_temp_sprintf("%s/archive/%s.tar.gz", asset->git_asset.URL, asset->git_asset.rev);
             final_path    = nob_temp_sprintf("%s/%s", assets.output_path, repo);
-            download_path = nob_temp_sprintf("%s/%s.zip", assets.output_path, repo);
+            download_path = nob_temp_sprintf("%s/%s.tar.gz", assets.output_path, repo);
         }break;
         }
 
@@ -379,7 +371,7 @@ download_assets(ExternalAssets assets)
             nob_log(NOB_INFO, "Already have: %s (delete it to redownload)", final_path);
         }else{
             ok = download_file(source_url, download_path);
-            if(ok && asset->kind == ExternalAssetKind_GitZip){
+            if(ok && asset->kind == ExternalAssetKind_GitTarGz){
                 const char *extracted = nob_temp_sprintf("%s/%s-%s", assets.output_path, nob_path_name(asset->git_asset.URL), asset->git_asset.rev);
                 ok = extract_archive(download_path, assets.output_path) && nob_rename(extracted, final_path);
             }
