@@ -588,10 +588,9 @@ typedef struct DOT_DebugName8{
 #   else
 #       error "Atomic intrinsics not defined for this compiler / architecture combination."
 #   endif
+
 #elif DOT_COMPILER_CLANG || DOT_COMPILER_GCC
-#   include <immintrin.h>
-#   include <emmintrin.h>
-#   define ins_atomic_u32_eval_cond_assign(x,k,c)  ({ u32 _new = (c); __atomic_compare_exchange_n((u32 *)(x),&_new,(k),0,__ATOMIC_SEQ_CST,__ATOMIC_SEQ_CST); _new; })
+#   define ins_atomic_u32_eval_cond_assign(x,k,c)  ({ u32 _new = (c); __atomic_compare_exchange_n((u32 *)(x), &_new, (k), 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); _new; })
 #   define ins_atomic_u64_add_eval(x,c)            __atomic_add_fetch((u64 *)(x), (c), __ATOMIC_SEQ_CST)
 #   define ins_atomic_i64_add_eval(x,c)            __atomic_add_fetch((i64 *)(x), (c), __ATOMIC_SEQ_CST)
 #else

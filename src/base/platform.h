@@ -15,6 +15,13 @@ enum
     PLATFORM_LARGE_PAGE_SIZE    = DOT_MB(2),
     PLATFORM_CACHE_LINE_SIZE    = 64,
 };
+#elif DOT_OS_APPLE
+enum 
+{
+    PLATFORM_REGULAR_PAGE_SIZE  = DOT_KB(16), // 16KB On Apple Silicon. 4KB on Intel (Deprecated on macOS 27)
+    PLATFORM_LARGE_PAGE_SIZE    = DOT_MB(2), // RANGE From 2 MB to 1GB on Silicon
+    PLATFORM_CACHE_LINE_SIZE    = 64,
+};
 #endif
 
 ////////////////////////////////////////////////////////////////
