@@ -10,7 +10,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <sys/types.h>
-#include <sys/sysctl.h> // Necesario en macOS para consultar rutas de procesos
+#include <sys/sysctl.h>
 
 internal u64
 platform_os_get_timer_freq()
@@ -46,9 +46,7 @@ os_print_stacktrace()
             dup2(out_pipe[1], STDOUT_FILENO);
             close(in_pipe[0]); close(in_pipe[1]);
             close(out_pipe[0]); close(out_pipe[1]);
-            
-            // CAMBIO PARA MAC: macOS no tiene 'closefrom()'. 
-            // Recorremos los descriptores de archivos para cerrar los sobrantes de forma segura.
+  
             int fd_limit = (int)sysconf(_SC_OPEN_MAX);
             if (fd_limit < 0) fd_limit = 1024;
             for (int i = 3; i < fd_limit; i++) {
@@ -145,9 +143,7 @@ internal void
 os_set_working_directory_to_project_root()
 {
     char path[4096];
-    
-    // CAMBIO PARA MAC: macOS no tiene '/proc/self/exe'. 
-    // Usamos proc_pidpath (o sysctl con KERN_PROCARGS2) para obtener la ruta del binario en Apple.
+
     int mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1 };
     size_t cb = sizeof(path);
     if (sysctl(mib, 4, path, &cb, NULL, 0) != 0) {
@@ -176,18 +172,12 @@ os_init()
     os_set_working_directory_to_project_root();
 }
 
-// CAMBIO/ADICIÓN PARA MAC: Implementación de os_commit_large
-// En macOS, las páginas grandes de memoria se gestionan de forma nativa a través de la bandera VM_FLAGS_SUPERPAGE.
-// Al contrario de Linux, no es necesario hacer un commit posterior: se reservan y comprometen directamente.
 internal void
 os_commit_large(void *ptr, u64 size)
 {
-    // macOS procesa las páginas grandes (Superpages) directamente a nivel de kernel durante la reserva de memoria virtual.
-    // Si la memoria ya está mapeada con mmap estándar, se puede sugerir el uso de páginas grandes mediante madvise.
 #if defined(MADV_THP_TO_LARGE)
     madvise(ptr, (size_t)size, MADV_THP_TO_LARGE);
 #else
-    // Si tu mmap original no usó superpáginas, este fallback reduce la probabilidad de paginación a disco.
     madvise(ptr, (size_t)size, MADV_WILLNEED);
 #endif
 }
