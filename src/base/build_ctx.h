@@ -14,9 +14,15 @@
 #if defined(_WIN32)
 #   define DOT_OS_WINDOWS 1
 #   define DOT_OS_POSIX 0
-#elif defined(__unix__) || defined(__APPLE__) || defined(__linux__)
+#   define DOT_OS_APPLE 0
+#elif defined(__APPLE__)
+#   define DOT_OS_WINDOWS 0
+#   define DOT_OS_POSIX 0
+#   define DOT_OS_APPLE 1
+#elif defined(__unix__) || defined(__linux__)
 #   define DOT_OS_WINDOWS 0
 #   define DOT_OS_POSIX 1
+#   define DOT_OS_APPLE 0
 #else
 #   error "Unsupported platform"
 #endif

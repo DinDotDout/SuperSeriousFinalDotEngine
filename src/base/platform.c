@@ -2,6 +2,9 @@
 #   include "os/os_linux.c"
 #elif DOT_OS_WINDOWS
 #   include "os/os_windows.c"
+#elif DOT_OS_APPLE
+#   include "os/os_apple.c"
+#   include <mach/mach_time.h>
 #endif
 // typedef DOT_ENUM(u8, FileModeKind){
 //     Platform_FileModeKind_R,
@@ -115,7 +118,14 @@ u64 platform_get_time_ns(void)
 internal u64
 platform_cpu_read_timer(void)
 {
-    return __rdtsc(); // NOTE: Only works on x86, update to support ARM
+#if DOT_OS_APPLE // APPLE (mach-o ARM64)
+    u64 val;
+    // Read macOS system virtual CNTCVT_EL0 register
+    __asm__ __volatile__("mrs %0, cntvct_el0" : "=r" (val)); 
+    return val;
+#else // X86_64
+    return __rdtsc();
+#endif
 }
 
 internal u64

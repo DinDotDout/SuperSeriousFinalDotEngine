@@ -13,7 +13,10 @@ Nob_Log_Level nob_minimal_log_level = NOB_INFO;
 #if defined(_WIN32)
 #   define AUTO_PLATFORM PlatformKind_Windows
 #   define AUTO_COMPILER CompilerKind_Msvc
-#elif defined(__unix__) || defined(__linux__)
+#elif defined(__APPLE__)
+#   define AUTO_PLATFORM PlatformKind_Apple
+#   define AUTO_COMPILER CompilerKind_Clang
+#elif defined(__linux__)
 #   define AUTO_PLATFORM PlatformKind_LinuxX11
 #   define AUTO_COMPILER CompilerKind_Clang
 #else
@@ -26,6 +29,7 @@ typedef enum {
     PlatformKind_LinuxWayland,
     PlatformKind_LinuxX11,
     PlatformKind_Windows,
+    PlatformKind_Apple,
     PlatformKind_Auto = AUTO_PLATFORM,
     PlatformKind_Count,
 }PlatformKind;
@@ -34,6 +38,7 @@ static const char *g_platform_kind_str[] = {
     [PlatformKind_LinuxWayland] = "Linux Wayland",
     [PlatformKind_LinuxX11] = "Linux X11",
     [PlatformKind_Windows] = "Windows",
+    [PlatformKind_Apple] = "macOS",
 };
 
 typedef enum {
@@ -190,6 +195,9 @@ static void apply_platform_flags(Nob_Cmd *cmd, PlatformKind platform) {
         case PlatformKind_Windows:
             nob_cmd_append(cmd, "-DDOT_PLATFORM_WINDOWS");
             nob_cmd_append(cmd, "-D_CRT_SECURE_NO_WARNINGS"); // allow fopen/sprintf/... without the "use _s variant" deprecation warnings
+            break;
+        case PlatformKind_Apple:
+            nob_cmd_append(cmd, "-DDOT_PLATFORM_APPLE");
             break;
         default:
             nob_log(NOB_ERROR, "Unsupported platform");
