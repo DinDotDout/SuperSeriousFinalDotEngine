@@ -1,19 +1,21 @@
 #define NOB_IMPLEMENTATION
+#define NOB_NO_ECHO
 #include "../src/third_party/nob.h/nob.h"
 
-#define LIB_FOLDER "src/third_party/"
-#define BUILD_FOLDER "build/"
-#define SRC_FOLDER   "src/"
+Nob_Log_Level nob_minimal_log_level = NOB_INFO;
 
-typedef enum {
-    PlatformKind_None,
-    PlatformKind_LinuxWayland,
+#define OUTPUT_FOLDER "build/"
+#define OBJ_FOLDER    "build/obj/"
+
+typedef enum
+{
     PlatformKind_LinuxX11,
+    PlatformKind_LinuxWayland,
     PlatformKind_Windows,
-    PlatformKind_Count,
 }PlatformKind;
 
-typedef enum {
+typedef enum
+{
     OptimizationLevelKind_Debug,
     OptimizationLevelKind_Release,
     OptimizationLevelKind_Final,
@@ -21,183 +23,262 @@ typedef enum {
 
 typedef enum {
     CompilerKind_Clang,
-    // CompilerKind_Gcc,
-    CompilerKind_Msvc
+    CompilerKind_Msvc,
 }CompilerKind;
 
-static const char *compiler_kind_str[] = {
+#define WAYLAND_GEN_FOLDER "src/gen-wayland/"
+
+typedef struct {
+    const char *xml;
+    const char *stem;
+}WaylandProtocol;
+
+static const WaylandProtocol g_wayland_protocols[] = {
+    {"/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml",                                   "xdg-shell"},
+    {"/usr/share/wayland-protocols/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml",           "xdg-decoration-unstable-v1"},
+    {"/usr/share/wayland-protocols/staging/xdg-toplevel-icon/xdg-toplevel-icon-v1.xml",               "xdg-toplevel-icon-v1"},
+    {"/usr/share/wayland-protocols/unstable/relative-pointer/relative-pointer-unstable-v1.xml",       "relative-pointer-unstable-v1"},
+    {"/usr/share/wayland-protocols/unstable/pointer-constraints/pointer-constraints-unstable-v1.xml", "pointer-constraints-unstable-v1"},
+    {"/usr/share/wayland-protocols/unstable/xdg-output/xdg-output-unstable-v1.xml",                   "xdg-output-unstable-v1"},
+    {"/usr/share/wayland-protocols/staging/pointer-warp/pointer-warp-v1.xml",                         "pointer-warp-v1"},
+};
+
+static const char *g_compiler_kind_str[] = {
     [CompilerKind_Clang] = "clang",
     [CompilerKind_Msvc]  = "cl.exe",
 };
 
-#if defined(_WIN32)
-#   define AUTO_PLATFORM PlatformKind_Windows
-#   define CC CompilerKind_Msvc
-#elif defined(__unix__) || defined(__linux__)
-#   define AUTO_PLATFORM PlatformKind_LinuxX11
-#   define CC CompilerKind_Clang
-#else
-#   error "Unsupported platform"
-#endif
-
-//
-// ─────────────────────────────────────────────────────────────────────────────
-//   PLATFORM CONFIG TABLE
-// ─────────────────────────────────────────────────────────────────────────────
-//
-#define ARGS_COUNT 64
 typedef struct {
-    const char *defines[ARGS_COUNT];
-    const char *libs[ARGS_COUNT];
-    const char *inputs[ARGS_COUNT];
-}PlatformConfig;
+    PlatformKind platform;
+    OptimizationLevelKind opt;
+    CompilerKind compiler;
+    bool use_asan;
+    bool unity;
+    const char *msvc_sysroot;
+}BuildFlags;
 
-static PlatformConfig platform_cfg[] = {
-    [PlatformKind_LinuxX11] = {
-        .defines = {"-DRGFW_X11", "-DRGFW_UNIX"},
-        .libs = {"-lX11", "-lXcursor", "-lXrandr", "-lXfixes"},
-    },
-    [PlatformKind_LinuxWayland] = {
-        .defines = {"-DRGFW_WAYLAND"},
-        .libs = {"-lwayland-cursor", "-lwayland-client", "-lxkbcommon"},
-        .inputs = {
-            "src/gen-wayland/xdg-shell.c",
-            "src/gen-wayland/relative-pointer-unstable-v1.c",
-            "src/gen-wayland/pointer-constraints-unstable-v1.c",
-            "src/gen-wayland/xdg-toplevel-icon-v1.c",
-            "src/gen-wayland/xdg-output-unstable-v1.c",
-            "src/gen-wayland/xdg-decoration-unstable-v1.c",
-            "src/gen-wayland/pointer-warp-v1.c",
-        },
-    },
-    [PlatformKind_Windows] = {
-        .defines = {"-DRGFW_WINDOWS", "-DWIN32_LEAN_AND_MEAN"},
-        .libs = {"-lgdi32", "-lshell32", "-luser32"},
+static BuildFlags g_flags = {
+#if defined(_WIN32)
+    .platform = PlatformKind_Windows,
+    .compiler = CompilerKind_Msvc,
+#else
+    .platform = PlatformKind_LinuxX11,
+    .compiler = CompilerKind_Clang,
+#endif
+    .opt      = OptimizationLevelKind_Debug,
+};
+
+// We don't want libs emmitting warning they were not accounting for
+static void
+append_compile_flags(Nob_Cmd *cmd, bool warnings)
+{
+    switch(g_flags.compiler){
+    case CompilerKind_Msvc:{
+        nob_cmd_append(cmd, warnings ? "/W4" : "/W0", "/std:c11", "/nologo");
+        nob_cmd_append(cmd, "/wd4116", "/wd4324");
+        switch(g_flags.opt){
+            case OptimizationLevelKind_Debug:   nob_cmd_append(cmd, "/Od", "/Zi", "/DDEBUG", "/MTd"); break;
+            case OptimizationLevelKind_Release: nob_cmd_append(cmd, "/O2", "/Zi", "/MD"); break;
+            case OptimizationLevelKind_Final:   nob_cmd_append(cmd, "/O2", "/DNDEBUG", "/GL", "/MD"); break;
+        }
+    }break;
+    case CompilerKind_Clang:{
+        nob_cmd_append(cmd, "-std=c11", "-fvisibility=hidden");
+        if(warnings){
+            nob_cmd_append(cmd,
+                "-Wall", "-Wextra", "-Wno-override-init", "-Wno-incompatible-pointer-types-discards-qualifiers",
+                "-Wdiv-by-zero", "-Wno-unused-function",
+                "-Werror=vla");
+        }else{
+            nob_cmd_append(cmd, "-w");
+        }
+        switch(g_flags.opt){
+            case OptimizationLevelKind_Debug:   nob_cmd_append(cmd, "-O0", "-g", "-DDEBUG"); break;
+            case OptimizationLevelKind_Release: nob_cmd_append(cmd, "-O2", "-g"); break;
+            case OptimizationLevelKind_Final:   nob_cmd_append(cmd, "-O3", "-DNDEBUG", "-Wno-unused-but-set-variable"); break;
+        }
+        if(g_flags.use_asan && g_flags.opt == OptimizationLevelKind_Debug){
+            nob_cmd_append(cmd, "-fsanitize=address,undefined", "-fsanitize-recover=address,undefined");
+        }
+        if(g_flags.platform == PlatformKind_Windows){
+            nob_cmd_append(cmd, "--target=x86_64-pc-windows-msvc");
+            if(g_flags.msvc_sysroot){
+                nob_cmd_append(cmd, "-Xmicrosoft-windows-sys-root", g_flags.msvc_sysroot);
+            }
+        }
+    }break;
     }
-};
 
-//
-// ─────────────────────────────────────────────────────────────────────────────
-//   COMPILER BASE FLAGS
-// ─────────────────────────────────────────────────────────────────────────────
-//
-static const char *base_flags_clang[ARGS_COUNT] = {
-    "-g", "-std=c99",
-    "-Wall", "-Wextra", "-Wno-override-init",
-    "-Wdiv-by-zero", "-Wno-unused-function",
-    "-Werror=vla",
-};
+    switch(g_flags.platform){
+        case PlatformKind_LinuxX11:     nob_cmd_append(cmd, "-DDOT_PLATFORM_LINUX"); break;
+        case PlatformKind_LinuxWayland: nob_cmd_append(cmd, "-DRGFW_WAYLAND", "-DRGFW_OPENGL", "-DDOT_PLATFORM_LINUX"); break;
+        case PlatformKind_Windows:      nob_cmd_append(cmd, "-DDOT_PLATFORM_WINDOWS", "-D_CRT_SECURE_NO_WARNINGS"); break;
+    }
 
-static const char *base_flags_msvc[ARGS_COUNT] = {
-    "/W4", "/nologo",
-};
-//
-// ─────────────────────────────────────────────────────────────────────────────
-//   OPTIMIZATION FLAGS
-// ─────────────────────────────────────────────────────────────────────────────
-//
-
-static const char *opt_flags_clang[][8] = {
-    [OptimizationLevelKind_Debug] = {"-O0", "-g", "-fsanitize=address,undefined", "-fsanitize-recover=address,undefined"},
-    [OptimizationLevelKind_Release] = {"-O2", "-g", "-fsanitize=address,undefined", "-fsanitize-recover=address,undefined"},
-    [OptimizationLevelKind_Final] = {"-O3", "-DNDEBUG"}
-};
-
-static const char *opt_flags_msvc[][8] = {
-    [OptimizationLevelKind_Debug]   = {"/Od", "/Zi", "/MDd"},
-    [OptimizationLevelKind_Release] = {"/O2", "/Zi", "/MD"},
-    [OptimizationLevelKind_Final]   = {"/O2", "/GL", "/DNDEBUG", "/MD" },
-};
-
-static void append_list(Nob_Cmd *cmd, const char **list){
-    for (int i = 0; list[i] && i < ARGS_COUNT; i++)
-        nob_cmd_append(cmd, list[i]);
+    nob_cmd_append(cmd, "-I", "src/");
+    nob_cmd_append(cmd, "-I", "src/third_party/vulkan-headers/include");
+    nob_cmd_append(cmd, "-I", "src/third_party/vulkan-utility-libraries/include");
 }
 
-int main(int argc, char **argv){
+static void
+append_link_flags(Nob_Cmd *cmd, const char *exe)
+{
+    switch(g_flags.compiler){
+    case CompilerKind_Msvc:{
+        nob_cmd_append(cmd, "/nologo", nob_temp_sprintf("/Fe:%s", exe));
+        if(g_flags.opt != OptimizationLevelKind_Final){
+            nob_cmd_append(cmd, "/Zi");
+        }
+        nob_cmd_append(cmd, "/link", "/INCREMENTAL:NO", "dbghelp.lib");
+    }break;
+    case CompilerKind_Clang:{
+        switch(g_flags.platform){
+        case PlatformKind_Windows:{
+            nob_cmd_append(cmd, "--target=x86_64-pc-windows-msvc", "-fuse-ld=lld");
+            if(g_flags.msvc_sysroot){
+                nob_cmd_append(cmd, "-Xmicrosoft-windows-sys-root", g_flags.msvc_sysroot);
+            }
+            nob_cmd_append(cmd, "-ldbghelp");
+        }break;
+        case PlatformKind_LinuxX11:{
+            nob_cmd_append(cmd, "-lm", "-lpthread", "-lX11", "-lXcursor", "-lXrandr", "-lXfixes");
+        }break;
+        case PlatformKind_LinuxWayland:{
+            for(size_t i = 0; i < NOB_ARRAY_LEN(g_wayland_protocols); i++){
+                nob_cmd_append(cmd, nob_temp_sprintf("%s%s.o", OBJ_FOLDER, g_wayland_protocols[i].stem));
+            }
+            nob_cmd_append(cmd, "-lm", "-lpthread", "-lwayland-cursor", "-lwayland-client", "-lwayland-egl", "-lxkbcommon");
+        }break;
+        }
+        if(g_flags.use_asan && g_flags.opt == OptimizationLevelKind_Debug){
+            nob_cmd_append(cmd, "-fsanitize=address,undefined");
+        }
+        nob_cmd_append(cmd, "-o", exe);
+    }break;
+    }
+}
+
+static bool
+generate_wayland_file(const char *mode, const char *xml, const char *out)
+{
+    if(nob_file_exists(out)) return(true);
+    Nob_Cmd cmd = {0};
+    nob_cmd_append(&cmd, "wayland-scanner", mode, xml, out);
+    return(nob_cmd_run(&cmd));
+}
+
+static bool
+compile_object(Nob_Procs *procs, const char *src, const char *obj, bool warnings)
+{
+    Nob_Cmd cmd = {0};
+    nob_cmd_append(&cmd, g_compiler_kind_str[g_flags.compiler]);
+    append_compile_flags(&cmd, warnings);
+    if(!g_flags.unity){
+        nob_cmd_append(&cmd, "-DDOT_SPLIT_THIRD_PARTY=1");
+    }
+    switch(g_flags.compiler){
+        case CompilerKind_Msvc:  nob_cmd_append(&cmd, "/c", src, nob_temp_sprintf("/Fo:%s", obj), nob_temp_sprintf("/Fd:%s.pdb", obj)); break;
+        case CompilerKind_Clang: nob_cmd_append(&cmd, "-c", src, "-o", obj); break;
+    }
+    nob_log(NOB_INFO, "[*] Compiling %s", src);
+    return(nob_cmd_run(&cmd, .async = procs));
+}
+
+static bool
+generate_wayland_protocols(Nob_Procs *procs)
+{
+    if(!nob_mkdir_if_not_exists(WAYLAND_GEN_FOLDER)) return(false);
+    for(size_t i = 0; i < NOB_ARRAY_LEN(g_wayland_protocols); i++){
+        const WaylandProtocol *p = &g_wayland_protocols[i];
+        const char *header = nob_temp_sprintf("%s%s.h", WAYLAND_GEN_FOLDER, p->stem);
+        const char *code   = nob_temp_sprintf("%s%s.c", WAYLAND_GEN_FOLDER, p->stem);
+        const char *obj    = nob_temp_sprintf("%s%s.o", OBJ_FOLDER, p->stem);
+        bool generated = !nob_file_exists(code);
+        if(!generate_wayland_file("client-header", p->xml, header) || !generate_wayland_file("public-code", p->xml, code)){
+            nob_log(NOB_ERROR, "Failed to generate %s", p->stem);
+            return(false);
+        }
+        if(generated || !nob_file_exists(obj)){
+            if(!compile_object(procs, code, obj, false)) return(false);
+        }
+    }
+    return(true);
+}
+
+int
+main(int argc, char **argv)
+{
     NOB_GO_REBUILD_URSELF(argc, argv);
-    mkdir_if_not_exists(BUILD_FOLDER);
 
-    PlatformKind platform = AUTO_PLATFORM;
-    OptimizationLevelKind opt = OptimizationLevelKind_Debug;
-    CompilerKind compiler = CC;
-    for (int i = 1; i < argc; i++) {
-        if      (strcmp(argv[i], "--x11") == 0)     platform = PlatformKind_LinuxX11;
-        else if (strcmp(argv[i], "--wayland") == 0) platform = PlatformKind_LinuxWayland;
-        else if (strcmp(argv[i], "--window") == 0)  platform = PlatformKind_Windows;
-
-        else if (strcmp(argv[i], "--clang") == 0) compiler = CompilerKind_Clang;
-        else if (strcmp(argv[i], "--cl") == 0)    compiler = CompilerKind_Msvc;
-
-        else if (strcmp(argv[i], "--debug") == 0)   opt = OptimizationLevelKind_Debug;
-        else if (strcmp(argv[i], "--release") == 0) opt = OptimizationLevelKind_Release;
-        else if (strcmp(argv[i], "--final") == 0)   opt = OptimizationLevelKind_Final;
+    for(int i = 1; i < argc; i++){
+        if     (strcmp(argv[i], "-x11") == 0)      g_flags.platform = PlatformKind_LinuxX11;
+        else if(strcmp(argv[i], "-wayland") == 0)  g_flags.platform = PlatformKind_LinuxWayland;
+        else if(strcmp(argv[i], "-windows") == 0)  g_flags.platform = PlatformKind_Windows;
+        else if(strcmp(argv[i], "-clang") == 0)    g_flags.compiler = CompilerKind_Clang;
+        else if(strcmp(argv[i], "-cl") == 0)       g_flags.compiler = CompilerKind_Msvc;
+        else if(strcmp(argv[i], "-debug") == 0)    g_flags.opt = OptimizationLevelKind_Debug;
+        else if(strcmp(argv[i], "-release") == 0)  g_flags.opt = OptimizationLevelKind_Release;
+        else if(strcmp(argv[i], "-final") == 0)    g_flags.opt = OptimizationLevelKind_Final;
+        else if(strcmp(argv[i], "-asan") == 0)     g_flags.use_asan = true;
+        else if(strcmp(argv[i], "-unity") == 0)    g_flags.unity = true;
+        else if(strcmp(argv[i], "-log_warn") == 0) nob_minimal_log_level = NOB_WARNING;
+        else{
+            fprintf(stderr, "Unknown flag: %s\n", argv[i]);
+            fprintf(stderr, "Flags: -x11 -wayland -windows -clang -cl -debug -release -final -asan -unity -log_warn\n");
+            return 1;
+        }
     }
 
-    bool is_msvc = compiler == CompilerKind_Msvc;
-    static struct {
-        const char *bin_path;
-        const char *src_path;
-    } targets[] = {
-        { .bin_path = BUILD_FOLDER"dot_engine.o", .src_path = SRC_FOLDER"dot_engine/dot_engine.c" },
-        { .bin_path = BUILD_FOLDER"nuklear.o", .src_path = LIB_FOLDER"Nuklear/nuklear.h" },
-        // { .bin_path = BUILD_FOLDER"nuklear.o", .src_path = SRC_FOLDER"test.c" },
-        // { .bin_path = BUILD_FOLDER"baz", .src_path = SRC_FOLDER"baz.c" },
-    };
+    if(g_flags.compiler == CompilerKind_Msvc && g_flags.platform != PlatformKind_Windows){
+        nob_log(NOB_ERROR, "cl can only target windows (use -windows)");
+        return 1;
+    }
+#if !defined(_WIN32)
+    if(g_flags.compiler == CompilerKind_Clang && g_flags.platform == PlatformKind_Windows){
+        g_flags.msvc_sysroot = getenv("MSVC_SYSROOT");
+        if(!g_flags.msvc_sysroot || !nob_file_exists(g_flags.msvc_sysroot)){
+            nob_log(NOB_ERROR, "MSVC_SYSROOT must point to an msvc-wine install to target windows from this host");
+            return 1;
+        }
+    }
+#endif
+
+    if(!nob_mkdir_if_not_exists(OUTPUT_FOLDER) || !nob_mkdir_if_not_exists(OBJ_FOLDER)){
+        return 1;
+    }
+
+    const char *engine_obj = NULL;
+    const char *third_party_obj = NULL;
+    switch(g_flags.compiler){
+    case CompilerKind_Msvc:{
+        engine_obj      = OBJ_FOLDER "dot_engine.obj";
+        third_party_obj = OBJ_FOLDER "third_party.obj";
+    }break;
+    case CompilerKind_Clang:{
+        engine_obj      = OBJ_FOLDER "dot_engine.o";
+        third_party_obj = OBJ_FOLDER "third_party.o";
+    }break;
+    }
+    const char *exe = g_flags.platform == PlatformKind_Windows ? OUTPUT_FOLDER "dot_engine.exe" : OUTPUT_FOLDER "dot_engine";
+
+    Nob_Procs procs = {0};
+    if(g_flags.platform == PlatformKind_LinuxWayland){
+        if(!generate_wayland_protocols(&procs)) return 1;
+    }
+    if(!compile_object(&procs, "src/dot_engine/dot_engine.c", engine_obj, true)) return 1;
+    if(!g_flags.unity){
+        if(!compile_object(&procs, "src/dot_engine/third_party.c", third_party_obj, false)) return 1;
+    }
+    if(!nob_procs_flush(&procs)) return 1;
 
     Nob_Cmd cmd = {0};
-    Procs procs = {0};
-    PlatformConfig *pc = &platform_cfg[platform];
-    for (size_t i = 0; i < ARRAY_LEN(targets); ++i){
-        nob_cmd_append(&cmd, compiler_kind_str[compiler]);
-
-        append_list(&cmd, is_msvc ? base_flags_msvc : base_flags_clang);
-        append_list(&cmd, is_msvc ? opt_flags_msvc[opt] : opt_flags_clang[opt]);
-
-        append_list(&cmd, pc->defines);
-        // System libs
-        if(i==0){
-            append_list(&cmd, pc->libs);
-            append_list(&cmd, pc->inputs);
-            if(is_msvc){
-                // nob_cmd_append(&cmd, "vulkan-1.lib");
-                nob_cmd_append(&cmd, "/I", "src/");
-            }else{
-                // nob_cmd_append(&cmd, "-lm", "-lvulkan", "-ldl", "-lpthread");
-                nob_cmd_append(&cmd, "-I", "src/", "-Wl,-Tscripts/plugins_section.ld");
-            }
-        }else{
-            nob_cmd_append(&cmd, "-DNK_IMPLEMENTATION");
-        }
-        nob_cc_inputs(&cmd, "-c", targets[i].src_path);
-        nob_cc_output(&cmd, targets[i].bin_path);
-        if (!cmd_run(&cmd, .async = &procs)) return 1;
+    nob_cmd_append(&cmd, g_compiler_kind_str[g_flags.compiler], engine_obj);
+    if(!g_flags.unity){
+        nob_cmd_append(&cmd, third_party_obj);
     }
-
-    nob_log(INFO, "[*] Compiling libs...");
-    if(!procs_flush(&procs)) return 1;
-    nob_cmd_append(&cmd, compiler_kind_str[compiler]);
-    append_list(&cmd, is_msvc ? base_flags_msvc : base_flags_clang);
-    append_list(&cmd, is_msvc ? opt_flags_msvc[opt] : opt_flags_clang[opt]);
-
-    append_list(&cmd, pc->defines);
-    if(is_msvc){
-        nob_cmd_append(&cmd, "vulkan-1.lib");
-        nob_cmd_append(&cmd, "/I", "src/");
-    }else{
-        nob_cmd_append(&cmd, "-lm", "-lvulkan", "-ldl", "-lpthread");
-        nob_cmd_append(&cmd, "-I", "src/", "-Wl,-Tscripts/plugins_section.ld");
-    }
-    append_list(&cmd, pc->defines);
-    append_list(&cmd, pc->libs);
-    append_list(&cmd, pc->inputs);
-    for (size_t i = 0; i < ARRAY_LEN(targets); ++i){
-        nob_cc_inputs(&cmd, targets[0].bin_path);
-    }
-
-    nob_cc_output(&cmd, BUILD_FOLDER"dot_engine");
-    nob_log(INFO, "[*] Linking...");
-    if (!cmd_run(&cmd)) return 1;
+    append_link_flags(&cmd, exe);
+    nob_log(NOB_INFO, "[*] Linking %s", exe);
+    if(!nob_cmd_run(&cmd)) return 1;
 
     return 0;
 }

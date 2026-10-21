@@ -49,10 +49,8 @@ arena_create_from_memory(ArenaInitParams *params)
     arena->committed          = committed,
     arena->commit_expand_size = params->commit_expand_size,
     arena->flags              = params->large_pages ? ArenaFlags_LargePages : 0,
-#if DOT_DEBUG
     arena->name               = params->name,
     arena->parent             = params->parent,
-#endif
 
     ARENA_RESET(arena);
     return arena;
@@ -114,10 +112,8 @@ arena_create_from_os(ArenaInitParams *params)
         .flags              = ArenaFlags_OwnsMemory
                              | (params->large_pages ? ArenaFlags_LargePages : 0)
                              | (params->sparse ? ArenaFlags_Sparse : 0),
-#if DOT_DEBUG
         .name               = params->name,
         .parent             = params->parent,
-#endif
     };
     ARENA_RESET(arena);
     return arena;

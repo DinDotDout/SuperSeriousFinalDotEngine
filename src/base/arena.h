@@ -41,10 +41,8 @@ struct Arena{
 
     ArenaFlags flags;
 
-#if DOT_DEBUG
     Arena *parent; // do we really need this?
     char *name;
-#endif
 };
 DOT_STATIC_ASSERT(ARENA_HEADER_SIZE_B <= PLATFORM_REGULAR_PAGE_SIZE, "Arena header doesn't fit min allocation granularity");
 DOT_STATIC_ASSERT(sizeof(Arena) <= ARENA_HEADER_SIZE_B, "Arena header should fit in a cache line to avoid false sharing on thread arenas");
@@ -68,19 +66,15 @@ typedef struct ArenaInitParams{
     b32 sparse;
 
     // Debug
-#if DOT_DEBUG
     char *name;
     char *reserve_file;
     int   reserve_line;
-#endif
 }ArenaInitParams;
 
 typedef struct ArenaOpParams{
     Arena *arena;
-#if DOT_DEBUG
     char *file;
     u32 line;
-#endif
 }ArenaOpParams;
 
 internal Arena  *arena_create_(ArenaInitParams *);
@@ -101,7 +95,6 @@ internal void       arena_print_debug(Arena *arena);
 internal String8    arena_to_string(Arena *arena);
 
 
-#if DOT_DEBUG
 #define ARENA_DEFAULT_PARAMS(...) \
     &(ArenaInitParams){ \
         .reserve_size       = ARENA_MIN_CAPACITY,\
@@ -119,20 +112,6 @@ internal String8    arena_to_string(Arena *arena);
         .line       = __LINE__, \
         __VA_ARGS__ \
     }
-#else
-#define ARENA_DEFAULT_PARAMS(...) \
-    &(ArenaInitParams){ \
-        .reserve_size       = ARENA_MIN_CAPACITY,\
-        .parent             = NULL, \
-        .commit_expand_size = PLATFORM_REGULAR_PAGE_SIZE, \
-        .large_pages        = false, \
-        __VA_ARGS__ \
-    }
-#define ARENA_OP_PARAMS(...) \
-    &(ArenaOpParams){ \
-        __VA_ARGS__ \
-    }
-#endif
 
 
 #define ARENA_CREATE(...)           arena_create_(ARENA_DEFAULT_PARAMS(__VA_ARGS__))
