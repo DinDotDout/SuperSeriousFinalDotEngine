@@ -83,18 +83,6 @@ typedef struct RFL_Token
     };
 }RFL_Token;
 
-typedef struct RFL_EnumValueArray
-{
-    RFL_EnumValue *v;
-    u32            count;
-}RFL_EnumValueArray;
-
-typedef struct RFL_FieldArray
-{
-    RFL_Field *v;
-    u32        count;
-}RFL_FieldArray;
-
 typedef u32 RFL_ParserMode;
 enum
 {
@@ -108,6 +96,7 @@ typedef struct RFL_Parser
     u64             pos;
     RFL_Token       tok;
     RFL_ParserMode  mode;
+    u32             entry_count;
 }RFL_Parser;
 
 internal void rfl_resolve_type(RFL_Type *type);
@@ -425,17 +414,37 @@ rfl_parse_expr(RFL_Parser *parser)
 }
 
 ////////////////////////////////
-// Body parsers. One pass each: entries are pushed into `scratch` as they're parsed, and the
-// caller copies the result to the permanent arena. A nested resolve (an expression naming
-// another enum's constant) begins and ends its own scratch on the same scratch arena before
-// this parse pushes again, so the entries stay contiguous.
+// Body parsers. Entries go into the parser's own type through rfl_emit_*, which count them
+// in parser->entry_count. Before rfl_init reserves storage the type has no array and the
+// parse only counts; afterwards each write is checked against the count the type holds.
+
+internal void
+rfl_emit_value(RFL_Parser *parser, RFL_EnumValue value)
+{
+    RFL_Type *type = parser->type;
+    if(type->values){
+        DOT_ASSERT(parser->entry_count < type->value_count, "Reflect %S: more values than were counted", type->name);
+        type->values[parser->entry_count] = value;
+    }
+    parser->entry_count += 1;
+}
+
+internal void
+rfl_emit_field(RFL_Parser *parser, RFL_Field field)
+{
+    RFL_Type *type = parser->type;
+    if(type->fields){
+        DOT_ASSERT(parser->entry_count < type->field_count, "Reflect %S: more fields than were counted", type->name);
+        type->fields[parser->entry_count] = field;
+    }
+    parser->entry_count += 1;
+}
 
 // When evaluating, each value is published to its constant right away, so later values
 // in the same enum can refer to earlier ones.
-internal RFL_EnumValueArray
-rfl_parse_enum(Arena *arena, RFL_Parser *parser)
+internal void
+rfl_parse_enum(RFL_Parser *parser)
 {
-    RFL_EnumValueArray values = {0};
     i64 next_value = 0;
     rfl_expect_punct(parser, '{');
     while(!rfl_token_is_punct(parser, '}')){
@@ -449,12 +458,8 @@ rfl_parse_enum(Arena *arena, RFL_Parser *parser)
             constant->value = value;
             constant->known = true;
         }
-        RFL_EnumValue *entry = PUSH_COPY(arena, &(RFL_EnumValue){.name = value_name, .value = value});
-        if(values.count == 0){
-            values.v = entry;
-        }
-        values.count += 1;
-        next_value    = value + 1;
+        rfl_emit_value(parser, (RFL_EnumValue){.name = value_name, .value = value});
+        next_value = value + 1;
         if(!rfl_accept_punct(parser, ',')){
             break;
         }
@@ -462,13 +467,12 @@ rfl_parse_enum(Arena *arena, RFL_Parser *parser)
     }
     rfl_expect_punct(parser, '}');
     rfl_expect_body_end(parser);
-    return(values);
 }
 
-internal RFL_FieldArray
-rfl_parse_struct(Arena *arena, RFL_Parser *parser)
+internal void
+rfl_parse_struct(RFL_Parser *parser)
 {
-    RFL_FieldArray fields = {0};
+    RFL_Field *fields = parser->type->fields;
     rfl_expect_punct(parser, '{');
     while(!rfl_token_is_punct(parser, '}')){
         // One declaration: [const] [struct|union] Type a, [tags] *b, [tags] c[N]; [tags]
@@ -483,7 +487,7 @@ rfl_parse_struct(Arena *arena, RFL_Parser *parser)
             type_name = rfl_expect_identifier(parser);
         }
         // Each comma-separated name in the declaration is its own field.
-        u64 decl_first_field = fields.count;
+        u32 decl_first_field = parser->entry_count;
         for(;;){
             u32 pointer_depth = 0;
             while(rfl_accept_punct(parser, '*')){
@@ -499,32 +503,31 @@ rfl_parse_struct(Arena *arena, RFL_Parser *parser)
                 }
                 array_count = cast(u32)array_size;
             }
-            RFL_Field *field = PUSH_COPY(arena, &(RFL_Field){
+            RFL_Field field = {
                 .name          = field_name,
                 .type_name     = type_name,
                 .array_count   = array_count,
                 .pointer_depth = pointer_depth,
-            });
-            if(fields.count == 0){
-                fields.v = field;
+            };
+            b32 more_declarators = rfl_accept_punct(parser, ',');
+            if(more_declarators){
+                field.tag = rfl_parse_tags(parser);
             }
-            fields.count += 1;
-            if(!rfl_accept_punct(parser, ',')){
+            rfl_emit_field(parser, field);
+            if(!more_declarators){
                 break;
             }
-            field->tag = rfl_parse_tags(parser);
         }
         rfl_expect_punct(parser, ';');
         String8 decl_tag = rfl_parse_tags(parser);
-        for(u64 i = decl_first_field; i < fields.count; i++){
-            if(fields.v[i].tag.size == 0){
-                fields.v[i].tag = decl_tag;
+        for(u32 i = decl_first_field; fields && i < parser->entry_count; i++){
+            if(fields[i].tag.size == 0){
+                fields[i].tag = decl_tag;
             }
         }
     }
     rfl_expect_punct(parser, '}');
     rfl_expect_body_end(parser);
-    return(fields);
 }
 DOT_DIAGNOSTIC_POP
 
@@ -545,50 +548,34 @@ rfl_type_lookup(String8 name)
 internal void
 rfl_register_enum_constants(RFL_Type *type)
 {
-    Scratch scratch = scratch_begin(0,0);
     RFL_Parser parser = rfl_parser_begin(type, RFL_ParserMode_Scan);
+    rfl_parse_enum(&parser);
+    DOT_ASSERT(parser.entry_count == type->value_count, "Reflect %S: fewer values than were counted", type->name);
 
-    RFL_EnumValueArray values = rfl_parse_enum(scratch.arena, &parser);
-
-    for(u32 value_index = 0; value_index < values.count; ++value_index){
-        String8 name = values.v[value_index].name;
+    for(u32 value_index = 0; value_index < type->value_count; ++value_index){
+        String8 name = type->values[value_index].name;
         RFL_Const *constant = hm_get_or_create(rfl_g_registry.arena, &rfl_g_registry.consts, name);
         if(constant->owner || constant->known){
             DOT_ERROR_FL(type->file, cast(i32)type->line, "Reflect %S: constant '%S' is already defined", type->name, name);
         }
         constant->owner = type;
     }
-    scratch_end(scratch);
 }
 
 internal void
 rfl_resolve_enum(RFL_Type *type)
 {
-    Scratch scratch = scratch_begin(0,0);
-
-    RFL_Parser parser           = rfl_parser_begin(type, RFL_ParserMode_Evaluate);
-    RFL_EnumValueArray values   = rfl_parse_enum(scratch.arena, &parser);
-
-    type->value_count = values.count;
-    type->values      = PUSH_ARRAY(rfl_g_registry.arena, RFL_EnumValue, values.count);
-    MEMORY_COPY(type->values, values.v, values.count * sizeof(RFL_EnumValue));
-
-    scratch_end(scratch);
+    RFL_Parser parser = rfl_parser_begin(type, RFL_ParserMode_Evaluate);
+    rfl_parse_enum(&parser);
+    DOT_ASSERT(parser.entry_count == type->value_count, "Reflect %S: fewer values than were counted", type->name);
 }
 
 internal void
 rfl_resolve_struct(RFL_Type *type)
 {
-    Scratch scratch = scratch_begin(0,0);
-
-    RFL_Parser parser       = rfl_parser_begin(type, RFL_ParserMode_Evaluate);
-    RFL_FieldArray fields   = rfl_parse_struct(scratch.arena, &parser);
-
-    type->field_count = fields.count;
-    type->fields      = PUSH_ARRAY(rfl_g_registry.arena, RFL_Field, fields.count);
-    MEMORY_COPY(type->fields, fields.v, fields.count * sizeof(RFL_Field));
-
-    scratch_end(scratch);
+    RFL_Parser parser = rfl_parser_begin(type, RFL_ParserMode_Evaluate);
+    rfl_parse_struct(&parser);
+    DOT_ASSERT(parser.entry_count == type->field_count, "Reflect %S: fewer fields than were counted", type->name);
 
     // Lay the fields out the way a C compiler does.
     u32 offset       = 0;
@@ -637,19 +624,35 @@ rfl_resolve_type(RFL_Type *type)
 }
 
 ////////////////////////////////
-// Init: build the char table, then three passes over every Reflect* entry in the linker section.
-//   1. Register type names and ReflectConst values.
-//   2. Register every enum's constant names.
-//   3. Resolve every type.
+// Init: build the char table, then passes over the two linker sections.
+//   1. Register type names (ReflectSection).
+//   2. Count every enum's values and every struct's fields, then reserve all of them at once.
+//   3. Register ReflectConst values (ReflectConstSection), then every enum's constant names.
+//   4. Resolve every type.
+// The section counts and the totals from 2 size both hash maps.
 
 internal b32
 rfl_type_same_definition(RFL_Type *a, RFL_Type *b)
 {
-    return a->kind        == b->kind  &&
-           a->size        == b->size  &&
-           a->align       == b->align &&
-           a->const_value == b->const_value &&
+    return a->kind  == b->kind  &&
+           a->size  == b->size  &&
+           a->align == b->align &&
            string8_equal(a->body, b->body);
+}
+
+// Smallest power of two >= entry_count: the hash map masks with MOD_POW2, so bucket counts
+// must be powers of two. Doubling from 1 only ever visits powers of two. A bit scan
+// (1 << (32 - clz(entry_count - 1))) would do it without the loop.
+// TODO: (jd) move this into dot.h math as a shared u32_next_pow2 so other hash maps can size themselves the same way.
+internal u32
+rfl_bucket_count(u64 entry_count)
+{
+    u32 bucket_count = 1;
+    while(bucket_count < entry_count){
+        bucket_count <<= 1;
+    }
+    DOT_ASSERT(IS_POW2(bucket_count), "Hash map bucket counts must be powers of two");
+    return(bucket_count);
 }
 
 internal void
@@ -658,25 +661,9 @@ rfl_init(Arena *arena)
     rfl_char_flags_init();
 
     rfl_g_registry.arena = arena;
-    hm_init_string8(arena, &rfl_g_registry.types, RFL_TYPE_BUCKETS_MAX);
-    hm_init_string8(arena, &rfl_g_registry.consts, RFL_CONST_BUCKETS_MAX);
+    hm_init_string8(arena, &rfl_g_registry.types, rfl_bucket_count(SECTION_COUNT(ReflectSection)));
 
     for EACH_IN_SECTION(ReflectSection, RFL_Type, type){
-        if(type->kind == RFL_TypeKind_Const){
-            RFL_Const *constant = hm_get_or_create(arena, &rfl_g_registry.consts, type->name);
-            if(constant->owner && rfl_type_same_definition(constant->owner, type)){
-                type->canonical = constant->owner;
-                continue;
-            }
-            if(constant->owner || constant->known){
-                DOT_ERROR_FL(type->file, cast(i32)type->line, "ReflectConst %S: constant is already defined", type->name);
-            }
-            constant->owner = type;
-            constant->value = type->const_value;
-            constant->known = true;
-            type->canonical = type;
-            continue;
-        }
         RFL_Type **type_slot = hm_get_or_create(arena, &rfl_g_registry.types, type->name);
         if(*type_slot && rfl_type_same_definition(*type_slot, type)){
             type->canonical = *type_slot;
@@ -689,6 +676,51 @@ rfl_init(Arena *arena)
         type->canonical = type;
     }
 
+    u64 value_total = 0;
+    u64 field_total = 0;
+    for EACH_IN_SECTION(ReflectSection, RFL_Type, type){
+        if(type->canonical != type){
+            continue;
+        }
+        RFL_Parser parser = rfl_parser_begin(type, RFL_ParserMode_Scan);
+        if(type->kind == RFL_TypeKind_Enum){
+            rfl_parse_enum(&parser);
+            type->value_count = parser.entry_count;
+            value_total      += type->value_count;
+        }else if(type->kind == RFL_TypeKind_Struct){
+            rfl_parse_struct(&parser);
+            type->field_count = parser.entry_count;
+            field_total      += type->field_count;
+        }
+    }
+
+    RFL_EnumValue *next_values = PUSH_ARRAY(arena, RFL_EnumValue, value_total);
+    RFL_Field     *next_fields = PUSH_ARRAY(arena, RFL_Field, field_total);
+    for EACH_IN_SECTION(ReflectSection, RFL_Type, type){
+        if(type->canonical != type){
+            continue;
+        }
+        type->values  = next_values;
+        type->fields  = next_fields;
+        next_values  += type->value_count;
+        next_fields  += type->field_count;
+    }
+
+    hm_init_string8(arena, &rfl_g_registry.consts, rfl_bucket_count(SECTION_COUNT(ReflectConstSection) + value_total));
+
+    for EACH_IN_SECTION(ReflectConstSection, RFL_ConstDef, def){
+        RFL_Const *constant = hm_get_or_create(arena, &rfl_g_registry.consts, def->name);
+        if(constant->def && constant->def->value == def->value){
+            continue;
+        }
+        if(constant->known){
+            DOT_ERROR_FL(def->file, cast(i32)def->line, "ReflectConst %S: already defined at %s:%u", def->name, constant->def->file, constant->def->line);
+        }
+        constant->def   = def;
+        constant->value = def->value;
+        constant->known = true;
+    }
+
     for EACH_IN_SECTION(ReflectSection, RFL_Type, type){
         if(type->kind == RFL_TypeKind_Enum && type->canonical == type){
             rfl_register_enum_constants(type);
@@ -696,7 +728,7 @@ rfl_init(Arena *arena)
     }
 
     for EACH_IN_SECTION(ReflectSection, RFL_Type, type){
-        if(type->kind != RFL_TypeKind_Const && type->canonical == type){
+        if(type->canonical == type){
             rfl_resolve_type(type);
         }
     }
@@ -826,6 +858,16 @@ DOT_TEST_SUITE(rfl_tests)
     DOT_TEST_CHECK(test, "duplicate canonical", rfl_test_f32x2_other_tu.canonical == reflect_type(f32x2));
     DOT_TEST_CHECK(test, "duplicate skipped",   rfl_test_f32x2_other_tu.canonical != &rfl_test_f32x2_other_tu);
     DOT_TEST_CHECK(test, "duplicate lookup",    rfl_type_lookup(str_comp("f32x2")) == reflect_type(f32x2));
+
+    SECTION_ITEM(ReflectConstSection) static RFL_ConstDef rfl_test_scale_other_tu = {
+        .name  = str_lit("RFL_TEST_SCALE"),
+        .value = RFL_TEST_SCALE,
+        .file  = __FILE__,
+        .line  = __LINE__,
+    };
+    RFL_Const *scale = hm_get(&rfl_g_registry.consts, str_comp("RFL_TEST_SCALE"));
+    DOT_TEST_CHECK(test, "duplicate const",     scale && scale->value == RFL_TEST_SCALE && scale->def != &rfl_test_scale_other_tu);
+    DOT_TEST_CHECK(test, "values reserved",     flags->values == kind->values + kind->value_count || kind->values == flags->values + flags->value_count);
 
     return(test);
 }

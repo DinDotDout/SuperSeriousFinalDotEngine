@@ -37,7 +37,6 @@ enum
     RFL_TypeKind_Bool,
     RFL_TypeKind_Enum,
     RFL_TypeKind_Struct,
-    RFL_TypeKind_Const,
 };
 
 struct alignas(16) RFL_Type
@@ -53,8 +52,6 @@ struct alignas(16) RFL_Type
     u32               value_count;
     RFL_EnumValue    *values;
 
-    i64               const_value;
-
     String8           body;
     u32               line;
     char             *file;
@@ -68,18 +65,21 @@ typedef struct RFL_Any
     void     *data;
 }RFL_Any;
 
+typedef struct alignas(16) RFL_ConstDef
+{
+    String8  name;
+    i64      value;
+    char    *file;
+    u32      line;
+}RFL_ConstDef;
+
 typedef struct RFL_Const
 {
-    RFL_Type *owner;
-    i64       value;
-    b32       known;
+    RFL_Type     *owner;
+    RFL_ConstDef *def;
+    i64           value;
+    b32           known;
 }RFL_Const;
-
-enum
-{
-    RFL_TYPE_BUCKETS_MAX  = 256,
-    RFL_CONST_BUCKETS_MAX = 512,
-};
 
 typedef struct RFL_Registry
 {
@@ -89,6 +89,7 @@ typedef struct RFL_Registry
 }RFL_Registry;
 
 SECTION_DECLARE(RFL_Type, ReflectSection);
+SECTION_DECLARE(RFL_ConstDef, ReflectConstSection);
 #define RFL_SECTION_ITEM SECTION_ITEM(ReflectSection)
 #define RFL_MARKER(T) enum { T##_is_not_reflected_use_Reflect = 0 }
 
@@ -120,12 +121,11 @@ SECTION_DECLARE(RFL_Type, ReflectSection);
     RFL_DEFINE_TYPE(T, RFL_TypeKind_Struct, #__VA_ARGS__)
 
 #define ReflectConst(c) \
-    RFL_SECTION_ITEM static RFL_Type rfl_g_const_##c = { \
-        .kind        = RFL_TypeKind_Const, \
-        .name        = str_lit(#c), \
-        .file        = __FILE__, \
-        .line        = __LINE__, \
-        .const_value = cast(i64)(c), \
+    SECTION_ITEM(ReflectConstSection) static RFL_ConstDef rfl_g_const_##c = { \
+        .name  = str_lit(#c), \
+        .value = cast(i64)(c), \
+        .file  = __FILE__, \
+        .line  = __LINE__, \
     }
 
 #define reflect_type(T) ((void)T##_is_not_reflected_use_Reflect, rfl_g_type_##T.canonical)
