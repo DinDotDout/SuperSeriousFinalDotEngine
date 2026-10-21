@@ -16,41 +16,6 @@ raw_buffer_get(u8 raw_buffer[], u32 elem_idx, u32 elem_size)
 
 ////////////////////////////////////////////////////////////////
 ///
-///NODE
-
-internal u8 *
-arena_push_llnode(Arena *arena, u32 size, u32 offset, u32 align)
-{
-    u8 *mem = ARENA_PUSH(arena, size, align, false);
-    LLNode *node = cast(LLNode *)(mem + offset);
-    node->next  = cast(LLNode *)&g_llnode_sentinel;
-    return mem;
-}
-
-////////////////////////////////////////////////////////////////
-///
-/// Free List
-
-internal u8 *
-free_list_get_or_create(Arena *arena, LLHead *head, u32 size, u32 offset, u32 align)
-{
-    LLNode *first = head->first;
-    if (LLNodeIsNil(first)){
-        u8 *new = arena_push_llnode(arena, size, offset, align);
-        return new;
-    }
-    return (cast(u8*)first) - offset;
-}
-
-internal void
-free_list_free(LLHead *head, LLNode *node)
-{
-    node->next = head->first;
-    head->first = node;
-}
-
-////////////////////////////////////////////////////////////////
-///
 /// Pool
 
 internal u64
@@ -158,7 +123,7 @@ memory_pool_alloc(Arena *arena, MemoryPool *multi_memory_pool)
 {
     MemoryPoolBlock *next_free = multi_memory_pool->next_free_block;
     if(next_free){
-        multi_memory_pool->next_free_block = next_free->next_block;
+        SLL_STACK_POP(multi_memory_pool->next_free_block);
         return next_free->memory;
     }
     MemoryPoolBlock *new_block = (MemoryPoolBlock*)PUSH_SIZE(arena, sizeof(MemoryPoolBlock) + multi_memory_pool->block_size_b);
@@ -179,9 +144,7 @@ memory_pool_free(MemoryPool *multi_memory_pool, u8 *ptr)
         DOT_ERROR("Tag corruption. Either you passed in memory not owned by this pool or the tag got corrupted");
     }
 #endif
-    MemoryPoolBlock *free_block = multi_memory_pool->next_free_block;
-    multi_memory_pool->next_free_block = block;
-    block->next_block = free_block;
+    SLL_STACK_PUSH(multi_memory_pool->next_free_block, block);
 }
 
 ////////////////////////////////////////////////////////////////

@@ -59,6 +59,7 @@ struct alignas(16) RFL_Type
     u32               line;
     char             *file;
     RFL_ResolveState  resolve_state;
+    RFL_Type         *canonical;
 };
 
 typedef struct RFL_Any

@@ -361,28 +361,12 @@ string8_from_cstring_capped(void *cstr, void *cap)
     return (String8){.str = start, .size = size};
 }
 
-internal String8Node *
-string8_node(LLNode *node)
-{
-    String8Node *str8node = LLNodeGet(String8Node, node);
-    return str8node;
-}
-
-internal String8Node *
-string8_node_next(String8Node *node)
-{
-    String8Node *next = LLNodeNext(String8Node, node);
-    return(next);
-}
-
 internal void
 string8_list_push_node(Arena *arena, String8List *list, String8 string)
 {
-    String8Node *str8node = PushLLNode(arena, String8Node);
-    str8node->str.str   = string.str;
-    str8node->str.size  = string.size;
-
-    list->head.last = &str8node->node;
+    String8Node *str8node = PUSH_STRUCT(arena, String8Node);
+    str8node->str = string;
+    SLL_QUEUE_PUSH(list->first, list->last, str8node);
     list->count += 1;
     list->total_size += string.size;
 }
@@ -390,8 +374,7 @@ string8_list_push_node(Arena *arena, String8List *list, String8 string)
 internal String8List
 string8_split(Arena *arena, String8 string, u64 split_char_count, u8 *split_chars)
 {
-    String8List list = llhead_lit();
-    string8_list_join(arena, &list);
+    String8List list = {0};
     u8 *substr = string.str;
 
     u8 *head = string.str;
@@ -426,12 +409,10 @@ string8_list_join(Arena *arena, String8List *list)
     res.str = PUSH_ARRAY_NO_ZERO(arena, u8, list->total_size);
 
     u64 pos = 0;
-    String8Node *curr_node = LLHeadFirst(String8Node, list);
-    for(u64 i = 0; i < list->count; ++i){
+    for(String8Node *curr_node = list->first; curr_node; curr_node = curr_node->next){
         String8 curr_str = curr_node->str;
         MEMORY_COPY(res.str+pos, curr_str.str, curr_str.size);
         pos += curr_str.size;
-        curr_node = string8_node_next(curr_node);
     }
     return res;
 }

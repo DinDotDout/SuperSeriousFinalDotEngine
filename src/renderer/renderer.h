@@ -16,7 +16,7 @@ typedef struct RN_PSOGraphics{
     String8         fs_path;
     String8         vs_path;
     RB_RasterDesc   raster_desc;
-    DOT_DebugName16(debug_name);
+    DOT_DebugName16(debug_name)
 }RN_PSOGraphics;
 
 typedef struct RN_ResourceCleanupCtx{

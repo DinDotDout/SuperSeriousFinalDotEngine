@@ -15,6 +15,7 @@
 #include <string.h>
 // va_start, va_end
 #include <stdarg.h>
+#include <float.h>
 
 #include "base/base_types.h"
 
@@ -82,10 +83,10 @@
 //
 // Keep this around for when using sorting functions
 #if DOT_COMPILER_MSVC
-#   define force_inline __forceinline __declspec(safebuffers)
+#   define force_inline __forceinline
 #   define COMPILER_RESET(ptr) __assume(ptr)
 #elif DOT_COMPILER_GCC || DOT_COMPILER_CLANG
-#   define force_inline __attribute__((always_inline))
+#   define force_inline inline __attribute__((always_inline))
 #   define COMPILER_RESET(ptr)
 #endif
 
@@ -474,15 +475,17 @@ typedef struct DOT_DebugName8{
 }DOT_DebugName;
 
 #if DOT_DEBUG
-#   define DOT_DebugName32(field) DOT_DebugName32 field
-#   define DOT_DebugName16(field) DOT_DebugName16 field
-#   define DOT_DebugName8(field) DOT_DebugName8 field
+#   define DOT_DebugName32(field) DOT_DebugName32 field;
+#   define DOT_DebugName16(field) DOT_DebugName16 field;
+#   define DOT_DebugName8(field) DOT_DebugName8 field;
 #   define DOT_DebugNameSet(field, str8) dot_debug_name_set(sizeof(field.buff), field.buff, str8)
+#   define DOT_DebugNameGet(field) string8_from_cstring((field).buff)
 #else
 #   define DOT_DebugName32(field)
 #   define DOT_DebugName16(field)
 #   define DOT_DebugName8(field)
 #   define DOT_DebugNameSet(buff, str8) (void) str8
+#   define DOT_DebugNameGet(field) ((String8){0})
 #endif
 
 

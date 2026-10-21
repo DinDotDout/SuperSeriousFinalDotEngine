@@ -95,6 +95,12 @@ internal b8             rb_vk_image_create_info_supported(VkImageCreateInfo *inf
 internal void           rb_vk_texture_memory_select(void);
 
 ////////////////////////////////////////////////////////////////
+/// RB_VK_GPU_ADDRESS
+
+// (jd) Fallback path for GPUs without VK_KHR_device_address_commands.
+internal VkBuffer rb_vk_buffer_from_gpu_address(RB_GpuAddress address, VkDeviceSize *out_offset);
+
+////////////////////////////////////////////////////////////////
 /// RB_VK_GLOBALS
 
 global RB_VK_BackendCtx *rb_vk_g_ctx;
@@ -174,6 +180,7 @@ read_only global RB_VK_VulkanConfig rb_vk_g_config = {
             },
             [RB_VK_DeviceFeature_DeviceAddressCommands] = {
                 .extension = str_lit(VK_KHR_DEVICE_ADDRESS_COMMANDS_EXTENSION_NAME),
+                .optional = true,
                 .features = &(VkPhysicalDeviceDeviceAddressCommandsFeaturesKHR){
                     .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DEVICE_ADDRESS_COMMANDS_FEATURES_KHR,
                     .deviceAddressCommands = VK_TRUE,
@@ -1048,7 +1055,7 @@ rb_vk_texture_create(RB_CommandBuffer cmd_h, RB_TextureDesc *desc, RB_TextureHea
 
     RB_VK_Texture *texture = rb_vk_g_ctx->texture_free;
     if(texture){
-        rb_vk_g_ctx->texture_free = texture->next;
+        SLL_STACK_POP(rb_vk_g_ctx->texture_free);
         MEMORY_ZERO_STRUCT(texture);
     }else{
         texture = PUSH_STRUCT(rb_vk_g_ctx->permanent_arena, RB_VK_Texture);
@@ -1243,7 +1250,7 @@ rb_vk_pipeline_alloc(void)
 {
     RB_VK_Pipeline *pipeline = rb_vk_g_ctx->pipeline_free;
     if(pipeline){
-        rb_vk_g_ctx->pipeline_free = pipeline->next;
+        SLL_STACK_POP(rb_vk_g_ctx->pipeline_free);
         MEMORY_ZERO_STRUCT(pipeline);
     }else{
         pipeline = PUSH_STRUCT(rb_vk_g_ctx->permanent_arena, RB_VK_Pipeline);
@@ -1475,8 +1482,7 @@ rb_vk_pipeline_destroy(RB_Pipeline handle)
     RB_VK_Pipeline *pipeline = RB_HANDLE_UNPACK(RB_VK_Pipeline*, handle);
     if(!pipeline){ return; }
     vkDestroyPipeline(rb_vk_g_ctx->device.vk_device, pipeline->vk_pipeline, NULL);
-    pipeline->next = rb_vk_g_ctx->pipeline_free;
-    rb_vk_g_ctx->pipeline_free = pipeline;
+    SLL_STACK_PUSH(rb_vk_g_ctx->pipeline_free, pipeline);
 }
 
 internal void
@@ -1492,8 +1498,7 @@ rb_vk_texture_destroy(RB_Texture handle)
     if(texture->vk_memory != VK_NULL_HANDLE){
         vkFreeMemory(device, texture->vk_memory, NULL);
     }
-    texture->next = rb_vk_g_ctx->texture_free;
-    rb_vk_g_ctx->texture_free = texture;
+    SLL_STACK_PUSH(rb_vk_g_ctx->texture_free, texture);
 }
 
 internal void
@@ -1845,6 +1850,10 @@ rb_vk_init(Arena *arena, PlatformNativeWindow window, RB_DeviceDesc const *desc)
         }
         device->mesh_shaders  = feature_enabled[RB_VK_DeviceFeature_MeshShader];
         device->memory_budget = feature_enabled[RB_VK_DeviceFeature_MemoryBudget];
+        device->device_address_commands = feature_enabled[RB_VK_DeviceFeature_DeviceAddressCommands];
+        if(!device->device_address_commands){
+            DOT_WARNING("VK_KHR_device_address_commands unsupported, falling back to resolving GPU addresses to VkBuffers");
+        }
 
         VkDeviceCreateInfo device_create_info = {
             .sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
@@ -1979,7 +1988,7 @@ rb_vk_render_view_create(RB_Texture texture_h, RB_RenderViewDesc desc)
 
     RB_VK_RenderView *view = rb_vk_g_ctx->render_view_free;
     if(view){
-        rb_vk_g_ctx->render_view_free = view->next;
+        SLL_STACK_POP(rb_vk_g_ctx->render_view_free);
         MEMORY_ZERO_STRUCT(view);
     }else{
         view = PUSH_STRUCT(rb_vk_g_ctx->permanent_arena, RB_VK_RenderView);
@@ -2016,8 +2025,7 @@ rb_vk_render_view_destroy(RB_RenderView handle)
 
     DOT_ASSERT(!view->swapchain_image, "Swapchain render views are owned by the backend");
     vkDestroyImageView(rb_vk_g_ctx->device.vk_device, view->vk_image_view, NULL);
-    view->next = rb_vk_g_ctx->render_view_free;
-    rb_vk_g_ctx->render_view_free = view;
+    SLL_STACK_PUSH(rb_vk_g_ctx->render_view_free, view);
 }
 
 ////////////////////////////////////////////////////////////////
@@ -2134,7 +2142,7 @@ rb_vk_command_pool_create(void)
 {
     RB_VK_CommandPool *pool = rb_vk_g_ctx->command_pool_free;
     if(pool){
-        rb_vk_g_ctx->command_pool_free = pool->next;
+        SLL_STACK_POP(rb_vk_g_ctx->command_pool_free);
         MEMORY_ZERO_STRUCT(pool);
     }else{
         pool = PUSH_STRUCT(rb_vk_g_ctx->permanent_arena, RB_VK_CommandPool);
@@ -2157,8 +2165,7 @@ rb_vk_command_pool_destroy(RB_CommandPool pool_h)
         if(cmd->timestamp_pool){ vkDestroyQueryPool(device, cmd->timestamp_pool, NULL); }
     }
     vkDestroyCommandPool(device, pool->vk_pool, NULL);
-    pool->next = rb_vk_g_ctx->command_pool_free;
-    rb_vk_g_ctx->command_pool_free = pool;
+    SLL_STACK_PUSH(rb_vk_g_ctx->command_pool_free, pool);
 }
 
 internal void
@@ -2195,8 +2202,7 @@ rb_vk_commands_begin(RB_CommandPool pool_h)
             RB_VK_CHECK(vkCreateQueryPool(device, &query_info, NULL, &cmd->timestamp_pool));
             cmd->timestamp_dsts = PUSH_ARRAY(rb_vk_g_ctx->permanent_arena, RB_GpuAddress, rb_vk_g_ctx->device.timestamp_query_count);
         }
-        if(pool->last){ pool->last->next = cmd; }else{ pool->first = cmd; }
-        pool->last = cmd;
+        SLL_QUEUE_PUSH(pool->first, pool->last, cmd);
     }
 
     VkCommandBufferBeginInfo begin_info = {0};
@@ -2470,12 +2476,19 @@ rb_vk_root_push(RB_VK_CommandBuffer *cmd, RB_GpuAddress root)
 internal void
 rb_vk_index_buffer_bind(RB_VK_CommandBuffer *cmd, RB_GpuRange indices, RB_IndexKind index_kind)
 {
+    VkIndexType index_type = index_kind == RB_IndexKind_U16 ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32;
+    if(!rb_vk_g_ctx->device.device_address_commands){
+        VkDeviceSize offset = 0;
+        VkBuffer vk_buffer = rb_vk_buffer_from_gpu_address(indices.gpu, &offset);
+        vkCmdBindIndexBuffer(cmd->vk_cmd, vk_buffer, offset, index_type);
+        return;
+    }
     VkBindIndexBuffer3InfoKHR bind_info = {0};
     bind_info.sType                = VK_STRUCTURE_TYPE_BIND_INDEX_BUFFER_3_INFO_KHR;
     bind_info.addressRange.address = indices.gpu;
     bind_info.addressRange.size    = cast(u64)indices.size;
     bind_info.addressFlags         = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR;
-    bind_info.indexType            = index_kind == RB_IndexKind_U16 ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32;
+    bind_info.indexType            = index_type;
     vkCmdBindIndexBuffer3KHR(cmd->vk_cmd, &bind_info);
 }
 
@@ -2502,11 +2515,18 @@ rb_vk_draw_indirect(RB_CommandBuffer cmd_h, RB_GpuAddress root, RB_GpuRange args
     RB_VK_CommandBuffer *cmd = RB_HANDLE_UNPACK(RB_VK_CommandBuffer*, cmd_h);
     rb_vk_root_push(cmd, root);
 
+    u32 draw_stride = stride ? stride : sizeof(RB_DrawIndirectArgs);
+    if(!rb_vk_g_ctx->device.device_address_commands){
+        VkDeviceSize offset = 0;
+        VkBuffer vk_buffer = rb_vk_buffer_from_gpu_address(args.gpu, &offset);
+        vkCmdDrawIndirect(cmd->vk_cmd, vk_buffer, offset, draw_count, draw_stride);
+        return;
+    }
     VkDrawIndirect2InfoKHR info = {0};
     info.sType                = VK_STRUCTURE_TYPE_DRAW_INDIRECT_2_INFO_KHR;
     info.addressRange.address = args.gpu;
     info.addressRange.size    = cast(u64)args.size;
-    info.addressRange.stride  = stride ? stride : sizeof(RB_DrawIndirectArgs);
+    info.addressRange.stride  = draw_stride;
     info.addressFlags         = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR;
     info.drawCount            = draw_count;
     vkCmdDrawIndirect2KHR(cmd->vk_cmd, &info);
@@ -2519,11 +2539,18 @@ rb_vk_draw_indexed_indirect(RB_CommandBuffer cmd_h, RB_GpuAddress root, RB_GpuRa
     rb_vk_root_push(cmd, root);
     rb_vk_index_buffer_bind(cmd, indices, index_kind);
 
+    u32 draw_stride = stride ? stride : sizeof(RB_DrawIndexedIndirectArgs);
+    if(!rb_vk_g_ctx->device.device_address_commands){
+        VkDeviceSize offset = 0;
+        VkBuffer vk_buffer = rb_vk_buffer_from_gpu_address(args.gpu, &offset);
+        vkCmdDrawIndexedIndirect(cmd->vk_cmd, vk_buffer, offset, draw_count, draw_stride);
+        return;
+    }
     VkDrawIndirect2InfoKHR info = {0};
     info.sType                = VK_STRUCTURE_TYPE_DRAW_INDIRECT_2_INFO_KHR;
     info.addressRange.address = args.gpu;
     info.addressRange.size    = cast(u64)args.size;
-    info.addressRange.stride  = stride ? stride : sizeof(RB_DrawIndexedIndirectArgs);
+    info.addressRange.stride  = draw_stride;
     info.addressFlags         = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR;
     info.drawCount            = draw_count;
     vkCmdDrawIndexedIndirect2KHR(cmd->vk_cmd, &info);
@@ -2545,11 +2572,18 @@ rb_vk_draw_meshlets_indirect(RB_CommandBuffer cmd_h, RB_GpuAddress root, RB_GpuR
     RB_VK_CommandBuffer *cmd = RB_HANDLE_UNPACK(RB_VK_CommandBuffer*, cmd_h);
     rb_vk_root_push(cmd, root);
 
+    u32 draw_stride = stride ? stride : sizeof(RB_DrawMeshletsIndirectArgs);
+    if(!rb_vk_g_ctx->device.device_address_commands){
+        VkDeviceSize offset = 0;
+        VkBuffer vk_buffer = rb_vk_buffer_from_gpu_address(args.gpu, &offset);
+        vkCmdDrawMeshTasksIndirectEXT(cmd->vk_cmd, vk_buffer, offset, draw_count, draw_stride);
+        return;
+    }
     VkDrawIndirect2InfoKHR info = {0};
     info.sType                = VK_STRUCTURE_TYPE_DRAW_INDIRECT_2_INFO_KHR;
     info.addressRange.address = args.gpu;
     info.addressRange.size    = cast(u64)args.size;
-    info.addressRange.stride  = stride ? stride : sizeof(RB_DrawMeshletsIndirectArgs);
+    info.addressRange.stride  = draw_stride;
     info.addressFlags         = VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR;
     info.drawCount            = draw_count;
     vkCmdDrawMeshTasksIndirect2EXT(cmd->vk_cmd, &info);
@@ -2571,6 +2605,12 @@ rb_vk_dispatch_indirect(RB_CommandBuffer cmd_h, RB_GpuAddress root, RB_GpuRange 
     rb_vk_assert_outside_suspended_pass(cmd);
     rb_vk_root_push(cmd, root);
 
+    if(!rb_vk_g_ctx->device.device_address_commands){
+        VkDeviceSize offset = 0;
+        VkBuffer vk_buffer = rb_vk_buffer_from_gpu_address(args.gpu, &offset);
+        vkCmdDispatchIndirect(cmd->vk_cmd, vk_buffer, offset);
+        return;
+    }
     VkDispatchIndirect2InfoKHR info = {0};
     info.sType                = VK_STRUCTURE_TYPE_DISPATCH_INDIRECT_2_INFO_KHR;
     info.addressRange.address = args.gpu;
@@ -2597,12 +2637,19 @@ internal void
 rb_vk_timestamps_copy(VkCommandBuffer vk_cmd, RB_VK_CommandBuffer *owner)
 {
     for(u32 i = 0; i < owner->timestamp_count; ++i){
+        VkQueryResultFlags result_flags = VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT;
+        if(!rb_vk_g_ctx->device.device_address_commands){
+            VkDeviceSize offset = 0;
+            VkBuffer vk_buffer = rb_vk_buffer_from_gpu_address(owner->timestamp_dsts[i], &offset);
+            vkCmdCopyQueryPoolResults(vk_cmd, owner->timestamp_pool, i, 1, vk_buffer, offset, sizeof(u64), result_flags);
+            continue;
+        }
         VkStridedDeviceAddressRangeKHR dst_range = {0};
         dst_range.address = owner->timestamp_dsts[i];
         dst_range.size    = sizeof(u64);
         dst_range.stride  = sizeof(u64);
         vkCmdCopyQueryPoolResultsToMemoryKHR(vk_cmd, owner->timestamp_pool, i, 1, &dst_range, VK_ADDRESS_COMMAND_FULLY_BOUND_BIT_KHR,
-            VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
+            result_flags);
     }
 }
 
@@ -2907,6 +2954,45 @@ rb_vk_find_memory_type(u32 type_bits, RB_VK_GpuMemoryProperties properties, u64 
     return(cast(u32)best);
 }
 
+internal i32
+rb_vk_heap_range_compare(void *element, void *key)
+{
+    VkDeviceAddress base    = (cast(RB_VK_GpuHeapRange*) element)->base;
+    VkDeviceAddress address = *cast(VkDeviceAddress*) key;
+    return(base < address ? -1 : base > address ? 1 : 0);
+}
+
+internal void
+rb_vk_heap_range_insert(RB_VK_GpuHeap *heap)
+{
+    RB_VK_GpuHeapRange range = { .base = heap->gpu_base, .heap = heap };
+    BINARY_SEARCH_INSERT(rb_vk_g_ctx->heap_ranges, &rb_vk_g_ctx->heap_range_count, RB_VK_GPU_HEAP_MAX, &range, &range.base, rb_vk_heap_range_compare);
+}
+
+internal void
+rb_vk_heap_range_remove(RB_VK_GpuHeap *heap)
+{
+    i64 idx = BINARY_SEARCH_FIND(rb_vk_g_ctx->heap_ranges, rb_vk_g_ctx->heap_range_count, &heap->gpu_base, rb_vk_heap_range_compare);
+    if(idx < 0 || rb_vk_g_ctx->heap_ranges[idx].heap != heap){ return; }
+    BINARY_SEARCH_REMOVE_AT(rb_vk_g_ctx->heap_ranges, &rb_vk_g_ctx->heap_range_count, idx);
+}
+
+// (jd) The API only ever hands us a raw RB_GpuAddress, so the legacy commands recover the
+// owning heap here: the offset is just the distance from that heap's base.
+internal VkBuffer
+rb_vk_buffer_from_gpu_address(RB_GpuAddress address, VkDeviceSize *out_offset)
+{
+    i64 idx = BINARY_SEARCH_LAST_LE(rb_vk_g_ctx->heap_ranges, rb_vk_g_ctx->heap_range_count, &address, rb_vk_heap_range_compare);
+    if(idx >= 0){
+        RB_VK_GpuHeap *heap = rb_vk_g_ctx->heap_ranges[idx].heap;
+        if(address < heap->gpu_base + cast(u64)heap->size){
+            *out_offset = address - heap->gpu_base;
+            return(heap->vk_buffer);
+        }
+    }
+    DOT_ERROR("GPU address 0x%llx doesn't belong to any live heap", address);
+}
+
 internal RB_GpuHeap
 rb_vk_gpu_heap_create(RB_MemoryKind kind, i64 bytes)
 {
@@ -2917,7 +3003,7 @@ rb_vk_gpu_heap_create(RB_MemoryKind kind, i64 bytes)
 
     RB_VK_GpuHeap *vk_gpu_heap = rb_vk_g_ctx->head;
     if(vk_gpu_heap){
-        rb_vk_g_ctx->head = vk_gpu_heap->next;
+        SLL_STACK_POP(rb_vk_g_ctx->head);
         MEMORY_ZERO_STRUCT(vk_gpu_heap);
     }else{
         vk_gpu_heap = PUSH_STRUCT(rb_vk_g_ctx->permanent_arena, RB_VK_GpuHeap);
@@ -2974,6 +3060,8 @@ rb_vk_gpu_heap_create(RB_MemoryKind kind, i64 bytes)
     bda_info.buffer = vk_gpu_heap->vk_buffer;
     VkDeviceAddress buffer_address = vkGetBufferDeviceAddress(vk_device, &bda_info);
     vk_gpu_heap->gpu_base = ALIGN_POW2(buffer_address, base_alignment);
+
+    rb_vk_heap_range_insert(vk_gpu_heap);
 
     if(host_visible){
         RB_VK_CHECK(vkMapMemory(vk_device, vk_gpu_heap->vk_memory, 0, VK_WHOLE_SIZE, 0, &vk_gpu_heap->cpu_base));
@@ -3139,6 +3227,28 @@ rb_vk_copy_memory(RB_CommandBuffer cmd_h, RB_GpuRange src, RB_GpuRange dst)
     rb_vk_assert_outside_suspended_pass(cmd);
     DOT_ASSERT(src.size <= dst.size, "copy_memory destination (%llu B) smaller than source (%llu B)", dst.size, src.size);
 
+    if(!rb_vk_g_ctx->device.device_address_commands){
+        VkDeviceSize src_offset = 0;
+        VkDeviceSize dst_offset = 0;
+        VkBuffer src_buffer = rb_vk_buffer_from_gpu_address(src.gpu, &src_offset);
+        VkBuffer dst_buffer = rb_vk_buffer_from_gpu_address(dst.gpu, &dst_offset);
+
+        VkBufferCopy2 buffer_region = {0};
+        buffer_region.sType     = VK_STRUCTURE_TYPE_BUFFER_COPY_2;
+        buffer_region.srcOffset = src_offset;
+        buffer_region.dstOffset = dst_offset;
+        buffer_region.size      = cast(u64)src.size;
+
+        VkCopyBufferInfo2 buffer_copy_info = {0};
+        buffer_copy_info.sType       = VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2;
+        buffer_copy_info.srcBuffer   = src_buffer;
+        buffer_copy_info.dstBuffer   = dst_buffer;
+        buffer_copy_info.regionCount = 1;
+        buffer_copy_info.pRegions    = &buffer_region;
+        vkCmdCopyBuffer2(cmd->vk_cmd, &buffer_copy_info);
+        return;
+    }
+
     VkDeviceMemoryCopyKHR region = {0};
     region.sType            = VK_STRUCTURE_TYPE_DEVICE_MEMORY_COPY_KHR;
     region.srcRange.address = src.gpu;
@@ -3183,6 +3293,19 @@ rb_vk_texture_copy_region(RB_VK_Texture *texture, RB_GpuRange memory, RB_Texture
     return(region);
 }
 
+// (jd) Same region, expressed for the classic buffer <-> image copies.
+internal VkBufferImageCopy2
+rb_vk_texture_buffer_copy_region(VkDeviceMemoryImageCopyKHR *region, VkDeviceSize buffer_offset)
+{
+    VkBufferImageCopy2 buffer_region = {0};
+    buffer_region.sType            = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2;
+    buffer_region.bufferOffset     = buffer_offset;
+    buffer_region.imageSubresource = region->imageSubresource;
+    buffer_region.imageOffset      = region->imageOffset;
+    buffer_region.imageExtent      = region->imageExtent;
+    return(buffer_region);
+}
+
 internal void
 rb_vk_copy_memory_to_texture(RB_CommandBuffer cmd_h, RB_GpuRange src, RB_Texture dst, RB_TextureCopyDesc copy)
 {
@@ -3192,6 +3315,22 @@ rb_vk_copy_memory_to_texture(RB_CommandBuffer cmd_h, RB_GpuRange src, RB_Texture
 
     VkDeviceMemoryImageCopyKHR region = rb_vk_texture_copy_region(texture, src, copy);
     region.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+    if(!rb_vk_g_ctx->device.device_address_commands){
+        VkDeviceSize offset = 0;
+        VkBuffer vk_buffer = rb_vk_buffer_from_gpu_address(src.gpu, &offset);
+        VkBufferImageCopy2 buffer_region = rb_vk_texture_buffer_copy_region(&region, offset);
+
+        VkCopyBufferToImageInfo2 buffer_copy_info = {0};
+        buffer_copy_info.sType          = VK_STRUCTURE_TYPE_COPY_BUFFER_TO_IMAGE_INFO_2;
+        buffer_copy_info.srcBuffer      = vk_buffer;
+        buffer_copy_info.dstImage       = texture->vk_image;
+        buffer_copy_info.dstImageLayout = VK_IMAGE_LAYOUT_GENERAL;
+        buffer_copy_info.regionCount    = 1;
+        buffer_copy_info.pRegions       = &buffer_region;
+        vkCmdCopyBufferToImage2(cmd->vk_cmd, &buffer_copy_info);
+        return;
+    }
 
     VkCopyDeviceMemoryImageInfoKHR copy_info = {0};
     copy_info.sType       = VK_STRUCTURE_TYPE_COPY_DEVICE_MEMORY_IMAGE_INFO_KHR;
@@ -3212,6 +3351,22 @@ rb_vk_copy_texture_to_memory(RB_CommandBuffer cmd_h, RB_Texture src, RB_GpuRange
     VkDeviceMemoryImageCopyKHR region = rb_vk_texture_copy_region(texture, dst, copy);
     region.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
+    if(!rb_vk_g_ctx->device.device_address_commands){
+        VkDeviceSize offset = 0;
+        VkBuffer vk_buffer = rb_vk_buffer_from_gpu_address(dst.gpu, &offset);
+        VkBufferImageCopy2 buffer_region = rb_vk_texture_buffer_copy_region(&region, offset);
+
+        VkCopyImageToBufferInfo2 buffer_copy_info = {0};
+        buffer_copy_info.sType          = VK_STRUCTURE_TYPE_COPY_IMAGE_TO_BUFFER_INFO_2;
+        buffer_copy_info.srcImage       = texture->vk_image;
+        buffer_copy_info.srcImageLayout = VK_IMAGE_LAYOUT_GENERAL;
+        buffer_copy_info.dstBuffer      = vk_buffer;
+        buffer_copy_info.regionCount    = 1;
+        buffer_copy_info.pRegions       = &buffer_region;
+        vkCmdCopyImageToBuffer2(cmd->vk_cmd, &buffer_copy_info);
+        return;
+    }
+
     VkCopyDeviceMemoryImageInfoKHR copy_info = {0};
     copy_info.sType       = VK_STRUCTURE_TYPE_COPY_DEVICE_MEMORY_IMAGE_INFO_KHR;
     copy_info.image       = texture->vk_image;
@@ -3226,11 +3381,12 @@ rb_vk_gpu_heap_destroy(RB_GpuHeap heap)
     if(heap.h == 0){return;}
     RB_VK_GpuHeap *vk_gpu_heap = RB_HANDLE_UNPACK(RB_VK_GpuHeap*, heap);
 
+    rb_vk_heap_range_remove(vk_gpu_heap);
+
     if(vk_gpu_heap->vk_buffer != VK_NULL_HANDLE){
         vkDestroyBuffer(rb_vk_g_ctx->device.vk_device, vk_gpu_heap->vk_buffer, NULL);
     }
     vkFreeMemory(rb_vk_g_ctx->device.vk_device, vk_gpu_heap->vk_memory, NULL); // (jd) implicitly unmaps
 
-    vk_gpu_heap->next = rb_vk_g_ctx->head;
-    rb_vk_g_ctx->head  = vk_gpu_heap;
+    SLL_STACK_PUSH(rb_vk_g_ctx->head, vk_gpu_heap);
 }

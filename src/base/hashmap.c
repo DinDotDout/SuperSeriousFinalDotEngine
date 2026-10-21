@@ -118,8 +118,7 @@ hm_get_or_create_(Arena *arena, HashMapCtx *ctx, void *key, void *default_value)
         MEMORY_COPY(cast(u8*) node + ctx->value_offset, default_value, ctx->value_size);
 
         HashMapNode **bucket = &ctx->buckets[MOD_POW2(hash, ctx->bucket_count)];
-        node->next = *bucket;
-        *bucket    = node;
+        SLL_STACK_PUSH(*bucket, node);
         ctx->count += 1;
     }
     return(cast(u8*) node + ctx->value_offset);

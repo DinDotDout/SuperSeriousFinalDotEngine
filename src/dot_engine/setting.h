@@ -49,7 +49,7 @@ struct alignas(16) DOT_Setting
     char   *file;
     int     line;
 
-    DOT_Setting *next_setting;
+    DOT_Setting *next;
 };
 
 typedef struct DOT_SettingScope
@@ -107,8 +107,7 @@ void dot_settings_register_all(Arena *arena)
         DOT_SettingScope *setting_scope = hm_get_or_create(arena, &g_settings.setting_scopes, setting_it->scope_name);
 
         setting_scope->scope_name = setting_it->scope_name;
-        setting_it->next_setting = setting_scope->setting;
-        setting_scope->setting = setting_it;
+        SLL_STACK_PUSH(setting_scope->setting, setting_it);
         String8 setting_value = dot_setting_to_string8(s.arena, setting_it);
         DOT_PRINT("Setting scope: %S name: %S val: %S", setting_scope->scope_name, setting_it->setting_name, setting_value);
     }

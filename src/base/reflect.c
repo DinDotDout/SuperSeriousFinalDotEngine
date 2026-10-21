@@ -1,11 +1,11 @@
 // Recursive descent grammar for the stringized Reflect/ReflectEnum bodies.
 //
-//   enum_body   = '{' [ enum_value { ',' enum_value } [ ',' ] ] '}'          rfl_parse_enum
-//   enum_value  = { tag } IDENT [ '=' expr ]                                 (inlined in rfl_parse_enum)
+//   enum_body   = '{' [ enum_value { ',' { tag } enum_value } [ ',' { tag } ] ] '}'   rfl_parse_enum
+//   enum_value  = IDENT [ '=' expr ]                                         (inlined in rfl_parse_enum)
 //
 //   struct_body = '{' { decl } '}'                                           rfl_parse_struct
-//   decl        = { tag } [ "const" ] [ "struct" | "union" ]
-//                 IDENT declarator { ',' declarator } ';'                    (inlined in rfl_parse_struct)
+//   decl        = [ "const" ] [ "struct" | "union" ]
+//                 IDENT declarator { ',' { tag } declarator } ';' { tag }    (inlined in rfl_parse_struct)
 //   declarator  = { '*' } IDENT [ '[' expr ']' ]                             (inlined in rfl_parse_struct)
 //
 //   expr        = and   { '|' and }                                          rfl_parse_expr
@@ -24,8 +24,9 @@
 // Token helpers used throughout: rfl_token_is_punct (peek), rfl_accept_punct ('[ x ]', '{ x }'),
 // rfl_expect_punct (required token), rfl_expect_body_end (nothing after the closing '}').
 //
-// Nested struct/union bodies are rejected. Only the last tag of a decl is kept, and it
-// applies to every declarator in that decl.
+// Nested struct/union bodies are rejected. Tags trail what they describe: tags after a ','
+// belong to the declarator before it, tags after the ';' apply to every declarator in that
+// decl that has none of its own. Only the last tag in a run is kept.
 
 global RFL_Registry rfl_g_registry;
 
@@ -302,7 +303,7 @@ rfl_expect_body_end(RFL_Parser *parser)
     }
 }
 
-// Skips rfl_* tag identifiers before a field or enum value; returns the last one.
+// Skips rfl_* tag identifiers after a field's ',' / ';' or an enum value's ','; returns the last one.
 internal String8
 rfl_parse_tags(RFL_Parser *parser)
 {
@@ -438,7 +439,6 @@ rfl_parse_enum(Arena *arena, RFL_Parser *parser)
     i64 next_value = 0;
     rfl_expect_punct(parser, '{');
     while(!rfl_token_is_punct(parser, '}')){
-        rfl_parse_tags(parser);
         String8 value_name = rfl_expect_identifier(parser);
         i64 value = next_value;
         if(rfl_accept_punct(parser, '=')){
@@ -458,6 +458,7 @@ rfl_parse_enum(Arena *arena, RFL_Parser *parser)
         if(!rfl_accept_punct(parser, ',')){
             break;
         }
+        rfl_parse_tags(parser);
     }
     rfl_expect_punct(parser, '}');
     rfl_expect_body_end(parser);
@@ -470,8 +471,7 @@ rfl_parse_struct(Arena *arena, RFL_Parser *parser)
     RFL_FieldArray fields = {0};
     rfl_expect_punct(parser, '{');
     while(!rfl_token_is_punct(parser, '}')){
-        // One declaration: [tags] [const] [struct|union] Type a, *b, c[N];
-        String8 tag       = rfl_parse_tags(parser);
+        // One declaration: [const] [struct|union] Type a, [tags] *b, [tags] c[N]; [tags]
         String8 type_name = rfl_expect_identifier(parser);
         if(string8_equal(type_name, str_comp("const"))){
             type_name = rfl_expect_identifier(parser);
@@ -483,6 +483,7 @@ rfl_parse_struct(Arena *arena, RFL_Parser *parser)
             type_name = rfl_expect_identifier(parser);
         }
         // Each comma-separated name in the declaration is its own field.
+        u64 decl_first_field = fields.count;
         for(;;){
             u32 pointer_depth = 0;
             while(rfl_accept_punct(parser, '*')){
@@ -501,7 +502,6 @@ rfl_parse_struct(Arena *arena, RFL_Parser *parser)
             RFL_Field *field = PUSH_COPY(arena, &(RFL_Field){
                 .name          = field_name,
                 .type_name     = type_name,
-                .tag           = tag,
                 .array_count   = array_count,
                 .pointer_depth = pointer_depth,
             });
@@ -512,8 +512,15 @@ rfl_parse_struct(Arena *arena, RFL_Parser *parser)
             if(!rfl_accept_punct(parser, ',')){
                 break;
             }
+            field->tag = rfl_parse_tags(parser);
         }
         rfl_expect_punct(parser, ';');
+        String8 decl_tag = rfl_parse_tags(parser);
+        for(u64 i = decl_first_field; i < fields.count; i++){
+            if(fields.v[i].tag.size == 0){
+                fields.v[i].tag = decl_tag;
+            }
+        }
     }
     rfl_expect_punct(parser, '}');
     rfl_expect_body_end(parser);
@@ -635,6 +642,16 @@ rfl_resolve_type(RFL_Type *type)
 //   2. Register every enum's constant names.
 //   3. Resolve every type.
 
+internal b32
+rfl_type_same_definition(RFL_Type *a, RFL_Type *b)
+{
+    return a->kind        == b->kind  &&
+           a->size        == b->size  &&
+           a->align       == b->align &&
+           a->const_value == b->const_value &&
+           string8_equal(a->body, b->body);
+}
+
 internal void
 rfl_init(Arena *arena)
 {
@@ -647,28 +664,39 @@ rfl_init(Arena *arena)
     for EACH_IN_SECTION(ReflectSection, RFL_Type, type){
         if(type->kind == RFL_TypeKind_Const){
             RFL_Const *constant = hm_get_or_create(arena, &rfl_g_registry.consts, type->name);
+            if(constant->owner && rfl_type_same_definition(constant->owner, type)){
+                type->canonical = constant->owner;
+                continue;
+            }
             if(constant->owner || constant->known){
                 DOT_ERROR_FL(type->file, cast(i32)type->line, "ReflectConst %S: constant is already defined", type->name);
             }
+            constant->owner = type;
             constant->value = type->const_value;
             constant->known = true;
+            type->canonical = type;
             continue;
         }
         RFL_Type **type_slot = hm_get_or_create(arena, &rfl_g_registry.types, type->name);
+        if(*type_slot && rfl_type_same_definition(*type_slot, type)){
+            type->canonical = *type_slot;
+            continue;
+        }
         if(*type_slot){
             DOT_ERROR_FL(type->file, cast(i32)type->line, "Reflect %S: already reflected at %s:%u", type->name, (*type_slot)->file, (*type_slot)->line);
         }
-        *type_slot = type;
+        *type_slot      = type;
+        type->canonical = type;
     }
 
     for EACH_IN_SECTION(ReflectSection, RFL_Type, type){
-        if(type->kind == RFL_TypeKind_Enum){
+        if(type->kind == RFL_TypeKind_Enum && type->canonical == type){
             rfl_register_enum_constants(type);
         }
     }
 
     for EACH_IN_SECTION(ReflectSection, RFL_Type, type){
-        if(type->kind != RFL_TypeKind_Const){
+        if(type->kind != RFL_TypeKind_Const && type->canonical == type){
             rfl_resolve_type(type);
         }
     }
@@ -701,7 +729,7 @@ DOT_TEST_SUITE(rfl_tests)
     ReflectEnum(u32, RFL_TestKind, {
         RFL_TestKind_A,
         RFL_TestKind_B = 5,
-        rfl_test_tag RFL_TestKind_C,
+        RFL_TestKind_C, rfl_test_tag
         RFL_TestKind_Count,
         });
 
@@ -717,13 +745,18 @@ DOT_TEST_SUITE(rfl_tests)
 
     Reflect(RFL_TestStruct, {
         u8 a;
-        rfl_test_tag f32 x, y;
-        rfl_test_tag rfl_test_other_tag f32x3 color;
+        f32 x, y; rfl_test_tag
+        f32x3 color; rfl_test_tag rfl_test_other_tag
         u32 slots[RFL_TestKind_Count * RFL_TEST_SCALE];
         struct RFL_TestStruct *next, **list;
         u64 big;
         RFL_TestKind kind;
         f32x4x4 m;
+        });
+
+    Reflect(RFL_TestTagStruct, {
+        f32 p, rfl_test_other_tag
+            q, r; rfl_test_tag
         });
 
     RFL_Type *kind = reflect_type(RFL_TestKind);
@@ -760,6 +793,12 @@ DOT_TEST_SUITE(rfl_tests)
     DOT_TEST_CHECK(test, "tag last wins",    string8_equal(s->fields[3].tag, str_comp("rfl_test_other_tag")));
     DOT_TEST_CHECK(test, "tag not leaked",   s->fields[4].tag.size == 0);
     DOT_TEST_CHECK(test, "enum tag skipped", string8_equal(kind->values[2].name, str_comp("RFL_TestKind_C")));
+    DOT_TEST_CHECK(test, "enum after tag",   string8_equal(kind->values[3].name, str_comp("RFL_TestKind_Count")));
+
+    RFL_Type *tagged = reflect_type(RFL_TestTagStruct);
+    DOT_TEST_CHECK(test, "comma tag",        string8_equal(tagged->fields[0].tag, str_comp("rfl_test_other_tag")));
+    DOT_TEST_CHECK(test, "decl tag fills",   string8_equal(tagged->fields[1].tag, str_comp("rfl_test_tag")));
+    DOT_TEST_CHECK(test, "decl tag last",    string8_equal(tagged->fields[2].tag, str_comp("rfl_test_tag")));
     DOT_TEST_CHECK(test, "array count",      s->fields[4].array_count == RFL_TestKind_Count * RFL_TEST_SCALE);
     DOT_TEST_CHECK(test, "pointer depth",    s->fields[5].pointer_depth == 1 && s->fields[6].pointer_depth == 2);
     DOT_TEST_CHECK(test, "self pointer",     s->fields[5].type == s);
@@ -774,6 +813,19 @@ DOT_TEST_SUITE(rfl_tests)
     RFL_Any any  = rfl_any(RFL_TestStruct, &value);
     RFL_Any slot = rfl_any_field(any, &s->fields[4], 3);
     DOT_TEST_CHECK(test, "any field",        slot.type == reflect_type(u32) && *cast(u32*)slot.data == 42);
+
+    RFL_SECTION_ITEM static RFL_Type rfl_test_f32x2_other_tu = {
+        .kind  = RFL_TypeKind_Struct,
+        .name  = str_lit("f32x2"),
+        .body  = str_lit("{ f32 x, y; }"),
+        .file  = __FILE__,
+        .line  = __LINE__,
+        .size  = sizeof(f32x2),
+        .align = DOT_ALIGNOF(f32x2),
+    };
+    DOT_TEST_CHECK(test, "duplicate canonical", rfl_test_f32x2_other_tu.canonical == reflect_type(f32x2));
+    DOT_TEST_CHECK(test, "duplicate skipped",   rfl_test_f32x2_other_tu.canonical != &rfl_test_f32x2_other_tu);
+    DOT_TEST_CHECK(test, "duplicate lookup",    rfl_type_lookup(str_comp("f32x2")) == reflect_type(f32x2));
 
     return(test);
 }

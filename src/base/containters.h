@@ -4,44 +4,32 @@
 internal u8* raw_buffer_get(u8 raw_buffer[], u32 elem_idx, u32 elem_size);
 internal u64 array_bounds_check(u64 elem_idx, u64 capacity, char *file, int line);
 
-// (jd) Go back to regualr lists, just use a few macros
-typedef struct LLNode LLNode;
-struct LLNode{
-    LLNode *next;
-};
-
-typedef struct LLHead{
-    LLNode *first;
-    LLNode *last;
-}LLHead;
-
-read_only global LLNode g_llnode_sentinel = {
-    cast(LLNode*)&g_llnode_sentinel
-};
-
-internal u8 *arena_push_llnode(Arena *arena, u32 size, u32 offset, u32 align);
-
-#define llhead_node(...)    {.next = cast(LLNode*)&g_llnode_sentinel, __VA_ARGS__};
-#define llhead_lit(...)     {.head.first = cast(LLNode*)&g_llnode_sentinel, .head.last = cast(LLNode*)&g_llnode_sentinel, __VA_ARGS__}
-
-#define PushLLNode(a, T)    (T*)arena_push_llnode((a), sizeof(T), DOT_OFFSETOF(T, node), DOT_ALIGNOF(T))
-
-#define LLNodeIsNil(p)       ((p) == &g_llnode_sentinel || (p) == 0)
-#define LLHeadFirst(T, h)   DOT_CONTAINER_OF((h)->head.first, T, node)
-#define LLHeadLast(T, h)    DOT_CONTAINER_OF((h)->head.last, T, node)
-
-#define LLNodeGet(T, n)     DOT_CONTAINER_OF(n, T, node)
-#define LLNodeNext(T, n)    DOT_CONTAINER_OF(n->node.next, T, node)
-
 ////////////////////////////////////////////////////////////////
 ///
-/// Free List
+/// Linked lists
+///
+/// Use _NEXT versions direction if "next" field has some other name
 
-internal u8 * free_list_get_or_create(Arena *arena, LLHead *head, u32 size, u32 offset, u32 align);
-internal void free_list_free(LLHead *head, LLNode *node);
+#define SLL_STACK_PUSH(top, node) SLL_STACK_PUSH_NEXT(top, node, next)
+#define SLL_STACK_PUSH_NEXT(top, node, next) \
+do{ \
+    (node)->next = (top); \
+    (top) = (node); \
+}while(0)
 
-#define FreeListGetOrCreate(a, h, T)    (T*)free_list_get_or_create((a), &(h)->head, sizeof(T), DOT_OFFSETOF(T, node), DOT_ALIGNOF(T))
-#define FreeListFree(h, n)              free_list_free(&(h)->head, &(n)->node)
+#define SLL_STACK_POP(top) SLL_STACK_POP_NEXT(top, next)
+#define SLL_STACK_POP_NEXT(top, next) \
+do{ \
+    (top) = (top)->next; \
+}while(0)
+
+#define SLL_QUEUE_PUSH(first, last, node) SLL_QUEUE_PUSH_NEXT(first, last, node, next)
+#define SLL_QUEUE_PUSH_NEXT(first, last, node, next) \
+do{ \
+    (node)->next = 0; \
+    if(last){ (last)->next = (node); }else{ (first) = (node); } \
+    (last) = (node); \
+}while(0)
 
 ////////////////////////////////////////////////////////////////
 ///
@@ -102,6 +90,94 @@ do{ \
 
 ////////////////////////////////////////////////////////////////
 ///
+/// Binary search
+/// Define a compare for your element type and call through the macros:
+///   internal i32 heap_range_compare(void *element, void *key){ ... return < 0, 0, > 0; }
+///   i64 idx = BINARY_SEARCH_LAST_LE(ranges, count, &address, heap_range_compare);
+
+// (jd) Compares the element against the searched key, element side first.
+typedef i32 BinarySearchCompare(void *element, void *key);
+
+// (jd) First index whose element is >= key, count if there's none. Also the insertion point
+internal force_inline i64
+binary_search_lower_bound_(void *base, i64 count, u64 elem_size, void *key, BinarySearchCompare *compare)
+{
+    i64 lo = 0;
+    i64 hi = count;
+    while(lo < hi){
+        i64 mid = lo + (hi - lo) / 2;
+        if(compare(cast(u8*) base + cast(u64) mid * elem_size, key) < 0){ lo = mid + 1; }else{ hi = mid; }
+    }
+    return(lo);
+}
+
+// (jd) First index whose element is > key, count if there's none
+internal force_inline i64
+binary_search_upper_bound_(void *base, i64 count, u64 elem_size, void *key, BinarySearchCompare *compare)
+{
+    i64 lo = 0;
+    i64 hi = count;
+    while(lo < hi){
+        i64 mid = lo + (hi - lo) / 2;
+        if(compare(cast(u8*) base + cast(u64) mid * elem_size, key) <= 0){ lo = mid + 1; }else{ hi = mid; }
+    }
+    return(lo);
+}
+
+// (jd) Last index whose element is <= key, -1 if there's none. What range lookups want
+internal force_inline i64
+binary_search_last_le_(void *base, i64 count, u64 elem_size, void *key, BinarySearchCompare *compare)
+{
+    return(binary_search_upper_bound_(base, count, elem_size, key, compare) - 1);
+}
+
+// (jd) Index of an element matching key, -1 if there's none.
+internal force_inline i64
+binary_search_find_(void *base, i64 count, u64 elem_size, void *key, BinarySearchCompare *compare)
+{
+    i64 idx = binary_search_lower_bound_(base, count, elem_size, key, compare);
+    if(idx < count && compare(cast(u8*) base + cast(u64) idx * elem_size, key) == 0){
+        return(idx);
+    }
+    return(-1);
+}
+
+// (jd) Inserts keeping the array sorted, shifting the tail up. Returns the index written to.
+internal force_inline i64
+binary_search_insert_(void *base, i64 *count, i64 capacity, u64 elem_size, void *element, void *key, BinarySearchCompare *compare)
+{
+    DOT_ASSERT(*count < capacity, "Sorted array is full (%lld elements)", capacity);
+    i64 idx = binary_search_upper_bound_(base, *count, elem_size, key, compare);
+    u8 *slot = cast(u8*) base + cast(u64) idx * elem_size;
+
+    MEMORY_COPY(slot + elem_size, slot, cast(u64)(*count - idx) * elem_size);
+    MEMORY_COPY(slot, element, elem_size);
+    *count += 1;
+    return(idx);
+}
+
+// (jd) Removes a known index, shifting the tail down.
+internal inline void
+binary_search_remove_at_(void *base, i64 *count, u64 elem_size, i64 idx)
+{
+    DOT_ASSERT(idx >= 0 && idx < *count, "Sorted array remove index %lld out of range", idx);
+    u8 *slot = cast(u8*) base + cast(u64) idx * elem_size;
+
+    *count -= 1;
+    MEMORY_COPY(slot, slot + elem_size, cast(u64)(*count - idx) * elem_size);
+}
+
+#define BINARY_SEARCH_LOWER_BOUND(arr, count, key, compare) binary_search_lower_bound_((arr), (count), sizeof(*(arr)), (key), (compare))
+#define BINARY_SEARCH_UPPER_BOUND(arr, count, key, compare) binary_search_upper_bound_((arr), (count), sizeof(*(arr)), (key), (compare))
+#define BINARY_SEARCH_LAST_LE(arr, count, key, compare)     binary_search_last_le_((arr), (count), sizeof(*(arr)), (key), (compare))
+#define BINARY_SEARCH_FIND(arr, count, key, compare)        binary_search_find_((arr), (count), sizeof(*(arr)), (key), (compare))
+
+// (jd) count is taken by pointer, these update it
+#define BINARY_SEARCH_INSERT(arr, count, capacity, element, key, compare) binary_search_insert_((arr), (count), (capacity), sizeof(*(arr)), (element), (key), (compare))
+#define BINARY_SEARCH_REMOVE_AT(arr, count, idx)                          binary_search_remove_at_((arr), (count), sizeof(*(arr)), (idx))
+
+////////////////////////////////////////////////////////////////
+///
 /// Pool
 /// Go to definition for example usage: pool_tests()
 
@@ -156,7 +232,7 @@ internal PoolHandle pool_handle_get_default(Pool *p);
 
 typedef struct MemoryPoolBlock MemoryPoolBlock;
 struct MemoryPoolBlock{
-    MemoryPoolBlock *next_block;
+    MemoryPoolBlock *next;
 #if DOT_DEBUG
     u64 tag;
 #endif

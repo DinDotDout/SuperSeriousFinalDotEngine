@@ -50,6 +50,7 @@ dot_engine_init(DOT_Engine *engine, b32 headless)
     engine->permanent_arena = ARENA_CREATE(.reserve_size = g_engine_memory_size_b, .name = "DOT_Engine Arena");
     threadctx_init(engine->permanent_arena, g_per_thread_temp_arena_count_b, g_per_thread_temp_arena_size_b, 1);
     rfl_init(engine->permanent_arena);
+    rfl_ui_init(engine->permanent_arena);
     dot_settings_register_all(engine->permanent_arena);
     plugins_init();
 

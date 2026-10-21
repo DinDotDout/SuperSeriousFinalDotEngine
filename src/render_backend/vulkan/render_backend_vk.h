@@ -37,7 +37,8 @@ typedef struct RB_VK_Device
     f32 timestamp_period_ns;
     b8  mesh_shaders;
     b8  memory_budget;
-    u32 timestamp_query_count; // 0 = timestamps off
+    b8  device_address_commands; // (jd) 0 = redsolve RB_GpuAddress -> VkBuffer + offset
+    u32 timestamp_query_count;   // (jd0 0 = timestamps off
     u32 texture_memory_type;
     u64 texture_heap_alignment;
 }RB_VK_Device;
@@ -59,6 +60,15 @@ struct RB_VK_GpuHeap{
     VkDeviceAddress gpu_base;
     VkBuffer        vk_buffer; // We need to keep this around to obtain VkDeviceAddress
 };
+
+// (jd) Live Heaps kept sorted by base address so we can resolve them when no device_address_commands
+enum { RB_VK_GPU_HEAP_MAX = 256 };
+
+typedef struct RB_VK_GpuHeapRange
+{
+    VkDeviceAddress base;
+    RB_VK_GpuHeap  *heap;
+}RB_VK_GpuHeapRange;
 
 ////////////////////////////////////////////////////////////////
 /// RB_VK_TEXTURE
@@ -82,7 +92,7 @@ struct RB_VK_Texture
     u8 mip_levels;
     u16 array_layers;
 
-    DOT_DebugName16(debug_name);
+    DOT_DebugName16(debug_name)
 };
 
 ////////////////////////////////////////////////////////////////
@@ -225,6 +235,10 @@ typedef struct RB_VK_BackendCtx
     i32x2          drawable_extent_requested;
 
     RB_VK_GpuHeap *head;
+
+    i64                heap_range_count;
+    RB_VK_GpuHeapRange heap_ranges[RB_VK_GPU_HEAP_MAX]; // (jd) sorted by base address
+
     RB_VK_RenderView  *render_view_free;
     RB_VK_CommandPool *command_pool_free;
     RB_VK_Texture     *texture_free;

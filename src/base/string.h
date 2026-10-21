@@ -14,13 +14,15 @@ struct String8{
     u64 size;
 };
 
-typedef struct String8Node{
-    LLNode node;
+typedef struct String8Node String8Node;
+struct String8Node{
+    String8Node *next;
     String8 str;
-}String8Node;
+};
 
 typedef struct String8List{
-    LLHead head;
+    String8Node *first;
+    String8Node *last;
     u64 count;
     u64 total_size;
 }String8List;
@@ -65,9 +67,6 @@ internal b32 string8_contains(String8 haystack, String8 needle);
 internal String8    string8_chop_last_slash(String8 file_path);
 internal String8    string8_skip_last_slash(String8 string);
 internal b32        string8_starts_with(String8 string, String8 tok);
-
-internal String8Node    *string8_node(LLNode *node);
-internal String8Node    *string8_node_next(String8Node *node);
 
 internal String8List    string8_split(Arena *arena, String8 string, u64 split_char_count, u8 *split_chars);
 internal void           string8_list_push_node(Arena *arena, String8List *list, String8 string);

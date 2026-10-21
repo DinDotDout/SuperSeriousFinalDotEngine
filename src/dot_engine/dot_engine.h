@@ -8,29 +8,7 @@
 //////////////////////////////////////////////////////
 /// THIRD PARTY
 ///
-DOT_DIAGNOSTIC_PUSH
-#if DOT_COMPILER_MSVC
-DOT_DIAGNOSTIC_IGNORE(4244) // conversion from 'u64' to 'u32', possible loss of data
-DOT_DIAGNOSTIC_IGNORE(5287) // operands are different enum types
-DOT_DIAGNOSTIC_IGNORE(4701) // potentially uninitialized local variable used
-DOT_DIAGNOSTIC_IGNORE(4702) // unreachable code
-#endif
-
-#define RGFW_INT_DEFINED // Included in base_types already
-#define RGFW_NO_INCLUDE_VULKAN
-#define RGFW_IMPLEMENTATION
-#define RGFWDEF static inline
-#include "third_party/RGFW/RGFW.h"
-
-#define NK_INCLUDE_FONT_BAKING  // STB_TRUETYPE_IMPLEMENTATION, STB_RECT_PACK_IMPLEMENTATION
-#define NK_PRIVATE
-#define NK_INCLUDE_FIXED_TYPES
-#define NK_INCLUDE_DEFAULT_FONT
-#define NK_INCLUDE_DEFAULT_ALLOCATOR // TODO: We want to eventually use our own allocator
-#define NK_INCLUDE_VERTEX_BUFFER_OUTPUT
-#define NK_IMPLEMENTATION
-#include "third_party/Nuklear/nuklear.h"
-DOT_DIAGNOSTIC_POP
+#include "dot_engine/third_party.h"
 
 //////////////////////////////////////////////////////
 /// DOT
@@ -46,17 +24,6 @@ DOT_DIAGNOSTIC_POP
 #endif
 
 #include "base/base_include.h"
-
-#if DOT_DEBUG_ALLOCATORS
-#   define CGLTF_MALLOC(size) malloc_debug(size, __FILE__, __LINE__)
-#   define CGLTF_FREE(ptr) free_debug(ptr, __FILE__, __LINE__)
-#endif
-
-#define CGLTF_IMPLEMENTATION
-#include "third_party/cgltf/cgltf.h"
-
-#define STB_IMAGE_IMPLEMENTATION
-#include "third_party/stb/stb_image.h"
 
 // (jd) TODO: base doesn't have those enabled for now
 // Compile all libs separately and only enable this for my code
@@ -77,10 +44,10 @@ DOT_DIAGNOSTIC_PUSH
 #include "dot_engine/setting.h"
 #include "renderer/renderer_include.h"
 #include "dot_engine/plugin.h"
+#include "dot_engine/reflect_ui.h"
 #include "game/shaders/model_shared.h"
 #include "dot_engine/model.h"
 #include "dot_engine/game.h"
-#include "dot_engine/reflect_ui.h"
 
 #define DOT_PROFILER_IMPL
 #include "dot_engine/profiler.h"

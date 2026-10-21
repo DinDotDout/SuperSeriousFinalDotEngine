@@ -534,6 +534,14 @@ STBIDEF int   stbi_zlib_decode_buffer(char *obuffer, int olen, const char *ibuff
 STBIDEF char *stbi_zlib_decode_noheader_malloc(const char *buffer, int len, int *outlen);
 STBIDEF int   stbi_zlib_decode_noheader_buffer(char *obuffer, int olen, const char *ibuffer, int ilen);
 
+typedef struct stbi_allocator{
+    void *(*alloc)(void *user, size_t size);
+    void *(*realloc)(void *user, void *ptr, size_t old_size, size_t new_size);
+    void *user;
+}stbi_allocator;
+
+STBIDEF void stbi_allocator_set(stbi_allocator *allocator);
+STBIDEF void stbi_allocator_unset(void);
 
 #ifdef __cplusplus
 }
@@ -964,23 +972,16 @@ static int stbi__err(const char *str)
 }
 #endif
 
-typedef struct stbi_allocator{
-    u8 *(*stbi_alloc)(ArenaOpParams *, usize, usize, b32);
-    void *(*stbi_realloc)(Arena *, void *, u64, u64);
-    void (*stbi_free)(); // (jd) NOTE: Do nothing on free
-    Arena *arena;
-}stbi_allocator;
-
 static STBI_THREAD_LOCAL stbi_allocator *g_allocator;
 
-static void stbi_allocator_set(stbi_allocator *allocator)
+STBIDEF void stbi_allocator_set(stbi_allocator *allocator)
 {
     // You probably forgot to clear the allocator after the previous use
     STBI_ASSERT(g_allocator == NULL);
     g_allocator = allocator;
 }
 
-static void stbi_allocator_unset()
+STBIDEF void stbi_allocator_unset(void)
 {
     g_allocator = NULL;
 }
@@ -988,22 +989,20 @@ static void stbi_allocator_unset()
 static void *stbi__malloc(size_t size)
 {
     STBI_ASSERT(g_allocator);
-    ArenaOpParams params = {.arena = g_allocator->arena, .file = __FILE__, .line = __LINE__};
-    void *alloc = g_allocator->stbi_alloc(&params, size, ARENA_DEFAULT_ALIGNMENT, true);
-    return alloc;
+    return g_allocator->alloc(g_allocator->user, size);
 }
 
 static void *stbi__realloc_sized(void *ptr, size_t old_size, size_t new_size)
 {
     STBI_ASSERT(g_allocator);
-    return g_allocator->stbi_realloc(g_allocator->arena, ptr, old_size, new_size);
+    return g_allocator->realloc(g_allocator->user, ptr, old_size, new_size);
 }
 
+// (jd) NOTE: Do nothing on free
 static void stbi__free(void *ptr)
 {
     STBI_NOTUSED(ptr);
     STBI_ASSERT(g_allocator);
-    g_allocator->stbi_free();
 }
 
 // stb_image uses ints pervasively, including for offset calculations.
