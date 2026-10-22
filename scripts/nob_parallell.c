@@ -54,6 +54,7 @@ typedef struct {
     CompilerKind compiler;
     bool use_asan;
     bool unity;
+    bool no_assets;
     const char *msvc_sysroot;
 }BuildFlags;
 
@@ -206,6 +207,125 @@ generate_wayland_protocols(Nob_Procs *procs)
     return(true);
 }
 
+typedef enum ExternalAssetKind
+{
+    ExternalAssetKind_GitTarGz,
+    ExternalAssetKind_File,
+}ExternalAssetKind;
+
+typedef struct ExternalAsset
+{
+    ExternalAssetKind kind;
+    union
+    {
+        struct
+        {
+            const char *URL;
+            const char *rev;
+        }git_asset;
+        struct
+        {
+            const char *URL;
+        }asset;
+    };
+}ExternalAsset;
+
+typedef struct ExternalAssets{
+    const ExternalAsset *items;
+    size_t count;
+    const char* output_path;
+}ExternalAssets;
+
+#define EXTERNAL_ASSETS(path, list) ((ExternalAssets){ .output_path = (path), .items = (list), .count = NOB_ARRAY_LEN(list) })
+
+static const ExternalAsset assets_list[] = {
+    {.kind = ExternalAssetKind_GitTarGz, .git_asset = {"https://github.com/KhronosGroup/glTF-Sample-Assets", "edc7c9e67c639d230715049ee31f9a96a6babbbe"}},
+};
+
+static bool
+mkdir_parents(const char *file_path)
+{
+    char *path = nob_temp_strdup(file_path);
+    for(char *p = path; *p; ++p){
+        if(*p == '/' && p != path){
+            *p = 0;
+            bool ok = nob_mkdir_if_not_exists(path);
+            *p = '/';
+            if(!ok){
+                return(false);
+            }
+        }
+    }
+    return(true);
+}
+
+static bool
+extract_archive(const char *archive_path, const char *dst_dir)
+{
+    Nob_Cmd cmd = {0};
+    nob_cmd_append(&cmd, "tar", "-xzf", archive_path, "-C", dst_dir);
+    if(!nob_cmd_run(&cmd)){
+        nob_log(NOB_ERROR, "Failed to extract %s", archive_path);
+        return(false);
+    }
+    return(true);
+}
+
+static bool
+download_file(const char *url, const char *dst_path)
+{
+    nob_log(NOB_INFO, "downloading %s (delete it to redownload)", url);
+    Nob_Cmd cmd = {0};
+    nob_cmd_append(&cmd, "curl", "-L", "--fail", "-o", dst_path, url);
+    if(!nob_cmd_run(&cmd)){
+        nob_log(NOB_ERROR, "Failed to download %s", url);
+        return(false);
+    }
+    return(true);
+}
+
+static bool
+download_assets(ExternalAssets assets)
+{
+    if(!mkdir_parents(nob_temp_sprintf("%s/", assets.output_path))){
+        return(false);
+    }
+    bool ok = true;
+    for(size_t i = 0; ok && i < assets.count; ++i){
+        const ExternalAsset *asset = &assets.items[i];
+        size_t temp_checkpoint = nob_temp_save();
+
+        const char *final_path = NULL;
+        const char *download_path = NULL;
+        const char *source_url = NULL;
+        switch(asset->kind){
+        case ExternalAssetKind_File:{
+            source_url    = asset->asset.URL;
+            final_path    = nob_temp_sprintf("%s/%s", assets.output_path, nob_path_name(source_url));
+            download_path = final_path;
+        }break;
+        case ExternalAssetKind_GitTarGz:{
+            const char *repo = nob_path_name(asset->git_asset.URL);
+            source_url    = nob_temp_sprintf("%s/archive/%s.tar.gz", asset->git_asset.URL, asset->git_asset.rev);
+            final_path    = nob_temp_sprintf("%s/%s", assets.output_path, repo);
+            download_path = nob_temp_sprintf("%s/%s.tar.gz", assets.output_path, repo);
+        }break;
+        }
+
+        if(nob_file_exists(final_path)){
+            nob_log(NOB_INFO, "Already have: %s (delete it to redownload)", final_path);
+        }else{
+            ok = download_file(source_url, download_path);
+            if(ok && asset->kind == ExternalAssetKind_GitTarGz){
+                const char *extracted = nob_temp_sprintf("%s/%s-%s", assets.output_path, nob_path_name(asset->git_asset.URL), asset->git_asset.rev);
+                ok = extract_archive(download_path, assets.output_path) && nob_rename(extracted, final_path);
+            }
+        }
+        nob_temp_rewind(temp_checkpoint);
+    }
+    return(ok);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -222,10 +342,11 @@ main(int argc, char **argv)
         else if(strcmp(argv[i], "-final") == 0)    g_flags.opt = OptimizationLevelKind_Final;
         else if(strcmp(argv[i], "-asan") == 0)     g_flags.use_asan = true;
         else if(strcmp(argv[i], "-unity") == 0)    g_flags.unity = true;
+        else if(strcmp(argv[i], "-no_assets") == 0) g_flags.no_assets = true;
         else if(strcmp(argv[i], "-log_warn") == 0) nob_minimal_log_level = NOB_WARNING;
         else{
             fprintf(stderr, "Unknown flag: %s\n", argv[i]);
-            fprintf(stderr, "Flags: -x11 -wayland -windows -clang -cl -debug -release -final -asan -unity -log_warn\n");
+            fprintf(stderr, "Flags: -x11 -wayland -windows -clang -cl -debug -release -final -asan -unity -no_assets -log_warn\n");
             return 1;
         }
     }
@@ -265,6 +386,10 @@ main(int argc, char **argv)
     }break;
     }
     const char *exe = g_flags.platform == PlatformKind_Windows ? OUTPUT_FOLDER "dot_engine.exe" : OUTPUT_FOLDER "dot_engine";
+
+    if(!g_flags.no_assets){
+        download_assets(EXTERNAL_ASSETS("assets", assets_list));
+    }
 
     Nob_Procs procs = {0};
     if(g_flags.platform == PlatformKind_LinuxWayland){

@@ -359,6 +359,18 @@ rn_mip_chain_build(Arena *arena, void *mip0, int width, int height, int comp, u8
     return(chain);
 }
 
+internal void *
+rn_stbi_alloc(void *user, size_t size)
+{
+    return(PUSH_SIZE(cast(Arena *)user, size));
+}
+
+internal void *
+rn_stbi_realloc(void *user, void *ptr, size_t old_size, size_t new_size)
+{
+    return(arena_realloc(cast(Arena *)user, ptr, old_size, new_size));
+}
+
 RN_BindlessTexture
 rn_texture_load_from_path(RN_RenderCtx *renderer, String8 name, String8 path, u8 mip_levels)
 {
@@ -373,7 +385,7 @@ rn_texture_load_from_path(RN_RenderCtx *renderer, String8 name, String8 path, u8
     int width = 0;
     int height = 0;
     int comp = 0;
-    stbi_allocator alloc = {.stbi_alloc = arena_push, .stbi_realloc = arena_realloc, .stbi_free = arena_free, .arena = temp.arena};
+    stbi_allocator alloc = {.alloc = rn_stbi_alloc, .realloc = rn_stbi_realloc, .user = temp.arena};
     stbi_allocator_set(&alloc);
     stbi_info_from_memory(file_data.str, cast(int)file_data.size, &width, &height, &comp);
     comp = comp == 3 ? STBI_rgb_alpha : comp;

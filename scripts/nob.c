@@ -59,6 +59,7 @@ typedef struct {
     OptimizationLevelKind opt;
     CompilerKind compiler;
     bool use_asan;
+    bool no_assets;
 }BuildFlags;
 
 static BuildFlags g_flags = {
@@ -85,6 +86,7 @@ static void set_release(void){ g_flags.opt = OptimizationLevelKind_Release; }
 static void set_final(void)  { g_flags.opt = OptimizationLevelKind_Final; }
 
 static void set_use_asan(void)  { g_flags.use_asan = true; }
+static void set_no_assets(void) { g_flags.no_assets = true; }
 
 static void set_log_error(void)  {  nob_minimal_log_level = NOB_ERROR; }
 static void set_log_warn(void) {  nob_minimal_log_level = NOB_WARNING; }
@@ -104,6 +106,7 @@ static const FlagEntry flag_table[] = {
     { "-final",   "Optimized final build",         set_final   },
 
     { "-asan",   "Use asan",                       set_use_asan },
+    { "-no_assets", "Skip downloading assets",     set_no_assets },
 };
 
 static void print_help(const char *prog)
@@ -208,7 +211,8 @@ static void apply_compiler_flags(Nob_Cmd *cmd, CompilerKind compiler, Optimizati
                 "-std=c11",
                 "-Wall", "-Wextra", "-Wno-override-init", "-Wno-incompatible-pointer-types-discards-qualifiers",
                 "-Wdiv-by-zero", "-Wno-unused-function",
-                "-Werror=vla",
+                "-Werror=vla", "-Werror=implicit-fallthrough", "-Werror=switch-enum",
+                "-Werror=conversion", "-Werror=implicit-int-conversion",
                 // "-Wconversion",
                 // "-Wimplicit-int-conversion",
                 // "-Wsign-conversion",
@@ -420,7 +424,9 @@ main(int argc, char *argv[])
     }
 #endif
 
-    download_assets(EXTERNAL_ASSETS("assets", assets_list));
+    if(!g_flags.no_assets){
+        download_assets(EXTERNAL_ASSETS("assets", assets_list));
+    }
     Nob_Cmd cmd = {0};
     nob_log(NOB_INFO, "Using compiler %s for target %s", g_compiler_kind_str[g_flags.compiler], g_platform_kind_str[g_flags.platform]);
     nob_cmd_append(&cmd, g_compiler_kind_str[g_flags.compiler]);
