@@ -113,7 +113,7 @@ append_compile_flags(Nob_Cmd *cmd, bool warnings)
 
     switch(g_flags.platform){
         case PlatformKind_LinuxX11:     nob_cmd_append(cmd, "-DDOT_PLATFORM_LINUX"); break;
-        case PlatformKind_LinuxWayland: nob_cmd_append(cmd, "-DRGFW_WAYLAND", "-DRGFW_OPENGL", "-DDOT_PLATFORM_LINUX"); break;
+        case PlatformKind_LinuxWayland: nob_cmd_append(cmd, "-DRGFW_WAYLAND", "-DRGFW_OPENGL", "-DDOT_PLATFORM_LINUX", "-I", WAYLAND_GEN_FOLDER); break;
         case PlatformKind_Windows:      nob_cmd_append(cmd, "-DDOT_PLATFORM_WINDOWS", "-D_CRT_SECURE_NO_WARNINGS"); break;
     }
 

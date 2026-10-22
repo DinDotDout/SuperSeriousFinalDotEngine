@@ -179,7 +179,7 @@ static void apply_platform_flags(Nob_Cmd *cmd, PlatformKind platform) {
             break;
         case PlatformKind_LinuxWayland:
             generate_wayland_protocols();
-            nob_cmd_append(cmd, "-DRGFW_WAYLAND", "-DRGFW_OPENGL", "-DDOT_PLATFORM_LINUX");
+            nob_cmd_append(cmd, "-DRGFW_WAYLAND", "-DRGFW_OPENGL", "-DDOT_PLATFORM_LINUX", "-I", WAYLAND_GEN_FOLDER);
             nob_cmd_append(cmd, "-lwayland-cursor", "-lwayland-client", "-lwayland-egl", "-lxkbcommon");
             nob_cmd_append(cmd,
                 "src/gen-wayland/xdg-shell.c",

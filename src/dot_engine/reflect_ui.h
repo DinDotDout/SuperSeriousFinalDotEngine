@@ -11,9 +11,11 @@ ReflectExtern(f32rgba, { f32 r, g, b, a; });
 
 enum
 {
-    RFL_UI_ROW_HEIGHT = 22,
+    RFL_UI_ROW_HEIGHT       = 22,
+    RFL_UI_VIEW_BUCKETS_MAX = 64,
 };
 
+internal void rfl_ui_init(Arena *arena);
 internal void rfl_ui_inspect(struct nk_context *ctx, RFL_Any v);
 internal void rfl_ui_any(struct nk_context *ctx, char *label, RFL_Any v);
 

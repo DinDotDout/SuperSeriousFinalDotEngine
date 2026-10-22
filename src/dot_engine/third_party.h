@@ -8,6 +8,8 @@
 #   define DOT_SPLIT_THIRD_PARTY 0
 #endif
 
+DOT_DIAGNOSTIC_PUSH_SILENT
+
 #define RGFW_INT_DEFINED // Included in base_types already
 #define RGFW_NO_INCLUDE_VULKAN
 #if DOT_SPLIT_THIRD_PARTY
@@ -30,5 +32,7 @@
 
 #include "third_party/cgltf/cgltf.h"
 #include "third_party/stb/stb_image.h"
+
+DOT_DIAGNOSTIC_POP
 
 #endif // !THIRD_PARTY_H

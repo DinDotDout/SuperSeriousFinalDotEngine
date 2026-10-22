@@ -1,3 +1,9 @@
+internal void
+rfl_ui_init(Arena *arena)
+{
+    DOT_UNUSED(arena);
+}
+
 internal i64
 rfl_ui_int_read(void *data, u32 size, b32 is_signed)
 {
