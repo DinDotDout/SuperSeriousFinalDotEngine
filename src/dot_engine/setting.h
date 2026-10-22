@@ -102,7 +102,7 @@ void dot_settings_register_all(Arena *arena)
     Scratch s = scratch_begin(0,0);
     hm_init_string8(arena, &g_settings.setting_scopes, SETTINGS_SCOPE_BUCKETS_MAX);
     hm_init_string8(arena, &g_settings.settings, SETTINGS_BUCKETS_MAX);
-    for EACH_IN_SECTION(SettingsSection, DOT_Setting, setting_it){
+    for EACH_SECTION_ITEM(SettingsSection, DOT_Setting, setting_it){
         *hm_get_or_create(arena, &g_settings.settings, setting_it->whole_name) = setting_it;
         DOT_SettingScope *setting_scope = hm_get_or_create(arena, &g_settings.setting_scopes, setting_it->scope_name);
 

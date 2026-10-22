@@ -581,6 +581,8 @@ typedef struct DOT_DebugName8{
 #define EACH_IN_SECTION(section_name, T, it) \
     (T *it = __start_##section_name; (it) < __stop_##section_name; (it)++)
 
+#define SECTION_COUNT(section_name) cast(u64)(__stop_##section_name - __start_##section_name)
+
 // NOTE: revisit atomics, also grabbed this from raddbg for the stracktrace thing
 #if DOT_COMPILER_MSVC
 #   include <intrin.h>

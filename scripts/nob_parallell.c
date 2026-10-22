@@ -79,7 +79,7 @@ append_compile_flags(Nob_Cmd *cmd, bool warnings)
         switch(g_flags.opt){
             case OptimizationLevelKind_Debug:   nob_cmd_append(cmd, "/Od", "/Zi", "/DDEBUG", "/MTd"); break;
             case OptimizationLevelKind_Release: nob_cmd_append(cmd, "/O2", "/Zi", "/MD"); break;
-            case OptimizationLevelKind_Final:   nob_cmd_append(cmd, "/O2", "/DNDEBUG", "/GL", "/MD"); break;
+            case OptimizationLevelKind_Final:   nob_cmd_append(cmd, "/O2", "/DNDEBUG", "/GL", "/MT"); break;
         }
     }break;
     case CompilerKind_Clang:{
@@ -88,7 +88,8 @@ append_compile_flags(Nob_Cmd *cmd, bool warnings)
             nob_cmd_append(cmd,
                 "-Wall", "-Wextra", "-Wno-override-init", "-Wno-incompatible-pointer-types-discards-qualifiers",
                 "-Wdiv-by-zero", "-Wno-unused-function",
-                "-Werror=vla");
+                "-Werror=vla", "-Werror=implicit-fallthrough", "-Werror=switch-enum",
+                "-Werror=conversion", "-Werror=implicit-int-conversion");
         }else{
             nob_cmd_append(cmd, "-w");
         }
@@ -227,6 +228,10 @@ main(int argc, char **argv)
             fprintf(stderr, "Flags: -x11 -wayland -windows -clang -cl -debug -release -final -asan -unity -log_warn\n");
             return 1;
         }
+    }
+
+    if(g_flags.opt == OptimizationLevelKind_Final){
+        g_flags.unity = true;
     }
 
     if(g_flags.compiler == CompilerKind_Msvc && g_flags.platform != PlatformKind_Windows){

@@ -33,14 +33,14 @@ SECTION_DECLARE(const Plugin, PluginsSection);
     }
 
 void plugins_init(void) {
-    for EACH_IN_SECTION(PluginsSection, const Plugin, p){
+    for EACH_SECTION_ITEM(PluginsSection, const Plugin, p){
         DOT_PRINT_FL(p->file, p->line, "PLUGIN: %s->Init()", p->name);
         p->init();
     }
 }
 
 internal inline void plugins_shutdown(){
-    for EACH_IN_SECTION(PluginsSection, const Plugin, p){
+    for EACH_SECTION_ITEM(PluginsSection, const Plugin, p){
         DOT_PRINT_FL(p->file, p->line, "PLUGIN: %s->End()", p->name);
         p->end();
     }

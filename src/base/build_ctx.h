@@ -73,26 +73,32 @@
 ///
 /// Compiler diagnostics
 
+#define DOT_PRAGMA(x) _Pragma(#x)
+
 #if DOT_COMPILER_CLANG
-#   define DOT_DIAGNOSTIC_PUSH      _Pragma("clang diagnostic push")
-#   define DOT_DIAGNOSTIC_POP       _Pragma("clang diagnostic pop")
-#   define DOT_DIAGNOSTIC_IGNORE(w) _Pragma(DOT_STR(clang diagnostic ignored w))
-#   define DOT_DIAGNOSTIC_ERROR(w)  _Pragma(DOT_STR(clang diagnostic error w))
+#   define DOT_DIAGNOSTIC_PUSH          _Pragma("clang diagnostic push")
+#   define DOT_DIAGNOSTIC_POP           _Pragma("clang diagnostic pop")
+#   define DOT_DIAGNOSTIC_IGNORE(w)     DOT_PRAGMA(clang diagnostic ignored w)
+#   define DOT_DIAGNOSTIC_ERROR(w)      DOT_PRAGMA(clang diagnostic error w)
+#   define DOT_DIAGNOSTIC_PUSH_SILENT   DOT_DIAGNOSTIC_PUSH DOT_DIAGNOSTIC_IGNORE("-Weverything")
 #elif DOT_COMPILER_GCC
-#   define DOT_DIAGNOSTIC_PUSH      _Pragma("GCC diagnostic push")
-#   define DOT_DIAGNOSTIC_POP       _Pragma("GCC diagnostic pop")
-#   define DOT_DIAGNOSTIC_IGNORE(w) _Pragma(DOT_STR(GCC diagnostic ignored error w))
-#   define DOT_DIAGNOSTIC_ERROR(w)  _Pragma(DOT_STR(GCC diagnostic error w))
+#   define DOT_DIAGNOSTIC_PUSH          _Pragma("GCC diagnostic push")
+#   define DOT_DIAGNOSTIC_POP           _Pragma("GCC diagnostic pop")
+#   define DOT_DIAGNOSTIC_IGNORE(w)     DOT_PRAGMA(GCC diagnostic ignored error w)
+#   define DOT_DIAGNOSTIC_ERROR(w)      DOT_PRAGMA(GCC diagnostic error w)
+#   define DOT_DIAGNOSTIC_PUSH_SILENT   DOT_DIAGNOSTIC_PUSH DOT_PRAGMA(GCC diagnostic ignored "-Wall") DOT_PRAGMA(GCC diagnostic ignored "-Wextra")
 #elif DOT_COMPILER_MSVC
-#   define DOT_DIAGNOSTIC_PUSH      __pragma(warning(push))
-#   define DOT_DIAGNOSTIC_POP       __pragma(warning(pop))
-#   define DOT_DIAGNOSTIC_IGNORE(w) __pragma(warning(disable: w))
-#   define DOT_DIAGNOSTIC_ERROR(w)  __pragma(warning(error: w))
+#   define DOT_DIAGNOSTIC_PUSH          __pragma(warning(push))
+#   define DOT_DIAGNOSTIC_POP           __pragma(warning(pop))
+#   define DOT_DIAGNOSTIC_IGNORE(w)     __pragma(warning(disable: w))
+#   define DOT_DIAGNOSTIC_ERROR(w)      __pragma(warning(error: w))
+#   define DOT_DIAGNOSTIC_PUSH_SILENT   __pragma(warning(push, 0))
 #else
 #   define DOT_DIAGNOSTIC_PUSH
 #   define DOT_DIAGNOSTIC_POP
 #   define DOT_DIAGNOSTIC_IGNORE(w)
 #   define DOT_DIAGNOSTIC_ERROR(w)
+#   define DOT_DIAGNOSTIC_PUSH_SILENT
 #endif
 
 #endif // !BUILD_CTX_H

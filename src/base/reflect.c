@@ -663,7 +663,7 @@ rfl_init(Arena *arena)
     rfl_g_registry.arena = arena;
     hm_init_string8(arena, &rfl_g_registry.types, rfl_bucket_count(SECTION_COUNT(ReflectSection)));
 
-    for EACH_IN_SECTION(ReflectSection, RFL_Type, type){
+    for EACH_SECTION_ITEM(ReflectSection, RFL_Type, type){
         RFL_Type **type_slot = hm_get_or_create(arena, &rfl_g_registry.types, type->name);
         if(*type_slot && rfl_type_same_definition(*type_slot, type)){
             type->canonical = *type_slot;
@@ -678,7 +678,7 @@ rfl_init(Arena *arena)
 
     u64 value_total = 0;
     u64 field_total = 0;
-    for EACH_IN_SECTION(ReflectSection, RFL_Type, type){
+    for EACH_SECTION_ITEM(ReflectSection, RFL_Type, type){
         if(type->canonical != type){
             continue;
         }
@@ -696,7 +696,7 @@ rfl_init(Arena *arena)
 
     RFL_EnumValue *next_values = PUSH_ARRAY(arena, RFL_EnumValue, value_total);
     RFL_Field     *next_fields = PUSH_ARRAY(arena, RFL_Field, field_total);
-    for EACH_IN_SECTION(ReflectSection, RFL_Type, type){
+    for EACH_SECTION_ITEM(ReflectSection, RFL_Type, type){
         if(type->canonical != type){
             continue;
         }
@@ -708,7 +708,7 @@ rfl_init(Arena *arena)
 
     hm_init_string8(arena, &rfl_g_registry.consts, rfl_bucket_count(SECTION_COUNT(ReflectConstSection) + value_total));
 
-    for EACH_IN_SECTION(ReflectConstSection, RFL_ConstDef, def){
+    for EACH_SECTION_ITEM(ReflectConstSection, RFL_ConstDef, def){
         RFL_Const *constant = hm_get_or_create(arena, &rfl_g_registry.consts, def->name);
         if(constant->def && constant->def->value == def->value){
             continue;
@@ -721,13 +721,13 @@ rfl_init(Arena *arena)
         constant->known = true;
     }
 
-    for EACH_IN_SECTION(ReflectSection, RFL_Type, type){
+    for EACH_SECTION_ITEM(ReflectSection, RFL_Type, type){
         if(type->kind == RFL_TypeKind_Enum && type->canonical == type){
             rfl_register_enum_constants(type);
         }
     }
 
-    for EACH_IN_SECTION(ReflectSection, RFL_Type, type){
+    for EACH_SECTION_ITEM(ReflectSection, RFL_Type, type){
         if(type->canonical == type){
             rfl_resolve_type(type);
         }

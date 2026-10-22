@@ -9,6 +9,9 @@
 /// THIRD PARTY
 ///
 #include "dot_engine/third_party.h"
+#if !DOT_SPLIT_THIRD_PARTY
+#   include "dot_engine/third_party.c"
+#endif
 
 //////////////////////////////////////////////////////
 /// DOT
@@ -24,19 +27,6 @@
 #endif
 
 #include "base/base_include.h"
-
-// (jd) TODO: base doesn't have those enabled for now
-// Compile all libs separately and only enable this for my code
-DOT_DIAGNOSTIC_PUSH
-#if DOT_COMPILER_CLANG || defined(__GNUC__)
-    DOT_DIAGNOSTIC_ERROR("-Wimplicit-fallthrough")
-    DOT_DIAGNOSTIC_ERROR("-Wswitch-enum")
-    DOT_DIAGNOSTIC_ERROR("-Wvla")
-    DOT_DIAGNOSTIC_ERROR("-Wconversion")
-    DOT_DIAGNOSTIC_ERROR("-Wimplicit-int-conversion")
-#elif defined(_MSC_VER)
-#endif
-
 #include "dot_engine/dot_engine_config.h"
 #include "dot_engine/window.h"
 #include "dot_engine/ui_input.h"
@@ -60,7 +50,8 @@ DOT_DIAGNOSTIC_PUSH
 
 #include "game/my_game.c"
 
-typedef struct DOT_Engine{
+typedef struct DOT_Engine
+{
     String8 engine_name;
     RN_RenderCtx renderer;
     DOT_Window window;
@@ -76,5 +67,4 @@ typedef struct DOT_Engine{
 internal void dot_engine_init(DOT_Engine *engine, b32 headless);
 internal void dot_engine_run(DOT_Engine *engine);
 internal void dot_engine_shutdown(DOT_Engine *engine);
-DOT_DIAGNOSTIC_POP
 #endif // !DOT_ENGINE_H
