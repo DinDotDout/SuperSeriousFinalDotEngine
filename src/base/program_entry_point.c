@@ -5,33 +5,17 @@ int entry_point(int arg_count, String8 arg_values[]);
 
 typedef i32 ProgramEntryFlag;
 
-enum{
-    PROGRAM_ENTRY_MAX_FLAGS = 32,
-};
+enum{ PROGRAM_ENTRY_MAX_FLAGS = 32, };
 
-typedef void(*ProgramEntryFlagCtxApply)(int **dst_flag, int apply_value);
 typedef struct ProgramEntryFlagCtx{
     String8 flag;
     String8 flag_desc;
-
-    void (*apply_fn)(void *user_data);
-    void *user_data;
+    void (*set_int)(i32 value);
+    void (*set_bool)(b32 value);
+    void (*set_string)(String8 value);
+    i32 int_value;
+    b32 bool_value;
 }ProgramEntryFlagCtx;
-
-typedef struct ProgramEntryFlagCtxInt{
-    int *dst_flag, apply_value;
-}ProgramEntryFlagCtxInt;
-
-#define PROGRAM_ENTRY_FLAG_CTX_INT(flag, flag_desc, dst, src) \
-    { flag, flag_desc, program_entry_flag_set, &(ProgramEntryFlagCtxInt){dst,src} }
-
-
-internal void
-program_entry_flag_set(void *user_data)
-{
-    ProgramEntryFlagCtxInt *int_flag = cast(ProgramEntryFlagCtxInt*)user_data;
-    *int_flag->dst_flag = int_flag->apply_value;
-}
 
 internal void
 program_entry_show_help(String8 program_name, i32 flags_count, ProgramEntryFlagCtx *flags) {
@@ -64,7 +48,20 @@ program_entry_flags_apply(i32 flags_count, ProgramEntryFlagCtx *flags, i32 arg_c
             }
         }
         if(flag_exists){
-            flag->apply_fn(flag->user_data);
+            if(flag->set_int){
+                flag->set_int(flag->int_value);
+            }
+            if(flag->set_bool){
+                flag->set_bool(flag->bool_value);
+            }
+            if(flag->set_string){
+                if(i + 1 < arg_count){
+                    i += 1;
+                    flag->set_string(arg_values[i]);
+                }else{
+                    DOT_WARNING("Flag %S expects a value\n", flag->flag);
+                }
+            }
         }else{
             DOT_WARNING("Unknown flag: %S\n", arg_values[i]);
         }

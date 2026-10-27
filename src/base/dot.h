@@ -418,13 +418,15 @@ internal void os_print_stacktrace(void);
 #   define DOT_PRINTF_STRING
 #endif
 
-typedef enum DOT_LogLevelKind{
+typedef i32 DOT_LogLevelKind;
+enum
+{
     DOT_LogLevelKind_Debug,
     DOT_LogLevelKind_Warning,
     DOT_LogLevelKind_Error,
     DOT_LogLevelKind_Assert,
     DOT_LogLevelKind_Count,
-}DOT_LogLevelKind;
+};
 
 global const char *dot_log_level_kind_str[] = {
     [DOT_LogLevelKind_Debug]   = "",
