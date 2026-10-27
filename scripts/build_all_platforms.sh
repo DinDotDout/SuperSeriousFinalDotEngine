@@ -1,4 +1,4 @@
-cc scripts/nob_parallell.c -o scripts/nob_parallell && ./scripts/nob_parallell
+cc scripts/nob_parallell.c -o scripts/nob_parallell
 ./scripts/nob_parallell -wayland -no_assets
 ./scripts/nob_parallell -no_assets
 

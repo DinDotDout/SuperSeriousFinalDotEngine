@@ -43,6 +43,12 @@ static const WaylandProtocol g_wayland_protocols[] = {
     {"/usr/share/wayland-protocols/staging/pointer-warp/pointer-warp-v1.xml",                         "pointer-warp-v1"},
 };
 
+static const char *g_platform_kind_str[] = {
+    [PlatformKind_LinuxX11]     = "Linux X11",
+    [PlatformKind_LinuxWayland] = "Linux Wayland",
+    [PlatformKind_Windows]      = "Windows",
+};
+
 static const char *g_compiler_kind_str[] = {
     [CompilerKind_Clang] = "clang",
     [CompilerKind_Msvc]  = "cl.exe",
@@ -69,22 +75,77 @@ static BuildFlags g_flags = {
     .opt      = OptimizationLevelKind_Debug,
 };
 
+typedef struct {
+    const char *flag;
+    const char *description;
+    void (*apply)(void);
+}FlagEntry;
+
+static void set_x11(void)       { g_flags.platform = PlatformKind_LinuxX11; }
+static void set_wayland(void)   { g_flags.platform = PlatformKind_LinuxWayland; }
+static void set_windows(void)   { g_flags.platform = PlatformKind_Windows; }
+
+static void set_clang(void)     { g_flags.compiler = CompilerKind_Clang; }
+static void set_msvc(void)      { g_flags.compiler = CompilerKind_Msvc; }
+
+static void set_debug(void)     { g_flags.opt = OptimizationLevelKind_Debug; }
+static void set_release(void)   { g_flags.opt = OptimizationLevelKind_Release; }
+static void set_final(void)     { g_flags.opt = OptimizationLevelKind_Final; }
+
+static void set_use_asan(void)  { g_flags.use_asan = true; }
+static void set_unity(void)     { g_flags.unity = true; }
+static void set_no_assets(void) { g_flags.no_assets = true; }
+
+static void set_log_error(void) { nob_minimal_log_level = NOB_ERROR; }
+static void set_log_warn(void)  { nob_minimal_log_level = NOB_WARNING; }
+
+static const FlagEntry flag_table[] = {
+    { "-log_error", "Log None",                         set_log_error },
+    { "-log_warn",  "Log Warn",                         set_log_warn  },
+    { "-x11",       "Use X11 backend",                  set_x11       },
+    { "-wayland",   "Use Wayland backend",              set_wayland   },
+    { "-windows",   "Use Windows backend",              set_windows   },
+
+    { "-clang",     "Use Clang compiler",               set_clang     },
+    { "-cl",        "Use MSVC compiler",                set_msvc      },
+
+    { "-debug",     "Debug build with sanitizers",      set_debug     },
+    { "-release",   "Release build with debug info",    set_release   },
+    { "-final",     "Optimized final build",            set_final     },
+
+    { "-asan",      "Use asan",                         set_use_asan  },
+    { "-unity",     "Build third party in the same TU", set_unity     },
+    { "-no_assets", "Skip downloading assets",          set_no_assets },
+};
+
+static void
+print_help(const char *prog)
+{
+    printf("Usage: %s [g_flags]\n\n", prog);
+    printf("g_flags:\n");
+    for(size_t i = 0; i < NOB_ARRAY_LEN(flag_table); i++){
+        printf("  %-10s %s\n", flag_table[i].flag, flag_table[i].description);
+    }
+    printf("  %-10s Show this help\n", "-help");
+}
+
 // We don't want libs emmitting warning they were not accounting for
 static void
 append_compile_flags(Nob_Cmd *cmd, bool warnings)
 {
     switch(g_flags.compiler){
     case CompilerKind_Msvc:{
-        nob_cmd_append(cmd, warnings ? "/W4" : "/W0", "/std:c11", "/nologo");
-        nob_cmd_append(cmd, "/wd4116", "/wd4324");
+        nob_cmd_append(cmd, warnings ? "/W4" : "/W0", "/std:c11", "/nologo"); // /std:c11 also enables the conforming preprocessor
+        nob_cmd_append(cmd, "/wd4116");                                       // unnamed type definition in parentheses
+        nob_cmd_append(cmd, "/wd4324");                                       // structure was padded due to alignment specifier
         switch(g_flags.opt){
-            case OptimizationLevelKind_Debug:   nob_cmd_append(cmd, "/Od", "/Zi", "/DDEBUG", "/MTd"); break;
-            case OptimizationLevelKind_Release: nob_cmd_append(cmd, "/O2", "/Zi", "/MD"); break;
-            case OptimizationLevelKind_Final:   nob_cmd_append(cmd, "/O2", "/DNDEBUG", "/GL", "/MT"); break;
+            case OptimizationLevelKind_Debug:   nob_cmd_append(cmd, "/Od", "/Zi", "/DDEBUG", "/MTd"); break; // static debug CRT, the debug CRT dlls only ship with Visual Studio
+            case OptimizationLevelKind_Release: nob_cmd_append(cmd, "/O2", "/Zi", "/MD"); break;             // dll CRT (vcruntime140.dll + ucrtbase.dll)
+            case OptimizationLevelKind_Final:   nob_cmd_append(cmd, "/O2", "/DNDEBUG", "/GL", "/MT"); break; // /GL whole program optimization
         }
     }break;
     case CompilerKind_Clang:{
-        nob_cmd_append(cmd, "-std=c11", "-fvisibility=hidden");
+        nob_cmd_append(cmd, "-std=c11", "-fvisibility=hidden"); // symbols are not exported unless marked DOT_ENGINE_API
         if(warnings){
             nob_cmd_append(cmd,
                 "-Wall", "-Wextra", "-Wno-override-init", "-Wno-incompatible-pointer-types-discards-qualifiers",
@@ -103,9 +164,9 @@ append_compile_flags(Nob_Cmd *cmd, bool warnings)
             nob_cmd_append(cmd, "-fsanitize=address,undefined", "-fsanitize-recover=address,undefined");
         }
         if(g_flags.platform == PlatformKind_Windows){
-            nob_cmd_append(cmd, "--target=x86_64-pc-windows-msvc");
+            nob_cmd_append(cmd, "--target=x86_64-pc-windows-msvc"); // plain clang driver emitting MSVC-ABI code, not clang-cl
             if(g_flags.msvc_sysroot){
-                nob_cmd_append(cmd, "-Xmicrosoft-windows-sys-root", g_flags.msvc_sysroot);
+                nob_cmd_append(cmd, "-Xmicrosoft-windows-sys-root", g_flags.msvc_sysroot); // Windows SDK + CRT location when not on windows
             }
         }
     }break;
@@ -114,7 +175,7 @@ append_compile_flags(Nob_Cmd *cmd, bool warnings)
     switch(g_flags.platform){
         case PlatformKind_LinuxX11:     nob_cmd_append(cmd, "-DDOT_PLATFORM_LINUX"); break;
         case PlatformKind_LinuxWayland: nob_cmd_append(cmd, "-DRGFW_WAYLAND", "-DRGFW_OPENGL", "-DDOT_PLATFORM_LINUX", "-I", WAYLAND_GEN_FOLDER); break;
-        case PlatformKind_Windows:      nob_cmd_append(cmd, "-DDOT_PLATFORM_WINDOWS", "-D_CRT_SECURE_NO_WARNINGS"); break;
+        case PlatformKind_Windows:      nob_cmd_append(cmd, "-DDOT_PLATFORM_WINDOWS", "-D_CRT_SECURE_NO_WARNINGS"); break; // allow fopen/sprintf/... without the "use _s variant" deprecation warnings
     }
 
     nob_cmd_append(cmd, "-I", "src/");
@@ -131,14 +192,17 @@ append_link_flags(Nob_Cmd *cmd, const char *exe)
         if(g_flags.opt != OptimizationLevelKind_Final){
             nob_cmd_append(cmd, "/Zi");
         }
-        nob_cmd_append(cmd, "/link", "/INCREMENTAL:NO", "dbghelp.lib");
+        nob_cmd_append(cmd, "/link");           // everything after this goes to link.exe, keep it last
+        nob_cmd_append(cmd, "/INCREMENTAL:NO"); // incremental linking pads the SECTION_DECLARE "$a/$m/$z" sections and breaks iteration
+        nob_cmd_append(cmd, "dbghelp.lib");
     }break;
     case CompilerKind_Clang:{
         switch(g_flags.platform){
         case PlatformKind_Windows:{
-            nob_cmd_append(cmd, "--target=x86_64-pc-windows-msvc", "-fuse-ld=lld");
+            nob_cmd_append(cmd, "--target=x86_64-pc-windows-msvc"); // plain clang driver emitting MSVC-ABI code, not clang-cl
+            nob_cmd_append(cmd, "-fuse-ld=lld");                    // link with lld-link instead of link.exe
             if(g_flags.msvc_sysroot){
-                nob_cmd_append(cmd, "-Xmicrosoft-windows-sys-root", g_flags.msvc_sysroot);
+                nob_cmd_append(cmd, "-Xmicrosoft-windows-sys-root", g_flags.msvc_sysroot); // Windows SDK + CRT location when not on windows
             }
             nob_cmd_append(cmd, "-ldbghelp");
         }break;
@@ -332,21 +396,22 @@ main(int argc, char **argv)
     NOB_GO_REBUILD_URSELF(argc, argv);
 
     for(int i = 1; i < argc; i++){
-        if     (strcmp(argv[i], "-x11") == 0)      g_flags.platform = PlatformKind_LinuxX11;
-        else if(strcmp(argv[i], "-wayland") == 0)  g_flags.platform = PlatformKind_LinuxWayland;
-        else if(strcmp(argv[i], "-windows") == 0)  g_flags.platform = PlatformKind_Windows;
-        else if(strcmp(argv[i], "-clang") == 0)    g_flags.compiler = CompilerKind_Clang;
-        else if(strcmp(argv[i], "-cl") == 0)       g_flags.compiler = CompilerKind_Msvc;
-        else if(strcmp(argv[i], "-debug") == 0)    g_flags.opt = OptimizationLevelKind_Debug;
-        else if(strcmp(argv[i], "-release") == 0)  g_flags.opt = OptimizationLevelKind_Release;
-        else if(strcmp(argv[i], "-final") == 0)    g_flags.opt = OptimizationLevelKind_Final;
-        else if(strcmp(argv[i], "-asan") == 0)     g_flags.use_asan = true;
-        else if(strcmp(argv[i], "-unity") == 0)    g_flags.unity = true;
-        else if(strcmp(argv[i], "-no_assets") == 0) g_flags.no_assets = true;
-        else if(strcmp(argv[i], "-log_warn") == 0) nob_minimal_log_level = NOB_WARNING;
-        else{
+        if(strcmp(argv[i], "-help") == 0){
+            print_help(argv[0]);
+            return 0;
+        }
+
+        bool matched = false;
+        for(size_t f = 0; f < NOB_ARRAY_LEN(flag_table); f++){
+            if(strcmp(argv[i], flag_table[f].flag) == 0){
+                flag_table[f].apply();
+                matched = true;
+                break;
+            }
+        }
+        if(!matched){
             fprintf(stderr, "Unknown flag: %s\n", argv[i]);
-            fprintf(stderr, "Flags: -x11 -wayland -windows -clang -cl -debug -release -final -asan -unity -no_assets -log_warn\n");
+            print_help(argv[0]);
             return 1;
         }
     }
@@ -391,6 +456,7 @@ main(int argc, char **argv)
         download_assets(EXTERNAL_ASSETS("assets", assets_list));
     }
 
+    nob_log(NOB_INFO, "Using compiler %s for target %s", g_compiler_kind_str[g_flags.compiler], g_platform_kind_str[g_flags.platform]);
     Nob_Procs procs = {0};
     if(g_flags.platform == PlatformKind_LinuxWayland){
         if(!generate_wayland_protocols(&procs)) return 1;

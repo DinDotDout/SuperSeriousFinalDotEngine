@@ -8,6 +8,7 @@
 Nob_Log_Level nob_minimal_log_level = NOB_INFO;
 
 #define OUTPUT_FOLDER           "build/"
+#define OBJ_FOLDER              "build/obj/"
 #define SRC_FOLDER              "src/dot_engine/"
 
 #if defined(_WIN32)
@@ -116,7 +117,7 @@ static void print_help(const char *prog)
     for (size_t i = 0; i < ARRAY_LEN(flag_table); i++) {
         printf("  %-10s %s\n", flag_table[i].flag, flag_table[i].description);
     }
-    printf("  %-10s Show this help\n", "--help");
+    printf("  %-10s Show this help\n", "-help");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -135,7 +136,7 @@ generate_wayland_file(const char *mode, const char *xml, const char *out) {
 }
 
 static void
-generate_wayland_protocols(void) {
+generate_wayland_protocols(Nob_Cmd *link_cmd) {
     typedef struct
     {
         const char *xml;
@@ -152,10 +153,12 @@ generate_wayland_protocols(void) {
         {"/usr/share/wayland-protocols/staging/pointer-warp/pointer-warp-v1.xml",                   "pointer-warp-v1"},
     };
     mkdir_if_not_exists(WAYLAND_GEN_FOLDER);
+    mkdir_if_not_exists(OBJ_FOLDER);
     for(size_t i = 0; i < ARRAY_LEN(g_wayland_protocols); i++){
         const WaylandProtocol *p = &g_wayland_protocols[i];
         const char *header = nob_temp_sprintf("%s%s.h", WAYLAND_GEN_FOLDER, p->stem);
         const char *code   = nob_temp_sprintf("%s%s.c", WAYLAND_GEN_FOLDER, p->stem);
+        const char *obj    = nob_temp_sprintf("%s%s.o", OBJ_FOLDER, p->stem);
         if(!generate_wayland_file("client-header", p->xml, header)){
             nob_log(NOB_ERROR, "Failed to generate %s", header);
             exit(1);
@@ -164,6 +167,13 @@ generate_wayland_protocols(void) {
             nob_log(NOB_ERROR, "Failed to generate %s", code);
             exit(1);
         }
+        Nob_Cmd cmd = {0};
+        nob_cmd_append(&cmd, "clang", "-std=c11", "-w", "-c", code, "-o", obj);
+        if(!nob_cmd_run(&cmd)){
+            nob_log(NOB_ERROR, "Failed to compile %s", code);
+            exit(1);
+        }
+        nob_cmd_append(link_cmd, obj);
     }
 }
 
@@ -178,17 +188,9 @@ static void apply_platform_flags(Nob_Cmd *cmd, PlatformKind platform) {
             nob_cmd_append(cmd, "-lX11", "-lXcursor", "-lXrandr", "-lXfixes");
             break;
         case PlatformKind_LinuxWayland:
-            generate_wayland_protocols();
+            generate_wayland_protocols(cmd);
             nob_cmd_append(cmd, "-DRGFW_WAYLAND", "-DRGFW_OPENGL", "-DDOT_PLATFORM_LINUX", "-I", WAYLAND_GEN_FOLDER);
             nob_cmd_append(cmd, "-lwayland-cursor", "-lwayland-client", "-lwayland-egl", "-lxkbcommon");
-            nob_cmd_append(cmd,
-                "src/gen-wayland/xdg-shell.c",
-                "src/gen-wayland/relative-pointer-unstable-v1.c",
-                "src/gen-wayland/pointer-constraints-unstable-v1.c",
-                "src/gen-wayland/xdg-toplevel-icon-v1.c",
-                "src/gen-wayland/xdg-output-unstable-v1.c",
-                "src/gen-wayland/xdg-decoration-unstable-v1.c",
-                "src/gen-wayland/pointer-warp-v1.c");
             break;
         case PlatformKind_Windows:
             nob_cmd_append(cmd, "-DDOT_PLATFORM_WINDOWS");
@@ -254,7 +256,7 @@ static void apply_compiler_flags(Nob_Cmd *cmd, CompilerKind compiler, Optimizati
                 case OptimizationLevelKind_Final:
                     nob_cmd_append(cmd, "/O2", "/DNDEBUG");
                     nob_cmd_append(cmd, "/GL");  // whole program optimization
-                    nob_cmd_append(cmd, "/MD");
+                    nob_cmd_append(cmd, "/MT");
                     break;
             }
             break;
@@ -389,7 +391,7 @@ main(int argc, char *argv[])
     NOB_GO_REBUILD_URSELF(argc, argv);
     mkdir_if_not_exists(OUTPUT_FOLDER);
     for(int i = 1; i < argc; i++){
-        if(strcmp(argv[i], "--help") == 0){
+        if(strcmp(argv[i], "-help") == 0){
             print_help(argv[0]);
             return 0;
         }
