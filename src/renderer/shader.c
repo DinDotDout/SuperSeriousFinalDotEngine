@@ -29,7 +29,7 @@ rn_shader_stage_kind_from_ext(String8 ext)
     String8 match = {0};
     RB_ShaderStageKind shader_kind = RB_ShaderStageKind_None;
 
-    u64 h = hash_fnv1a_u64(ext.str, ext.size);
+    u64 h = hash_fnv1a_u64(ext.str, cast(u64)ext.size);
 
     if(h == STATIC_FNV1A(RN_EXT_VERT)){       match = str_comp(RN_EXT_VERT);  shader_kind = RB_ShaderStageKind_Vertex; }
     else if(h == STATIC_FNV1A(RN_EXT_FRAG)){  match = str_comp(RN_EXT_FRAG);  shader_kind = RB_ShaderStageKind_Fragment; }

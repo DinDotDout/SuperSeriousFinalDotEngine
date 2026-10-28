@@ -32,7 +32,7 @@ dot_model_from_gltf(RN_RenderCtx *renderer, const cgltf_data *gltf_data, String8
 
     String8 folder = string8_chop_last_slash(gltf_path);
     String8 model_name = string8_skip_last_slash(gltf_path);
-    for(u64 c = 0; c < model_name.size; ++c){
+    for(i64 c = 0; c < model_name.size; ++c){
         if(model_name.str[c] == '.'){ model_name.size = c; break; }
     }
 
@@ -247,7 +247,7 @@ dot_gltf_load_from_path(Arena *arena, String8 path)
     };
 
     cgltf_data *gltf_data = NULL;
-    cgltf_result result = cgltf_parse(&options, buff.str, buff.size, &gltf_data);
+    cgltf_result result = cgltf_parse(&options, buff.str, cast(u64)buff.size, &gltf_data);
     b32 fail_parse = false;
     if(result != cgltf_result_success){
         fail_parse = true;

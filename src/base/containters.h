@@ -146,7 +146,7 @@ binary_search_find_(void *base, i64 count, u64 elem_size, void *key, BinarySearc
 internal force_inline i64
 binary_search_insert_(void *base, i64 *count, i64 capacity, u64 elem_size, void *element, void *key, BinarySearchCompare *compare)
 {
-    DOT_ASSERT(*count < capacity, "Sorted array is full (%lld elements)", capacity);
+    DOT_ASSERT(*count < capacity, "Sorted array is full (%" PRId64 " elements)", capacity);
     i64 idx = binary_search_upper_bound_(base, *count, elem_size, key, compare);
     u8 *slot = cast(u8*) base + cast(u64) idx * elem_size;
 
@@ -160,7 +160,7 @@ binary_search_insert_(void *base, i64 *count, i64 capacity, u64 elem_size, void 
 internal inline void
 binary_search_remove_at_(void *base, i64 *count, u64 elem_size, i64 idx)
 {
-    DOT_ASSERT(idx >= 0 && idx < *count, "Sorted array remove index %lld out of range", idx);
+    DOT_ASSERT(idx >= 0 && idx < *count, "Sorted array remove index %" PRId64 " out of range", idx);
     u8 *slot = cast(u8*) base + cast(u64) idx * elem_size;
 
     *count -= 1;

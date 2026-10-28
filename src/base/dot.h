@@ -16,6 +16,7 @@
 // va_start, va_end
 #include <stdarg.h>
 #include <float.h>
+#include <inttypes.h>
 
 #include "base/base_types.h"
 
@@ -352,11 +353,20 @@
 
 ////////////////////////////////////////////////////////////////
 //
+// Intrinsics
+
+#if DOT_COMPILER_MSVC
+#   include <intrin.h>
+#elif (DOT_COMPILER_CLANG || DOT_COMPILER_GCC) && (DOT_ARCH_X86 || DOT_ARCH_X64)
+#   include <x86intrin.h>
+#endif
+
+////////////////////////////////////////////////////////////////
+//
 // Atomics
 
 // NOTE: revisit atomics, also grabbed this from raddbg for the stracktrace thing for now
 #if DOT_COMPILER_MSVC
-#   include <intrin.h>
 #   if DOT_ARCH_X64
 #       define ins_atomic_u32_eval_cond_assign(x,k,c)  _InterlockedCompareExchange((long *)(x), (k), (c))
 #       define ins_atomic_u64_add_eval(x,c)            ((u64)_InterlockedExchangeAdd64((__int64 *)(x), (__int64)(c)) + (c))
@@ -365,8 +375,6 @@
 #       error "Atomic intrinsics not defined for this compiler / architecture combination."
 #   endif
 #elif DOT_COMPILER_CLANG || DOT_COMPILER_GCC
-#   include <immintrin.h>
-#   include <emmintrin.h>
 #   define ins_atomic_u32_eval_cond_assign(x,k,c)  ({ u32 _new = (c); __atomic_compare_exchange_n((u32 *)(x),&_new,(k),0,__ATOMIC_SEQ_CST,__ATOMIC_SEQ_CST); _new; })
 #   define ins_atomic_u64_add_eval(x,c)            __atomic_add_fetch((u64 *)(x), (c), __ATOMIC_SEQ_CST)
 #   define ins_atomic_i64_add_eval(x,c)            __atomic_add_fetch((i64 *)(x), (c), __ATOMIC_SEQ_CST)
@@ -406,18 +414,6 @@ internal void os_print_stacktrace(void);
 //
 // Debug utils
 
-#if DOT_COMPILER_MSVC
-#   include <sal.h>
-#   define DOT_PRINTF_LIKE(fmtpos, argpos)
-#   define DOT_PRINTF_STRING                _Printf_format_string_
-#elif DOT_COMPILER_GCC || DOT_COMPILER_CLANG
-#   define DOT_PRINTF_LIKE(fmtpos, argpos)  __attribute__((format(printf, fmtpos, argpos)))
-#   define DOT_PRINTF_STRING
-#else
-#   define DOT_PRINTF_LIKE(fmtpos, argpos)
-#   define DOT_PRINTF_STRING
-#endif
-
 typedef i32 DOT_LogLevelKind;
 enum
 {
@@ -442,72 +438,65 @@ typedef struct DOT_PrintDebugParams{
     u32 line;
 }DOT_PrintDebugParams;
 
-// Maybe the loging system should just be tied to a frame arena / thread arena
-#define DOT_MAX_LOG_LEVEL_LENGTH 2048
-
 internal void dot_set_log_level(DOT_LogLevelKind log_level);
 
-// This causes -Wformat to jump due to custom format specifiers %S %M %m :(
-// DOT_PRINTF_LIKE(2,3)
-internal void dot_print_debug_(const DOT_PrintDebugParams* params, DOT_PRINTF_STRING const char *fmt, ...);
+#if DOT_COMPILER_MSVC
+#   include <sal.h>
+#   define DOT_PRINTF_LIKE(fmtpos, argpos)
+#   define DOT_PRINTF_STRING                _Printf_format_string_
+#elif DOT_COMPILER_GCC || DOT_COMPILER_CLANG
+#   define DOT_PRINTF_LIKE(fmtpos, argpos)  __attribute__((format(printf, fmtpos, argpos)))
+#   define DOT_PRINTF_STRING
+#else
+#   define DOT_PRINTF_LIKE(fmtpos, argpos)
+#   define DOT_PRINTF_STRING
+#endif
 
-#define DOT_PRINT_DEBUG_PARAMS_DEFAULT(...) \
-&(DOT_PrintDebugParams){ \
-    .print_debug_kind = DOT_LogLevelKind_Debug, \
-    .file = __FILE__, \
-    .line = __LINE__, \
-    __VA_ARGS__ \
-}
+// This causes -Wformat to tigger due to custom format specifiers %S %M %m :(
+// DOT_PRINTF_LIKE(4,5)
+internal void dot_print_debug_(DOT_LogLevelKind log_level, const char *file, u32 line,  /* DOT_PRINTF_STRING */ const char *fmt, ...);
 
-// --- Error Macros ---
-#define DOT_ERROR_IMPL(params, fmt, ...) \
+#define DOT_ERROR_FL(f, l, fmt, ...) \
 do{ \
-    dot_print_debug_(params, fmt, ##__VA_ARGS__); \
+    dot_print_debug_(DOT_LogLevelKind_Error, f, l, fmt, ##__VA_ARGS__ ); \
+    os_print_stacktrace(); \
     DEBUG_BREAK; \
     abort(); \
 }while(0)
 
-#define DOT_ERROR(...)          DOT_ERROR_IMPL(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error), __VA_ARGS__)
-#define DOT_ERROR_FL(f, l, ...) DOT_ERROR_IMPL(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error, .file = (f), .line = (l)), __VA_ARGS__)
-#define DOT_TODO(msg) \
-do { \
-    dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error), "TODO: %s", msg); \
-    abort(); \
-} while(0)
+#define DOT_ERROR(...)  DOT_ERROR_FL(__FILE__, __LINE__, __VA_ARGS__)
+#define DOT_TODO(msg)   DOT_ERROR("TODO: " msg)
 
 #if DOT_DEBUG
-// --- Printing Macros ---
-#define DOT_PRINT(...)              dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(), __VA_ARGS__)
-#define DOT_PRINT_FL(f, l, ...)     dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.file = (f), .line = (l)), __VA_ARGS__)
-#define DOT_WARNING(...)            dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Warning), __VA_ARGS__)
-#define DOT_WARNING_FL(f, l, ...)   dot_print_debug_(DOT_PRINT_DEBUG_PARAMS_DEFAULT(.file = (f), .line = (l), .print_debug_kind = DOT_LogLevelKind_Warning), __VA_ARGS__)
+#   define DOT_PRINT_FL(f, l, ...)      dot_print_debug_(DOT_LogLevelKind_Debug, (f), (l), __VA_ARGS__)
+#   define DOT_WARNING_FL(f, l, ...)    dot_print_debug_(DOT_LogLevelKind_Warning, (f), (l), __VA_ARGS__)
+#   define DOT_ASSERT_FL(cond, f, l, fmt, ...) \
+    do { \
+        if(!(cond)){ \
+            dot_print_debug_(DOT_LogLevelKind_Assert, f, l, "%s " fmt, #cond, ##__VA_ARGS__); \
+            os_print_stacktrace(); \
+            DEBUG_BREAK; \
+        } \
+    } while(0)
 
-// --- Assertion Macros ---
-// WARN: "##" allows us to not have and fmt but uses an extension
-#define DOT_ASSERT_IMPL(cond, params, fmt, ...) \
-do { \
-    if(!(cond)){ \
-        dot_print_debug_(params, "%s " fmt, #cond, ##__VA_ARGS__); \
-        os_print_stacktrace(); \
-        DEBUG_BREAK; \
-    } \
-} while(0)
-#define DOT_ASSERT(cond, ...)           DOT_ASSERT_IMPL((cond), DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error), "" __VA_ARGS__)
-#define DOT_ASSERT_FL(cond, f, l, ...)  DOT_ASSERT_IMPL((cond), DOT_PRINT_DEBUG_PARAMS_DEFAULT(.print_debug_kind = DOT_LogLevelKind_Error, .file = (f), .line = (l)), "" __VA_ARGS__)
+#   define DOT_PRINT(...)           DOT_PRINT_FL(__FILE__, __LINE__,  __VA_ARGS__)
+#   define DOT_WARNING(...)         DOT_WARNING_FL(__FILE__, __LINE__,  __VA_ARGS__)
+#   define DOT_ASSERT(cond, ...)    DOT_ASSERT_FL(cond, __FILE__, __LINE__, "" __VA_ARGS__)
 #else
-#define DOT_PRINT(...)                  ((void)0)
-#define DOT_PRINT_FL(f, l, ...)         do{((void)f); ((void)l);}while(0)
-#define DOT_WARNING(...)                ((void)0)
-#define DOT_WARNING_FL(f, l, ...)       do{((void)f); ((void)l);}while(0)
-#define DOT_ASSERT(...)                 ((void)0)
-#define DOT_ASSERT_FL(cond, f, l, ...)  do{((void)f); ((void)l);}while(0)
-#endif
+#   define DOT_PRINT_FL(f, l, ...)          do{DOT_UNUSED(f,l)}while(0)
+#   define DOT_WARNING_FL(f, l, ...)        do{DOT_UNUSED(f,l)}while(0)
+#   define DOT_ASSERT_FL(cond, f, l, ...)   do{DOT_UNUSED(f,l)}while(0)
+
+#   define DOT_PRINT(...)                   ((void)0)
+#   define DOT_WARNING(...)                 ((void)0)
+#   define DOT_ASSERT(...)                  ((void)0)
+#endif // !DOT_DEBUG
 
 ////////////////////////////////////////////////////////////////
 //
 // Removalble debug field names
 
-internal void dot_debug_name_set(u64 capacity, char *ptr, String8 src);
+internal void dot_debug_name_set(i64 capacity, char *ptr, String8 src);
 
 typedef struct DOT_DebugName16{
     char buff[16];

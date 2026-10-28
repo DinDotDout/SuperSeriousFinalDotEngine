@@ -77,8 +77,8 @@ rn_init(Arena *arena, RN_RenderCtx *renderer, PlatformNativeWindow native_window
     renderer->texture_heap = rb_texture_heap_arena_create(rn_g_texture_heap_size_b);
     renderer->data_heap    = rb_gpu_arena_create(rn_g_data_heap_size_b);
     for EACH_INDEX(i, renderer->frame_data_count){
-        renderer->frame_datas[i].frame_heap  = rb_cpu_gpu_arena_create(rn_g_frame_heap_size_b);
-        renderer->frame_datas[i].upload_heap = rb_cpu_gpu_arena_create(rn_g_upload_heap_size_b);
+        renderer->frame_datas[i].frame_heap  = rb_cpu_gpu_arena_create(RB_MemoryKind_CpuToGpu, rn_g_frame_heap_size_b);
+        renderer->frame_datas[i].upload_heap = rb_cpu_gpu_arena_create(RB_MemoryKind_Staging, rn_g_upload_heap_size_b);
         renderer->frame_datas[i].frame_pool  = rb_command_pool_create();
         renderer->frame_datas[i].upload_pool = rb_command_pool_create();
     }

@@ -2,7 +2,7 @@ internal u64
 array_bounds_check(u64 elem_idx, u64 capacity, char *file, int line)
 {
     if(elem_idx >= capacity){
-        DOT_ERROR_FL(file, line, "Array idx %llu out of max capacity %llu\n", elem_idx, capacity);
+        DOT_ERROR_FL(file, line, "Array idx %" PRIu64 " out of max capacity %" PRIu64 "\n", elem_idx, capacity);
     }
     return elem_idx;
 }

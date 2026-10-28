@@ -288,8 +288,8 @@ arena_print_debug(Arena* arena)
     DOT_PRINT("  Arena parent: '%s'", arena->parent ? arena->parent->name : "no parent");
     DOT_PRINT("  Base:              %p", arena->base);
     DOT_PRINT("  Used:              %M", arena->used);
-    DOT_PRINT("  Committed:         %M (%llu pages)%s", arena->committed, committed_pages, sparse ? " [sparse: not actually backed]" : "");
-    DOT_PRINT("  Reserved:          %M (%llu pages)", arena->reserved,  reserved_pages);
+    DOT_PRINT("  Committed:         %M (%" PRIu64 " pages)%s", arena->committed, committed_pages, sparse ? " [sparse: not actually backed]" : "");
+    DOT_PRINT("  Reserved:          %M (%" PRIu64 " pages)", arena->reserved,  reserved_pages);
     DOT_PRINT("  Page size:         %M (%s)", page_size, large_pages ? "large pages" : "regular pages");
     DOT_PRINT("  Commit expand:     %M\n", arena->commit_expand_size);
 }

@@ -8,12 +8,13 @@ rb_gpu_bump_atomic_(i64 *used, i64 capacity, i64 size)
 }
 
 internal RB_CpuGpuArena
-rb_cpu_gpu_arena_create(i64 size)
+rb_cpu_gpu_arena_create(RB_MemoryKind kind, i64 size)
 {
-    DOT_ASSERT(size > 0);
+    DOT_ASSERT(size > 0, "Size must be bigger than 0");
+    DOT_ASSERT(kind == RB_MemoryKind_CpuToGpu || kind == RB_MemoryKind_Staging, "CPU writable arena needs a host visible memory kind (%d)", kind);
     RB_CpuGpuArena arena = {0};
     arena.size     = size;
-    arena.heap     = rb_gpu_heap_create(RB_MemoryKind_CpuToGpu, size);
+    arena.heap     = rb_gpu_heap_create(kind, size);
     arena.gpu_base = rb_gpu_heap_address(arena.heap);
     return(arena);
 }
@@ -199,7 +200,6 @@ rb_delete_queue_tick(RB_DeleteQueue *q)
     rb_delete_queue_collect_(q, rb_timeline_completed_value(q->timeline));
 }
 
-// (claude) Shutdown only: ignores the timeline.
 internal void
 rb_delete_queue_drain(RB_DeleteQueue *q)
 {

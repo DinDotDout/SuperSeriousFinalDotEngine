@@ -13,33 +13,36 @@ print_log_level_kind(DOT_LogLevelKind debug_kind){
     return ret;
 }
 
+// --- Logging ---
+// Maybe the logging system should just be tied to a frame arena / thread arena
+enum { DOT_MAX_LOG_LEVEL_LENGTH = 2048 };
+
 internal void
-dot_print_debug_(const DOT_PrintDebugParams* params, const char *fmt, ...){
-    if(params->print_debug_kind < g_log_level) return;
+dot_print_debug_(DOT_LogLevelKind log_level, const char *file, u32 line, const char *fmt, ...)
+{
+    if(log_level < g_log_level) return;
     local_persist thread_local char buf[DOT_MAX_LOG_LEVEL_LENGTH];
-    FILE* out = params->print_debug_kind == DOT_LogLevelKind_Debug ? stdout : stderr;
+    FILE* out = log_level == DOT_LogLevelKind_Debug ? stdout : stderr;
 
     va_list args;
     va_start(args, fmt);
     dot_vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
 
-    const char *fmt_str = params->print_debug_kind == DOT_LogLevelKind_Debug ? "%s%s:%d -> %s\n" : "%s: %s:%d -> %s\n";
-    fprintf(out, fmt_str,
-        print_log_level_kind(params->print_debug_kind),
-        params->file,
-        params->line,
-        buf);
+    const char *fmt_str = log_level == DOT_LogLevelKind_Debug ? "%s%s:%d -> %s\n" : "%s: %s:%d -> %s\n";
+    fprintf(out, fmt_str, print_log_level_kind(log_level), file, line, buf);
 }
 
 internal void
-dot_debug_name_set(u64 capacity, char *ptr, String8 src)
+dot_debug_name_set(i64 capacity, char *ptr, String8 src)
 {
-    if(src.size > capacity){
+    if(src.size >= capacity){
         src.size = capacity - 1;
         DOT_WARNING("Truncating name: %S", src);
     }
-    MEMORY_COPY(ptr, src.str, src.size);
+    if(src.size > 0){
+        MEMORY_COPY(ptr, src.str, src.size);
+    }
     ptr[src.size] = 0;
 }
 

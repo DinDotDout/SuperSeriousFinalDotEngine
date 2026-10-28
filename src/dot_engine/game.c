@@ -224,14 +224,14 @@ dot_game_run(DOT_Game *game)
     // Orders this pass after the background clear (same color target) and the previous frame's
     // use of the shared depth texture.
     rb_barrier(renderer->current_cmd,
-        RB_StageBit_ColorOutput | RB_StageBit_DepthStencilTests,
+        RB_StageBit_ColorOutput | RB_StageBit_DepthStencilTests | RB_StageBit_Fragment,
         RB_AccessBit_ColorWrite | RB_AccessBit_DepthStencilWrite,
         RB_StageBit_ColorOutput | RB_StageBit_DepthStencilTests,
         RB_AccessBit_ColorRead | RB_AccessBit_ColorWrite | RB_AccessBit_DepthStencilRead | RB_AccessBit_DepthStencilWrite);
 
     rb_render_pass_begin(renderer->current_cmd, desc, RB_RenderingBit_None);
     rb_set_depth_stencil_state(renderer->current_cmd,
-        (RB_DepthStencilState){
+        &(RB_DepthStencilState){
             .depth_enable       = true,
             .depth_write_enable = true,
             .depth_comparison   = RB_CompareOpKind_Less,

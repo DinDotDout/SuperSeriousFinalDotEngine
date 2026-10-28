@@ -21,7 +21,6 @@ RB_HANDLE_DEFINE(RB_TextureHeap);
 /// RB_MEMORY
 
 typedef u64 RB_GpuAddress;
-ReflectPrimitive(RB_GpuAddress, RFL_TypeKind_U32);
 
 typedef struct RB_GpuRange
 {
@@ -38,7 +37,8 @@ typedef struct RB_SizeAlign
 typedef enum RB_MemoryKind
 {
     RB_MemoryKind_GpuOnly,
-    RB_MemoryKind_CpuToGpu,
+    RB_MemoryKind_CpuToGpu, // CPU writes, GPU reads it in place (per-frame roots); prefers VRAM through BAR
+    RB_MemoryKind_Staging,  // CPU writes, GPU only copies from it into GpuOnly memory; system RAM
     RB_MemoryKind_Readback,
     RB_MemoryKind_TextureDescriptorHeap,
     RB_MemoryKind_SamplerDescriptorHeap,
@@ -166,7 +166,7 @@ typedef struct RB_TextureCopyDesc
     u32 mip_level;
     u32 slice;
     i32x3 offset;
-    i32x3 extent; // (claude) zero = whole mip
+    i32x3 extent;
 }RB_TextureCopyDesc;
 
 typedef struct RB_RenderViewDesc
@@ -713,7 +713,7 @@ X(render_pass_begin,                void,                   (RB_CommandBuffer cm
 X(render_pass_end,                  void,                   (RB_CommandBuffer cmd))\
 X(set_viewport,                     void,                   (RB_CommandBuffer cmd, RB_Viewport viewport))\
 X(set_scissor,                      void,                   (RB_CommandBuffer cmd, RB_Extent2D16 scissor))\
-X(set_depth_stencil_state,          void,                   (RB_CommandBuffer cmd, RB_DepthStencilState state))\
+X(set_depth_stencil_state,          void,                   (RB_CommandBuffer cmd, const RB_DepthStencilState *state))\
 X(bind_pso,                         void,                   (RB_CommandBuffer cmd, RB_Pipeline pso))\
 X(draw,                             void,                   (RB_CommandBuffer cmd, RB_GpuAddress root, u32 vertex_count, u32 instance_count, u32 first_vertex, u32 first_instance))\
 X(draw_indexed,                     void,                   (RB_CommandBuffer cmd, RB_GpuAddress root, RB_GpuRange indices, RB_IndexKind index_kind, u32 index_count, u32 instance_count, u32 first_index, i32 vertex_offset, u32 first_instance))\

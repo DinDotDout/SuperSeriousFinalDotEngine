@@ -30,7 +30,11 @@ os_print_stacktrace()
     HANDLE process = GetCurrentProcess();
     SymInitialize(process, NULL, TRUE);
 
-    SYMBOL_INFO* symbol = (SYMBOL_INFO*)calloc(sizeof(SYMBOL_INFO) + 256, 1);
+    union{
+        SYMBOL_INFO info;
+        u8 bytes[sizeof(SYMBOL_INFO) + 256];
+    }symbol_storage = {0};
+    SYMBOL_INFO *symbol = &symbol_storage.info;
     symbol->MaxNameLen = 255;
     symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
 
@@ -43,16 +47,14 @@ os_print_stacktrace()
         DWORD displacement = 0;
         if (SymFromAddr(process, addr, 0, symbol)) {
             if (SymGetLineFromAddr64(process, addr, &displacement, &line)) {
-                fprintf(stderr, "%u. [0x%016llX] %s, %s:%lu\n", i+1, symbol->Address, symbol->Name, line.FileName, line.LineNumber);
+                fprintf(stderr, "%d. [0x%016" PRIX64 "] %s, %s:%lu\n", i+1, symbol->Address, symbol->Name, line.FileName, line.LineNumber);
             } else {
-                fprintf(stderr, "%u. [0x%016llX] %s\n", i+1, symbol->Address, symbol->Name);
+                fprintf(stderr, "%d. [0x%016" PRIX64 "] %s\n", i+1, symbol->Address, symbol->Name);
             }
         } else {
-            fprintf(stderr, "%u. [0x%016llX] ???\n", i+1, addr);
+            fprintf(stderr, "%d. [0x%016" PRIX64 "] ???\n", i+1, addr);
         }
     }
-
-    free(symbol);
 #endif // !DOT_DEBUG
 }
 

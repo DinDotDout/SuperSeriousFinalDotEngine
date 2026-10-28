@@ -56,7 +56,7 @@ hm_hasheq_string8(HashMapOpKind op, void *a, void *b, u64 key_size)
 internal u64
 hm_hasheq_u64(HashMapOpKind op, void *a, void *b, u64 key_size)
 {
-    DOT_ASSERT(key_size == sizeof(u64), "hm_hasheq_u64 needs 8-byte keys, got %llu", key_size);
+    DOT_ASSERT(key_size == sizeof(u64), "hm_hasheq_u64 needs 8-byte keys, got %" PRIu64, key_size);
     u64 ka = *cast(u64*) a;
     switch(op){
     case HashMapOpKind_Hash:  return(hash_mix_u64(ka));

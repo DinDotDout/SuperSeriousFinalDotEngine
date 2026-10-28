@@ -150,7 +150,7 @@ internal u8
 rfl_peek_at(RFL_Parser *parser, u64 offset)
 {
     String8 body = parser->type->body;
-    u64 at = parser->pos + offset;
+    i64 at = parser->pos + offset;
     return(at < body.size ? body.str[at] : 0);
 }
 
@@ -499,7 +499,7 @@ rfl_parse_struct(RFL_Parser *parser)
                 i64 array_size = rfl_parse_expr(parser);
                 rfl_expect_punct(parser, ']');
                 if(parser->mode == RFL_ParserMode_Evaluate && array_size <= 0){
-                    DOT_ERROR_FL(parser->type->file, cast(i32)parser->type->line, "Reflect %S: array '%S' has size %lld", parser->type->name, field_name, array_size);
+                    DOT_ERROR_FL(parser->type->file, cast(i32)parser->type->line, "Reflect %S: array '%S' has size %" PRId64, parser->type->name, field_name, array_size);
                 }
                 array_count = cast(u32)array_size;
             }

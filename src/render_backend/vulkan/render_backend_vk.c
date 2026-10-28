@@ -506,7 +506,7 @@ rb_vk_pick_best_device(const RB_VK_VulkanConfig *vk_config, VkInstance instance,
     Scratch s = scratch_begin(0,0);
     u32 device_count = 0;
     vkEnumeratePhysicalDevices(instance, &device_count, NULL);
-    if (device_count == 0) {
+    if(device_count == 0){
         DOT_ERROR("No Vulkan-capable GPUs found");
     }
 
@@ -1228,7 +1228,7 @@ internal void
 rb_vk_sampler_descriptor_heap_set(RB_CommandBuffer cmd_h, RB_GpuHeap heap)
 {
     RB_VK_CommandBuffer *cmd = RB_HANDLE_UNPACK(RB_VK_CommandBuffer*, cmd_h);
-    VkBindHeapInfoEXT info = rb_vk_descriptor_heap_bind_info(heap, RB_MemoryKind_SamplerDescriptorHeap);
+    VkBindHeapInfoEXT info   = rb_vk_descriptor_heap_bind_info(heap, RB_MemoryKind_SamplerDescriptorHeap);
     vkCmdBindSamplerHeapEXT(cmd->vk_cmd, &info);
 }
 
@@ -1239,7 +1239,7 @@ rb_vk_shader_module_create(String8 spirv)
     RB_VK_CHECK(vkCreateShaderModule(rb_vk_g_ctx->device.vk_device,
         &(VkShaderModuleCreateInfo){
             .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .codeSize = spirv.size,
+            .codeSize = cast(usize)spirv.size,
             .pCode    = cast(u32*)spirv.str,
         }, NULL, &module));
     return(module);
@@ -1886,7 +1886,6 @@ rb_vk_init(Arena *arena, PlatformNativeWindow window, RB_DeviceDesc const *desc)
             // vkGetDeviceQueue(device->vk_device, device->graphics_queue_idx, 0, &device->present_queue);
         }
     }
-    // (claude) Must run before any rb_texture_heap_create.
     rb_vk_texture_memory_select();
 
     {
@@ -2184,7 +2183,7 @@ rb_vk_commands_begin(RB_CommandPool pool_h)
 
     RB_VK_CommandBuffer *cmd = pool->next_free;
     if(cmd){
-        pool->next_free = cmd->next;
+        SLL_STACK_POP(pool->next_free);
     }else{
         cmd = PUSH_STRUCT(rb_vk_g_ctx->permanent_arena, RB_VK_CommandBuffer);
         VkCommandBufferAllocateInfo alloc_info = {0};
@@ -2210,7 +2209,6 @@ rb_vk_commands_begin(RB_CommandPool pool_h)
     begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     RB_VK_CHECK(vkBeginCommandBuffer(cmd->vk_cmd, &begin_info));
 
-    // (claude) Host-side reset: vkCmdResetQueryPool here would break a resumed render pass.
     if(cmd->timestamp_pool){
         vkResetQueryPool(device, cmd->timestamp_pool, 0, rb_vk_g_ctx->device.timestamp_query_count);
     }
@@ -2312,17 +2310,17 @@ rb_vk_set_scissor(RB_CommandBuffer cmd_h, RB_Extent2D16 scissor)
 }
 
 internal void
-rb_vk_set_depth_stencil_state(RB_CommandBuffer cmd_h, RB_DepthStencilState state)
+rb_vk_set_depth_stencil_state(RB_CommandBuffer cmd_h, const RB_DepthStencilState *state)
 {
     RB_VK_CommandBuffer *cmd = RB_HANDLE_UNPACK(RB_VK_CommandBuffer*, cmd_h);
-    VkCommandBuffer vk_cmd = cmd->vk_cmd;
+    VkCommandBuffer vk_cmd   = cmd->vk_cmd;
 
-    vkCmdSetDepthTestEnable(vk_cmd, state.depth_enable ? VK_TRUE : VK_FALSE);
-    vkCmdSetDepthWriteEnable(vk_cmd, state.depth_write_enable ? VK_TRUE : VK_FALSE);
-    vkCmdSetDepthCompareOp(vk_cmd, rb_vk_compare_op_from_compare_op_kind(state.depth_comparison));
+    vkCmdSetDepthTestEnable(vk_cmd, state->depth_enable ? VK_TRUE : VK_FALSE);
+    vkCmdSetDepthWriteEnable(vk_cmd, state->depth_write_enable ? VK_TRUE : VK_FALSE);
+    vkCmdSetDepthCompareOp(vk_cmd, rb_vk_compare_op_from_compare_op_kind(state->depth_comparison));
 
-    vkCmdSetStencilTestEnable(vk_cmd, state.stencil_enable ? VK_TRUE : VK_FALSE);
-    RB_StencilState *faces[2] = { &state.front, &state.back };
+    vkCmdSetStencilTestEnable(vk_cmd, state->stencil_enable ? VK_TRUE : VK_FALSE);
+    RB_StencilState *faces[2] = { &state->front, &state->back };
     VkStencilFaceFlags face_bits[2] = { VK_STENCIL_FACE_FRONT_BIT, VK_STENCIL_FACE_BACK_BIT };
     for(u32 i = 0; i < 2; ++i){
         RB_StencilState *s = faces[i];
@@ -2439,7 +2437,7 @@ rb_vk_render_pass_begin(RB_CommandBuffer cmd_h, RB_RenderingDesc desc, RB_Render
     viewport.max_depth     = 1.0f;
     rb_vk_set_viewport(cmd_h, viewport);
     rb_vk_set_scissor(cmd_h, viewport.viewport_rect);
-    rb_vk_set_depth_stencil_state(cmd_h, (RB_DepthStencilState){ .depth_comparison = RB_CompareOpKind_Always });
+    rb_vk_set_depth_stencil_state(cmd_h, &(RB_DepthStencilState){ .depth_comparison = RB_CompareOpKind_Always });
 }
 
 internal void
@@ -2884,6 +2882,11 @@ rb_vk_gpu_memory_properties_from_memory_kind(RB_MemoryKind mem_kind)
             | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
         props.preferred = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
     break;
+    case RB_MemoryKind_Staging:
+        props.required  = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+            | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        props.forbidden = rb_vk_g_ctx->device.is_integrated_gpu ? 0 : VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    break;
     case RB_MemoryKind_Readback:
         props.required  = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
             | VK_MEMORY_PROPERTY_HOST_CACHED_BIT
@@ -2990,7 +2993,7 @@ rb_vk_buffer_from_gpu_address(RB_GpuAddress address, VkDeviceSize *out_offset)
             return(heap->vk_buffer);
         }
     }
-    DOT_ERROR("GPU address 0x%llx doesn't belong to any live heap", address);
+    DOT_ERROR("GPU address 0x%" PRIx64 " doesn't belong to any live heap", address);
 }
 
 internal RB_GpuHeap
@@ -2999,7 +3002,7 @@ rb_vk_gpu_heap_create(RB_MemoryKind kind, i64 bytes)
     VkDevice vk_device = rb_vk_g_ctx->device.vk_device;
     RB_VK_GpuMemoryProperties props = rb_vk_gpu_memory_properties_from_memory_kind(kind);
     b8 descriptor_heap = (kind == RB_MemoryKind_TextureDescriptorHeap) || (kind == RB_MemoryKind_SamplerDescriptorHeap);
-    b8 host_visible = (kind == RB_MemoryKind_CpuToGpu) || (kind == RB_MemoryKind_Readback) || descriptor_heap;
+    b8 host_visible = (kind == RB_MemoryKind_CpuToGpu) || (kind == RB_MemoryKind_Staging) || (kind == RB_MemoryKind_Readback) || descriptor_heap;
 
     RB_VK_GpuHeap *vk_gpu_heap = rb_vk_g_ctx->head;
     if(vk_gpu_heap){
@@ -3112,7 +3115,6 @@ rb_vk_image_memory_alloc(VkImage vk_image)
     return(vk_memory);
 }
 
-// (claude) Memory requirements of an unsupported create-info are undefined; gate every probe on this.
 internal b8
 rb_vk_image_create_info_supported(VkImageCreateInfo *info)
 {
@@ -3144,7 +3146,8 @@ rb_vk_texture_memory_select(void)
 {
     // (jd) TODO: Add more probe tyeps as we go based on needs
     const VkImageCreateInfo probes[] = {
-        {   .sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        {
+            .sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
             .imageType   = VK_IMAGE_TYPE_2D,
             .format      = VK_FORMAT_R8G8B8A8_UNORM,
             .extent      = {1024, 1024, 1},
@@ -3154,8 +3157,10 @@ rb_vk_texture_memory_select(void)
             .tiling      = VK_IMAGE_TILING_OPTIMAL,
             .usage       = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT
                          | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
-                         | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT },
-        {   .sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+                         | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT
+        },
+        {
+            .sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
             .imageType   = VK_IMAGE_TYPE_2D,
             .format      = VK_FORMAT_D32_SFLOAT_S8_UINT,
             .extent      = {1024, 1024, 1},
@@ -3163,7 +3168,8 @@ rb_vk_texture_memory_select(void)
             .arrayLayers = 1,
             .samples     = VK_SAMPLE_COUNT_1_BIT,
             .tiling      = VK_IMAGE_TILING_OPTIMAL,
-            .usage       = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT },
+            .usage       = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
+        },
     };
 
     u32 type_bits = U32_MAX;
@@ -3201,6 +3207,7 @@ rb_vk_texture_memory_select(void)
 internal RB_TextureHeap
 rb_vk_texture_heap_create(i64 bytes)
 {
+    DOT_ASSERT(rb_vk_g_ctx->device.texture_memory_type != 0 || rb_vk_g_ctx->device.texture_heap_alignment != 0, "Tried to alloc before texture_memory_select ran!");
     VkMemoryAllocateInfo alloc_info = {0};
     alloc_info.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     alloc_info.memoryTypeIndex = rb_vk_g_ctx->device.texture_memory_type;
@@ -3225,7 +3232,7 @@ rb_vk_copy_memory(RB_CommandBuffer cmd_h, RB_GpuRange src, RB_GpuRange dst)
 {
     RB_VK_CommandBuffer *cmd = RB_HANDLE_UNPACK(RB_VK_CommandBuffer *, cmd_h);
     rb_vk_assert_outside_suspended_pass(cmd);
-    DOT_ASSERT(src.size <= dst.size, "copy_memory destination (%llu B) smaller than source (%llu B)", dst.size, src.size);
+    DOT_ASSERT(src.size <= dst.size, "copy_memory destination (%" PRId64 " B) smaller than source (%" PRId64 " B)", dst.size, src.size);
 
     if(!rb_vk_g_ctx->device.device_address_commands){
         VkDeviceSize src_offset = 0;

@@ -6,21 +6,24 @@
 // String
 //
 
-struct String8{
+struct String8
+{
+    i64 size;
     union{
         u8 *str;
         char *cstr;
     };
-    u64 size;
 };
 
 typedef struct String8Node String8Node;
-struct String8Node{
+struct String8Node
+{
     String8Node *next;
     String8 str;
 };
 
-typedef struct String8List{
+typedef struct String8List
+{
     String8Node *first;
     String8Node *last;
     u64 count;

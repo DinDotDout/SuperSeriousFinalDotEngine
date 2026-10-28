@@ -172,7 +172,9 @@ string8_copy(Arena *arena, String8 string)
   String8 str;
   str.size = string.size;
   str.str = PUSH_ARRAY_NO_ZERO(arena, u8, str.size + 1);
-  MEMORY_COPY(str.str, string.str, string.size);
+  if(string.size > 0){
+      MEMORY_COPY(str.str, string.str, string.size);
+  }
   str.str[str.size] = 0;
   return str;
 }
@@ -194,11 +196,11 @@ string8_find_substring(String8 haystack, String8 needle)
         return false;
     }
 
-    for(u64 i = 0; i <= haystack.size - needle.size; ++i){
+    for(i64 i = 0; i <= haystack.size - needle.size; ++i){
         if(haystack.str[i] == needle.str[0]){
             b32 match = true;
 
-            for(u64 j = 1; j < needle.size; ++j){
+            for(i64 j = 1; j < needle.size; ++j){
                 if(haystack.str[i + j] != needle.str[j]){
                     match = false;
                     break;
@@ -221,11 +223,11 @@ string8_contains(String8 haystack, String8 needle)
         return false;
     }
     b32 found = false;
-    for(u64 i = 0; i <= haystack.size - needle.size; ++i){
+    for(i64 i = 0; i <= haystack.size - needle.size; ++i){
         if(haystack.str[i] == needle.str[0]){
 
             b32 is_word = true;
-            for(u64 j = 1; j < needle.size; ++j){
+            for(i64 j = 1; j < needle.size; ++j){
                 if(haystack.str[j+i] != needle.str[j]){
                     is_word = false;
                     break;
@@ -340,7 +342,7 @@ internal u64
 u64_hash_from_string8(String8 string, u64 seed)
 {
     u64 result = seed != U64_MAX ? seed : 5381;
-    for(u64 i = 0; i < string.size; ++i){
+    for(i64 i = 0; i < string.size; ++i){
         result = ((result << 5) + result) + string.str[i];
     }
     return result;

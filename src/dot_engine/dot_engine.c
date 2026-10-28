@@ -15,16 +15,23 @@ enum{
 
 global DOT_EngineModeKind g_engine_mode = DOT_EngineRunModeKind_Default;
 
+internal void
+dot_engine_set_mode(DOT_EngineModeKind mode)
+{
+    g_engine_mode = mode;
+}
+
 internal read_only ProgramEntryFlagCtx flag_table[] = {
-    PROGRAM_ENTRY_FLAG_CTX_INT(str_lit("-tests-run"),  str_lit("Run test suite"),  &g_engine_mode, DOT_EngineRunModeKind_TestsRun),
-    PROGRAM_ENTRY_FLAG_CTX_INT(str_lit("-tests-list"), str_lit("Show test suite"), &g_engine_mode, DOT_EngineRunModeKind_TestsList),
+    { .flag = str_lit("-tests-run"),  .flag_desc = str_lit("Run test suite"),               .set_int = dot_engine_set_mode, .int_value = DOT_EngineRunModeKind_TestsRun  },
+    { .flag = str_lit("-tests-list"), .flag_desc = str_lit("Show test suite"),              .set_int = dot_engine_set_mode, .int_value = DOT_EngineRunModeKind_TestsList },
+    { .flag = str_lit("-log_warn"),   .flag_desc = str_lit("Only log warnings and errors"), .set_int = dot_set_log_level,   .int_value = DOT_LogLevelKind_Warning        },
+    { .flag = str_lit("-log_error"),  .flag_desc = str_lit("Only log errors"),              .set_int = dot_set_log_level,   .int_value = DOT_LogLevelKind_Error          },
 };
 
 int
 entry_point(int argc, String8 arg_values[])
 {
     b32 show_help = program_entry_flags_apply(DOT_ARRAY_COUNT(flag_table), flag_table, argc, arg_values);
-
     if(show_help){
         return(0);
     }

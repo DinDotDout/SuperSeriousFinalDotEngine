@@ -156,6 +156,7 @@ struct RB_VK_CommandPool
     VkCommandPool        vk_pool;
     RB_VK_CommandBuffer *first;
     RB_VK_CommandBuffer *last;
+
     RB_VK_CommandBuffer *next_free;
 };
 
