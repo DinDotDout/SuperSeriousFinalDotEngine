@@ -1,6 +1,6 @@
-cc scripts/nob_parallell.c -o scripts/nob_parallell
-./scripts/nob_parallell -wayland -no_assets
-./scripts/nob_parallell -no_assets
+cc scripts/nob.c -o scripts/nob
+./scripts/nob -wayland -no_assets
+./scripts/nob -no_assets
 
-./scripts/nob_parallell -windows -no_assets
-./scripts/nob_parallell -windows -clang -no_assets
+./scripts/nob -windows -no_assets
+./scripts/nob -windows -clang -no_assets
