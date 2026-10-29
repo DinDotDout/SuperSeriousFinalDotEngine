@@ -2,10 +2,15 @@
 #include "../src/third_party/nob.h/nob.h"
 #endif
 
+////////////////////////////////////////////////////////////////
+//
+// Target kinds
+
 typedef enum
 {
     OsKind_Linux,
     OsKind_Windows,
+    OsKind_Count,
 }OsKind;
 
 static const char *g_os_kind_str[] = {
@@ -17,17 +22,21 @@ typedef enum
 {
     WindowKind_X11,
     WindowKind_Wayland,
+    WindowKind_Win32,
+    WindowKind_Count,
 }WindowKind;
 
 static const char *g_window_kind_str[] = {
     [WindowKind_X11]     = "X11",
     [WindowKind_Wayland] = "Wayland",
+    [WindowKind_Win32]   = "Win32",
 };
 
 typedef enum
 {
     CompilerKind_Clang,
     CompilerKind_Msvc,
+    CompilerKind_Count,
 }CompilerKind;
 
 static const char *g_compiler_kind_str[] = {
@@ -42,85 +51,31 @@ typedef enum
     OptimizationLevelKind_Final,
 }OptimizationLevelKind;
 
+typedef uint32_t b32;
+
 typedef struct
 {
     OsKind os;
     WindowKind window;
     CompilerKind compiler;
     OptimizationLevelKind opt;
-    bool asan;
-    bool analyze;
+    b32 asan;
+    b32 analyze;
     const char *msvc_sysroot;
 }Target;
 
-#define STR_LIST_MAX 32
+////////////////////////////////////////////////////////////////
+//
+// String lists
+
+#ifndef STR_LIST_MAX
+#   define STR_LIST_MAX 32
+#endif
 
 typedef struct
 {
     const char *items[STR_LIST_MAX];
 }StrList;
-
-typedef struct
-{
-    const char *flag;
-    const char *description;
-    void (*apply)(void);
-}FlagEntry;
-
-typedef struct
-{
-    const char *url;
-    const char *rev;
-    const char *dir;
-}Download;
-
-typedef struct
-{
-    const char *name;
-    const char *lib;
-    const char *linux_dir;
-    const char *windows_dir;
-    StrList includes;
-    StrList defines;
-    StrList windows_defines;
-    const char *missing_hint;
-}Prebuilt;
-
-typedef struct
-{
-    const char *xml;
-    const char *stem;
-}WaylandProtocol;
-
-typedef struct
-{
-    const char *src_dir;
-    const char *obj_dir;
-    StrList sources;
-    StrList defines;
-    StrList linux_libs;
-    StrList windows_libs;
-    const Prebuilt *output;
-}CppRecipe;
-
-typedef struct
-{
-    const char *name;
-    const char *out_dir;
-    const char *obj_dir;
-    StrList sources;
-    StrList quiet_sources;
-    StrList includes;
-    StrList defines;
-    StrList clang_flags;
-    StrList clang_warnings;
-    StrList msvc_flags;
-    StrList msvc_warnings;
-    StrList msvc_link_flags;
-    StrList linux_libs;
-    StrList windows_libs;
-    const Prebuilt *prebuilts[4];
-}Exe;
 
 static void
 str_list_push(StrList *list, const char *item)
@@ -142,6 +97,27 @@ append_list(Nob_Cmd *cmd, const char *fmt, const StrList *list)
     }
 }
 
+////////////////////////////////////////////////////////////////
+//
+// Per platform and per compiler config
+
+typedef struct
+{
+    StrList defines;
+    StrList libs;
+}PlatformConfig;
+
+typedef struct
+{
+    StrList flags;
+    StrList warnings;
+    StrList link_flags;
+}CompilerConfig;
+
+////////////////////////////////////////////////////////////////
+//
+// Files
+
 static bool
 mkdir_parents(const char *file_path)
 {
@@ -159,9 +135,42 @@ mkdir_parents(const char *file_path)
     return(true);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Flags and target
-// ─────────────────────────────────────────────────────────────────────────────
+////////////////////////////////////////////////////////////////
+//
+// Flags
+
+_Static_assert(sizeof(OsKind)                == sizeof(uint32_t), "FlagWrite needs 4-byte fields");
+_Static_assert(sizeof(WindowKind)            == sizeof(uint32_t), "FlagWrite needs 4-byte fields");
+_Static_assert(sizeof(CompilerKind)          == sizeof(uint32_t), "FlagWrite needs 4-byte fields");
+_Static_assert(sizeof(OptimizationLevelKind) == sizeof(uint32_t), "FlagWrite needs 4-byte fields");
+_Static_assert(sizeof(Nob_Log_Level)         == sizeof(uint32_t), "FlagWrite needs 4-byte fields");
+
+typedef struct
+{
+    void *dst;      // must point at a 4-byte field
+    uint32_t value;
+}FlagWrite;
+
+#ifndef FLAG_WRITES_MAX
+#   define FLAG_WRITES_MAX 3
+#endif
+
+typedef struct
+{
+    const char *flag;
+    const char *description;
+    FlagWrite writes[FLAG_WRITES_MAX];
+    void (*apply)(void);
+}FlagEntry;
+
+static void
+flag_apply(const FlagEntry *entry)
+{
+    for(size_t i = 0; i < NOB_ARRAY_LEN(entry->writes) && entry->writes[i].dst; i++){
+        *(uint32_t *)entry->writes[i].dst = entry->writes[i].value;
+    }
+    if(entry->apply) entry->apply();
+}
 
 static void
 print_help(const char *prog, const FlagEntry *flags, size_t count)
@@ -185,7 +194,7 @@ parse_flags(int argc, char **argv, const FlagEntry *flags, size_t count)
         bool matched = false;
         for(size_t f = 0; f < count; f++){
             if(strcmp(argv[i], flags[f].flag) == 0){
-                flags[f].apply();
+                flag_apply(&flags[f]);
                 matched = true;
                 break;
             }
@@ -199,15 +208,21 @@ parse_flags(int argc, char **argv, const FlagEntry *flags, size_t count)
     return(true);
 }
 
+////////////////////////////////////////////////////////////////
+//
+// Target setup
+
 static Target
 target_host(void)
 {
     Target target = {0};
 #if defined(_WIN32)
     target.os       = OsKind_Windows;
+    target.window   = WindowKind_Win32;
     target.compiler = CompilerKind_Msvc;
 #else
     target.os       = OsKind_Linux;
+    target.window   = WindowKind_X11;
     target.compiler = CompilerKind_Clang;
 #endif
     return(target);
@@ -216,6 +231,10 @@ target_host(void)
 static bool
 target_check(Target *target)
 {
+    if((target->os == OsKind_Windows) != (target->window == WindowKind_Win32)){
+        nob_log(NOB_ERROR, "Invalid target: %s can't use %s windowing", g_os_kind_str[target->os], g_window_kind_str[target->window]);
+        return(false);
+    }
     if(target->compiler == CompilerKind_Msvc && target->os != OsKind_Windows){
         nob_log(NOB_ERROR, "cl can only target windows (use -windows)");
         return(false);
@@ -248,9 +267,16 @@ append_clang_windows_flags(Nob_Cmd *cmd, const Target *target, bool link)
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+////////////////////////////////////////////////////////////////
+//
 // Downloads
-// ─────────────────────────────────────────────────────────────────────────────
+
+typedef struct
+{
+    const char *url;
+    const char *rev;
+    const char *dir;
+}Download;
 
 static bool
 extract_archive(const char *archive_path, const char *dst_dir)
@@ -330,17 +356,28 @@ download_all(const Download *downloads, size_t count)
     return(ok);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+////////////////////////////////////////////////////////////////
+//
 // Prebuilt libraries
-// ─────────────────────────────────────────────────────────────────────────────
+
+typedef struct
+{
+    const char *name;
+    const char *lib;
+    const char *dirs[OsKind_Count];
+    StrList includes;
+    StrList defines;
+    PlatformConfig os[OsKind_Count];
+    const char *missing_hint;
+}Prebuilt;
 
 static const char *
 prebuilt_link_file(const Target *target, const Prebuilt *prebuilt)
 {
     if(target->os == OsKind_Windows){
-        return(nob_temp_sprintf("%s%s.lib", prebuilt->windows_dir, prebuilt->lib));
+        return(nob_temp_sprintf("%s%s.lib", prebuilt->dirs[target->os], prebuilt->lib));
     }
-    return(nob_temp_sprintf("%slib%s.so", prebuilt->linux_dir, prebuilt->lib));
+    return(nob_temp_sprintf("%slib%s.so", prebuilt->dirs[target->os], prebuilt->lib));
 }
 
 static bool
@@ -355,10 +392,24 @@ prebuilt_ready(const Target *target, const Prebuilt *prebuilt, const char *out_d
         return(false);
     }
     if(target->os == OsKind_Windows){
-        return(nob_copy_file(nob_temp_sprintf("%s%s.dll", prebuilt->windows_dir, prebuilt->lib), nob_temp_sprintf("%s%s.dll", out_dir, prebuilt->lib)));
+        return(nob_copy_file(nob_temp_sprintf("%s%s.dll", prebuilt->dirs[target->os], prebuilt->lib), nob_temp_sprintf("%s%s.dll", out_dir, prebuilt->lib)));
     }
     return(true);
 }
+
+////////////////////////////////////////////////////////////////
+//
+// C++ recipes (maintainer only, builds a Prebuilt)
+
+typedef struct
+{
+    const char *src_dir;
+    const char *obj_dir;
+    StrList sources;
+    StrList defines;
+    PlatformConfig os[OsKind_Count];
+    const Prebuilt *output;
+}CppRecipe;
 
 static bool
 cpp_recipe_build(const Target *target, const CppRecipe *recipe)
@@ -369,7 +420,7 @@ cpp_recipe_build(const Target *target, const CppRecipe *recipe)
         return(false);
     }
 
-    const char *folder = target->os == OsKind_Windows ? out->windows_dir : out->linux_dir;
+    const char *folder = out->dirs[target->os];
     if(!mkdir_parents(folder) || !mkdir_parents(recipe->obj_dir)) return(false);
 
     StrList sources = {0};
@@ -383,33 +434,229 @@ cpp_recipe_build(const Target *target, const CppRecipe *recipe)
         nob_cmd_append(&cmd, "cl.exe", "/nologo", "/std:c++17", "/O2", "/W0", "/EHsc", "/MT", "/LD");
         append_list(&cmd, "%s", &sources);
         append_list(&cmd, "/D%s", &recipe->defines);
+        append_list(&cmd, "/D%s", &recipe->os[target->os].defines);
         nob_cmd_append(&cmd, nob_temp_sprintf("/Fe:%s%s.dll", folder, out->lib), nob_temp_sprintf("/Fo:%s", recipe->obj_dir));
-        nob_cmd_append(&cmd, "/link");
-        append_list(&cmd, "%s.lib", &recipe->windows_libs);
+        nob_cmd_append(&cmd, "/link", "/Brepro"); // Leave time stamp alone so it stops showing as changes in git
+        append_list(&cmd, "%s.lib", &recipe->os[target->os].libs);
     }break;
     case CompilerKind_Clang:{
         nob_cmd_append(&cmd, "clang++", "-std=c++17", "-O2", "-w", "-shared", "-fvisibility=hidden");
         append_list(&cmd, "%s", &sources);
         append_list(&cmd, "-D%s", &recipe->defines);
+        append_list(&cmd, "-D%s", &recipe->os[target->os].defines);
+        append_list(&cmd, "-l%s", &recipe->os[target->os].libs);
         if(target->os == OsKind_Windows){
             append_clang_windows_flags(&cmd, target, true);
-            nob_cmd_append(&cmd, "-fms-runtime-lib=static");
-            append_list(&cmd, "-l%s", &recipe->windows_libs);
+            nob_cmd_append(&cmd, "-fms-runtime-lib=static", "-Wl,/Brepro");
             nob_cmd_append(&cmd, "-o", nob_temp_sprintf("%s%s.dll", folder, out->lib));
         }else{
             nob_cmd_append(&cmd, "-fPIC", "-static-libstdc++", "-static-libgcc");
-            append_list(&cmd, "-l%s", &recipe->linux_libs);
             nob_cmd_append(&cmd, "-o", nob_temp_sprintf("%slib%s.so", folder, out->lib));
         }
     }break;
+    case CompilerKind_Count: NOB_UNREACHABLE("CompilerKind_Count");
     }
     nob_log(NOB_INFO, "[*] Building %s for %s", out->name, g_os_kind_str[target->os]);
     return(nob_cmd_run(&cmd));
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Wayland
-// ─────────────────────────────────────────────────────────────────────────────
+////////////////////////////////////////////////////////////////
+//
+// Executable
+
+typedef struct
+{
+    const char *path;
+    bool quiet;
+}Source;
+
+typedef struct
+{
+    const char *name;
+    const char *out_dir;
+    const char *obj_dir;
+    Source sources[STR_LIST_MAX];
+    StrList includes;
+    StrList defines;
+    PlatformConfig os[OsKind_Count];
+    PlatformConfig window[WindowKind_Count];
+    CompilerConfig compiler[CompilerKind_Count];
+    const Prebuilt *prebuilts[4];
+}Exe;
+
+static void
+exe_add_source(Exe *exe, const char *path, bool quiet)
+{
+    for(size_t i = 0; i < STR_LIST_MAX; i++){
+        if(!exe->sources[i].path){
+            exe->sources[i] = (Source){ .path = path, .quiet = quiet };
+            return;
+        }
+    }
+    NOB_ASSERT(false && "Exe sources are full, raise STR_LIST_MAX");
+}
+
+static void
+append_compile_flags(Nob_Cmd *cmd, const Target *target, const Exe *exe, bool warnings)
+{
+    const CompilerConfig *compiler = &exe->compiler[target->compiler];
+    append_list(cmd, "%s", &compiler->flags);
+    if(warnings){
+        append_list(cmd, "%s", &compiler->warnings);
+    }
+
+    switch(target->compiler){
+    case CompilerKind_Msvc:{
+        nob_cmd_append(cmd, "/nologo");
+        if(!warnings){
+            nob_cmd_append(cmd, "/W0");
+        }else if(target->analyze){
+            nob_cmd_append(cmd, "/analyze");
+        }
+        switch(target->opt){
+            case OptimizationLevelKind_Debug:   nob_cmd_append(cmd, "/Od", "/Zi", "/DDEBUG", "/MTd"); break; // static debug CRT, the debug CRT dlls only ship with Visual Studio
+            case OptimizationLevelKind_Release: nob_cmd_append(cmd, "/O2", "/Zi", "/MD"); break;             // dll CRT (vcruntime140.dll + ucrtbase.dll)
+            case OptimizationLevelKind_Final:   nob_cmd_append(cmd, "/O2", "/DNDEBUG", "/GL", "/MT"); break; // /GL whole program optimization
+        }
+    }break;
+    case CompilerKind_Clang:{
+        if(!warnings){
+            nob_cmd_append(cmd, "-w");
+        }
+        switch(target->opt){
+            case OptimizationLevelKind_Debug:   nob_cmd_append(cmd, "-O0", "-g", "-DDEBUG"); break;
+            case OptimizationLevelKind_Release: nob_cmd_append(cmd, "-O2", "-g"); break;
+            case OptimizationLevelKind_Final:   nob_cmd_append(cmd, "-O3", "-DNDEBUG", "-Wno-unused-but-set-variable"); break;
+        }
+        if(target->asan && target->opt == OptimizationLevelKind_Debug){
+            nob_cmd_append(cmd, "-fsanitize=address,undefined", "-fsanitize-recover=address,undefined");
+        }
+        if(target->os == OsKind_Windows){
+            append_clang_windows_flags(cmd, target, false);
+        }
+    }break;
+    case CompilerKind_Count: NOB_UNREACHABLE("CompilerKind_Count");
+    }
+
+    append_list(cmd, "-I%s", &exe->includes);
+    append_list(cmd, "-D%s", &exe->defines);
+    append_list(cmd, "-D%s", &exe->os[target->os].defines);
+    append_list(cmd, "-D%s", &exe->window[target->window].defines);
+    for(size_t i = 0; i < NOB_ARRAY_LEN(exe->prebuilts) && exe->prebuilts[i]; i++){
+        append_list(cmd, "-I%s", &exe->prebuilts[i]->includes);
+        append_list(cmd, "-D%s", &exe->prebuilts[i]->defines);
+        append_list(cmd, "-D%s", &exe->prebuilts[i]->os[target->os].defines);
+    }
+}
+
+static void
+append_link_flags(Nob_Cmd *cmd, const Target *target, const Exe *exe, const char *exe_path)
+{
+    switch(target->compiler){
+    case CompilerKind_Msvc:{
+        nob_cmd_append(cmd, "/nologo", nob_temp_sprintf("/Fe:%s", exe_path));
+        if(target->opt != OptimizationLevelKind_Final){
+            nob_cmd_append(cmd, "/Zi");
+        }
+        nob_cmd_append(cmd, "/link"); // everything after this goes to link.exe, keep it last
+        append_list(cmd, "%s", &exe->compiler[target->compiler].link_flags);
+        append_list(cmd, "%s.lib", &exe->os[target->os].libs);
+        append_list(cmd, "%s.lib", &exe->window[target->window].libs);
+        for(size_t i = 0; i < NOB_ARRAY_LEN(exe->prebuilts) && exe->prebuilts[i]; i++){
+            append_list(cmd, "%s.lib", &exe->prebuilts[i]->os[target->os].libs);
+        }
+    }break;
+    case CompilerKind_Clang:{
+        if(target->os == OsKind_Windows){
+            append_clang_windows_flags(cmd, target, true);
+        }
+        append_list(cmd, "%s", &exe->compiler[target->compiler].link_flags);
+        append_list(cmd, "-l%s", &exe->os[target->os].libs);
+        append_list(cmd, "-l%s", &exe->window[target->window].libs);
+        for(size_t i = 0; i < NOB_ARRAY_LEN(exe->prebuilts) && exe->prebuilts[i]; i++){
+            append_list(cmd, "-l%s", &exe->prebuilts[i]->os[target->os].libs);
+        }
+        if(target->asan && target->opt == OptimizationLevelKind_Debug){
+            nob_cmd_append(cmd, "-fsanitize=address,undefined");
+        }
+    }break;
+    case CompilerKind_Count: NOB_UNREACHABLE("CompilerKind_Count");
+    }
+
+    for(size_t i = 0; i < NOB_ARRAY_LEN(exe->prebuilts) && exe->prebuilts[i]; i++){
+        const Prebuilt *prebuilt = exe->prebuilts[i];
+        if(target->os == OsKind_Windows){
+            nob_cmd_append(cmd, prebuilt_link_file(target, prebuilt));
+        }else{
+            nob_cmd_append(cmd, nob_temp_sprintf("-L%s", prebuilt->dirs[target->os]), nob_temp_sprintf("-l%s", prebuilt->lib));
+            nob_cmd_append(cmd, nob_temp_sprintf("-Wl,-rpath,$ORIGIN/../%s", prebuilt->dirs[target->os]));
+        }
+    }
+
+    if(target->compiler == CompilerKind_Clang){
+        nob_cmd_append(cmd, "-o", exe_path);
+    }
+}
+
+static const char *
+object_path(const Target *target, const Exe *exe, const char *source)
+{
+    const char *name = nob_path_name(source);
+    const char *dot  = strrchr(name, '.');
+    int length = dot ? (int)(dot - name) : (int)strlen(name);
+    return(nob_temp_sprintf("%s%.*s%s", exe->obj_dir, length, name, target->compiler == CompilerKind_Msvc ? ".obj" : ".o"));
+}
+
+static bool
+compile_object(Nob_Procs *procs, const Target *target, const Exe *exe, const char *source, const char *object, bool warnings)
+{
+    Nob_Cmd cmd = {0};
+    nob_cmd_append(&cmd, g_compiler_kind_str[target->compiler]);
+    append_compile_flags(&cmd, target, exe, warnings);
+    switch(target->compiler){
+        case CompilerKind_Msvc:  nob_cmd_append(&cmd, "/c", source, nob_temp_sprintf("/Fo:%s", object), nob_temp_sprintf("/Fd:%s.pdb", object)); break;
+        case CompilerKind_Clang: nob_cmd_append(&cmd, "-c", source, "-o", object); break;
+        case CompilerKind_Count: NOB_UNREACHABLE("CompilerKind_Count");
+    }
+    nob_log(NOB_INFO, "[*] Compiling %s", source);
+    return(nob_cmd_run(&cmd, .async = procs));
+}
+
+static bool
+exe_build(const Target *target, const Exe *exe)
+{
+    if(!mkdir_parents(exe->out_dir) || !mkdir_parents(exe->obj_dir)) return(false);
+    for(size_t i = 0; i < NOB_ARRAY_LEN(exe->prebuilts) && exe->prebuilts[i]; i++){
+        if(!prebuilt_ready(target, exe->prebuilts[i], exe->out_dir)) return(false);
+    }
+
+    nob_log(NOB_INFO, "Using compiler %s for target %s %s", g_compiler_kind_str[target->compiler], g_os_kind_str[target->os], g_window_kind_str[target->window]);
+    Nob_Procs procs = {0};
+    Nob_Cmd link = {0};
+    nob_cmd_append(&link, g_compiler_kind_str[target->compiler]);
+    for(size_t i = 0; i < STR_LIST_MAX && exe->sources[i].path; i++){
+        const Source *source = &exe->sources[i];
+        const char *object = object_path(target, exe, source->path);
+        if(!compile_object(&procs, target, exe, source->path, object, !source->quiet)) return(false);
+        nob_cmd_append(&link, object);
+    }
+    if(!nob_procs_flush(&procs)) return(false);
+
+    const char *exe_path = nob_temp_sprintf("%s%s%s", exe->out_dir, exe->name, target->os == OsKind_Windows ? ".exe" : "");
+    append_link_flags(&link, target, exe, exe_path);
+    nob_log(NOB_INFO, "[*] Linking %s", exe_path);
+    return(nob_cmd_run(&link));
+}
+
+////////////////////////////////////////////////////////////////
+//
+// Wayland protocols (generated sources added to an Exe)
+
+typedef struct
+{
+    const char *xml;
+    const char *stem;
+}WaylandProtocol;
 
 static bool
 wayland_scan(const char *mode, const char *xml, const char *out)
@@ -442,160 +689,8 @@ wayland_protocols_add(Exe *exe, const char *gen_dir, const WaylandProtocol *prot
         if(!wayland_scan("client-header", p->xml, header) || !wayland_scan("public-code", p->xml, code)){
             return(false);
         }
-        str_list_push(&exe->quiet_sources, code);
+        exe_add_source(exe, code, true);
     }
     str_list_push(&exe->includes, gen_dir);
     return(true);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Executable
-// ─────────────────────────────────────────────────────────────────────────────
-
-static void
-append_compile_flags(Nob_Cmd *cmd, const Target *target, const Exe *exe, bool warnings)
-{
-    switch(target->compiler){
-    case CompilerKind_Msvc:{
-        nob_cmd_append(cmd, "/nologo");
-        append_list(cmd, "%s", &exe->msvc_flags);
-        if(warnings){
-            append_list(cmd, "%s", &exe->msvc_warnings);
-            if(target->analyze){
-                nob_cmd_append(cmd, "/analyze");
-            }
-        }else{
-            nob_cmd_append(cmd, "/W0");
-        }
-        switch(target->opt){
-            case OptimizationLevelKind_Debug:   nob_cmd_append(cmd, "/Od", "/Zi", "/DDEBUG", "/MTd"); break; // static debug CRT, the debug CRT dlls only ship with Visual Studio
-            case OptimizationLevelKind_Release: nob_cmd_append(cmd, "/O2", "/Zi", "/MD"); break;             // dll CRT (vcruntime140.dll + ucrtbase.dll)
-            case OptimizationLevelKind_Final:   nob_cmd_append(cmd, "/O2", "/DNDEBUG", "/GL", "/MT"); break; // /GL whole program optimization
-        }
-    }break;
-    case CompilerKind_Clang:{
-        append_list(cmd, "%s", &exe->clang_flags);
-        if(warnings){
-            append_list(cmd, "%s", &exe->clang_warnings);
-        }else{
-            nob_cmd_append(cmd, "-w");
-        }
-        switch(target->opt){
-            case OptimizationLevelKind_Debug:   nob_cmd_append(cmd, "-O0", "-g", "-DDEBUG"); break;
-            case OptimizationLevelKind_Release: nob_cmd_append(cmd, "-O2", "-g"); break;
-            case OptimizationLevelKind_Final:   nob_cmd_append(cmd, "-O3", "-DNDEBUG", "-Wno-unused-but-set-variable"); break;
-        }
-        if(target->asan && target->opt == OptimizationLevelKind_Debug){
-            nob_cmd_append(cmd, "-fsanitize=address,undefined", "-fsanitize-recover=address,undefined");
-        }
-        if(target->os == OsKind_Windows){
-            append_clang_windows_flags(cmd, target, false);
-        }
-    }break;
-    }
-
-    append_list(cmd, "-I%s", &exe->includes);
-    append_list(cmd, "-D%s", &exe->defines);
-    for(size_t i = 0; i < NOB_ARRAY_LEN(exe->prebuilts) && exe->prebuilts[i]; i++){
-        append_list(cmd, "-I%s", &exe->prebuilts[i]->includes);
-        append_list(cmd, "-D%s", &exe->prebuilts[i]->defines);
-        if(target->os == OsKind_Windows){
-            append_list(cmd, "-D%s", &exe->prebuilts[i]->windows_defines);
-        }
-    }
-}
-
-static void
-append_link_flags(Nob_Cmd *cmd, const Target *target, const Exe *exe, const char *exe_path)
-{
-    switch(target->compiler){
-    case CompilerKind_Msvc:{
-        nob_cmd_append(cmd, "/nologo", nob_temp_sprintf("/Fe:%s", exe_path));
-        if(target->opt != OptimizationLevelKind_Final){
-            nob_cmd_append(cmd, "/Zi");
-        }
-        nob_cmd_append(cmd, "/link"); // everything after this goes to link.exe, keep it last
-        append_list(cmd, "%s", &exe->msvc_link_flags);
-        append_list(cmd, "%s.lib", &exe->windows_libs);
-    }break;
-    case CompilerKind_Clang:{
-        if(target->os == OsKind_Windows){
-            append_clang_windows_flags(cmd, target, true);
-            append_list(cmd, "-l%s", &exe->windows_libs);
-        }else{
-            append_list(cmd, "-l%s", &exe->linux_libs);
-        }
-        if(target->asan && target->opt == OptimizationLevelKind_Debug){
-            nob_cmd_append(cmd, "-fsanitize=address,undefined");
-        }
-    }break;
-    }
-
-    for(size_t i = 0; i < NOB_ARRAY_LEN(exe->prebuilts) && exe->prebuilts[i]; i++){
-        const Prebuilt *prebuilt = exe->prebuilts[i];
-        if(target->os == OsKind_Windows){
-            nob_cmd_append(cmd, prebuilt_link_file(target, prebuilt));
-        }else{
-            nob_cmd_append(cmd, nob_temp_sprintf("-L%s", prebuilt->linux_dir), nob_temp_sprintf("-l%s", prebuilt->lib));
-            nob_cmd_append(cmd, nob_temp_sprintf("-Wl,-rpath,$ORIGIN/../%s", prebuilt->linux_dir));
-        }
-    }
-
-    if(target->compiler == CompilerKind_Clang){
-        nob_cmd_append(cmd, "-o", exe_path);
-    }
-}
-
-static const char *
-object_path(const Target *target, const Exe *exe, const char *source)
-{
-    const char *name = nob_path_name(source);
-    const char *dot  = strrchr(name, '.');
-    int length = dot ? (int)(dot - name) : (int)strlen(name);
-    return(nob_temp_sprintf("%s%.*s%s", exe->obj_dir, length, name, target->compiler == CompilerKind_Msvc ? ".obj" : ".o"));
-}
-
-static bool
-compile_object(Nob_Procs *procs, const Target *target, const Exe *exe, const char *source, const char *object, bool warnings)
-{
-    Nob_Cmd cmd = {0};
-    nob_cmd_append(&cmd, g_compiler_kind_str[target->compiler]);
-    append_compile_flags(&cmd, target, exe, warnings);
-    switch(target->compiler){
-        case CompilerKind_Msvc:  nob_cmd_append(&cmd, "/c", source, nob_temp_sprintf("/Fo:%s", object), nob_temp_sprintf("/Fd:%s.pdb", object)); break;
-        case CompilerKind_Clang: nob_cmd_append(&cmd, "-c", source, "-o", object); break;
-    }
-    nob_log(NOB_INFO, "[*] Compiling %s", source);
-    return(nob_cmd_run(&cmd, .async = procs));
-}
-
-static bool
-exe_build(const Target *target, const Exe *exe)
-{
-    if(!mkdir_parents(exe->out_dir) || !mkdir_parents(exe->obj_dir)) return(false);
-    for(size_t i = 0; i < NOB_ARRAY_LEN(exe->prebuilts) && exe->prebuilts[i]; i++){
-        if(!prebuilt_ready(target, exe->prebuilts[i], exe->out_dir)) return(false);
-    }
-
-    nob_log(NOB_INFO, "Using compiler %s for target %s %s", g_compiler_kind_str[target->compiler], g_os_kind_str[target->os],
-        target->os == OsKind_Linux ? g_window_kind_str[target->window] : "");
-    Nob_Procs procs = {0};
-    Nob_Cmd link = {0};
-    nob_cmd_append(&link, g_compiler_kind_str[target->compiler]);
-    for(size_t i = 0; i < STR_LIST_MAX && exe->sources.items[i]; i++){
-        const char *object = object_path(target, exe, exe->sources.items[i]);
-        if(!compile_object(&procs, target, exe, exe->sources.items[i], object, true)) return(false);
-        nob_cmd_append(&link, object);
-    }
-    for(size_t i = 0; i < STR_LIST_MAX && exe->quiet_sources.items[i]; i++){
-        const char *object = object_path(target, exe, exe->quiet_sources.items[i]);
-        if(!compile_object(&procs, target, exe, exe->quiet_sources.items[i], object, false)) return(false);
-        nob_cmd_append(&link, object);
-    }
-    if(!nob_procs_flush(&procs)) return(false);
-
-    const char *exe_path = nob_temp_sprintf("%s%s%s", exe->out_dir, exe->name, target->os == OsKind_Windows ? ".exe" : "");
-    append_link_flags(&link, target, exe, exe_path);
-    nob_log(NOB_INFO, "[*] Linking %s", exe_path);
-    return(nob_cmd_run(&link));
 }

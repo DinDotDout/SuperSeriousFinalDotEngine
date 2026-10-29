@@ -22,52 +22,31 @@ Nob_Log_Level nob_minimal_log_level = NOB_INFO;
 #endif
 
 static Target g_target;
-static bool   g_unity;
-static bool   g_no_assets;
-static bool   g_profile;
-static bool   g_build_cpp_deps;
+static b32    g_unity_build;
+static b32    g_no_assets;
+static b32    g_profile;
+static b32    g_build_cpp_deps;
 
-static void set_x11(void)            { g_target.os = OsKind_Linux; g_target.window = WindowKind_X11; }
-static void set_wayland(void)        { g_target.os = OsKind_Linux; g_target.window = WindowKind_Wayland; }
-static void set_windows(void)        { g_target.os = OsKind_Windows; }
+static const FlagEntry g_flag_table[] = {
+    { "-log_error",      "Log None",                                      .writes = { {&nob_minimal_log_level, NOB_ERROR} } },
+    { "-log_warn",       "Log Warn",                                      .writes = { {&nob_minimal_log_level, NOB_WARNING} } },
+    { "-x11",            "Use X11 backend",                               .writes = { {&g_target.os, OsKind_Linux},   {&g_target.window, WindowKind_X11} } },
+    { "-wayland",        "Use Wayland backend",                           .writes = { {&g_target.os, OsKind_Linux},   {&g_target.window, WindowKind_Wayland} } },
+    { "-windows",        "Use Windows backend",                           .writes = { {&g_target.os, OsKind_Windows}, {&g_target.window, WindowKind_Win32} } },
 
-static void set_clang(void)          { g_target.compiler = CompilerKind_Clang; }
-static void set_msvc(void)           { g_target.compiler = CompilerKind_Msvc; }
+    { "-clang",          "Use Clang compiler",                            .writes = { {&g_target.compiler, CompilerKind_Clang} } },
+    { "-cl",             "Use MSVC compiler",                             .writes = { {&g_target.compiler, CompilerKind_Msvc} } },
 
-static void set_debug(void)          { g_target.opt = OptimizationLevelKind_Debug; }
-static void set_release(void)        { g_target.opt = OptimizationLevelKind_Release; }
-static void set_final(void)          { g_target.opt = OptimizationLevelKind_Final; }
+    { "-debug",          "Debug build with sanitizers",                   .writes = { {&g_target.opt, OptimizationLevelKind_Debug} } },
+    { "-release",        "Release build with debug info",                 .writes = { {&g_target.opt, OptimizationLevelKind_Release} } },
+    { "-final",          "Optimized final build",                         .writes = { {&g_target.opt, OptimizationLevelKind_Final} } },
 
-static void set_use_asan(void)       { g_target.asan = true; }
-static void set_analyze(void)        { g_target.analyze = true; }
-static void set_unity(void)          { g_unity = true; }
-static void set_no_assets(void)      { g_no_assets = true; }
-static void set_profile(void)        { g_profile = true; }
-static void set_build_cpp_deps(void) { g_build_cpp_deps = true; }
-
-static void set_log_error(void)      { nob_minimal_log_level = NOB_ERROR; }
-static void set_log_warn(void)       { nob_minimal_log_level = NOB_WARNING; }
-
-static const FlagEntry flag_table[] = {
-    { "-log_error",      "Log None",                                      set_log_error      },
-    { "-log_warn",       "Log Warn",                                      set_log_warn       },
-    { "-x11",            "Use X11 backend",                               set_x11            },
-    { "-wayland",        "Use Wayland backend",                           set_wayland        },
-    { "-windows",        "Use Windows backend",                           set_windows        },
-
-    { "-clang",          "Use Clang compiler",                            set_clang          },
-    { "-cl",             "Use MSVC compiler",                             set_msvc           },
-
-    { "-debug",          "Debug build with sanitizers",                   set_debug          },
-    { "-release",        "Release build with debug info",                 set_release        },
-    { "-final",          "Optimized final build",                         set_final          },
-
-    { "-asan",           "Use asan",                                      set_use_asan       },
-    { "-unity",          "Build third party in the same TU",              set_unity          },
-    { "-no_assets",      "Skip downloading assets",                       set_no_assets      },
-    { "-analyze",        "MSVC static analysis (/analyze)",               set_analyze        },
-    { "-profile",        "Link the vendored Tracy client",                set_profile        },
-    { "-build_cpp_deps", "Rebuild the vendored C++ libraries, then exit", set_build_cpp_deps },
+    { "-asan",           "Use asan",                                      .writes = { {&g_target.asan, true} } },
+    { "-unity",          "Build third party in the same TU",              .writes = { {&g_unity_build, true} } },
+    { "-no_assets",      "Skip downloading assets",                       .writes = { {&g_no_assets, true} } },
+    { "-analyze",        "MSVC static analysis (/analyze)",               .writes = { {&g_target.analyze, true} } },
+    { "-profile",        "Link the vendored Tracy client",                .writes = { {&g_profile, true} } },
+    { "-build_cpp_deps", "Rebuild the vendored C++ libraries, then exit", .writes = { {&g_build_cpp_deps, true} } },
 };
 
 static const Download downloads[] = {
@@ -85,11 +64,15 @@ static const Download tracy_viewer = {
 static const Prebuilt tracy = {
     .name            = "Tracy client 0.14.1",
     .lib             = "TracyClient",
-    .linux_dir       = TRACY_FOLDER "linux-x86_64/",
-    .windows_dir     = TRACY_FOLDER "windows-x86_64/",
+    .dirs            = {
+        [OsKind_Linux]   = TRACY_FOLDER "linux-x86_64/",
+        [OsKind_Windows] = TRACY_FOLDER "windows-x86_64/",
+    },
     .includes        = {{TRACY_FOLDER "tracy/public"}},
     .defines         = {{"TRACY_ENABLE"}},
-    .windows_defines = {{"TRACY_IMPORTS"}},
+    .os              = {
+        [OsKind_Windows] = { .defines = {{"TRACY_IMPORTS"}} },
+    },
     .missing_hint    = "Build it once with ./scripts/nob -build_cpp_deps (add -windows -clang for the Windows build). "
                        "This needs a C++ compiler; commit the result so nobody else has to",
 };
@@ -99,8 +82,10 @@ static const CppRecipe tracy_recipe = {
     .obj_dir      = OUTPUT_FOLDER,
     .sources      = {{"public/TracyClient.cpp"}},
     .defines      = {{"TRACY_ENABLE", "TRACY_EXPORTS"}},
-    .linux_libs   = {{"pthread", "dl"}},
-    .windows_libs = {{"ws2_32", "dbghelp", "advapi32", "user32"}},
+    .os           = {
+        [OsKind_Linux]   = { .libs = {{"pthread", "dl"}} },
+        [OsKind_Windows] = { .libs = {{"ws2_32", "dbghelp", "advapi32", "user32"}} },
+    },
     .output       = &tracy,
 };
 
@@ -137,7 +122,7 @@ main(int argc, char **argv)
 {
     NOB_GO_REBUILD_URSELF_PLUS(argc, argv, "scripts/nob_ext.c");
     g_target = target_host();
-    if(!parse_flags(argc, argv, flag_table, NOB_ARRAY_LEN(flag_table))) return 1;
+    if(!parse_flags(argc, argv, g_flag_table, NOB_ARRAY_LEN(g_flag_table))) return 1;
     if(!target_check(&g_target)) return 1;
 
     if(g_profile || g_build_cpp_deps){
@@ -155,61 +140,71 @@ main(int argc, char **argv)
     }
 
     if(g_target.opt == OptimizationLevelKind_Final){
-        g_unity = true;
+        g_unity_build = true;
     }
 
     Exe exe = {
-        .name            = "dot_engine",
-        .out_dir         = OUTPUT_FOLDER,
-        .obj_dir         = OBJ_FOLDER,
-        .sources         = {{"src/dot_engine/dot_engine.c"}},
-        .includes        = {{"src/", "src/third_party/vulkan-headers/include", "src/third_party/vulkan-utility-libraries/include"}},
-        .clang_flags     = {{
-            "-std=c11",
-            "-fvisibility=hidden", // symbols are not exported unless marked DOT_ENGINE_API
-        }},
-        .clang_warnings  = {{
-            "-Wall", "-Wextra", "-Wno-override-init", "-Wno-incompatible-pointer-types-discards-qualifiers",
-            "-Wdiv-by-zero", "-Wno-unused-function", "-Werror=vla", "-Werror=implicit-fallthrough", "-Werror=switch-enum",
-            "-Werror=conversion", "-Werror=implicit-int-conversion",
-        }},
-        .msvc_flags      = {{
-            "/std:c11", // also enables the conforming preprocessor
-            "/wd4116",  // unnamed type definition in parentheses
-            "/wd4324",  // structure was padded due to alignment specifier
-        }},
-        .msvc_warnings   = {{"/W4"}},
-        .msvc_link_flags = {{
-            "/INCREMENTAL:NO", // incremental linking pads the SECTION_DECLARE "$a/$m/$z" sections and breaks iteration
-        }},
-        .linux_libs      = {{"m", "pthread"}},
-        .windows_libs    = {{"dbghelp"}},
+        .name     = "dot_engine",
+        .out_dir  = OUTPUT_FOLDER,
+        .obj_dir  = OBJ_FOLDER,
+        .sources  = {
+            { .path = "src/dot_engine/dot_engine.c", .quiet = false },
+        },
+        .includes = {{"src/", "src/third_party/vulkan-headers/include"}},
+        .os       = {
+            [OsKind_Linux] = {
+                .defines = {{"DOT_PLATFORM_LINUX"}},
+                .libs    = {{"m", "pthread"}},
+            },
+            [OsKind_Windows] = {
+                .defines = {{
+                    "DOT_PLATFORM_WINDOWS",
+                    "_CRT_SECURE_NO_WARNINGS", // allow fopen/sprintf/... without the "use _s variant" deprecation warnings
+                }},
+                .libs    = {{"dbghelp"}},
+            },
+        },
+        .window   = {
+            [WindowKind_X11] = {
+                .libs    = {{"X11", "Xcursor", "Xrandr", "Xfixes"}},
+            },
+            [WindowKind_Wayland] = {
+                .defines = {{"RGFW_WAYLAND", "RGFW_OPENGL"}},
+                .libs    = {{"wayland-cursor", "wayland-client", "wayland-egl", "xkbcommon"}},
+            },
+        },
+        .compiler = {
+            [CompilerKind_Clang] = {
+                .flags      = {{
+                    "-std=c11",
+                    "-fvisibility=hidden", // symbols are not exported unless marked DOT_ENGINE_API
+                }},
+                .warnings   = {{
+                    "-Wall", "-Wextra", "-Wno-override-init", "-Wno-incompatible-pointer-types-discards-qualifiers",
+                    "-Wdiv-by-zero", "-Wno-unused-function", "-Werror=vla", "-Werror=implicit-fallthrough", "-Werror=switch-enum",
+                    "-Werror=conversion", "-Werror=implicit-int-conversion",
+                }},
+            },
+            [CompilerKind_Msvc] = {
+                .flags      = {{
+                    "/std:c11", // also enables the conforming preprocessor
+                    "/wd4116",  // unnamed type definition in parentheses
+                    "/wd4324",  // structure was padded due to alignment specifier
+                }},
+                .warnings   = {{"/W4"}},
+                .link_flags = {{
+                    "/INCREMENTAL:NO", // incremental linking pads the SECTION_DECLARE "$a/$m/$z" sections and breaks iteration
+                }},
+            },
+        },
     };
 
-    if(g_target.os == OsKind_Windows){
-        str_list_push(&exe.defines, "DOT_PLATFORM_WINDOWS");
-        str_list_push(&exe.defines, "_CRT_SECURE_NO_WARNINGS"); // allow fopen/sprintf/... without the "use _s variant" deprecation warnings
-    }else if(g_target.window == WindowKind_X11){
-        str_list_push(&exe.defines, "DOT_PLATFORM_LINUX");
-        str_list_push(&exe.linux_libs, "X11");
-        str_list_push(&exe.linux_libs, "Xcursor");
-        str_list_push(&exe.linux_libs, "Xrandr");
-        str_list_push(&exe.linux_libs, "Xfixes");
-    }else if(g_target.window == WindowKind_Wayland){
+    if(g_target.window == WindowKind_Wayland){
         if(!wayland_protocols_add(&exe, WAYLAND_GEN_FOLDER, g_wayland_protocols, NOB_ARRAY_LEN(g_wayland_protocols))) return 1;
-        str_list_push(&exe.defines, "DOT_PLATFORM_LINUX");
-        str_list_push(&exe.defines, "RGFW_WAYLAND");
-        str_list_push(&exe.defines, "RGFW_OPENGL");
-        str_list_push(&exe.linux_libs, "wayland-cursor");
-        str_list_push(&exe.linux_libs, "wayland-client");
-        str_list_push(&exe.linux_libs, "wayland-egl");
-        str_list_push(&exe.linux_libs, "xkbcommon");
-    }else{
-        nob_log(NOB_ERROR, "Invalid target");
     }
 
-    if(!g_unity){
-        str_list_push(&exe.quiet_sources, "src/dot_engine/third_party.c");
+    if(!g_unity_build){
+        exe_add_source(&exe, "src/dot_engine/third_party.c", true);
         str_list_push(&exe.defines, "DOT_SPLIT_THIRD_PARTY=1");
     }
 
