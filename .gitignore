@@ -4,10 +4,14 @@
 tags
 tags.sh
 build
-src/gen-wayland/
 src/game/compiled_shaders
-assets/glTF-Sample-Assets.*
+src/third_party/RGFW/premake5.*
+assets/glTF-Sample-Assets*
+src/third_party/tracy/tracy
+src/third_party/tracy/tracy.tar.gz
+src/third_party/tracy/viewer/
 scripts/nob
 scripts/nob.old
+*.pdb
 vulkan_tags
 generated_protocols

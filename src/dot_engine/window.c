@@ -1,4 +1,6 @@
 DOT_SETTING_U32("Window", dot_g_window_mode, DOT_WindowModeKind_Windowed);
+DOT_SETTING_U32("Window", dot_g_window_system, DOT_WindowSystemKind_Default);
+DOT_SETTING_I32X2("Window", dot_g_window_dimension, { 720, 1080 });
 
 internal read_only RGFW_key dot_window_rgfw_keys[DOT_KeyKind_Count] = {
     [DOT_KeyKind_Delete]    = RGFW_keyDelete,
@@ -30,24 +32,40 @@ internal read_only RGFW_mouseButton dot_window_rgfw_mouse_buttons[DOT_MouseButto
 };
 
 internal void
+dot_window_set_system(i32 kind)
+{
+    dot_g_window_system = cast(u32) kind;
+}
+
+internal void
 dot_window_init(DOT_Window *window, String8 window_name)
 {
-    i32 init_result = RGFW_init(window_name.cstr, 0);
+    DOT_WindowSystemKind window_system = cast(DOT_WindowSystemKind) dot_g_window_system;
+    RGFW_initFlags init_flags = 0;
+    if(window_system == DOT_WindowSystemKind_X11){
+        init_flags = RGFW_initX11;
+    }
+    i32 init_result = RGFW_init(window_name.cstr, init_flags);
     DOT_ASSERT(init_result >= 0, "RGFW_init failed (%d)", init_result);
+    if(window_system == DOT_WindowSystemKind_Wayland && !RGFW_usingWayland()){
+        DOT_WARNING("Wayland was requested but is unavailable, using X11");
+    }
     RGFW_windowFlags flags = RGFW_windowAllowDND;
     switch(cast(DOT_WindowModeKind) dot_g_window_mode){
     case DOT_WindowModeKind_Fullscreen: flags |= RGFW_windowFullscreen; break;
     case DOT_WindowModeKind_Maximized:  flags |= RGFW_windowMaximize;   break;
     case DOT_WindowModeKind_Windowed:
-#if !defined(RGFW_WAYLAND)
-    // Centering reads the primary monitor, and upstream RGFW has no monitors on Wayland yet.
-    // Wayland compositors place windows themselves anyway.
-    flags |= RGFW_windowCenter;
-#endif
+        // Centering reads the primary monitor, and upstream RGFW has no monitors on Wayland yet.
+        // Wayland compositors place windows themselves anyway.
+        if(!RGFW_usingWayland()){
+            flags |= RGFW_windowCenter;
+        }
     break;
     default: DOT_WARNING("Unknown window mode %u", dot_g_window_mode); break;
     }
-    window->window = RGFW_createWindow("Super Final DOT Engine", 0, 0, 500, 500, flags);
+    dot_g_window_dimension.x = DOT_MAX(dot_g_window_dimension.x, 500);
+    dot_g_window_dimension.y = DOT_MAX(dot_g_window_dimension.y, 500);
+    window->window = RGFW_createWindow("Super Final DOT Engine", 0, 0, dot_g_window_dimension.x, dot_g_window_dimension.y, flags);
     RGFW_window_setExitKey(window->window, RGFW_keyEscape);
 }
 

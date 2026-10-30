@@ -10,6 +10,7 @@ Nob_Log_Level nob_minimal_log_level = NOB_INFO;
 #define OBJ_FOLDER              "build/obj/"
 
 #define WAYLAND_GEN_FOLDER      "src/gen-wayland/"
+#define WAYLAND_XML_FOLDER      "src/third_party/RGFW/wayland/"
 
 #define TRACY_FOLDER            "src/third_party/tracy/"
 #define TRACY_VIEWER_FOLDER     TRACY_FOLDER "viewer/"
@@ -26,13 +27,12 @@ static b32    g_unity_build;
 static b32    g_no_assets;
 static b32    g_profile;
 static b32    g_build_cpp_deps;
+static b32    g_gen_wayland;
 
 static const FlagEntry g_flag_table[] = {
     { "-log_error",      "Log None",                                      .writes = { {&nob_minimal_log_level, NOB_ERROR} } },
     { "-log_warn",       "Log Warn",                                      .writes = { {&nob_minimal_log_level, NOB_WARNING} } },
-    { "-x11",            "Use X11 backend",                               .writes = { {&g_target.os, OsKind_Linux},   {&g_target.window, WindowKind_X11} } },
-    { "-wayland",        "Use Wayland backend",                           .writes = { {&g_target.os, OsKind_Linux},   {&g_target.window, WindowKind_Wayland} } },
-    { "-windows",        "Use Windows backend",                           .writes = { {&g_target.os, OsKind_Windows}, {&g_target.window, WindowKind_Win32} } },
+    { "-windows",        "Build for Windows",                             .writes = { {&g_target.os, OsKind_Windows} } },
 
     { "-clang",          "Use Clang compiler",                            .writes = { {&g_target.compiler, CompilerKind_Clang} } },
     { "-cl",             "Use MSVC compiler",                             .writes = { {&g_target.compiler, CompilerKind_Msvc} } },
@@ -47,6 +47,7 @@ static const FlagEntry g_flag_table[] = {
     { "-analyze",        "MSVC static analysis (/analyze)",               .writes = { {&g_target.analyze, true} } },
     { "-profile",        "Link the vendored Tracy client",                .writes = { {&g_profile, true} } },
     { "-build_cpp_deps", "Rebuild the vendored C++ libraries, then exit", .writes = { {&g_build_cpp_deps, true} } },
+    { "-gen_wayland",    "Regenerate the Wayland protocol code, then exit", .writes = { {&g_gen_wayland, true} } },
 };
 
 static const Download downloads[] = {
@@ -107,14 +108,14 @@ tracy_viewer_fetch(void)
     return(true);
 }
 
-static const WaylandProtocol g_wayland_protocols[] = {
-    {"/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml",                                   "xdg-shell"},
-    {"/usr/share/wayland-protocols/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml",           "xdg-decoration-unstable-v1"},
-    {"/usr/share/wayland-protocols/staging/xdg-toplevel-icon/xdg-toplevel-icon-v1.xml",               "xdg-toplevel-icon-v1"},
-    {"/usr/share/wayland-protocols/unstable/relative-pointer/relative-pointer-unstable-v1.xml",       "relative-pointer-unstable-v1"},
-    {"/usr/share/wayland-protocols/unstable/pointer-constraints/pointer-constraints-unstable-v1.xml", "pointer-constraints-unstable-v1"},
-    {"/usr/share/wayland-protocols/unstable/xdg-output/xdg-output-unstable-v1.xml",                   "xdg-output-unstable-v1"},
-    {"/usr/share/wayland-protocols/staging/pointer-warp/pointer-warp-v1.xml",                         "pointer-warp-v1"},
+static const char *g_wayland_protocols[] = {
+    "xdg-shell",
+    "xdg-decoration-unstable-v1",
+    "xdg-toplevel-icon-v1",
+    "relative-pointer-unstable-v1",
+    "pointer-constraints-unstable-v1",
+    "xdg-output-unstable-v1",
+    "pointer-warp-v1",
 };
 
 int
@@ -124,6 +125,10 @@ main(int argc, char **argv)
     g_target = target_host();
     if(!parse_flags(argc, argv, g_flag_table, NOB_ARRAY_LEN(g_flag_table))) return 1;
     if(!target_check(&g_target)) return 1;
+
+    if(g_gen_wayland){
+        return(wayland_protocols_generate(WAYLAND_XML_FOLDER, WAYLAND_GEN_FOLDER, g_wayland_protocols, NOB_ARRAY_LEN(g_wayland_protocols)) ? 0 : 1);
+    }
 
     if(g_profile || g_build_cpp_deps){
         if(!download_all(&tracy_source, 1)) return 1;
@@ -153,8 +158,8 @@ main(int argc, char **argv)
         .includes = {{"src/", "src/third_party/vulkan-headers/include"}},
         .os       = {
             [OsKind_Linux] = {
-                .defines = {{"DOT_PLATFORM_LINUX"}},
-                .libs    = {{"m", "pthread"}},
+                .defines = {{"DOT_PLATFORM_LINUX", "RGFW_WAYLAND", "RGFW_X11", "RGFW_USE_XDL", "RGFW_OPENGL"}},
+                .libs    = {{"m", "pthread", "dl", "wayland-cursor", "wayland-client", "wayland-egl", "xkbcommon"}},
             },
             [OsKind_Windows] = {
                 .defines = {{
@@ -162,15 +167,6 @@ main(int argc, char **argv)
                     "_CRT_SECURE_NO_WARNINGS", // allow fopen/sprintf/... without the "use _s variant" deprecation warnings
                 }},
                 .libs    = {{"dbghelp"}},
-            },
-        },
-        .window   = {
-            [WindowKind_X11] = {
-                .libs    = {{"X11", "Xcursor", "Xrandr", "Xfixes"}},
-            },
-            [WindowKind_Wayland] = {
-                .defines = {{"RGFW_WAYLAND", "RGFW_OPENGL"}},
-                .libs    = {{"wayland-cursor", "wayland-client", "wayland-egl", "xkbcommon"}},
             },
         },
         .compiler = {
@@ -199,8 +195,9 @@ main(int argc, char **argv)
         },
     };
 
-    if(g_target.window == WindowKind_Wayland){
-        if(!wayland_protocols_add(&exe, WAYLAND_GEN_FOLDER, g_wayland_protocols, NOB_ARRAY_LEN(g_wayland_protocols))) return 1;
+    if(g_target.os == OsKind_Linux){
+        if(!wayland_protocols_add(&exe, WAYLAND_GEN_FOLDER, g_wayland_protocols, NOB_ARRAY_LEN(g_wayland_protocols),
+                "Regenerate them with ./scripts/nob -gen_wayland (needs wayland-scanner) and commit the result")) return 1;
     }
 
     if(!g_unity_build){

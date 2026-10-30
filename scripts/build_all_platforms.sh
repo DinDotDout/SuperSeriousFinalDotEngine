@@ -1,5 +1,4 @@
 cc scripts/nob.c -o scripts/nob
-./scripts/nob -wayland -no_assets
 ./scripts/nob -no_assets
 
 ./scripts/nob -windows -no_assets

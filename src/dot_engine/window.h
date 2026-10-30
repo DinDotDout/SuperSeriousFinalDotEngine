@@ -7,7 +7,13 @@ enum { DOT_WINDOW_TEXT_MAX = 64 };
     X(DOT_WindowModeKind, Fullscreen) \
     X(DOT_WindowModeKind, Maximized) \
     X(DOT_WindowModeKind, Windowed)
-DOT_ENUM_REFLECT(DOT_WindowModeKind, DOT_WINDOW_MODE_KINDS)
+DOT_ENUM_REFLECT_TYPED(i32, DOT_WindowModeKind, DOT_WINDOW_MODE_KINDS)
+
+#define DOT_WINDOW_SYSTEM_KINDS(X) \
+    X(DOT_WindowSystemKind, Default) \
+    X(DOT_WindowSystemKind, X11) \
+    X(DOT_WindowSystemKind, Wayland)
+DOT_ENUM_REFLECT_TYPED(i32, DOT_WindowSystemKind, DOT_WINDOW_SYSTEM_KINDS)
 
 typedef enum DOT_KeyKind{
     DOT_KeyKind_Delete,
@@ -54,6 +60,7 @@ typedef struct DOT_Window
     b8   mouse_pressed[DOT_MouseButtonKind_Count];
 }DOT_Window;
 
+internal void   dot_window_set_system(i32 kind);
 internal void   dot_window_init(DOT_Window *window, String8 window_name);
 internal void   dot_window_shutdown(DOT_Window *window);
 internal void   dot_window_poll_events(DOT_Window *window);

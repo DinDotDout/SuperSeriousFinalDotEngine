@@ -1,15 +1,9 @@
 #include <math.h>
 
 typedef union f32x2{
-    struct{
-        f32 x,y;
-    };
-    struct{
-        f32 r,g;
-    };
-    struct{
-        f32 u,v;
-    };
+    struct{ f32 x,y; };
+    struct{ f32 r,g; };
+    struct{ f32 u,v; };
     f32 e[2];
 }f32x2;
 
@@ -31,40 +25,17 @@ typedef struct i32x2{
 
 typedef union f32x3
 {
-    struct{
-        f32 x,y,z;
-    };
-    struct{
-        f32 r,g,b;
-    };
-    struct{
-        f32x2 xy;
-        f32 _z;
-    };
-    struct{
-        f32 _x;
-        f32x2 yz;
-    };
-    struct{
-        f32x2 rg;
-        f32 _b;
-    };
-    struct{
-        f32 _r;
-        f32x2 gb;
-    };
+    struct{ f32 x, y, z;      };
+    struct{ f32x2 xy; f32 _z; };
+    struct{ f32 _x; f32x2 yz; };
 
-    struct{
-        f32 u,v,w;
-    };
-    struct{
-        f32x2 uv;
-        f32 _w;
-    };
-    struct{
-        f32 _u;
-        f32x2 vw;
-    };
+    struct{ f32 r, g, b;      };
+    struct{ f32x2 rg; f32 _b; };
+    struct{ f32 _r; f32x2 gb; };
+
+    struct{ f32 u, v, w;      };
+    struct{ f32x2 uv; f32 _w; };
+    struct{ f32 _u; f32x2 vw; };
     f32 e[3];
 }f32x3;
 
@@ -75,20 +46,10 @@ global const f32x3 f32x3_up       = { .x = 0.0f, .y = 1.0f, .z = 0.0f};
 
 typedef union f32x4
 {
-    struct{
-        f32 x,y,z,w;
-    };
-    struct{
-        f32 r,g,b,a;
-    };
-    struct{
-        f32x3 xyz;
-        f32 _w;
-    };
-    struct{
-        f32x3 rgb;
-        f32 _a;
-    };
+    struct{ f32 x,y,z,w; };
+    struct{ f32 r,g,b,a; };
+    struct{ f32x3 xyz; f32 _w; };
+    struct{ f32x3 rgb; f32 _a; };
     f32 e[4];
 }f32x4;
 
@@ -311,6 +272,18 @@ f32x4x4_perspective(f32 fov_y_radians, f32 aspect, f32 z_near, f32 z_far)
         v4(0.0f, -1.0f/tan_half_fov, 0.0f, 0.0f),
         v4(0.0f, 0.0f, z_far/(z_near-z_far), -1.0f),
         v4(0.0f, 0.0f, (z_far*z_near)/(z_near-z_far), 0.0f)
+    );
+    return r;
+}
+
+internal inline f32x4x4
+f32x4x4_orthographic(f32 half_width, f32 half_height, f32 z_near, f32 z_far)
+{
+    f32x4x4 r = f32x4x4_make(
+        v4(1.0f/half_width, 0.0f, 0.0f, 0.0f),
+        v4(0.0f, -1.0f/half_height, 0.0f, 0.0f),
+        v4(0.0f, 0.0f, 1.0f/(z_near-z_far), 0.0f),
+        v4(0.0f, 0.0f, z_near/(z_near-z_far), 1.0f)
     );
     return r;
 }

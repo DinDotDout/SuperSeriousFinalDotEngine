@@ -24,6 +24,11 @@
 *
 *
 */
+// DOT_PATCH_BEGIN | zlib license clause 2: altered versions must be plainly marked
+
+// This is an altered copy of upstream RGFW (ColleagueRiley/RGFW @ 800f1edacddc).
+// Every change from upstream sits between "DOT_PATCH_BEGIN | <why>" and DOT_PATCH_END, removed code is commented out.
+// DOT_PATCH_END
 
 /*
 	(MAKE SURE RGFW_IMPLEMENTATION is in exactly one header or you use -D RGFW_IMPLEMENTATION)
@@ -4240,7 +4245,10 @@ RGFW_window* RGFW_createWindowPtr(const char* name, i32 x, i32 y, i32 w, i32 h, 
 		RGFW_window_hide(win);
 	}
 
+	// DOT_PATCH_BEGIN | stray "return ret;" made the window created debug callback unreachable
+	// return ret;	RGFW_debugCallback(RGFW_typeInfo, RGFW_infoWindow, "a new window was created");
 	RGFW_debugCallback(RGFW_typeInfo, RGFW_infoWindow, "a new window was created");
+	// DOT_PATCH_END
 
 	return ret;
 }
@@ -16459,28 +16467,31 @@ void RGFW_load_X11(void) {
     RGFW_api.monitor_getModesPtr = RGFW_monitor_getModesPtr_X11;
     RGFW_api.monitor_setGammaRamp = RGFW_monitor_setGammaRamp_X11;
     RGFW_api.monitor_getGammaRampPtr = RGFW_monitor_getGammaRampPtr_X11;
-	RGFW_api.window_setRawMouseModePlatform = RGFW_window_setRawMouseModePlatform_Wayland;
-    RGFW_api.createWindowPlatform = RGFW_createWindowPlatform_Wayland;
-    RGFW_api.getGlobalMouse = RGFW_getGlobalMouse_Wayland;
-    RGFW_api.physicalToMappedKey = RGFW_physicalToMappedKey_Wayland;
-    RGFW_api.pollEvents = RGFW_pollEvents_Wayland;
-    RGFW_api.window_fetchSize = RGFW_window_fetchSize_Wayland;
-    RGFW_api.pollMonitors = RGFW_pollMonitors_Wayland;
-    RGFW_api.window_movePlatform = RGFW_window_movePlatform_Wayland;
-    RGFW_api.window_resizePlatform = RGFW_window_resizePlatform_Wayland;
-    RGFW_api.window_setAspectRatio = RGFW_window_setAspectRatio_Wayland;
-    RGFW_api.window_setMinSize = RGFW_window_setMinSize_Wayland;
-    RGFW_api.window_setMaxSize = RGFW_window_setMaxSize_Wayland;
-    RGFW_api.window_maximizePlatform = RGFW_window_maximizePlatform_Wayland;
-    RGFW_api.window_focus = RGFW_window_focus_Wayland;
-    RGFW_api.window_raise = RGFW_window_raise_Wayland;
-    RGFW_api.window_setFullscreen = RGFW_window_setFullscreen_Wayland;
-    RGFW_api.window_setFloating = RGFW_window_setFloating_Wayland;
-    RGFW_api.window_setOpacity = RGFW_window_setOpacity_Wayland;
-    RGFW_api.window_minimizePlatform = RGFW_window_minimizePlatform_Wayland;
-    RGFW_api.window_restorePlatform = RGFW_window_restorePlatform_Wayland;
-    RGFW_api.window_isFloating = RGFW_window_isFloating_Wayland;
-    RGFW_api.window_setName = RGFW_window_setName_Wayland;RGFW_api.monitor_setMode = RGFW_monitor_setMode_X11;
+    // DOT_PATCH_BEGIN | these _Wayland entries overwrote the _X11 ones set above, moved to RGFW_load_Wayland
+	// RGFW_api.window_setRawMouseModePlatform = RGFW_window_setRawMouseModePlatform_Wayland;
+    // RGFW_api.createWindowPlatform = RGFW_createWindowPlatform_Wayland;
+    // RGFW_api.getGlobalMouse = RGFW_getGlobalMouse_Wayland;
+    // RGFW_api.physicalToMappedKey = RGFW_physicalToMappedKey_Wayland;
+    // RGFW_api.pollEvents = RGFW_pollEvents_Wayland;
+    // RGFW_api.window_fetchSize = RGFW_window_fetchSize_Wayland;
+    // RGFW_api.pollMonitors = RGFW_pollMonitors_Wayland;
+    // RGFW_api.window_movePlatform = RGFW_window_movePlatform_Wayland;
+    // RGFW_api.window_resizePlatform = RGFW_window_resizePlatform_Wayland;
+    // RGFW_api.window_setAspectRatio = RGFW_window_setAspectRatio_Wayland;
+    // RGFW_api.window_setMinSize = RGFW_window_setMinSize_Wayland;
+    // RGFW_api.window_setMaxSize = RGFW_window_setMaxSize_Wayland;
+    // RGFW_api.window_maximizePlatform = RGFW_window_maximizePlatform_Wayland;
+    // RGFW_api.window_focus = RGFW_window_focus_Wayland;
+    // RGFW_api.window_raise = RGFW_window_raise_Wayland;
+    // RGFW_api.window_setFullscreen = RGFW_window_setFullscreen_Wayland;
+    // RGFW_api.window_setFloating = RGFW_window_setFloating_Wayland;
+    // RGFW_api.window_setOpacity = RGFW_window_setOpacity_Wayland;
+    // RGFW_api.window_minimizePlatform = RGFW_window_minimizePlatform_Wayland;
+    // RGFW_api.window_restorePlatform = RGFW_window_restorePlatform_Wayland;
+    // RGFW_api.window_isFloating = RGFW_window_isFloating_Wayland;
+    // RGFW_api.window_setName = RGFW_window_setName_Wayland;RGFW_api.monitor_setMode = RGFW_monitor_setMode_X11;
+    RGFW_api.monitor_setMode = RGFW_monitor_setMode_X11;
+    // DOT_PATCH_END
     RGFW_api.window_getMonitor = RGFW_window_getMonitor_X11;
     RGFW_api.window_closePlatform = RGFW_window_closePlatform_X11;
 #ifdef RGFW_OPENGL
@@ -16522,6 +16533,30 @@ void RGFW_load_Wayland(void) {
     RGFW_api.window_isHidden = RGFW_window_isHidden_Wayland;
     RGFW_api.window_isMinimized = RGFW_window_isMinimized_Wayland;
     RGFW_api.window_isMaximized = RGFW_window_isMaximized_Wayland;
+    // DOT_PATCH_BEGIN | misplaced in RGFW_load_X11 so never set for Wayland, RGFW_init called a null pollMonitors
+	RGFW_api.window_setRawMouseModePlatform = RGFW_window_setRawMouseModePlatform_Wayland;
+    RGFW_api.createWindowPlatform = RGFW_createWindowPlatform_Wayland;
+    RGFW_api.getGlobalMouse = RGFW_getGlobalMouse_Wayland;
+    RGFW_api.physicalToMappedKey = RGFW_physicalToMappedKey_Wayland;
+    RGFW_api.pollEvents = RGFW_pollEvents_Wayland;
+    RGFW_api.window_fetchSize = RGFW_window_fetchSize_Wayland;
+    RGFW_api.pollMonitors = RGFW_pollMonitors_Wayland;
+    RGFW_api.window_movePlatform = RGFW_window_movePlatform_Wayland;
+    RGFW_api.window_resizePlatform = RGFW_window_resizePlatform_Wayland;
+    RGFW_api.window_setAspectRatio = RGFW_window_setAspectRatio_Wayland;
+    RGFW_api.window_setMinSize = RGFW_window_setMinSize_Wayland;
+    RGFW_api.window_setMaxSize = RGFW_window_setMaxSize_Wayland;
+    RGFW_api.window_maximizePlatform = RGFW_window_maximizePlatform_Wayland;
+    RGFW_api.window_focus = RGFW_window_focus_Wayland;
+    RGFW_api.window_raise = RGFW_window_raise_Wayland;
+    RGFW_api.window_setFullscreen = RGFW_window_setFullscreen_Wayland;
+    RGFW_api.window_setFloating = RGFW_window_setFloating_Wayland;
+    RGFW_api.window_setOpacity = RGFW_window_setOpacity_Wayland;
+    RGFW_api.window_minimizePlatform = RGFW_window_minimizePlatform_Wayland;
+    RGFW_api.window_restorePlatform = RGFW_window_restorePlatform_Wayland;
+    RGFW_api.window_isFloating = RGFW_window_isFloating_Wayland;
+    RGFW_api.window_setName = RGFW_window_setName_Wayland;
+    // DOT_PATCH_END
     RGFW_api.monitor_requestMode = RGFW_monitor_requestMode_Wayland;
     RGFW_api.monitor_getModesPtr = RGFW_monitor_getModesPtr_Wayland;
     RGFW_api.monitor_setGammaRamp = RGFW_monitor_setGammaRamp_Wayland;

@@ -26,6 +26,10 @@ internal read_only ProgramEntryFlagCtx flag_table[] = {
     { .flag = str_lit("-tests-list"), .flag_desc = str_lit("Show test suite"),              .set_int = dot_engine_set_mode, .int_value = DOT_EngineRunModeKind_TestsList },
     { .flag = str_lit("-log_warn"),   .flag_desc = str_lit("Only log warnings and errors"), .set_int = dot_set_log_level,   .int_value = DOT_LogLevelKind_Warning        },
     { .flag = str_lit("-log_error"),  .flag_desc = str_lit("Only log errors"),              .set_int = dot_set_log_level,   .int_value = DOT_LogLevelKind_Error          },
+#if DOT_OS_POSIX
+    { .flag = str_lit("-x11"),        .flag_desc = str_lit("Use X11 instead of Wayland"),   .set_int = dot_window_set_system, .int_value = DOT_WindowSystemKind_X11      },
+    { .flag = str_lit("-wayland"),    .flag_desc = str_lit("Use Wayland (default, falls back to X11)"), .set_int = dot_window_set_system, .int_value = DOT_WindowSystemKind_Wayland },
+#endif
 };
 
 int
@@ -62,8 +66,8 @@ dot_engine_init(DOT_Engine *engine, b32 headless)
     plugins_init();
 
     if(!headless){
-        dot_window_init(&engine->window, engine->engine_name);
-        rn_init(engine->permanent_arena, &engine->renderer, dot_window_native_get(&engine->window));
+        DOT_PROFILE_BLOCK("Window init"){ dot_window_init(&engine->window, engine->engine_name); }
+        DOT_PROFILE_BLOCK("Renderer init"){ rn_init(engine->permanent_arena, &engine->renderer, dot_window_native_get(&engine->window)); }
         nk_init_default(&engine->ui_ctx, NULL);
         ui_input_init(&engine->ui_input, &engine->ui_ctx);
         engine->ui_render = PUSH_STRUCT(engine->permanent_arena, UI_Render);
@@ -72,12 +76,14 @@ dot_engine_init(DOT_Engine *engine, b32 headless)
         engine->game = PUSH_STRUCT(engine->permanent_arena, DOT_Game);
         u8 *permanent_memory = PUSH_SIZE(engine->permanent_arena, g_game_permanent_memory_size_b);
         u8 *transient_memory = PUSH_SIZE(engine->permanent_arena, g_game_transient_memory_size_b);
-        dot_game_init(
-            engine->game,
-            &engine->renderer,
-            &engine->window,
-            permanent_memory, g_game_permanent_memory_size_b,
-            transient_memory, g_game_transient_memory_size_b);
+        DOT_PROFILE_BLOCK("Game init"){
+            dot_game_init(
+                engine->game,
+                &engine->renderer,
+                &engine->window,
+                permanent_memory, g_game_permanent_memory_size_b,
+                transient_memory, g_game_transient_memory_size_b);
+        }
     }
 }
 
@@ -92,7 +98,7 @@ dot_engine_run(DOT_Engine *engine)
         .a = 1.0f,
     };
     while(!dot_window_should_close(&engine->window)){
-        dot_window_poll_events(&engine->window);
+        DOT_PROFILE_BLOCK("Poll events"){ dot_window_poll_events(&engine->window); }
         {
             RGFW_window *win = engine->window.window;
             if(RGFW_window_isKeyPressed(win, RGFW_keyF1)){ engine->ui_mode = !engine->ui_mode; }
@@ -150,12 +156,14 @@ dot_engine_run(DOT_Engine *engine)
         }
         nk_end(ctx);
 
-        rn_frame_begin(&engine->renderer, dot_window_get_framebuffer_size(&engine->window));
+        DOT_PROFILE_BLOCK("Frame begin"){ rn_frame_begin(&engine->renderer, dot_window_get_framebuffer_size(&engine->window)); }
 
-        dot_game_run(engine->game);
-        ui_render_draw(engine->ui_render, &engine->renderer, ctx, dot_window_get_size(&engine->window));
+        DOT_PROFILE_BLOCK("Game run"){ dot_game_run(engine->game); }
+        DOT_PROFILE_BLOCK("UI draw"){ ui_render_draw(engine->ui_render, &engine->renderer, ctx, dot_window_get_size(&engine->window)); }
         nk_clear(ctx);
-        rn_frame_end(&engine->renderer);
+        DOT_PROFILE_BLOCK("Frame end"){ rn_frame_end(&engine->renderer); }
+
+        DOT_PROFILE_FRAME_MARK();
     }
 }
 

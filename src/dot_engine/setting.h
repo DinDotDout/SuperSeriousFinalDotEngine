@@ -8,7 +8,9 @@ enum{ SETTINGS_BUCKETS_MAX = 64 };
 
 #define DOT_SETTING_KINDS(X) \
     X(DOT_SettingKind, I32) \
+    X(DOT_SettingKind, I32x2) \
     X(DOT_SettingKind, U32) \
+    X(DOT_SettingKind, U32x2) \
     X(DOT_SettingKind, Bool) \
     X(DOT_SettingKind, F32) \
     X(DOT_SettingKind, F32x2) \
@@ -36,13 +38,15 @@ struct alignas(16) DOT_Setting
     DOT_SettingKind kind;
     DOT_SettingVisualizationKind visualization;
     union{
-        i32    *i32_value;
-        u32    *u32_value;
-        bool   *bool_value;
-        f32    *f32_value;
-        f32x2  *f32x2_value;
-        f32x3  *f32x3_value;
-        f32x4  *f32x4_value;
+        i32     *i32_value;
+        i32x2   *i32x2_value;
+        u32     *u32_value;
+        u32x2   *u32x2_value;
+        bool    *bool_value;
+        f32     *f32_value;
+        f32x2   *f32x2_value;
+        f32x3   *f32x3_value;
+        f32x4   *f32x4_value;
         String8 *String8_value;
     };
 
@@ -69,8 +73,8 @@ global DOT_Settings g_settings = {0};
 SECTION_DECLARE(DOT_Setting, SettingsSection);
 
 #define DOT_SETTING(T, section, name, value) DOT_SETTING_TYPED(T, section, name, value, DOT_SettingVisualizationKind_Default)
-#define DOT_SETTING_TYPED(k, ctype, section, var, value, viz) \
-    ctype var = (value); \
+#define DOT_SETTING_TYPED(k, ctype, section, var, viz, ...) \
+    ctype var = __VA_ARGS__; \
     SECTION_ITEM(SettingsSection) static DOT_Setting DOT_CONCAT(__DOT_Setting_, var) = { \
         .whole_name     = str_lit(section DOT_STR("_"#var)), \
         .scope_name     = str_lit(section), \
@@ -82,16 +86,18 @@ SECTION_DECLARE(DOT_Setting, SettingsSection);
         .line = __LINE__, \
     };
 
-#define DOT_SETTING_I32(section, var, value)       DOT_SETTING_TYPED(DOT_SettingKind_I32, i32, section, var, value, DOT_SettingVisualizationKind_Default)
-#define DOT_SETTING_U32(section, var, value)       DOT_SETTING_TYPED(DOT_SettingKind_U32, u32, section, var, value, DOT_SettingVisualizationKind_Default)
-#define DOT_SETTING_BOOL(section, var, value)      DOT_SETTING_TYPED(DOT_SettingKind_Bool, bool, section, var, value, DOT_SettingVisualizationKind_Default)
-#define DOT_SETTING_F32(section, var, value)       DOT_SETTING_TYPED(DOT_SettingKind_F32, f32, section, var, value, DOT_SettingVisualizationKind_Default)
-#define DOT_SETTING_F32X2(section, var, value)     DOT_SETTING_TYPED(DOT_SettingKind_F32x2, f32x2, section, var, value, DOT_SettingVisualizationKind_Default)
-#define DOT_SETTING_F32X3(section, var, value)     DOT_SETTING_TYPED(DOT_SettingKind_F32x3, f32x3, section, var, value, DOT_SettingVisualizationKind_Default)
-#define DOT_SETTING_F32X4(section, var, value)     DOT_SETTING_TYPED(DOT_SettingKind_F32x4, f32x4, section, var, value, DOT_SettingVisualizationKind_Default)
-#define DOT_SETTING_STRING8(section, var, value)   DOT_SETTING_TYPED(DOT_SettingKind_String8, String8, section, var, str_comp(value), DOT_SettingVisualizationKind_Default)
-#define DOT_SETTING_COLOR3(section, var, value)    DOT_SETTING_TYPED(DOT_SettingKind_F32x3, f32x3, section, var, value, DOT_SettingVisualizationKind_ColorPicker)
-#define DOT_SETTING_COLOR4(section, var, value)    DOT_SETTING_TYPED(DOT_SettingKind_F32x4, f32x4, section, var, value, DOT_SettingVisualizationKind_ColorPicker)
+#define DOT_SETTING_I32(section, var, ...)       DOT_SETTING_TYPED(DOT_SettingKind_I32, i32, section, var,          DOT_SettingVisualizationKind_Default, __VA_ARGS__          )
+#define DOT_SETTING_I32X2(section, var, ...)     DOT_SETTING_TYPED(DOT_SettingKind_I32x2, i32x2, section, var,          DOT_SettingVisualizationKind_Default, __VA_ARGS__          )
+#define DOT_SETTING_U32(section, var, ...)       DOT_SETTING_TYPED(DOT_SettingKind_U32, u32, section, var,          DOT_SettingVisualizationKind_Default, __VA_ARGS__          )
+#define DOT_SETTING_U32X2(section, var, ...)     DOT_SETTING_TYPED(DOT_SettingKind_U32x2, u32x2, section, var,      DOT_SettingVisualizationKind_Default, __VA_ARGS__          )
+#define DOT_SETTING_BOOL(section, var, ...)      DOT_SETTING_TYPED(DOT_SettingKind_Bool, bool, section, var,        DOT_SettingVisualizationKind_Default, __VA_ARGS__          )
+#define DOT_SETTING_F32(section, var, ...)       DOT_SETTING_TYPED(DOT_SettingKind_F32, f32, section, var,          DOT_SettingVisualizationKind_Default, __VA_ARGS__          )
+#define DOT_SETTING_F32X2(section, var, ...)     DOT_SETTING_TYPED(DOT_SettingKind_F32x2, f32x2, section, var,      DOT_SettingVisualizationKind_Default, __VA_ARGS__          )
+#define DOT_SETTING_F32X3(section, var, ...)     DOT_SETTING_TYPED(DOT_SettingKind_F32x3, f32x3, section, var,      DOT_SettingVisualizationKind_Default, __VA_ARGS__          )
+#define DOT_SETTING_F32X4(section, var, ...)     DOT_SETTING_TYPED(DOT_SettingKind_F32x4, f32x4, section, var,      DOT_SettingVisualizationKind_Default, __VA_ARGS__          )
+#define DOT_SETTING_STRING8(section, var, ...)   DOT_SETTING_TYPED(DOT_SettingKind_String8, String8, section, var,  DOT_SettingVisualizationKind_Default, str_comp(__VA_ARGS__))
+#define DOT_SETTING_COLOR3(section, var, ...)    DOT_SETTING_TYPED(DOT_SettingKind_F32x3, f32x3, section, var,      DOT_SettingVisualizationKind_ColorPicker, __VA_ARGS__      )
+#define DOT_SETTING_COLOR4(section, var, ...)    DOT_SETTING_TYPED(DOT_SettingKind_F32x4, f32x4, section, var,      DOT_SettingVisualizationKind_ColorPicker, __VA_ARGS__      )
 
 internal inline void dot_settings_register_all(Arena *arena);
 internal inline String8 dot_setting_to_string8(Arena *arena, DOT_Setting *setting);

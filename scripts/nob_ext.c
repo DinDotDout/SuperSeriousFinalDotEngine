@@ -20,20 +20,6 @@ static const char *g_os_kind_str[] = {
 
 typedef enum
 {
-    WindowKind_X11,
-    WindowKind_Wayland,
-    WindowKind_Win32,
-    WindowKind_Count,
-}WindowKind;
-
-static const char *g_window_kind_str[] = {
-    [WindowKind_X11]     = "X11",
-    [WindowKind_Wayland] = "Wayland",
-    [WindowKind_Win32]   = "Win32",
-};
-
-typedef enum
-{
     CompilerKind_Clang,
     CompilerKind_Msvc,
     CompilerKind_Count,
@@ -56,7 +42,6 @@ typedef uint32_t b32;
 typedef struct
 {
     OsKind os;
-    WindowKind window;
     CompilerKind compiler;
     OptimizationLevelKind opt;
     b32 asan;
@@ -140,7 +125,6 @@ mkdir_parents(const char *file_path)
 // Flags
 
 _Static_assert(sizeof(OsKind)                == sizeof(uint32_t), "FlagWrite needs 4-byte fields");
-_Static_assert(sizeof(WindowKind)            == sizeof(uint32_t), "FlagWrite needs 4-byte fields");
 _Static_assert(sizeof(CompilerKind)          == sizeof(uint32_t), "FlagWrite needs 4-byte fields");
 _Static_assert(sizeof(OptimizationLevelKind) == sizeof(uint32_t), "FlagWrite needs 4-byte fields");
 _Static_assert(sizeof(Nob_Log_Level)         == sizeof(uint32_t), "FlagWrite needs 4-byte fields");
@@ -218,11 +202,9 @@ target_host(void)
     Target target = {0};
 #if defined(_WIN32)
     target.os       = OsKind_Windows;
-    target.window   = WindowKind_Win32;
     target.compiler = CompilerKind_Msvc;
 #else
     target.os       = OsKind_Linux;
-    target.window   = WindowKind_X11;
     target.compiler = CompilerKind_Clang;
 #endif
     return(target);
@@ -231,10 +213,6 @@ target_host(void)
 static bool
 target_check(Target *target)
 {
-    if((target->os == OsKind_Windows) != (target->window == WindowKind_Win32)){
-        nob_log(NOB_ERROR, "Invalid target: %s can't use %s windowing", g_os_kind_str[target->os], g_window_kind_str[target->window]);
-        return(false);
-    }
     if(target->compiler == CompilerKind_Msvc && target->os != OsKind_Windows){
         nob_log(NOB_ERROR, "cl can only target windows (use -windows)");
         return(false);
@@ -479,7 +457,6 @@ typedef struct
     StrList includes;
     StrList defines;
     PlatformConfig os[OsKind_Count];
-    PlatformConfig window[WindowKind_Count];
     CompilerConfig compiler[CompilerKind_Count];
     const Prebuilt *prebuilts[4];
 }Exe;
@@ -541,7 +518,6 @@ append_compile_flags(Nob_Cmd *cmd, const Target *target, const Exe *exe, bool wa
     append_list(cmd, "-I%s", &exe->includes);
     append_list(cmd, "-D%s", &exe->defines);
     append_list(cmd, "-D%s", &exe->os[target->os].defines);
-    append_list(cmd, "-D%s", &exe->window[target->window].defines);
     for(size_t i = 0; i < NOB_ARRAY_LEN(exe->prebuilts) && exe->prebuilts[i]; i++){
         append_list(cmd, "-I%s", &exe->prebuilts[i]->includes);
         append_list(cmd, "-D%s", &exe->prebuilts[i]->defines);
@@ -561,7 +537,6 @@ append_link_flags(Nob_Cmd *cmd, const Target *target, const Exe *exe, const char
         nob_cmd_append(cmd, "/link"); // everything after this goes to link.exe, keep it last
         append_list(cmd, "%s", &exe->compiler[target->compiler].link_flags);
         append_list(cmd, "%s.lib", &exe->os[target->os].libs);
-        append_list(cmd, "%s.lib", &exe->window[target->window].libs);
         for(size_t i = 0; i < NOB_ARRAY_LEN(exe->prebuilts) && exe->prebuilts[i]; i++){
             append_list(cmd, "%s.lib", &exe->prebuilts[i]->os[target->os].libs);
         }
@@ -572,7 +547,6 @@ append_link_flags(Nob_Cmd *cmd, const Target *target, const Exe *exe, const char
         }
         append_list(cmd, "%s", &exe->compiler[target->compiler].link_flags);
         append_list(cmd, "-l%s", &exe->os[target->os].libs);
-        append_list(cmd, "-l%s", &exe->window[target->window].libs);
         for(size_t i = 0; i < NOB_ARRAY_LEN(exe->prebuilts) && exe->prebuilts[i]; i++){
             append_list(cmd, "-l%s", &exe->prebuilts[i]->os[target->os].libs);
         }
@@ -630,7 +604,7 @@ exe_build(const Target *target, const Exe *exe)
         if(!prebuilt_ready(target, exe->prebuilts[i], exe->out_dir)) return(false);
     }
 
-    nob_log(NOB_INFO, "Using compiler %s for target %s %s", g_compiler_kind_str[target->compiler], g_os_kind_str[target->os], g_window_kind_str[target->window]);
+    nob_log(NOB_INFO, "Using compiler %s for target %s", g_compiler_kind_str[target->compiler], g_os_kind_str[target->os]);
     Nob_Procs procs = {0};
     Nob_Cmd link = {0};
     nob_cmd_append(&link, g_compiler_kind_str[target->compiler]);
@@ -650,24 +624,11 @@ exe_build(const Target *target, const Exe *exe)
 
 ////////////////////////////////////////////////////////////////
 //
-// Wayland protocols (generated sources added to an Exe)
-
-typedef struct
-{
-    const char *xml;
-    const char *stem;
-}WaylandProtocol;
+// Wayland protocols (generated once with wayland-scanner and committed, then added to an Exe)
 
 static bool
 wayland_scan(const char *mode, const char *xml, const char *out)
 {
-    if(nob_file_exists(out)) return(true);
-    if(!nob_file_exists(xml)){
-        nob_log(NOB_ERROR, "Missing Wayland protocol %s", xml);
-        nob_log(NOB_ERROR, "Install the protocol XMLs (Arch: wayland-protocols, Debian/Ubuntu: wayland-protocols, Fedora: wayland-protocols-devel)");
-        nob_log(NOB_ERROR, "If it is installed, it may be too old to ship this protocol; or build with -x11 instead");
-        return(false);
-    }
     Nob_Cmd cmd = {0};
     nob_cmd_append(&cmd, "wayland-scanner", mode, xml, out);
     if(!nob_cmd_run(&cmd)){
@@ -679,14 +640,36 @@ wayland_scan(const char *mode, const char *xml, const char *out)
 }
 
 static bool
-wayland_protocols_add(Exe *exe, const char *gen_dir, const WaylandProtocol *protocols, size_t count)
+wayland_protocols_generate(const char *xml_dir, const char *gen_dir, const char **stems, size_t count)
 {
     if(!mkdir_parents(gen_dir)) return(false);
     for(size_t i = 0; i < count; i++){
-        const WaylandProtocol *p = &protocols[i];
-        const char *header = nob_temp_sprintf("%s%s.h", gen_dir, p->stem);
-        const char *code   = nob_temp_sprintf("%s%s.c", gen_dir, p->stem);
-        if(!wayland_scan("client-header", p->xml, header) || !wayland_scan("public-code", p->xml, code)){
+        const char *xml    = nob_temp_sprintf("%s%s.xml", xml_dir, stems[i]);
+        const char *header = nob_temp_sprintf("%s%s.h", gen_dir, stems[i]);
+        const char *code   = nob_temp_sprintf("%s%s.c", gen_dir, stems[i]);
+        if(!nob_file_exists(xml)){
+            nob_log(NOB_ERROR, "Missing Wayland protocol %s", xml);
+            return(false);
+        }
+        if(!wayland_scan("client-header", xml, header) || !wayland_scan("public-code", xml, code)){
+            return(false);
+        }
+        nob_log(NOB_INFO, "[*] Generated %s", stems[i]);
+    }
+    return(true);
+}
+
+static bool
+wayland_protocols_add(Exe *exe, const char *gen_dir, const char **stems, size_t count, const char *missing_hint)
+{
+    for(size_t i = 0; i < count; i++){
+        const char *header = nob_temp_sprintf("%s%s.h", gen_dir, stems[i]);
+        const char *code   = nob_temp_sprintf("%s%s.c", gen_dir, stems[i]);
+        if(!nob_file_exists(header) || !nob_file_exists(code)){
+            nob_log(NOB_ERROR, "Missing generated Wayland protocol %s in %s", stems[i], gen_dir);
+            if(missing_hint){
+                nob_log(NOB_ERROR, "%s", missing_hint);
+            }
             return(false);
         }
         exe_add_source(exe, code, true);

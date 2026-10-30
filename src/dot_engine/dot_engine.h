@@ -32,22 +32,19 @@
 #include "dot_engine/ui_input.h"
 
 #include "dot_engine/setting.h"
-#include "renderer/renderer_include.h"
 #include "dot_engine/plugin.h"
+#include "dot_engine/profiler.h"
+#include "renderer/renderer_include.h"
 #include "dot_engine/reflect_ui.h"
 #include "game/shaders/model_shared.h"
 #include "dot_engine/model.h"
 #include "dot_engine/game.h"
 
-#define DOT_PROFILER_IMPL
-#include "dot_engine/profiler.h"
 #include "dot_engine/window.c"
 #include "dot_engine/ui_input.c"
 #include "dot_engine/reflect_ui.c"
-
 #include "dot_engine/model.c"
 #include "dot_engine/game.c"
-
 #include "game/my_game.c"
 
 typedef struct DOT_Engine
