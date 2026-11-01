@@ -38,6 +38,7 @@ typedef struct RB_VK_Device
     b8  mesh_shaders;
     b8  memory_budget;
     b8  device_address_commands; // (jd) 0 = redsolve RB_GpuAddress -> VkBuffer + offset
+    b8  descriptor_heap;
     u32 timestamp_query_count;   // (jd0 0 = timestamps off
     u32 texture_memory_type;
     u64 texture_heap_alignment;

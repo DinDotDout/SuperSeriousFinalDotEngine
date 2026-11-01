@@ -50,7 +50,6 @@ arena_create_from_memory(ArenaInitParams *params)
     arena->commit_expand_size = params->commit_expand_size,
     arena->flags              = params->large_pages ? ArenaFlags_LargePages : 0,
     arena->name               = params->name,
-    arena->parent             = params->parent,
 
     ARENA_RESET(arena);
     return arena;
@@ -113,7 +112,6 @@ arena_create_from_os(ArenaInitParams *params)
                              | (params->large_pages ? ArenaFlags_LargePages : 0)
                              | (params->sparse ? ArenaFlags_Sparse : 0),
         .name               = params->name,
-        .parent             = params->parent,
     };
     ARENA_RESET(arena);
     return arena;
@@ -154,8 +152,8 @@ arena_destroy(ArenaOpParams *op)
         DOT_WARNING_FL(op->file, op->line,
             "Trying to free sub-arena '%s' with parent '%s'!\nThis "
             "arena does not own the memory!",
-            arena->name,
-            arena->parent ? arena->parent->name : "no parent");
+            arena->name
+        );
         return;
     }
     DOT_PRINT("Arena \"%s\": freed %M", arena->name, arena->reserved);
@@ -260,7 +258,6 @@ arena_to_string(Arena *arena)
         "  Page size:         %M (%s)\n"
         "  Commit expand:     %M\n",
         arena->name ? arena->name : "<unnamed>",
-        arena->parent ? arena->parent->name : "no parent",
         arena->base,
         arena->used,
         arena->committed, committed_pages, sparse ? " [sparse: not actually backed]" : "",
@@ -285,7 +282,6 @@ arena_print_debug(Arena* arena)
     const u64 committed_pages = arena->committed / page_size;
     const u64 reserved_pages  = arena->reserved / page_size;
     DOT_PRINT("Arena '%s'", arena->name ? arena->name : "<unnamed>");
-    DOT_PRINT("  Arena parent: '%s'", arena->parent ? arena->parent->name : "no parent");
     DOT_PRINT("  Base:              %p", arena->base);
     DOT_PRINT("  Used:              %M", arena->used);
     DOT_PRINT("  Committed:         %M (%" PRIu64 " pages)%s", arena->committed, committed_pages, sparse ? " [sparse: not actually backed]" : "");

@@ -1,9 +1,8 @@
 internal void
-threadctx_init(Arena *arena, u32 arena_count, u32 arena_size, u32 thread_id)
+threadctx_init_arenas_(Arena *arena, u32 arena_count, u64 arena_size)
 {
-    DOT_ASSERT(t_thread_ctx.thread_id == 0, "Thread %u ctx was already initialized", thread_id);
+    DOT_ASSERT(t_thread_ctx.temp_arenas == NULL && t_thread_ctx.temp_arenas == 0, "Thread %u ctx was already initialized", t_thread_ctx.thread_id);
     u64 per_arena_memory = arena_size;
-    t_thread_ctx.thread_id = thread_id;
     t_thread_ctx.temp_arena_count = arena_count;
     t_thread_ctx.temp_arenas = PUSH_ARRAY(arena, Arena*, arena_count);
     for(u8 i = 0; i < t_thread_ctx.temp_arena_count; ++i){
@@ -16,25 +15,45 @@ threadctx_init(Arena *arena, u32 arena_count, u32 arena_size, u32 thread_id)
 }
 
 internal void
+threadctx_init(Arena *arena, u32 arena_count, u64 arena_size)
+{
+    threadctx_init_arenas_(arena, arena_count, arena_size);
+    t_thread_ctx.thread_id = ins_atomic_u32_add_eval(&g_thread_id_counter, 1);
+}
+
+internal void
 threadctx_shutdown()
 {
     for(u8 i = 0; i < t_thread_ctx.temp_arena_count; ++i){
         arena_print_debug(t_thread_ctx.temp_arenas[i]);
     }
+    if(g_backing_fallback){
+        ARENA_DESTROY(g_backing_fallback);
+    }
 }
 
-// (jd) NOTE: Using 0 as unitialized state internally.
-// Externally it is still a valid idx
 internal u32
 threadctx_id()
 {
+    DOT_ASSERT(t_thread_ctx.thread_id != 0, "Thread ctx not initialized, call threadctx_init on this thread first");
     return t_thread_ctx.thread_id - 1;
+}
+
+internal u32
+threadctx_count()
+{
+    DOT_ASSERT(t_thread_ctx.thread_id != 0, "Thread ctx not initialized, call threadctx_init on this thread first");
+    return g_thread_id_counter;
 }
 
 internal Scratch
 scratch_begin(u32 avoid_count, Arena *avoid_arenas[])
 {
-    DOT_ASSERT(t_thread_ctx.temp_arenas && t_thread_ctx.temp_arena_count > 0, "Thread context not initialized");
+    if(!t_thread_ctx.temp_arenas || t_thread_ctx.temp_arena_count == 0){
+        g_backing_fallback = ARENA_CREATE();
+        threadctx_init_arenas_(g_backing_fallback, 2, g_backing_fallback->reserved);
+        DOT_ASSERT(t_thread_ctx.temp_arenas && t_thread_ctx.temp_arena_count > 0, "Thread context not initialized");
+    }
 
     // (jd) NOTE: Spread memory load on temp arenas
     local_persist thread_local u32 next = 0;

@@ -628,6 +628,7 @@ typedef struct RB_DeviceInfo
     RB_FormatKind depth_format;
     f32 timestamp_period_ns;
     b8  mesh_shaders;
+    b8  descriptor_heap;
 }RB_DeviceInfo;
 
 ////////////////////////////////////////////////////////////////
@@ -707,8 +708,7 @@ X(copy_memory,                      void,                   (RB_CommandBuffer cm
 X(copy_memory_to_texture,           void,                   (RB_CommandBuffer cmd, RB_GpuRange src, RB_Texture dst, RB_TextureCopyDesc copy))\
 X(copy_texture_to_memory,           void,                   (RB_CommandBuffer cmd, RB_Texture src, RB_GpuRange dst, RB_TextureCopyDesc copy))\
 X(write_timestamp,                  void,                   (RB_CommandBuffer cmd, RB_GpuAddress dst, RB_StageFlags stage))\
-X(texture_descriptor_heap_set,      void,                   (RB_CommandBuffer cmd, RB_GpuHeap heap))\
-X(sampler_descriptor_heap_set,      void,                   (RB_CommandBuffer cmd, RB_GpuHeap heap))\
+X(descriptor_heaps_set,             void,                   (RB_CommandBuffer cmd, RB_GpuHeap texture_heap, RB_GpuHeap sampler_heap))\
 X(render_pass_begin,                void,                   (RB_CommandBuffer cmd, RB_RenderingDesc desc, RB_RenderingFlags flags))\
 X(render_pass_end,                  void,                   (RB_CommandBuffer cmd))\
 X(set_viewport,                     void,                   (RB_CommandBuffer cmd, RB_Viewport viewport))\

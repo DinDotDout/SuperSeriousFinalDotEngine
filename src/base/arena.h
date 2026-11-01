@@ -24,14 +24,30 @@ enum
     ARENA_MIN_CAPACITY      = DOT_KB(16),
 };
 
-typedef enum ArenaFlags{
+typedef enum ArenaFlags
+{
     ArenaFlags_OwnsMemory = DOT_BIT(0),
     ArenaFlags_LargePages = DOT_BIT(1),
     ArenaFlags_Sparse     = DOT_BIT(2), // Reserve-only: committed is forced to reserved so it never self-commits; meant to be carved into sub-arenas
     // ArenaFlags_ChainArena = DOT_BIT(3),
 }ArenaFlags;
 
-struct Arena{
+typedef struct ArenaDebugScope ArenaDebugScope;
+struct ArenaDebugScope
+{
+    Arena *this;
+    ArenaDebugScope *next_sibling;
+    ArenaDebugScope *last_child;
+};
+
+global ArenaDebugScope g_arena_debug_scope_root = {
+    .this = NULL,
+    .next_sibling = &g_arena_debug_scope_root,
+    .last_child   = &g_arena_debug_scope_root,
+};
+
+typedef struct Arena
+{
     u64 used;
     u8 *base;
 
@@ -41,13 +57,14 @@ struct Arena{
 
     ArenaFlags flags;
 
-    Arena *parent; // do we really need this?
     char *name;
-};
+}Arena;
+
 DOT_STATIC_ASSERT(ARENA_HEADER_SIZE_B <= PLATFORM_REGULAR_PAGE_SIZE, "Arena header doesn't fit min allocation granularity");
 DOT_STATIC_ASSERT(sizeof(Arena) <= ARENA_HEADER_SIZE_B, "Arena header should fit in a cache line to avoid false sharing on thread arenas");
 
-typedef struct ArenaInitParams{
+typedef struct ArenaInitParams
+{
     // These 2 will be used to alloc from if not empty, otherwise we will make a new os alloc
     Arena *parent;
     u8 *buffer;
@@ -55,7 +72,7 @@ typedef struct ArenaInitParams{
     u64 reserve_size; // Virt reserved memory
     u64 commit_size; // Forced initial populate
 
-    u64  commit_expand_size; // Commitsize after initial commit
+    u64 commit_expand_size; // Commitsize after initial commit
     b32 large_pages;
 
     // If true, this arena only reserves virtual memory (committed is forced

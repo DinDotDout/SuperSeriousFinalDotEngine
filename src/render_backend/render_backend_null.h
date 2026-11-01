@@ -68,8 +68,7 @@ internal void                   rb_null_gpu_heap_destroy(RB_GpuHeap h){}
 
 internal void                   rb_null_texture_descriptor_write(RB_GpuHeap heap, u32 index, RB_Texture texture, RB_TextureDescriptorKind kind){}
 internal void                   rb_null_sampler_descriptor_write(RB_GpuHeap heap, u32 index, RB_SamplerDesc *desc){}
-internal void                   rb_null_texture_descriptor_heap_set(RB_CommandBuffer cmd, RB_GpuHeap heap){}
-internal void                   rb_null_sampler_descriptor_heap_set(RB_CommandBuffer cmd, RB_GpuHeap heap){}
+internal void                   rb_null_descriptor_heaps_set(RB_CommandBuffer cmd, RB_GpuHeap texture_heap, RB_GpuHeap sampler_heap){}
 internal void                   rb_null_bind_pso(RB_CommandBuffer cmd, RB_Pipeline pso){}
 internal void                   rb_null_draw(RB_CommandBuffer cmd, RB_GpuAddress root, u32 vertex_count, u32 instance_count, u32 first_vertex, u32 first_instance){}
 internal void                   rb_null_draw_indexed(RB_CommandBuffer cmd, RB_GpuAddress root, RB_GpuRange indices, RB_IndexKind index_kind, u32 index_count, u32 instance_count, u32 first_index, i32 vertex_offset, u32 first_instance){}
