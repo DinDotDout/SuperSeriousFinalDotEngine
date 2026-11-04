@@ -241,6 +241,16 @@ os_library_close(void *library)
     dlclose(library);
 }
 
+internal b32
+os_library_is_loaded(String8 name)
+{
+    void *library = dlopen(name.cstr, RTLD_NOW | RTLD_NOLOAD);
+    if(library){
+        dlclose(library);
+    }
+    return library != NULL;
+}
+
 ////////////////////////////////////////////////////////////////
 //
 // Filesystem

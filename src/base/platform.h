@@ -52,6 +52,18 @@ internal bool platform_file_exists(String8 file_path);
 internal String8 platform_read_entire_file(Arena *arena, String8 path);
 internal b32 platform_write_entire_file(String8 path, void const *data, u64 size);
 b32 platform_file_is_newer(String8 a, String8 b);
+
+typedef struct PlatformFile
+{
+    FILE *handle;
+    i64   size;
+}PlatformFile;
+
+internal PlatformFile platform_file_open_read(String8 path);
+internal PlatformFile platform_file_open_write(String8 path);
+internal b32          platform_file_read_at(PlatformFile *file, i64 offset, void *dst, i64 size);
+internal b32          platform_file_write_at(PlatformFile *file, i64 offset, void const *src, i64 size);
+internal void         platform_file_close(PlatformFile *file);
  
 u64 platform_get_time_ns(void);
 

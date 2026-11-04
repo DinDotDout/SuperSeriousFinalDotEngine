@@ -77,6 +77,77 @@ platform_write_entire_file(String8 path, void const *data, u64 size)
     return result;
 }
 
+internal b32
+platform_file_seek_(FILE *handle, i64 offset)
+{
+#if DOT_OS_WINDOWS
+    return(_fseeki64(handle, offset, SEEK_SET) == 0);
+#else
+    return(fseeko(handle, cast(off_t)offset, SEEK_SET) == 0);
+#endif
+}
+
+internal PlatformFile
+platform_file_open_read(String8 path)
+{
+    PlatformFile file = {0};
+    file.handle = fopen(path.cstr, "rb");
+    if(!file.handle){
+        DOT_WARNING("Could not open file %S %s", path, strerror(errno));
+        return(file);
+    }
+#if DOT_OS_WINDOWS
+    _fseeki64(file.handle, 0, SEEK_END);
+    file.size = _ftelli64(file.handle);
+#else
+    fseeko(file.handle, 0, SEEK_END);
+    file.size = cast(i64)ftello(file.handle);
+#endif
+    return(file);
+}
+
+internal PlatformFile
+platform_file_open_write(String8 path)
+{
+    PlatformFile file = {0};
+    file.handle = fopen(path.cstr, "wb");
+    if(!file.handle){
+        DOT_WARNING("Could not open file %S %s", path, strerror(errno));
+    }
+    return(file);
+}
+
+internal b32
+platform_file_read_at(PlatformFile *file, i64 offset, void *dst, i64 size)
+{
+    DOT_ASSERT(file->handle && offset >= 0 && size >= 0);
+    if(offset + size > file->size || !platform_file_seek_(file->handle, offset)){
+        return(false);
+    }
+    return(fread(dst, 1, cast(u64)size, file->handle) == cast(u64)size);
+}
+
+internal b32
+platform_file_write_at(PlatformFile *file, i64 offset, void const *src, i64 size)
+{
+    DOT_ASSERT(file->handle && offset >= 0 && size >= 0);
+    if(!platform_file_seek_(file->handle, offset)){
+        return(false);
+    }
+    b32 result = fwrite(src, 1, cast(u64)size, file->handle) == cast(u64)size;
+    file->size = DOT_MAX(file->size, offset + size);
+    return(result);
+}
+
+internal void
+platform_file_close(PlatformFile *file)
+{
+    if(file->handle){
+        fclose(file->handle);
+    }
+    MEMORY_ZERO_STRUCT(file);
+}
+
 b32
 platform_file_is_newer(String8 a, String8 b)
 {

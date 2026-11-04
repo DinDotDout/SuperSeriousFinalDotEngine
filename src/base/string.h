@@ -6,14 +6,14 @@
 // String
 //
 
-struct String8
+typedef struct String8
 {
     i64 size;
     union{
         u8 *str;
         char *cstr;
     };
-};
+}String8;
 
 typedef struct String8Node String8Node;
 struct String8Node

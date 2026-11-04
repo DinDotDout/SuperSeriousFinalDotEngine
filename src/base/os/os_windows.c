@@ -152,6 +152,12 @@ os_library_close(void *library)
     FreeLibrary((HMODULE)library);
 }
 
+internal b32
+os_library_is_loaded(String8 name)
+{
+    return GetModuleHandleA(name.cstr) != NULL;
+}
+
 ////////////////////////////////////////////////////////////////
 //
 // Filesystem

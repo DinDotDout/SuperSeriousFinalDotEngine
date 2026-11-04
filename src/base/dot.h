@@ -369,14 +369,16 @@
 #if DOT_COMPILER_MSVC
 #   if DOT_ARCH_X64
 #       define ins_atomic_u32_eval_cond_assign(x,k,c)  _InterlockedCompareExchange((long *)(x), (k), (c))
-#       define ins_atomic_u64_add_eval(x,c)            ((u64)_InterlockedExchangeAdd64((__int64 *)(x), (__int64)(c)) + (c))
+#       define ins_atomic_u32_add_eval(x,c)            ((u32)_InterlockedExchangeAdd((long *)(x), (long)(c)) + (c))
+#       define ins_atomic_u64_add_eval(x,c)           ((u64)_InterlockedExchangeAdd64((__int64 *)(x), (__int64)(c)) + (c))
 #       define ins_atomic_i64_add_eval(x,c)            ((i64)_InterlockedExchangeAdd64((__int64 *)(x), (__int64)(c)) + (c))
 #   else
 #       error "Atomic intrinsics not defined for this compiler / architecture combination."
 #   endif
 #elif DOT_COMPILER_CLANG || DOT_COMPILER_GCC
 #   define ins_atomic_u32_eval_cond_assign(x,k,c)  ({ u32 _new = (c); __atomic_compare_exchange_n((u32 *)(x),&_new,(k),0,__ATOMIC_SEQ_CST,__ATOMIC_SEQ_CST); _new; })
-#   define ins_atomic_u64_add_eval(x,c)            __atomic_add_fetch((u64 *)(x), (c), __ATOMIC_SEQ_CST)
+#   define ins_atomic_u32_add_eval(x,c)            __atomic_add_fetch((u32 *)(x), (c), __ATOMIC_SEQ_CST)
+#   define ins_atomic_u64_add_eval(x,c)           __atomic_add_fetch((u64 *)(x), (c), __ATOMIC_SEQ_CST)
 #   define ins_atomic_i64_add_eval(x,c)            __atomic_add_fetch((i64 *)(x), (c), __ATOMIC_SEQ_CST)
 #else
 #    error "Atomic intrinsics not defined for this compiler / architecture."
