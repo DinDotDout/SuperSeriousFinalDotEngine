@@ -16432,6 +16432,9 @@ void RGFW_load_X11(void) {
     RGFW_api.pollEvents = RGFW_pollEvents_X11;
     RGFW_api.window_fetchSize = RGFW_window_fetchSize_X11;
     RGFW_api.pollMonitors = RGFW_pollMonitors_X11;
+    // DOT_PATCH_BEGIN | monitorNode_free was never assigned, RGFW_deinit called a null pointer freeing X11 monitors
+    RGFW_api.monitorNode_free = RGFW_monitorNode_free_X11;
+    // DOT_PATCH_END
     RGFW_api.window_movePlatform = RGFW_window_movePlatform_X11;
     RGFW_api.window_resizePlatform = RGFW_window_resizePlatform_X11;
     RGFW_api.window_setAspectRatio = RGFW_window_setAspectRatio_X11;
@@ -16541,6 +16544,9 @@ void RGFW_load_Wayland(void) {
     RGFW_api.pollEvents = RGFW_pollEvents_Wayland;
     RGFW_api.window_fetchSize = RGFW_window_fetchSize_Wayland;
     RGFW_api.pollMonitors = RGFW_pollMonitors_Wayland;
+    // DOT_PATCH_BEGIN | monitorNode_free was never assigned, RGFW_deinit would call a null pointer freeing Wayland monitors
+    RGFW_api.monitorNode_free = RGFW_monitorNode_free_Wayland;
+    // DOT_PATCH_END
     RGFW_api.window_movePlatform = RGFW_window_movePlatform_Wayland;
     RGFW_api.window_resizePlatform = RGFW_window_resizePlatform_Wayland;
     RGFW_api.window_setAspectRatio = RGFW_window_setAspectRatio_Wayland;
