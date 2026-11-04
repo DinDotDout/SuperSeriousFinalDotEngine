@@ -11,7 +11,7 @@ struct VSOutput {
 float4 main(VSOutput input) : SV_Target
 {
     DOT_ModelRoot *pc = (DOT_ModelRoot*)g_root.addr;
-    DOT_MaterialGpu *mat = (DOT_MaterialGpu*)pc->material_addr;
+    DOT_MaterialGpu *mat = pc->material_addr;
 
     float4 base_color = mat->base_color_factor;
     if((mat->flags & DOT_MaterialFeatureBit_ColorTexture) != 0){

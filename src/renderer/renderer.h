@@ -6,7 +6,6 @@ enum
     RN_RESOURCE_CLEANUP_CTX_TEXTURES  = 64,
 };
 
-ReflectPrimitive(RB_GpuAddress, RFL_TypeKind_U32);
 typedef struct RN_BindlessTexture
 {
     RB_Texture handle;

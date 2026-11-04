@@ -13,9 +13,9 @@ VSOutput main(uint vertex_index : SV_VertexID)
     DOT_ModelRoot *pc = (DOT_ModelRoot*)g_root.addr;
     uint idx = vertex_index;
 
-    float3 *positions = (float3*)pc->position_addr;
-    float3 *normals   = (float3*)pc->normal_addr;
-    float2 *texcoords = (float2*)pc->texcoord_addr;
+    float3 *positions = pc->position_addr;
+    float3 *normals   = pc->normal_addr;
+    float2 *texcoords = pc->texcoord_addr;
 
     VSOutput out;
     out.sv_position = mul(pc->mvp, float4(positions[idx], 1.0));

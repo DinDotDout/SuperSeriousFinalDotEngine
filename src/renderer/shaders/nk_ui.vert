@@ -18,7 +18,7 @@ float3 srgb_to_linear(float3 c)
 VSOutput main(uint vertex_index : SV_VertexID)
 {
     UI_RenderRoot *pc = (UI_RenderRoot*)g_root.addr;
-    uint *words = (uint*)pc->vertex_addr;
+    uint *words = pc->vertex_addr;
     uint base = vertex_index * 5;
 
     float2 position = float2(asfloat(words[base + 0]), asfloat(words[base + 1]));

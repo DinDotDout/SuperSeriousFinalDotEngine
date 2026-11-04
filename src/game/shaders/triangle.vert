@@ -10,7 +10,7 @@ struct VSOutput {
 VSOutput main(uint vertex_index : SV_VertexID)
 {
     TriangleRoot *pc = (TriangleRoot*)g_root.addr;
-    TriangleVertex *verts = (TriangleVertex*)pc->vertex_addr;
+    TriangleVertex *verts = pc->vertex_addr;
     TriangleVertex v = verts[vertex_index];
 
     VSOutput out;

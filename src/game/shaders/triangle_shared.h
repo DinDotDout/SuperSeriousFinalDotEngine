@@ -7,8 +7,8 @@ Reflect(TriangleVertex, {
 });
 
 Reflect(TriangleRoot, {
-    f32x4x4       mvp;
-    RB_GpuAddress vertex_addr;
+    f32x4x4                   mvp;
+    RB_GpuPtr(TriangleVertex) vertex_addr;
 });
 
 #endif // !TRIANGLE_SHARED_H
