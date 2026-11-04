@@ -22,6 +22,7 @@ typedef enum RB_VK_DeviceFeatureKind
     RB_VK_DeviceFeature_DeviceAddressCommands,
     RB_VK_DeviceFeature_DescriptorHeap,
     RB_VK_DeviceFeature_ShaderUntypedPointers,
+    RB_VK_DeviceFeature_MutableDescriptorType,
     RB_VK_DeviceFeature_ShaderDrawParameters,
     RB_VK_DeviceFeature_ExtendedDynamicState,
     RB_VK_DeviceFeature_MeshShader,
@@ -105,6 +106,16 @@ internal VkBuffer rb_vk_buffer_from_gpu_address(RB_GpuAddress address, VkDeviceS
 
 global RB_VK_BackendCtx *rb_vk_g_ctx;
 
+global read_only VkDescriptorType rb_vk_g_texture_descriptor_types[] = {
+    VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+    VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+};
+
+global read_only VkMutableDescriptorTypeListEXT rb_vk_g_texture_descriptor_type_list = {
+    .descriptorTypeCount = DOT_ARRAY_COUNT(rb_vk_g_texture_descriptor_types),
+    .pDescriptorTypes    = rb_vk_g_texture_descriptor_types,
+};
+
 global read_only String8 rb_vk_g_instance_extensions[] = {
     str_lit(VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME),
     str_lit(VK_KHR_SURFACE_EXTENSION_NAME),
@@ -150,6 +161,7 @@ read_only global RB_VK_VulkanConfig rb_vk_g_config = {
                     .descriptorBindingStorageImageUpdateAfterBind = VK_TRUE,
                     .descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE,
                     .descriptorBindingUniformBufferUpdateAfterBind = VK_TRUE,
+                    .descriptorBindingUpdateUnusedWhilePending = VK_TRUE,
                     .timelineSemaphore = VK_TRUE,
                     .hostQueryReset = VK_TRUE,
                     .scalarBlockLayout = VK_TRUE,
@@ -158,8 +170,9 @@ read_only global RB_VK_VulkanConfig rb_vk_g_config = {
             [RB_VK_DeviceFeature_Vulkan13] = {
                 .features = &(VkPhysicalDeviceVulkan13Features){
                     .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
-                    .synchronization2 = VK_TRUE,
-                    .dynamicRendering = VK_TRUE,
+                    .synchronization2        = VK_TRUE,
+                    .dynamicRendering        = VK_TRUE,
+                    .shaderIntegerDotProduct = VK_TRUE,
                 },
             },
             [RB_VK_DeviceFeature_Vulkan14] = {
@@ -188,6 +201,7 @@ read_only global RB_VK_VulkanConfig rb_vk_g_config = {
             },
             [RB_VK_DeviceFeature_DescriptorHeap] = {
                 .extension = str_lit(VK_EXT_DESCRIPTOR_HEAP_EXTENSION_NAME),
+                .optional = true,
                 .features = &(VkPhysicalDeviceDescriptorHeapFeaturesEXT){
                     .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_FEATURES_EXT,
                     .descriptorHeap = VK_TRUE,
@@ -195,9 +209,18 @@ read_only global RB_VK_VulkanConfig rb_vk_g_config = {
             },
             [RB_VK_DeviceFeature_ShaderUntypedPointers] = {
                 .extension = str_lit(VK_KHR_SHADER_UNTYPED_POINTERS_EXTENSION_NAME),
+                .optional = true,
                 .features = &(VkPhysicalDeviceShaderUntypedPointersFeaturesKHR){
                     .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_UNTYPED_POINTERS_FEATURES_KHR,
                     .shaderUntypedPointers = VK_TRUE,
+                },
+            },
+            [RB_VK_DeviceFeature_MutableDescriptorType] = {
+                .extension = str_lit(VK_EXT_MUTABLE_DESCRIPTOR_TYPE_EXTENSION_NAME),
+                .optional = true,
+                .features = &(VkPhysicalDeviceMutableDescriptorTypeFeaturesEXT){
+                    .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MUTABLE_DESCRIPTOR_TYPE_FEATURES_EXT,
+                    .mutableDescriptorType = VK_TRUE,
                 },
             },
             [RB_VK_DeviceFeature_ShaderDrawParameters] = {
@@ -402,10 +425,10 @@ rb_vk_physical_device_all_required_extensions(
         }
         feature_enabled[i] = cast(b8) found;
         if(!found && feature->optional){
-            DOT_PRINT("Optional extension %S not found", feature->extension);
+            DOT_PRINT("    Optional extension %S not found", feature->extension);
         }else if(!found){
             all_found = false;
-            DOT_WARNING("Requested extension %S not found", feature->extension);
+            DOT_WARNING("    Requested extension %S not found", feature->extension);
         }
     }
     scratch_end(s);
@@ -523,12 +546,20 @@ rb_vk_pick_best_device(const RB_VK_VulkanConfig *vk_config, VkInstance instance,
         VkPhysicalDevice dev = devices[i];
         VkPhysicalDeviceProperties device_properties;
         vkGetPhysicalDeviceProperties(dev, &device_properties);
-        DOT_PRINT("Checking device \"%s\"", device_properties.deviceName);
+        DOT_PRINT("Checking device %u/%u \"%s\"", i + 1, device_count, device_properties.deviceName);
         // We to first ensure we have what we want before even rating the device
         b8 feature_enabled[RB_VK_DeviceFeature_COUNT];
-        if (!rb_vk_physical_device_all_required_extensions(vk_config, dev, feature_enabled)
-            || !rb_vk_physical_device_swapchain_support(dev, surface, NULL)){
-            DOT_PRINT("Skipping device \"%s\"", device_properties.deviceName);
+        if(!rb_vk_physical_device_all_required_extensions(vk_config, dev, feature_enabled)){
+            DOT_PRINT("  Skipping device \"%s\": missing required extensions", device_properties.deviceName);
+            continue;
+        }
+        b32 descriptor_heap = feature_enabled[RB_VK_DeviceFeature_DescriptorHeap] && feature_enabled[RB_VK_DeviceFeature_ShaderUntypedPointers];
+        if(!descriptor_heap && !feature_enabled[RB_VK_DeviceFeature_MutableDescriptorType]){
+            DOT_PRINT("  Skipping device \"%s\": needs descriptor heaps or mutable descriptor types for bindless", device_properties.deviceName);
+            continue;
+        }
+        if(!rb_vk_physical_device_swapchain_support(dev, surface, NULL)){
+            DOT_PRINT("  Skipping device \"%s\": no swapchain support", device_properties.deviceName);
             continue;
         }
 
@@ -566,6 +597,7 @@ rb_vk_pick_best_device(const RB_VK_VulkanConfig *vk_config, VkInstance instance,
             }
         }
         if(graphics_idx == U32_MAX || present_idx == U32_MAX){
+            DOT_PRINT("  Skipping device \"%s\": no graphics/present queue family", device_properties.deviceName);
             continue;
         }
 
@@ -579,7 +611,7 @@ rb_vk_pick_best_device(const RB_VK_VulkanConfig *vk_config, VkInstance instance,
         if(device_features.geometryShader){
             score += 10;
         }
-        DOT_PRINT("\"%s\" graphics family: %d; present family: %i; score: %i", device_properties.deviceName, graphics_idx, present_idx, score);
+        DOT_PRINT("  Device \"%s\" suitable; graphics family: %d; present family: %i; score: %i", device_properties.deviceName, graphics_idx, present_idx, score);
         if(score > best_score){
             best_properties = device_properties;
             best_device.is_integrated_gpu = is_integrated_gpu;
@@ -594,7 +626,7 @@ rb_vk_pick_best_device(const RB_VK_VulkanConfig *vk_config, VkInstance instance,
         DOT_ERROR("No suitable GPU found");
     }
 
-    DOT_PRINT("best_device \"%s\" graphics family: %d; present family: %i; score: %i",
+    DOT_PRINT("Selected device \"%s\" graphics family: %d; present family: %i; score: %i",
         best_properties.deviceName, best_device.graphics_queue_idx, best_device.present_queue_idx,
         best_score);
 
@@ -1093,7 +1125,7 @@ rb_vk_texture_create(RB_CommandBuffer cmd_h, RB_TextureDesc *desc, RB_TextureHea
             .format = texture->vk_format,
             .subresourceRange = {
                 .baseMipLevel = 0,
-                .levelCount = 1,
+                .levelCount = texture->mip_levels,
                 .baseArrayLayer = 0,
                 .layerCount = texture->array_layers,
                 .aspectMask = aspect_mask,
@@ -1112,7 +1144,7 @@ rb_vk_texture_create(RB_CommandBuffer cmd_h, RB_TextureDesc *desc, RB_TextureHea
 internal RB_VK_DescriptorHeapLayout
 rb_vk_descriptor_heap_layout(RB_MemoryKind kind)
 {
-    VkPhysicalDeviceDescriptorHeapPropertiesEXT *p = &rb_vk_g_ctx->heap_properties;
+    VkPhysicalDeviceDescriptorHeapPropertiesEXT *p = &rb_vk_g_ctx->bindless.heap_properties;
     RB_VK_DescriptorHeapLayout layout = {0};
     if(kind == RB_MemoryKind_TextureDescriptorHeap){
         layout.descriptor_size    = p->imageDescriptorSize;
@@ -1130,17 +1162,250 @@ rb_vk_descriptor_heap_layout(RB_MemoryKind kind)
 }
 
 internal VkHostAddressRangeEXT
-rb_vk_descriptor_heap_slot(RB_GpuHeap heap_h, RB_MemoryKind kind, u32 index)
+rb_vk_descriptor_heap_slot(RB_GpuHeap heap_h, RB_MemoryKind memory_kind, u32 index)
 {
     RB_VK_GpuHeap *heap = RB_HANDLE_UNPACK(RB_VK_GpuHeap*, heap_h);
-    DOT_ASSERT(heap && heap->kind == kind, "Descriptor written into a heap of the wrong memory kind");
-    u64 descriptor_size = rb_vk_descriptor_heap_layout(kind).descriptor_size;
+    DOT_ASSERT(heap && heap->memory_kind == memory_kind, "Descriptor written into a heap of the wrong memory kind");
+    u64 descriptor_size = rb_vk_descriptor_heap_layout(memory_kind).descriptor_size;
     u64 offset = cast(u64) index * descriptor_size;
     DOT_ASSERT(offset + descriptor_size <= cast(u64) heap->size, "Descriptor index %u out of range", index);
     VkHostAddressRangeEXT range = {0};
-    range.address = cast(u8*) heap->cpu_base + offset;
+    range.address = cast(u8*) heap->memory.cpu_base + offset;
     range.size    = descriptor_size;
     return(range);
+}
+
+internal VkMutableDescriptorTypeCreateInfoEXT
+rb_vk_texture_mutable_info(void)
+{
+    VkMutableDescriptorTypeCreateInfoEXT info = {0};
+    info.sType                          = VK_STRUCTURE_TYPE_MUTABLE_DESCRIPTOR_TYPE_CREATE_INFO_EXT;
+    info.mutableDescriptorTypeListCount = 1;
+    info.pMutableDescriptorTypeLists    = &rb_vk_g_texture_descriptor_type_list;
+    return(info);
+}
+
+internal VkDescriptorSetLayout
+rb_vk_descriptor_set_layout_single(u32 binding, VkDescriptorType type, u32 max_count, VkMutableDescriptorTypeCreateInfoEXT *mutable_info)
+{
+    VkDescriptorSetLayoutBinding layout_binding = {0};
+    layout_binding.binding         = binding;
+    layout_binding.descriptorType  = type;
+    layout_binding.descriptorCount = max_count;
+    layout_binding.stageFlags      = VK_SHADER_STAGE_ALL;
+
+    VkDescriptorBindingFlags binding_flags = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT
+        | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT
+        | VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT
+        | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT;
+
+    VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags_info = {0};
+    binding_flags_info.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+    binding_flags_info.pNext         = mutable_info;
+    binding_flags_info.bindingCount  = 1;
+    binding_flags_info.pBindingFlags = &binding_flags;
+
+    VkDescriptorSetLayoutCreateInfo layout_info = {0};
+    layout_info.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layout_info.pNext        = &binding_flags_info;
+    layout_info.flags        = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
+    layout_info.bindingCount = 1;
+    layout_info.pBindings    = &layout_binding;
+
+    VkDescriptorSetLayout layout = VK_NULL_HANDLE;
+    RB_VK_CHECK(vkCreateDescriptorSetLayout(rb_vk_g_ctx->device.vk_device, &layout_info, NULL, &layout));
+    return(layout);
+}
+
+internal void
+rb_vk_descriptor_set_layout_create(void)
+{
+    RB_VK_DescriptorSetLayout *layout = &rb_vk_g_ctx->bindless.descriptor_set_layout;
+    RB_BindlessLayout *bindless = &rb_vk_g_ctx->desc.bindless_layout;
+    VkDevice vk_device = rb_vk_g_ctx->device.vk_device;
+
+    VkPhysicalDeviceVulkan12Properties properties12 = {0};
+    properties12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES;
+    VkPhysicalDeviceProperties2 properties2 = {0};
+    properties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+    properties2.pNext = &properties12;
+    vkGetPhysicalDeviceProperties2(rb_vk_g_ctx->device.vk_gpu, &properties2);
+
+    u32 sampler_limit = DOT_MIN(properties12.maxPerStageDescriptorUpdateAfterBindSamplers, properties12.maxDescriptorSetUpdateAfterBindSamplers);
+    u32 sampled_limit = DOT_MIN(properties12.maxPerStageDescriptorUpdateAfterBindSampledImages, properties12.maxDescriptorSetUpdateAfterBindSampledImages);
+    u32 storage_limit = DOT_MIN(properties12.maxPerStageDescriptorUpdateAfterBindStorageImages, properties12.maxDescriptorSetUpdateAfterBindStorageImages);
+    layout->sampler_max = DOT_MIN(cast(u32) RB_VK_SAMPLER_DESCRIPTOR_MAX, sampler_limit);
+    layout->texture_max = DOT_MIN(cast(u32) RB_VK_TEXTURE_DESCRIPTOR_MAX, DOT_MIN(sampled_limit, storage_limit));
+
+    VkMutableDescriptorTypeCreateInfoEXT mutable_info = rb_vk_texture_mutable_info();
+    layout->vk_texture_set_layout = rb_vk_descriptor_set_layout_single(bindless->texture_binding, VK_DESCRIPTOR_TYPE_MUTABLE_EXT, layout->texture_max, &mutable_info);
+    layout->vk_sampler_set_layout = rb_vk_descriptor_set_layout_single(bindless->sampler_binding, VK_DESCRIPTOR_TYPE_SAMPLER, layout->sampler_max, NULL);
+
+    VkDescriptorSetLayout set_layouts[RB_VK_BINDLESS_SET_COUNT] = {0};
+    set_layouts[bindless->texture_set] = layout->vk_texture_set_layout;
+    set_layouts[bindless->sampler_set] = layout->vk_sampler_set_layout;
+
+    VkPushConstantRange push_range = {0};
+    push_range.stageFlags = VK_SHADER_STAGE_ALL;
+    push_range.size       = sizeof(RB_GpuAddress);
+
+    VkPipelineLayoutCreateInfo pipeline_layout_info = {0};
+    pipeline_layout_info.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipeline_layout_info.setLayoutCount         = DOT_ARRAY_COUNT(set_layouts);
+    pipeline_layout_info.pSetLayouts            = set_layouts;
+    pipeline_layout_info.pushConstantRangeCount = 1;
+    pipeline_layout_info.pPushConstantRanges    = &push_range;
+    RB_VK_CHECK(vkCreatePipelineLayout(vk_device, &pipeline_layout_info, NULL, &layout->vk_pipeline_layout));
+}
+
+internal void
+rb_vk_descriptor_set_layout_destroy(void)
+{
+    RB_VK_DescriptorSetLayout *layout = &rb_vk_g_ctx->bindless.descriptor_set_layout;
+    VkDevice vk_device = rb_vk_g_ctx->device.vk_device;
+    vkDestroyPipelineLayout(vk_device, layout->vk_pipeline_layout, NULL);
+    vkDestroyDescriptorSetLayout(vk_device, layout->vk_texture_set_layout, NULL);
+    vkDestroyDescriptorSetLayout(vk_device, layout->vk_sampler_set_layout, NULL);
+}
+
+internal void
+rb_vk_descriptor_set_heap_create(RB_VK_GpuHeap *heap)
+{
+    RB_VK_DescriptorSetLayout *layout = &rb_vk_g_ctx->bindless.descriptor_set_layout;
+    VkDevice vk_device = rb_vk_g_ctx->device.vk_device;
+    b32 textures  = heap->memory_kind == RB_MemoryKind_TextureDescriptorHeap;
+    u32 max_count = textures ? layout->texture_max : layout->sampler_max;
+    DOT_ASSERT(heap->size > 0 && heap->size <= cast(i64) max_count, "Descriptor heap of %" PRId64 " slots exceeds the device's %u", heap->size, max_count);
+    u32 count = cast(u32) heap->size;
+
+    if(!textures){
+        heap->descriptor_set.vk_samplers = PUSH_ARRAY(rb_vk_g_ctx->permanent_arena, VkSampler, cast(u64) count);
+    }
+
+    VkMutableDescriptorTypeCreateInfoEXT mutable_info = rb_vk_texture_mutable_info();
+
+    VkDescriptorPoolSize pool_size = {0};
+    pool_size.type            = textures ? VK_DESCRIPTOR_TYPE_MUTABLE_EXT : VK_DESCRIPTOR_TYPE_SAMPLER;
+    pool_size.descriptorCount = count;
+
+    VkDescriptorPoolCreateInfo pool_info = {0};
+    pool_info.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    pool_info.flags         = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
+    pool_info.maxSets       = 1;
+    pool_info.poolSizeCount = 1;
+    pool_info.pPoolSizes    = &pool_size;
+    if(textures){
+        pool_info.pNext = &mutable_info;
+    }
+    RB_VK_CHECK(vkCreateDescriptorPool(vk_device, &pool_info, NULL, &heap->descriptor_set.vk_pool));
+
+    VkDescriptorSetVariableDescriptorCountAllocateInfo count_info = {0};
+    count_info.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
+    count_info.descriptorSetCount = 1;
+    count_info.pDescriptorCounts  = &count;
+
+    VkDescriptorSetLayout set_layout = textures ? layout->vk_texture_set_layout : layout->vk_sampler_set_layout;
+    VkDescriptorSetAllocateInfo alloc_info = {0};
+    alloc_info.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    alloc_info.pNext              = &count_info;
+    alloc_info.descriptorPool     = heap->descriptor_set.vk_pool;
+    alloc_info.descriptorSetCount = 1;
+    alloc_info.pSetLayouts        = &set_layout;
+    RB_VK_CHECK(vkAllocateDescriptorSets(vk_device, &alloc_info, &heap->descriptor_set.vk_set));
+}
+
+internal void
+rb_vk_descriptor_set_heap_destroy(RB_VK_GpuHeap *heap)
+{
+    VkDevice vk_device = rb_vk_g_ctx->device.vk_device;
+    if(heap->memory_kind == RB_MemoryKind_SamplerDescriptorHeap){
+        for(i64 i = 0; i < heap->size; ++i){
+            vkDestroySampler(vk_device, heap->descriptor_set.vk_samplers[i], NULL);
+        }
+    }
+    vkDestroyDescriptorPool(vk_device, heap->descriptor_set.vk_pool, NULL);
+}
+
+internal void
+rb_vk_descriptor_set_bind(RB_VK_CommandBuffer *cmd, RB_VK_GpuHeap *heap, u32 set_index)
+{
+    VkBindDescriptorSetsInfo bind_info = {0};
+    bind_info.sType              = VK_STRUCTURE_TYPE_BIND_DESCRIPTOR_SETS_INFO;
+    bind_info.stageFlags         = VK_SHADER_STAGE_ALL;
+    bind_info.layout             = rb_vk_g_ctx->bindless.descriptor_set_layout.vk_pipeline_layout;
+    bind_info.firstSet           = set_index;
+    bind_info.descriptorSetCount = 1;
+    bind_info.pDescriptorSets    = &heap->descriptor_set.vk_set;
+    vkCmdBindDescriptorSets2(cmd->vk_cmd, &bind_info);
+}
+
+internal VkImageViewCreateInfo
+rb_vk_texture_descriptor_view_info(RB_VK_Texture *texture, b32 storage, VkImageViewUsageCreateInfo *view_usage)
+{
+    VkImageAspectFlags aspect = texture->vk_aspect;
+    if(aspect & VK_IMAGE_ASPECT_DEPTH_BIT){ aspect = VK_IMAGE_ASPECT_DEPTH_BIT; }
+
+    *view_usage = (VkImageViewUsageCreateInfo){0};
+    view_usage->sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO;
+    view_usage->usage = storage ? VK_IMAGE_USAGE_STORAGE_BIT : VK_IMAGE_USAGE_SAMPLED_BIT;
+
+    VkImageViewCreateInfo view_info = {0};
+    view_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    view_info.pNext                           = view_usage;
+    view_info.image                           = texture->vk_image;
+    view_info.viewType                        = texture->vk_view_type;
+    view_info.format                          = texture->vk_format;
+    view_info.subresourceRange.aspectMask     = aspect;
+    view_info.subresourceRange.levelCount     = VK_REMAINING_MIP_LEVELS;
+    view_info.subresourceRange.layerCount     = VK_REMAINING_ARRAY_LAYERS;
+    return(view_info);
+}
+
+internal void
+rb_vk_descriptor_set_texture_write(RB_GpuHeap heap_h, u32 index, RB_VK_Texture *texture, b32 storage)
+{
+    RB_VK_GpuHeap *heap = RB_HANDLE_UNPACK(RB_VK_GpuHeap*, heap_h);
+    DOT_ASSERT(heap && heap->memory_kind == RB_MemoryKind_TextureDescriptorHeap, "Descriptor written into a heap of the wrong memory kind");
+    DOT_ASSERT(index < cast(u64) heap->size, "Descriptor index %u out of range", index);
+
+    VkDescriptorImageInfo image_info = {0};
+    image_info.imageView   = texture->vk_image_view;
+    image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+    VkWriteDescriptorSet write = {0};
+    write.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet          = heap->descriptor_set.vk_set;
+    write.dstBinding      = rb_vk_g_ctx->desc.bindless_layout.texture_binding;
+    write.dstArrayElement = index;
+    write.descriptorCount = 1;
+    write.descriptorType  = storage ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE : VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    write.pImageInfo      = &image_info;
+    vkUpdateDescriptorSets(rb_vk_g_ctx->device.vk_device, 1, &write, 0, NULL);
+}
+
+internal void
+rb_vk_descriptor_set_sampler_write(RB_GpuHeap heap_h, u32 index, RB_SamplerDesc *desc, VkSamplerCreateInfo *sampler_info)
+{
+    RB_VK_GpuHeap *heap = RB_HANDLE_UNPACK(RB_VK_GpuHeap*, heap_h);
+    DOT_ASSERT(heap && heap->memory_kind == RB_MemoryKind_SamplerDescriptorHeap, "Descriptor written into a heap of the wrong memory kind");
+    DOT_ASSERT(index < cast(u64) heap->size, "Descriptor index %u out of range", index);
+    DOT_ASSERT(heap->descriptor_set.vk_samplers[index] == VK_NULL_HANDLE, "Sampler slot %u already written", index);
+
+    RB_VK_CHECK(vkCreateSampler(rb_vk_g_ctx->device.vk_device, sampler_info, NULL, &heap->descriptor_set.vk_samplers[index]));
+    rb_vk_resource_set_name(VK_OBJECT_TYPE_SAMPLER, cast(u64)heap->descriptor_set.vk_samplers[index], desc->debug_name);
+
+    VkDescriptorImageInfo image_info = {0};
+    image_info.sampler = heap->descriptor_set.vk_samplers[index];
+
+    VkWriteDescriptorSet write = {0};
+    write.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet          = heap->descriptor_set.vk_set;
+    write.dstBinding      = rb_vk_g_ctx->desc.bindless_layout.sampler_binding;
+    write.dstArrayElement = index;
+    write.descriptorCount = 1;
+    write.descriptorType  = VK_DESCRIPTOR_TYPE_SAMPLER;
+    write.pImageInfo      = &image_info;
+    vkUpdateDescriptorSets(rb_vk_g_ctx->device.vk_device, 1, &write, 0, NULL);
 }
 
 internal void
@@ -1150,22 +1415,13 @@ rb_vk_texture_descriptor_write(RB_GpuHeap heap, u32 index, RB_Texture texture_h,
     b32 storage = kind == RB_TextureDescriptorKind_Storage;
     DOT_ASSERT(!storage || (texture->vk_usage & VK_IMAGE_USAGE_STORAGE_BIT), "Texture '%s' needs RB_TextureUsageBit_Compute to be a storage texture", texture->debug_name.buff);
 
-    VkImageAspectFlags aspect = texture->vk_aspect;
-    if(aspect & VK_IMAGE_ASPECT_DEPTH_BIT){ aspect = VK_IMAGE_ASPECT_DEPTH_BIT; }
+    if(!rb_vk_g_ctx->device.descriptor_heap){
+        rb_vk_descriptor_set_texture_write(heap, index, texture, storage);
+        return;
+    }
 
-    VkImageViewUsageCreateInfo view_usage = {0};
-    view_usage.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO;
-    view_usage.usage = storage ? VK_IMAGE_USAGE_STORAGE_BIT : VK_IMAGE_USAGE_SAMPLED_BIT;
-
-    VkImageViewCreateInfo view_info = {0};
-    view_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    view_info.pNext                           = &view_usage;
-    view_info.image                           = texture->vk_image;
-    view_info.viewType                        = texture->vk_view_type;
-    view_info.format                          = texture->vk_format;
-    view_info.subresourceRange.aspectMask     = aspect;
-    view_info.subresourceRange.levelCount     = VK_REMAINING_MIP_LEVELS;
-    view_info.subresourceRange.layerCount     = VK_REMAINING_ARRAY_LAYERS;
+    VkImageViewUsageCreateInfo view_usage;
+    VkImageViewCreateInfo view_info = rb_vk_texture_descriptor_view_info(texture, storage, &view_usage);
 
     VkImageDescriptorInfoEXT image_info = {0};
     image_info.sType  = VK_STRUCTURE_TYPE_IMAGE_DESCRIPTOR_INFO_EXT;
@@ -1194,22 +1450,31 @@ rb_vk_sampler_descriptor_write(RB_GpuHeap heap, u32 index, RB_SamplerDesc *desc)
     sampler_info.addressModeW = rb_vk_sampler_address_mode_from_sampler_address_mode_kind(desc->address_mode_w);
     sampler_info.borderColor  = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
     sampler_info.maxLod       = VK_LOD_CLAMP_NONE;
+    if(desc->max_anisotropy > 1.0f && rb_vk_g_ctx->device.sampler_anisotropy){
+        sampler_info.anisotropyEnable = VK_TRUE;
+        sampler_info.maxAnisotropy    = DOT_MIN(desc->max_anisotropy, rb_vk_g_ctx->device.device_properties->limits.maxSamplerAnisotropy);
+    }
+
+    if(!rb_vk_g_ctx->device.descriptor_heap){
+        rb_vk_descriptor_set_sampler_write(heap, index, desc, &sampler_info);
+        return;
+    }
 
     VkHostAddressRangeEXT destination = rb_vk_descriptor_heap_slot(heap, RB_MemoryKind_SamplerDescriptorHeap, index);
     RB_VK_CHECK(vkWriteSamplerDescriptorsEXT(rb_vk_g_ctx->device.vk_device, 1, &sampler_info, &destination));
 }
 
 internal VkBindHeapInfoEXT
-rb_vk_descriptor_heap_bind_info(RB_GpuHeap heap_h, RB_MemoryKind kind)
+rb_vk_descriptor_heap_bind_info(RB_GpuHeap heap_h, RB_MemoryKind memory_kind)
 {
     RB_VK_GpuHeap *heap = RB_HANDLE_UNPACK(RB_VK_GpuHeap*, heap_h);
-    DOT_ASSERT(heap && heap->kind == kind, "Bound a heap of the wrong memory kind as a descriptor heap");
-    RB_VK_DescriptorHeapLayout layout = rb_vk_descriptor_heap_layout(kind);
+    DOT_ASSERT(heap && heap->memory_kind == memory_kind, "Bound a heap of the wrong memory kind as a descriptor heap");
+    RB_VK_DescriptorHeapLayout layout = rb_vk_descriptor_heap_layout(memory_kind);
     u64 reserved_offset = ALIGN_POW2(cast(u64) heap->size, layout.reserved_alignment);
 
     VkBindHeapInfoEXT info = {0};
     info.sType               = VK_STRUCTURE_TYPE_BIND_HEAP_INFO_EXT;
-    info.heapRange.address   = heap->gpu_base;
+    info.heapRange.address   = heap->memory.gpu_base;
     info.heapRange.size      = reserved_offset + layout.reserved_size;
     info.reservedRangeOffset = reserved_offset;
     info.reservedRangeSize   = layout.reserved_size;
@@ -1217,19 +1482,22 @@ rb_vk_descriptor_heap_bind_info(RB_GpuHeap heap_h, RB_MemoryKind kind)
 }
 
 internal void
-rb_vk_texture_descriptor_heap_set(RB_CommandBuffer cmd_h, RB_GpuHeap heap)
+rb_vk_descriptor_heaps_set(RB_CommandBuffer cmd_h, RB_GpuHeap texture_heap_h, RB_GpuHeap sampler_heap_h)
 {
     RB_VK_CommandBuffer *cmd = RB_HANDLE_UNPACK(RB_VK_CommandBuffer*, cmd_h);
-    VkBindHeapInfoEXT info = rb_vk_descriptor_heap_bind_info(heap, RB_MemoryKind_TextureDescriptorHeap);
-    vkCmdBindResourceHeapEXT(cmd->vk_cmd, &info);
-}
-
-internal void
-rb_vk_sampler_descriptor_heap_set(RB_CommandBuffer cmd_h, RB_GpuHeap heap)
-{
-    RB_VK_CommandBuffer *cmd = RB_HANDLE_UNPACK(RB_VK_CommandBuffer*, cmd_h);
-    VkBindHeapInfoEXT info   = rb_vk_descriptor_heap_bind_info(heap, RB_MemoryKind_SamplerDescriptorHeap);
-    vkCmdBindSamplerHeapEXT(cmd->vk_cmd, &info);
+    if(!rb_vk_g_ctx->device.descriptor_heap){
+        RB_VK_GpuHeap *texture_heap = RB_HANDLE_UNPACK(RB_VK_GpuHeap*, texture_heap_h);
+        RB_VK_GpuHeap *sampler_heap = RB_HANDLE_UNPACK(RB_VK_GpuHeap*, sampler_heap_h);
+        DOT_ASSERT(texture_heap && texture_heap->memory_kind == RB_MemoryKind_TextureDescriptorHeap, "Bound a heap of the wrong memory kind as the texture descriptor heap");
+        DOT_ASSERT(sampler_heap && sampler_heap->memory_kind == RB_MemoryKind_SamplerDescriptorHeap, "Bound a heap of the wrong memory kind as the sampler descriptor heap");
+        rb_vk_descriptor_set_bind(cmd, texture_heap, rb_vk_g_ctx->desc.bindless_layout.texture_set);
+        rb_vk_descriptor_set_bind(cmd, sampler_heap, rb_vk_g_ctx->desc.bindless_layout.sampler_set);
+        return;
+    }
+    VkBindHeapInfoEXT texture_info = rb_vk_descriptor_heap_bind_info(texture_heap_h, RB_MemoryKind_TextureDescriptorHeap);
+    vkCmdBindResourceHeapEXT(cmd->vk_cmd, &texture_info);
+    VkBindHeapInfoEXT sampler_info = rb_vk_descriptor_heap_bind_info(sampler_heap_h, RB_MemoryKind_SamplerDescriptorHeap);
+    vkCmdBindSamplerHeapEXT(cmd->vk_cmd, &sampler_info);
 }
 
 internal VkShaderModule
@@ -1256,6 +1524,26 @@ rb_vk_pipeline_alloc(void)
         pipeline = PUSH_STRUCT(rb_vk_g_ctx->permanent_arena, RB_VK_Pipeline);
     }
     return(pipeline);
+}
+
+internal VkPipelineCreateFlags2
+rb_vk_pipeline_create_flags(void)
+{
+    VkPipelineCreateFlags2 flags = 0;
+    if(rb_vk_g_ctx->device.descriptor_heap){
+        flags |= VK_PIPELINE_CREATE_2_DESCRIPTOR_HEAP_BIT_EXT;
+    }
+    return(flags);
+}
+
+internal VkPipelineLayout
+rb_vk_pipeline_layout(void)
+{
+    VkPipelineLayout layout = VK_NULL_HANDLE;
+    if(!rb_vk_g_ctx->device.descriptor_heap){
+        layout = rb_vk_g_ctx->bindless.descriptor_set_layout.vk_pipeline_layout;
+    }
+    return(layout);
 }
 
 internal VkPipeline
@@ -1367,11 +1655,12 @@ rb_vk_pipeline_raster_create(VkPipelineShaderStageCreateInfo *stages, u32 stage_
     VkPipelineCreateFlags2CreateInfo flags_info = {0};
     flags_info.sType = VK_STRUCTURE_TYPE_PIPELINE_CREATE_FLAGS_2_CREATE_INFO;
     flags_info.pNext = &rendering_info;
-    flags_info.flags = VK_PIPELINE_CREATE_2_DESCRIPTOR_HEAP_BIT_EXT;
+    flags_info.flags = rb_vk_pipeline_create_flags();
 
     VkGraphicsPipelineCreateInfo pipeline_info = {0};
     pipeline_info.sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pipeline_info.pNext               = &flags_info;
+    pipeline_info.layout              = rb_vk_pipeline_layout();
     pipeline_info.stageCount          = stage_count;
     pipeline_info.pStages             = stages;
     pipeline_info.pVertexInputState   = mesh ? NULL : &vertex_input_info;
@@ -1464,11 +1753,12 @@ rb_vk_pipeline_compute_create(String8 cs_spirv)
     VkShaderModule module = rb_vk_shader_module_create(cs_spirv);
     VkPipelineCreateFlags2CreateInfo flags_info = {0};
     flags_info.sType = VK_STRUCTURE_TYPE_PIPELINE_CREATE_FLAGS_2_CREATE_INFO;
-    flags_info.flags = VK_PIPELINE_CREATE_2_DESCRIPTOR_HEAP_BIT_EXT;
+    flags_info.flags = rb_vk_pipeline_create_flags();
 
     VkComputePipelineCreateInfo pipeline_info = {0};
     pipeline_info.sType  = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
     pipeline_info.pNext  = &flags_info;
+    pipeline_info.layout = rb_vk_pipeline_layout();
     pipeline_info.stage  = rb_vk_shader_stage_info(VK_SHADER_STAGE_COMPUTE_BIT, module);
     RB_VK_CHECK(vkCreateComputePipelines(rb_vk_g_ctx->device.vk_device, VK_NULL_HANDLE, 1, &pipeline_info, NULL, &pipeline->vk_pipeline));
     vkDestroyShaderModule(rb_vk_g_ctx->device.vk_device, module, NULL);
@@ -1717,6 +2007,14 @@ rb_vk_init(Arena *arena, PlatformNativeWindow window, RB_DeviceDesc const *desc)
     rb_vk_g_ctx->permanent_arena = backend_arena;
     rb_vk_g_ctx->native_window = window;
     rb_vk_g_ctx->desc = *desc;
+    if(desc->bindless_layout.texture_set == desc->bindless_layout.sampler_set){
+        DOT_ERROR("RB_DeviceDesc.bindless_layout texture and sampler sets are both %u (default initialized?): provide the sets and bindings your shaders use for the bindless texture and sampler arrays",
+            desc->bindless_layout.texture_set);
+    }
+    if(desc->bindless_layout.texture_set >= RB_VK_BINDLESS_SET_COUNT || desc->bindless_layout.sampler_set >= RB_VK_BINDLESS_SET_COUNT){
+        DOT_ERROR("RB_DeviceDesc.bindless_layout sets must be 0 and 1 (texture set %u, sampler set %u)",
+            desc->bindless_layout.texture_set, desc->bindless_layout.sampler_set);
+    }
     rb_vk_g_ctx->transient_arena = ARENA_CREATE(
         .parent = arena,
         .reserve_size = desc->transient_memory_size,);
@@ -1854,12 +2152,30 @@ rb_vk_init(Arena *arena, PlatformNativeWindow window, RB_DeviceDesc const *desc)
         if(!device->device_address_commands){
             DOT_WARNING("VK_KHR_device_address_commands unsupported, falling back to resolving GPU addresses to VkBuffers");
         }
+        device->descriptor_heap = feature_enabled[RB_VK_DeviceFeature_DescriptorHeap] && feature_enabled[RB_VK_DeviceFeature_ShaderUntypedPointers];
+        if(!device->descriptor_heap){
+            DOT_WARNING("VK_EXT_descriptor_heap or VK_KHR_shader_untyped_pointers unsupported, falling back to a mutable descriptor set");
+        }
+
+        VkPhysicalDeviceFeatures supported_core_features;
+        vkGetPhysicalDeviceFeatures(device->vk_gpu, &supported_core_features);
+        VkPhysicalDeviceFeatures core_features = rb_vk_g_config.device.core_features;
+        core_features.samplerAnisotropy = supported_core_features.samplerAnisotropy;
+        device->sampler_anisotropy = cast(b8)supported_core_features.samplerAnisotropy;
+        if(!device->sampler_anisotropy){
+            DOT_WARNING("samplerAnisotropy unsupported, samplers fall back to trilinear filtering");
+        }
+        core_features.textureCompressionBC = supported_core_features.textureCompressionBC;
+        device->texture_compression_bc = cast(b8)supported_core_features.textureCompressionBC;
+        if(!device->texture_compression_bc){
+            DOT_WARNING("textureCompressionBC unsupported, baked textures stay uncompressed");
+        }
 
         VkDeviceCreateInfo device_create_info = {
             .sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
             .pQueueCreateInfos       = queue_infos,
             .queueCreateInfoCount    = queue_count,
-            .pEnabledFeatures        = &rb_vk_g_config.device.core_features,
+            .pEnabledFeatures        = &core_features,
             .ppEnabledExtensionNames = extensions,
             .enabledExtensionCount   = extension_count,
             .pNext = features,
@@ -1930,12 +2246,14 @@ rb_vk_init(Arena *arena, PlatformNativeWindow window, RB_DeviceDesc const *desc)
                 RB_VK_CHECK(vkCreateSemaphore(device, &semaphore_info, NULL, &context->rendered));
             }
         }
-        {
-            rb_vk_g_ctx->heap_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_PROPERTIES_EXT;
+        if(rb_vk_g_ctx->device.descriptor_heap){
+            rb_vk_g_ctx->bindless.heap_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_HEAP_PROPERTIES_EXT;
             VkPhysicalDeviceProperties2 properties2 = {0};
             properties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-            properties2.pNext = &rb_vk_g_ctx->heap_properties;
+            properties2.pNext = &rb_vk_g_ctx->bindless.heap_properties;
             vkGetPhysicalDeviceProperties2(rb_vk_g_ctx->device.vk_gpu, &properties2);
+        }else{
+            rb_vk_descriptor_set_layout_create();
         }
     }
 
@@ -1954,10 +2272,17 @@ rb_vk_device_info(void)
     rb_info.swapchain_format   = rb_vk_format_kind_from_vk_format(rb_vk_g_ctx->swapchain.image_format);
     rb_info.depth_format       = rb_vk_format_kind_from_vk_format(rb_vk_g_ctx->depth_format);
     rb_info.texture_heap_alignment  = rb_vk_g_ctx->device.texture_heap_alignment;
-    rb_info.texture_descriptor_size = rb_vk_g_ctx->heap_properties.imageDescriptorSize;
-    rb_info.sampler_descriptor_size = rb_vk_g_ctx->heap_properties.samplerDescriptorSize;
+    if(rb_vk_g_ctx->device.descriptor_heap){
+        rb_info.texture_descriptor_size = rb_vk_g_ctx->bindless.heap_properties.imageDescriptorSize;
+        rb_info.sampler_descriptor_size = rb_vk_g_ctx->bindless.heap_properties.samplerDescriptorSize;
+    }else{
+        rb_info.texture_descriptor_size = 1;
+        rb_info.sampler_descriptor_size = 1;
+    }
+    rb_info.descriptor_heap     = rb_vk_g_ctx->device.descriptor_heap;
     rb_info.timestamp_period_ns = rb_vk_g_ctx->device.timestamp_query_count ? rb_vk_g_ctx->device.timestamp_period_ns : 0.0f;
     rb_info.mesh_shaders        = rb_vk_g_ctx->device.mesh_shaders;
+    rb_info.texture_compression_bc = rb_vk_g_ctx->device.texture_compression_bc;
     rb_info.name = string8_from_cstring(properties->deviceName);
     return(rb_info);
 }
@@ -2464,6 +2789,16 @@ rb_vk_bind_pso(RB_CommandBuffer cmd_h, RB_Pipeline pso_h)
 internal void
 rb_vk_root_push(RB_VK_CommandBuffer *cmd, RB_GpuAddress root)
 {
+    if(!rb_vk_g_ctx->device.descriptor_heap){
+        VkPushConstantsInfo push_info = {0};
+        push_info.sType      = VK_STRUCTURE_TYPE_PUSH_CONSTANTS_INFO;
+        push_info.layout     = rb_vk_g_ctx->bindless.descriptor_set_layout.vk_pipeline_layout;
+        push_info.stageFlags = VK_SHADER_STAGE_ALL;
+        push_info.size       = sizeof(root);
+        push_info.pValues    = &root;
+        vkCmdPushConstants2(cmd->vk_cmd, &push_info);
+        return;
+    }
     VkPushDataInfoEXT info = {0};
     info.sType        = VK_STRUCTURE_TYPE_PUSH_DATA_INFO_EXT;
     info.data.address = &root;
@@ -2831,6 +3166,9 @@ rb_vk_end()
 
     vkDestroySwapchainKHR(device, rb_vk_g_ctx->swapchain.swapchain, NULL);
     vkDestroySurfaceKHR(rb_vk_g_ctx->instance, rb_vk_g_ctx->surface, NULL);
+    if(!rb_vk_g_ctx->device.descriptor_heap){
+        rb_vk_descriptor_set_layout_destroy();
+    }
     vkDestroyDevice(rb_vk_g_ctx->device.vk_device, NULL);
     if(RB_VK_DEBUG_UTILS_ENABLE){
         if(vkDestroyDebugUtilsMessengerEXT){
@@ -2968,14 +3306,14 @@ rb_vk_heap_range_compare(void *element, void *key)
 internal void
 rb_vk_heap_range_insert(RB_VK_GpuHeap *heap)
 {
-    RB_VK_GpuHeapRange range = { .base = heap->gpu_base, .heap = heap };
+    RB_VK_GpuHeapRange range = { .base = heap->memory.gpu_base, .heap = heap };
     BINARY_SEARCH_INSERT(rb_vk_g_ctx->heap_ranges, &rb_vk_g_ctx->heap_range_count, RB_VK_GPU_HEAP_MAX, &range, &range.base, rb_vk_heap_range_compare);
 }
 
 internal void
 rb_vk_heap_range_remove(RB_VK_GpuHeap *heap)
 {
-    i64 idx = BINARY_SEARCH_FIND(rb_vk_g_ctx->heap_ranges, rb_vk_g_ctx->heap_range_count, &heap->gpu_base, rb_vk_heap_range_compare);
+    i64 idx = BINARY_SEARCH_FIND(rb_vk_g_ctx->heap_ranges, rb_vk_g_ctx->heap_range_count, &heap->memory.gpu_base, rb_vk_heap_range_compare);
     if(idx < 0 || rb_vk_g_ctx->heap_ranges[idx].heap != heap){ return; }
     BINARY_SEARCH_REMOVE_AT(rb_vk_g_ctx->heap_ranges, &rb_vk_g_ctx->heap_range_count, idx);
 }
@@ -2988,9 +3326,9 @@ rb_vk_buffer_from_gpu_address(RB_GpuAddress address, VkDeviceSize *out_offset)
     i64 idx = BINARY_SEARCH_LAST_LE(rb_vk_g_ctx->heap_ranges, rb_vk_g_ctx->heap_range_count, &address, rb_vk_heap_range_compare);
     if(idx >= 0){
         RB_VK_GpuHeap *heap = rb_vk_g_ctx->heap_ranges[idx].heap;
-        if(address < heap->gpu_base + cast(u64)heap->size){
-            *out_offset = address - heap->gpu_base;
-            return(heap->vk_buffer);
+        if(address < heap->memory.gpu_base + cast(u64)heap->size){
+            *out_offset = address - heap->memory.gpu_base;
+            return(heap->memory.vk_buffer);
         }
     }
     DOT_ERROR("GPU address 0x%" PRIx64 " doesn't belong to any live heap", address);
@@ -3011,8 +3349,17 @@ rb_vk_gpu_heap_create(RB_MemoryKind kind, i64 bytes)
     }else{
         vk_gpu_heap = PUSH_STRUCT(rb_vk_g_ctx->permanent_arena, RB_VK_GpuHeap);
     }
-    vk_gpu_heap->kind = kind;
-    vk_gpu_heap->size = bytes;
+    vk_gpu_heap->memory_kind    = kind;
+    vk_gpu_heap->size    = bytes;
+    vk_gpu_heap->backing_kind = RB_VK_GpuHeapBackingKind_Memory;
+
+    if(descriptor_heap && !rb_vk_g_ctx->device.descriptor_heap){
+        vk_gpu_heap->backing_kind = RB_VK_GpuHeapBackingKind_DescriptorSet;
+        rb_vk_descriptor_set_heap_create(vk_gpu_heap);
+        RB_GpuHeap ret = {0};
+        ret.h = cast(u64)vk_gpu_heap;
+        return(ret);
+    }
 
     u64 buffer_size = bytes ? cast(u64)bytes : 1;
     u64 base_alignment = 1;
@@ -3052,23 +3399,23 @@ rb_vk_gpu_heap_create(RB_MemoryKind kind, i64 bytes)
     alloc_info.memoryTypeIndex = memory_type_idx;
     alloc_info.allocationSize  = mem_reqs2.memoryRequirements.size;
 
-    RB_VK_CHECK(vkAllocateMemory(vk_device, &alloc_info, NULL, &vk_gpu_heap->vk_memory));
-    vk_gpu_heap->alloc_size = cast(i64)alloc_info.allocationSize;
+    RB_VK_CHECK(vkAllocateMemory(vk_device, &alloc_info, NULL, &vk_gpu_heap->memory.vk_memory));
+    vk_gpu_heap->memory.alloc_size = cast(i64)alloc_info.allocationSize;
 
-    RB_VK_CHECK(vkCreateBuffer(vk_device, &buffer_create_info, NULL, &vk_gpu_heap->vk_buffer));
-    RB_VK_CHECK(vkBindBufferMemory(vk_device, vk_gpu_heap->vk_buffer, vk_gpu_heap->vk_memory, 0));
+    RB_VK_CHECK(vkCreateBuffer(vk_device, &buffer_create_info, NULL, &vk_gpu_heap->memory.vk_buffer));
+    RB_VK_CHECK(vkBindBufferMemory(vk_device, vk_gpu_heap->memory.vk_buffer, vk_gpu_heap->memory.vk_memory, 0));
 
     VkBufferDeviceAddressInfo bda_info = {0};
     bda_info.sType  = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
-    bda_info.buffer = vk_gpu_heap->vk_buffer;
+    bda_info.buffer = vk_gpu_heap->memory.vk_buffer;
     VkDeviceAddress buffer_address = vkGetBufferDeviceAddress(vk_device, &bda_info);
-    vk_gpu_heap->gpu_base = ALIGN_POW2(buffer_address, base_alignment);
+    vk_gpu_heap->memory.gpu_base = ALIGN_POW2(buffer_address, base_alignment);
 
     rb_vk_heap_range_insert(vk_gpu_heap);
 
     if(host_visible){
-        RB_VK_CHECK(vkMapMemory(vk_device, vk_gpu_heap->vk_memory, 0, VK_WHOLE_SIZE, 0, &vk_gpu_heap->cpu_base));
-        vk_gpu_heap->cpu_base = cast(u8*) vk_gpu_heap->cpu_base + (vk_gpu_heap->gpu_base - buffer_address);
+        RB_VK_CHECK(vkMapMemory(vk_device, vk_gpu_heap->memory.vk_memory, 0, VK_WHOLE_SIZE, 0, &vk_gpu_heap->memory.cpu_base));
+        vk_gpu_heap->memory.cpu_base = cast(u8*) vk_gpu_heap->memory.cpu_base + (vk_gpu_heap->memory.gpu_base - buffer_address);
     }
 
     RB_GpuHeap ret = {0};
@@ -3080,16 +3427,27 @@ internal RB_GpuAddress
 rb_vk_gpu_heap_address(RB_GpuHeap heap)
 {
     RB_VK_GpuHeap *vk_gpu_heap = RB_HANDLE_UNPACK(RB_VK_GpuHeap*, heap);
-    return(vk_gpu_heap->gpu_base);
+    DOT_ASSERT(vk_gpu_heap->backing_kind == RB_VK_GpuHeapBackingKind_Memory, "Heap has no GPU address (descriptor set backed)");
+    return(vk_gpu_heap->memory.gpu_base);
+}
+
+internal void*
+rb_vk_gpu_heap_cpu_address(RB_GpuHeap heap)
+{
+    RB_VK_GpuHeap *vk_gpu_heap = RB_HANDLE_UNPACK(RB_VK_GpuHeap*, heap);
+    DOT_ASSERT(vk_gpu_heap->backing_kind == RB_VK_GpuHeapBackingKind_Memory, "Heap has no memory (descriptor set backed)");
+    DOT_ASSERT(vk_gpu_heap->memory.cpu_base, "Heap isn't host-visible (only CpuToGpu heaps have a CPU address)");
+    return(vk_gpu_heap->memory.cpu_base);
 }
 
 internal void
 rb_vk_gpu_heap_write(RB_GpuHeap heap, i64 offset, void *data, i64 size)
 {
     RB_VK_GpuHeap *vk_gpu_heap = RB_HANDLE_UNPACK(RB_VK_GpuHeap*, heap);
-    DOT_ASSERT(vk_gpu_heap->cpu_base, "Heap isn't host-visible (only CpuToGpu heaps can be written)");
-    DOT_ASSERT(offset + size <= vk_gpu_heap->alloc_size);
-    MEMORY_COPY(cast(u8*)vk_gpu_heap->cpu_base + offset, data, cast(u64)size);
+    DOT_ASSERT(vk_gpu_heap->backing_kind == RB_VK_GpuHeapBackingKind_Memory, "Heap has no memory to write (descriptor set backed)");
+    DOT_ASSERT(vk_gpu_heap->memory.cpu_base, "Heap isn't host-visible (only CpuToGpu heaps can be written)");
+    DOT_ASSERT(offset + size <= vk_gpu_heap->memory.alloc_size);
+    MEMORY_COPY(cast(u8*)vk_gpu_heap->memory.cpu_base + offset, data, cast(u64)size);
 }
 
 internal VkDeviceMemory
@@ -3388,12 +3746,16 @@ rb_vk_gpu_heap_destroy(RB_GpuHeap heap)
     if(heap.h == 0){return;}
     RB_VK_GpuHeap *vk_gpu_heap = RB_HANDLE_UNPACK(RB_VK_GpuHeap*, heap);
 
-    rb_vk_heap_range_remove(vk_gpu_heap);
+    if(vk_gpu_heap->backing_kind == RB_VK_GpuHeapBackingKind_DescriptorSet){
+        rb_vk_descriptor_set_heap_destroy(vk_gpu_heap);
+    }else{
+        rb_vk_heap_range_remove(vk_gpu_heap);
 
-    if(vk_gpu_heap->vk_buffer != VK_NULL_HANDLE){
-        vkDestroyBuffer(rb_vk_g_ctx->device.vk_device, vk_gpu_heap->vk_buffer, NULL);
+        if(vk_gpu_heap->memory.vk_buffer != VK_NULL_HANDLE){
+            vkDestroyBuffer(rb_vk_g_ctx->device.vk_device, vk_gpu_heap->memory.vk_buffer, NULL);
+        }
+        vkFreeMemory(rb_vk_g_ctx->device.vk_device, vk_gpu_heap->memory.vk_memory, NULL); // (jd) implicitly unmaps
     }
-    vkFreeMemory(rb_vk_g_ctx->device.vk_device, vk_gpu_heap->vk_memory, NULL); // (jd) implicitly unmaps
 
     SLL_STACK_PUSH(rb_vk_g_ctx->head, vk_gpu_heap);
 }

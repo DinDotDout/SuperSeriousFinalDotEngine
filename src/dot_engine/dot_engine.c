@@ -97,6 +97,16 @@ dot_engine_init(DOT_Engine *engine, b32 headless)
     plugins_init();
 
     if(!headless){
+#if DOT_OS_POSIX
+        if(rn_renderdoc_attached()){
+            if(dot_g_window_system == DOT_WindowSystemKind_Default){
+                DOT_PRINT("RenderDoc detected, using X11 since it can't capture Wayland");
+                dot_window_set_system(DOT_WindowSystemKind_X11);
+            }else if(dot_g_window_system == DOT_WindowSystemKind_Wayland){
+                DOT_WARNING("RenderDoc detected but -wayland was requested; RenderDoc can't capture Wayland");
+            }
+        }
+#endif
         DOT_PROFILE_BLOCK("Window init"){ dot_window_init(&engine->window, engine->engine_name); }
         DOT_PROFILE_BLOCK("Renderer init"){ rn_init(engine->permanent_arena, &engine->renderer, dot_window_native_get(&engine->window)); }
         nk_init_default(&engine->ui_ctx, NULL);

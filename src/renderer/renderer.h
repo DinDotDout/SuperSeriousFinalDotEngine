@@ -63,6 +63,7 @@ typedef struct RN_RenderCtx{
     RB_GpuHeap      sampler_descriptor_heap;
     u32             next_sampler_slot;
     RB_SamplerDesc *sampler_slot_descs;
+    b8              descriptor_heap;
 
     // One upload batch open at a time, guarded by upload_mutex (rn_upload_begin/rn_upload_end).
     Mutex                upload_mutex;

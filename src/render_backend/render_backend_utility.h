@@ -11,12 +11,20 @@ typedef struct RB_CpuGpuArena
 {
     RB_GpuHeap    heap;
     RB_GpuAddress gpu_base;
+    u8           *cpu_base;
     i64           used;
     i64           size;
 }RB_CpuGpuArena;
 
+typedef struct RB_CpuGpuSpan
+{
+    void       *cpu;
+    RB_GpuRange gpu;
+}RB_CpuGpuSpan;
+
 internal RB_CpuGpuArena rb_cpu_gpu_arena_create(RB_MemoryKind kind, i64 size);
 internal void           rb_cpu_gpu_arena_destroy(RB_CpuGpuArena *arena);
+internal RB_CpuGpuSpan  rb_cpu_gpu_arena_reserve_atomic(RB_CpuGpuArena *arena, i64 size);
 internal RB_GpuRange    rb_cpu_gpu_arena_push_atomic_(RB_CpuGpuArena *arena, void *data, i64 size);
 internal bool           rb_cpu_gpu_arena_fits(RB_CpuGpuArena *arena, i64 size);
 internal void           rb_cpu_gpu_arena_reset(RB_CpuGpuArena *arena);

@@ -11,11 +11,12 @@ internal RB_CpuGpuArena
 rb_cpu_gpu_arena_create(RB_MemoryKind kind, i64 size)
 {
     DOT_ASSERT(size > 0, "Size must be bigger than 0");
-    DOT_ASSERT(kind == RB_MemoryKind_CpuToGpu || kind == RB_MemoryKind_Staging, "CPU writable arena needs a host visible memory kind (%d)", kind);
+    DOT_ASSERT(kind == RB_MemoryKind_CpuToGpu || kind == RB_MemoryKind_Staging || kind == RB_MemoryKind_Readback, "CPU visible arena needs a host visible memory kind (%d)", kind);
     RB_CpuGpuArena arena = {0};
     arena.size     = size;
     arena.heap     = rb_gpu_heap_create(kind, size);
     arena.gpu_base = rb_gpu_heap_address(arena.heap);
+    arena.cpu_base = cast(u8*)rb_gpu_heap_cpu_address(arena.heap);
     return(arena);
 }
 
@@ -25,18 +26,29 @@ rb_cpu_gpu_arena_fits(RB_CpuGpuArena *arena, i64 size)
     return(arena->used + ALIGN_POW2(size, cast(i64)RB_GPU_ARENA_ALIGN) <= arena->size);
 }
 
+internal RB_CpuGpuSpan
+rb_cpu_gpu_arena_reserve_atomic(RB_CpuGpuArena *arena, i64 size)
+{
+    DOT_ASSERT(size > 0);
+    RB_CpuGpuSpan span = {0};
+    i64 offset = rb_gpu_bump_atomic_(&arena->used, arena->size, size);
+    if(offset >= 0){
+        span.cpu      = arena->cpu_base + offset;
+        span.gpu.gpu  = arena->gpu_base + cast(u64)offset;
+        span.gpu.size = size;
+    }
+    return(span);
+}
+
 internal RB_GpuRange
 rb_cpu_gpu_arena_push_atomic_(RB_CpuGpuArena *arena, void *data, i64 size)
 {
-    DOT_ASSERT(data && size > 0);
-    RB_GpuRange range = {0};
-    i64 offset = rb_gpu_bump_atomic_(&arena->used, arena->size, size);
-    if(offset >= 0){
-        rb_gpu_heap_write(arena->heap, offset, data, size);
-        range.gpu  = arena->gpu_base + cast(u64)offset;
-        range.size = size;
+    DOT_ASSERT(data);
+    RB_CpuGpuSpan span = rb_cpu_gpu_arena_reserve_atomic(arena, size);
+    if(span.cpu){
+        MEMORY_COPY(span.cpu, data, cast(u64)size);
     }
-    return(range);
+    return(span.gpu);
 }
 
 internal void

@@ -139,6 +139,8 @@ X(void,                 spSetDebugInfoLevel,            (SlangCompileRequest *re
 X(void,                 spSetTargetFloatingPointMode,   (SlangCompileRequest *request, int target_index, SlangFloatingPointMode mode)) \
 X(void,                 spSetDiagnosticFlags,           (SlangCompileRequest *request, SlangDiagnosticFlags flags)) \
 X(void,                 spAddSearchPath,                (SlangCompileRequest *request, char const *path)) \
+X(void,                 spAddPreprocessorDefine,        (SlangCompileRequest *request, char const *key, char const *value)) \
+X(SlangResult,          spProcessCommandLineArguments,  (SlangCompileRequest *request, char const * const *args, int arg_count)) \
 X(int,                  spAddTranslationUnit,           (SlangCompileRequest *request, SlangSourceLanguage language, char const *name)) \
 X(void,                 spAddTranslationUnitSourceFile, (SlangCompileRequest *request, int translation_unit_index, char const *path)) \
 X(int,                  spAddEntryPoint,                (SlangCompileRequest *request, int translation_unit_index, char const *name, SlangStage stage)) \
@@ -178,7 +180,8 @@ typedef enum RN_ShaderFloatingPointMode
 typedef u32 RN_ShaderCompileFlags;
 enum
 {
-    RN_ShaderCompileFlag_WarningsAsErrors = 1 << 0,
+    RN_ShaderCompileFlag_WarningsAsErrors     = 1 << 0,
+    RN_ShaderCompileFlag_MutableDescriptorSet = 1 << 1,
 };
 
 typedef struct RN_ShaderCompileOptions

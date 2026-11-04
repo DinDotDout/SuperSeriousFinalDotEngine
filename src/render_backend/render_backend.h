@@ -213,6 +213,7 @@ typedef struct RB_SamplerDesc
     RB_SamplerAddressModeKind  address_mode_u;
     RB_SamplerAddressModeKind  address_mode_v;
     RB_SamplerAddressModeKind  address_mode_w;
+    f32                        max_anisotropy;
     String8 debug_name;
 }RB_SamplerDesc;
 
@@ -601,6 +602,16 @@ typedef enum RB_DeviceKind
     RB_DeviceKind_Count,
 }RB_DeviceKind;
 
+// (jd) VK only fallback for devices that cannot use descriptor heap. Renderdoc cannot deal with
+// descriptor heap either so we use this to debug on linux
+typedef struct RB_BindlessLayout
+{
+    u32 texture_set;
+    u32 texture_binding;
+    u32 sampler_set;
+    u32 sampler_binding;
+}RB_BindlessLayout;
+
 typedef struct RB_DeviceDesc
 {
     u64                permanent_memory_size;
@@ -612,6 +623,7 @@ typedef struct RB_DeviceDesc
     RB_FormatKind      swapchain_format;
     RB_FormatKind      depth_format;
     RB_PresentModeKind present_mode;
+    RB_BindlessLayout  bindless_layout;
 }RB_DeviceDesc;
 
 typedef struct RB_DeviceInfo
@@ -632,6 +644,7 @@ typedef struct RB_DeviceInfo
     f32 timestamp_period_ns;
     b8  mesh_shaders;
     b8  descriptor_heap;
+    b8  texture_compression_bc;
 }RB_DeviceInfo;
 
 ////////////////////////////////////////////////////////////////
@@ -691,6 +704,7 @@ X(commands_begin,                   RB_CommandBuffer,       (RB_CommandPool pool
 X(gpu_heap_create,                  RB_GpuHeap,             (RB_MemoryKind kind, i64 bytes))\
 X(gpu_heap_destroy,                 void,                   (RB_GpuHeap heap))\
 X(gpu_heap_address,                 RB_GpuAddress,          (RB_GpuHeap heap))\
+X(gpu_heap_cpu_address,             void*,                  (RB_GpuHeap heap))\
 X(gpu_heap_write,                   void,                   (RB_GpuHeap heap, i64 offset, void *data, i64 size))\
 X(texture_descriptor_write,         void,                   (RB_GpuHeap heap, u32 index, RB_Texture texture, RB_TextureDescriptorKind kind))\
 X(sampler_descriptor_write,         void,                   (RB_GpuHeap heap, u32 index, RB_SamplerDesc *desc))\

@@ -35,6 +35,16 @@ internal void    rn_resource_cleanup_list_push_texture(RN_RenderCtx *renderer, R
 internal void    rn_resource_cleanup_list_remove_texture(RN_RenderCtx *renderer, RB_Texture texture_id);
 internal void    rn_resource_cleanup_list_pop_all(RN_RenderCtx *renderer);
 
+internal b32
+rn_renderdoc_attached(void)
+{
+#if DOT_OS_WINDOWS
+    return os_library_is_loaded(str_comp("renderdoc.dll"));
+#else
+    return os_library_is_loaded(str_comp("librenderdoc.so"));
+#endif
+}
+
 internal void
 rn_init(Arena *arena, RN_RenderCtx *renderer, PlatformNativeWindow native_window)
 {
@@ -67,6 +77,12 @@ rn_init(Arena *arena, RN_RenderCtx *renderer, PlatformNativeWindow native_window
         .swapchain_format      = cast(RB_FormatKind) rn_g_swapchain_format,
         .depth_format          = cast(RB_FormatKind) rn_g_depth_stencil_format,
         .present_mode          = cast(RB_PresentModeKind) rn_g_present_mode,
+        .bindless_layout       = {
+            .texture_set     = RN_BINDLESS_TEXTURE_SET,
+            .texture_binding = RN_SLANG_RESOURCE_HEAP_BINDING,
+            .sampler_set     = RN_BINDLESS_SAMPLER_SET,
+            .sampler_binding = RN_BINDLESS_SAMPLER_BINDING,
+        },
     };
     rb_begin(cast(RB_DeviceKind) rn_g_device_kind, renderer->permanent_arena, native_window, &device_desc);
 
@@ -74,6 +90,7 @@ rn_init(Arena *arena, RN_RenderCtx *renderer, PlatformNativeWindow native_window
     DOT_PRINT("Render device: %S (%s)", device_info.name,device_info.has_integrated_gpu ? "integrated" : "discrete");
     renderer->swapchain_format = device_info.swapchain_format;
     renderer->depth_format     = device_info.depth_format;
+    renderer->descriptor_heap  = device_info.descriptor_heap;
 
     renderer->texture_heap = rb_texture_heap_arena_create(rn_g_texture_heap_size_b);
     renderer->data_heap    = rb_gpu_arena_create(rn_g_data_heap_size_b);
@@ -453,7 +470,8 @@ rn_sampler_desc_match(RB_SamplerDesc *a, RB_SamplerDesc *b)
               && a->mipmap_filter  == b->mipmap_filter
               && a->address_mode_u == b->address_mode_u
               && a->address_mode_v == b->address_mode_v
-              && a->address_mode_w == b->address_mode_w;
+              && a->address_mode_w == b->address_mode_w
+              && a->max_anisotropy == b->max_anisotropy;
     return(result);
 }
 
@@ -527,8 +545,7 @@ rn_frame_begin(RN_RenderCtx *renderer, i32x2 framebuffer_size)
         rb_cpu_gpu_arena_reset(&frame_data->upload_heap);
     }
     renderer->current_cmd = rb_commands_begin(frame_data->frame_pool);
-    rb_texture_descriptor_heap_set(renderer->current_cmd, renderer->texture_descriptor_heap);
-    rb_sampler_descriptor_heap_set(renderer->current_cmd, renderer->sampler_descriptor_heap);
+    rb_descriptor_heaps_set(renderer->current_cmd, renderer->texture_descriptor_heap, renderer->sampler_descriptor_heap);
     rb_drawable_extent_set(framebuffer_size);
 
     RB_SwapchainFrame frame = rb_swapchain_frame_acquire(renderer->current_cmd);
@@ -617,7 +634,10 @@ rn_shader_spirv_get_or_compile(RN_RenderCtx *renderer, RB_ShaderStageKind stage_
         .floating_point = cast(RN_ShaderFloatingPointMode)rn_g_shader_floating_point_mode,
         .flags          = rn_g_shader_warnings_as_errors ? RN_ShaderCompileFlag_WarningsAsErrors : 0,
     };
-    String8 compiled_path = rn_shader_cache_get_compiled_path(renderer->permanent_arena, path, &options);
+    if(!renderer->descriptor_heap){
+        options.flags |= RN_ShaderCompileFlag_MutableDescriptorSet;
+    }
+    String8 compiled_path = rn_shader_cache_get_compiled_path(renderer->permanent_arena, path, entry, &options);
 
     b32 need_recompile = platform_file_is_newer(path, compiled_path);
     b32 compilation_success = false;

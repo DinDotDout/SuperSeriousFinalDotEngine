@@ -39,6 +39,8 @@ typedef struct RB_VK_Device
     b8  memory_budget;
     b8  device_address_commands; // (jd) 0 = redsolve RB_GpuAddress -> VkBuffer + offset
     b8  descriptor_heap;
+    b8  sampler_anisotropy;
+    b8  texture_compression_bc;
     u32 timestamp_query_count;   // (jd0 0 = timestamps off
     u32 texture_memory_type;
     u64 texture_heap_alignment;
@@ -47,19 +49,39 @@ typedef struct RB_VK_Device
 ////////////////////////////////////////////////////////////////
 /// RB_VK_MEMORY
 
+typedef enum RB_VK_GpuHeapBackingKind
+{
+    RB_VK_GpuHeapBackingKind_Memory,
+    RB_VK_GpuHeapBackingKind_DescriptorSet,
+}RB_VK_GpuHeapBackingKind;
+
 typedef struct RB_VK_GpuHeap RB_VK_GpuHeap;
 struct RB_VK_GpuHeap{
-    RB_VK_GpuHeap  *next;
+    RB_VK_GpuHeap       *next;
 
-    VkDeviceMemory  vk_memory;
-    i64             alloc_size;
-    i64             size;
-    RB_MemoryKind   kind;
+    i64                  size;
+    RB_MemoryKind        memory_kind;
 
-    // (jd) Unused if GPU only memory
-    void           *cpu_base;
-    VkDeviceAddress gpu_base;
-    VkBuffer        vk_buffer; // We need to keep this around to obtain VkDeviceAddress
+    RB_VK_GpuHeapBackingKind backing_kind;
+    union
+    {
+        struct
+        {
+            VkDeviceMemory  vk_memory;
+            i64             alloc_size;
+
+            // (jd) Unused if GPU only memory
+            void           *cpu_base;
+            VkDeviceAddress gpu_base;
+            VkBuffer        vk_buffer; // We need to keep this around to obtain VkDeviceAddress
+        }memory;
+        struct
+        {
+            VkDescriptorPool vk_pool;
+            VkDescriptorSet  vk_set;
+            VkSampler       *vk_samplers;
+        }descriptor_set;
+    };
 };
 
 // (jd) Live Heaps kept sorted by base address so we can resolve them when no device_address_commands
@@ -70,6 +92,25 @@ typedef struct RB_VK_GpuHeapRange
     VkDeviceAddress base;
     RB_VK_GpuHeap  *heap;
 }RB_VK_GpuHeapRange;
+
+////////////////////////////////////////////////////////////////
+/// RB_VK_DESCRIPTOR_SET
+
+enum
+{
+    RB_VK_TEXTURE_DESCRIPTOR_MAX      = 1 << 20,
+    RB_VK_SAMPLER_DESCRIPTOR_MAX      = 2048,
+    RB_VK_BINDLESS_SET_COUNT          = 2,
+};
+
+typedef struct RB_VK_DescriptorSetLayout
+{
+    VkDescriptorSetLayout vk_texture_set_layout;
+    VkDescriptorSetLayout vk_sampler_set_layout;
+    VkPipelineLayout      vk_pipeline_layout;
+    u32                   texture_max;
+    u32                   sampler_max;
+}RB_VK_DescriptorSetLayout;
 
 ////////////////////////////////////////////////////////////////
 /// RB_VK_TEXTURE
@@ -232,7 +273,11 @@ typedef struct RB_VK_BackendCtx
     u32                   next_present_context;
     RB_VK_PresentContext *present_contexts;
 
-    VkPhysicalDeviceDescriptorHeapPropertiesEXT heap_properties;
+    union
+    {
+        VkPhysicalDeviceDescriptorHeapPropertiesEXT heap_properties;
+        RB_VK_DescriptorSetLayout                   descriptor_set_layout;
+    }bindless;
 
     i32x2          drawable_extent_requested;
 

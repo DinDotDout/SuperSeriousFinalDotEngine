@@ -38,6 +38,7 @@ internal void                   rb_null_set_depth_stencil_state(RB_CommandBuffer
 internal void                   rb_null_barrier(RB_CommandBuffer cmd, RB_StageFlags before_stage, RB_AccessFlags before_access, RB_StageFlags after_stage, RB_AccessFlags after_access){}
 internal void                   rb_null_gpu_heap_di32x2estroy(RB_GpuHeap heap){}
 internal RB_GpuAddress          rb_null_gpu_heap_address(RB_GpuHeap heap){ return(0); }
+internal void*                  rb_null_gpu_heap_cpu_address(RB_GpuHeap heap){ return(NULL); }
 internal void                   rb_null_gpu_heap_write(RB_GpuHeap heap, i64 offset, void *data, i64 size){}
 internal void                   rb_null_resource_cleanup_list_push(void){}
 internal void                   rb_null_resource_cleanup_list_pop_at(PoolHandle idx){}

@@ -159,7 +159,15 @@ rn_shader_compile_from_path(RB_ShaderStageKind stage, RN_ShaderCompileOptions co
 
     SlangCompileRequest *request = rn_g_slang.spCreateCompileRequest(rn_g_slang.session);
     int target = rn_g_slang.spAddCodeGenTarget(request, SLANG_SPIRV);
-    rn_g_slang.spAddTargetCapability(request, target, rn_g_slang.descriptor_heap_capability);
+    if(options->flags & RN_ShaderCompileFlag_MutableDescriptorSet){
+        char const *bindless_args[] = { "-bindless-space-index", DOT_STR(RN_BINDLESS_TEXTURE_SET) };
+        if(rn_g_slang.spProcessCommandLineArguments(request, bindless_args, DOT_ARRAY_COUNT(bindless_args)) < 0){
+            DOT_WARNING("Slang rejected -bindless-space-index %s", DOT_STR(RN_BINDLESS_TEXTURE_SET));
+        }
+        rn_g_slang.spAddPreprocessorDefine(request, "DOT_MUTABLE_DESCRIPTOR_SET", "1");
+    }else{
+        rn_g_slang.spAddTargetCapability(request, target, rn_g_slang.descriptor_heap_capability);
+    }
     rn_slang_target_force_c_layout_set(request, target, true);
     rn_g_slang.spSetTargetFloatingPointMode(request, target, rn_slang_floating_point_mode_table[options->floating_point]);
     rn_g_slang.spSetOptimizationLevel(request, rn_slang_optimization_level_table[options->optimization]);
