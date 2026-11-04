@@ -138,6 +138,10 @@ dot_engine_run(DOT_Engine *engine)
         .b = 0.24f,
         .a = 1.0f,
     };
+    u64 fps_window_start_ns = platform_get_time_ns();
+    u32 fps_frame_count     = 0;
+    f64 fps                 = 0.0;
+    f64 frame_ms            = 0.0;
     while(!dot_window_should_close(&engine->window)){
         DOT_PROFILE_BLOCK("Poll events"){ dot_window_poll_events(&engine->window); }
         {
@@ -151,6 +155,29 @@ dot_engine_run(DOT_Engine *engine)
             }
         }
         ui_input_update(&engine->ui_input, ctx, &engine->window);
+
+        fps_frame_count += 1;
+        u64 now_ns = platform_get_time_ns();
+        u64 fps_elapsed_ns = now_ns - fps_window_start_ns;
+        if(fps_elapsed_ns >= 500000000ull){
+            fps                 = cast(f64)fps_frame_count * 1e9 / cast(f64)fps_elapsed_ns;
+            frame_ms            = cast(f64)fps_elapsed_ns / 1e6 / cast(f64)fps_frame_count;
+            fps_frame_count     = 0;
+            fps_window_start_ns = now_ns;
+        }
+        i32x2 window_size = dot_window_get_size(&engine->window);
+        f32 fps_width  = 150.0f;
+        f32 fps_height = 34.0f;
+        struct nk_rect fps_rect = nk_rect(cast(f32)window_size.x - fps_width - 10.0f, 10.0f, fps_width, fps_height);
+        if(nk_begin(ctx, "FPS", fps_rect, NK_WINDOW_NO_INPUT | NK_WINDOW_NO_SCROLLBAR)){
+            nk_window_set_position(ctx, "FPS", nk_vec2(fps_rect.x, fps_rect.y));
+            char fps_text[64];
+            snprintf(fps_text, sizeof(fps_text), "%.0f fps  %.2f ms", fps, frame_ms);
+            nk_layout_row_dynamic(ctx, 20, 1);
+            nk_label(ctx, fps_text, NK_TEXT_RIGHT);
+        }
+        nk_end(ctx);
+
         if (nk_begin(ctx, "Demo", nk_rect(50, 50, 230, 250),
                 NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE |
                 NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE)){
