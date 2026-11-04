@@ -1,9 +1,12 @@
 global RN_Slang rn_g_slang;
 
 internal String8
-rn_shader_cache_get_compiled_path(Arena *arena, String8 path, RN_ShaderCompileOptions const *options){
+rn_shader_cache_get_compiled_path(Arena *arena, String8 path, String8 entry, RN_ShaderCompileOptions const *options){
     u64 options_hash = hash_fnv1a_u64(cast(void*)options, sizeof(*options));
     u64 shader_hash = u64_hash_from_string8(path, options_hash);
+    if(entry.size){
+        shader_hash = u64_hash_from_string8(entry, shader_hash);
+    }
     return string8_format(arena, DOT_COMPILED_SHADER_PATH"%u.spv", shader_hash);
 }
 
@@ -141,7 +144,7 @@ rn_slang_target_force_c_layout_set(SlangCompileRequest *request, int target_inde
 }
 
 internal b32
-rn_shader_compile_from_path(RB_ShaderStageKind stage, RN_ShaderCompileOptions const *options, String8 input_path, String8 output_path)
+rn_shader_compile_from_path(RB_ShaderStageKind stage, RN_ShaderCompileOptions const *options, String8 input_path, String8 entry, String8 output_path)
 {
     DOT_ASSERT(options->optimization < RN_ShaderOptimizationLevel_Count);
     DOT_ASSERT(options->debug_info < RN_ShaderDebugInfoLevel_Count);
@@ -180,7 +183,7 @@ rn_shader_compile_from_path(RB_ShaderStageKind stage, RN_ShaderCompileOptions co
 
     int translation_unit = rn_g_slang.spAddTranslationUnit(request, SLANG_SOURCE_LANGUAGE_SLANG, 0);
     rn_g_slang.spAddTranslationUnitSourceFile(request, translation_unit, input_path.cstr);
-    rn_g_slang.spAddEntryPoint(request, translation_unit, "main", rn_slang_stage_from_shader_stage_kind(stage));
+    rn_g_slang.spAddEntryPoint(request, translation_unit, entry.size ? entry.cstr : "main", rn_slang_stage_from_shader_stage_kind(stage));
 
     b32 result = rn_g_slang.spCompile(request) >= 0;
 

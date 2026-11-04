@@ -1,0 +1,139 @@
+#include "renderer/shaders/shader_shared.h"
+#include "renderer/shaders/bc5_encode_shared.h"
+
+static const u32 BC_BLOCK_DIM          = 4;
+static const u32 BC_BLOCK_PIXELS       = BC_BLOCK_DIM * BC_BLOCK_DIM;
+static const u32 BC4_STEPS             = 8;
+static const u32 BC4_LAST_STEP         = BC4_STEPS - 1;
+static const u32 BC4_INDEX_BITS        = 3;
+static const u32 BC4_ENDPOINT_BITS     = 16;
+static const u32 BC4_REFINE_ITERATIONS = 2;
+static const u32 BC5_RED_CHANNEL       = 0;
+static const u32 BC5_GREEN_CHANNEL     = 1;
+
+u32
+bc5_load_channel(RN_BC5EncodeRoot *root, u32 x, u32 y, u32 channel)
+{
+    u32 packed = root->pixels[min(y, root->tex_height - 1) * root->tex_width + min(x, root->tex_width - 1)];
+    return (packed >> (channel * 8)) & 0xFF;
+}
+
+u32
+bc4_value_from_step(u32 endpoint_hi, u32 endpoint_lo, u32 step)
+{
+    return ((BC4_LAST_STEP - step) * endpoint_hi + step * endpoint_lo + BC4_LAST_STEP / 2) / BC4_LAST_STEP;
+}
+
+u32
+bc4_index_from_step(u32 step)
+{
+    if(step == 0){
+        return 0;
+    }
+    if(step == BC4_LAST_STEP){
+        return 1;
+    }
+    return step + 1;
+}
+
+u32
+bc4_assign_steps(u32 endpoint_hi, u32 endpoint_lo, u32 values[BC_BLOCK_PIXELS], inout u32 steps[BC_BLOCK_PIXELS])
+{
+    u32 squared_error = 0;
+    for(u32 pixel = 0; pixel < BC_BLOCK_PIXELS; ++pixel){
+        u32 best_step  = 0;
+        u32 best_error = 0xFFFFFFFF;
+        for(u32 step = 0; step < BC4_STEPS; ++step){
+            i32 diff  = i32(bc4_value_from_step(endpoint_hi, endpoint_lo, step)) - i32(values[pixel]);
+            u32 error = u32(diff * diff);
+            if(error < best_error){
+                best_error = error;
+                best_step  = step;
+            }
+        }
+        steps[pixel]   = best_step;
+        squared_error += best_error;
+    }
+    return squared_error;
+}
+
+u32x2
+bc4_encode(RN_BC5EncodeRoot *root, u32 base_x, u32 base_y, u32 channel)
+{
+    u32 values[BC_BLOCK_PIXELS];
+    u32 endpoint_lo = 255;
+    u32 endpoint_hi = 0;
+    for(u32 pixel = 0; pixel < BC_BLOCK_PIXELS; ++pixel){
+        values[pixel] = bc5_load_channel(root, base_x + pixel % BC_BLOCK_DIM, base_y + pixel / BC_BLOCK_DIM, channel);
+        endpoint_lo   = min(endpoint_lo, values[pixel]);
+        endpoint_hi   = max(endpoint_hi, values[pixel]);
+    }
+
+    u32 steps[BC_BLOCK_PIXELS];
+    for(u32 pixel = 0; pixel < BC_BLOCK_PIXELS; ++pixel){
+        steps[pixel] = 0;
+    }
+    if(endpoint_hi > endpoint_lo){
+        u32 best_error = bc4_assign_steps(endpoint_hi, endpoint_lo, values, steps);
+        for(u32 iteration = 0; iteration < BC4_REFINE_ITERATIONS; ++iteration){
+            f32 hi_hi   = 0.0;
+            f32 hi_lo   = 0.0;
+            f32 lo_lo   = 0.0;
+            f32 hi_dot  = 0.0;
+            f32 lo_dot  = 0.0;
+            for(u32 pixel = 0; pixel < BC_BLOCK_PIXELS; ++pixel){
+                f32 lo_weight = f32(steps[pixel]) / f32(BC4_LAST_STEP);
+                f32 hi_weight = 1.0 - lo_weight;
+                f32 value     = f32(values[pixel]);
+                hi_hi  += hi_weight * hi_weight;
+                hi_lo  += hi_weight * lo_weight;
+                lo_lo  += lo_weight * lo_weight;
+                hi_dot += hi_weight * value;
+                lo_dot += lo_weight * value;
+            }
+            f32 determinant = hi_hi * lo_lo - hi_lo * hi_lo;
+            if(abs(determinant) < 1e-6){
+                break;
+            }
+            u32 fit_hi = u32(clamp((lo_lo * hi_dot - hi_lo * lo_dot) / determinant + 0.5, 0.0, 255.0));
+            u32 fit_lo = u32(clamp((hi_hi * lo_dot - hi_lo * hi_dot) / determinant + 0.5, 0.0, 255.0));
+            if(fit_hi <= fit_lo){
+                break;
+            }
+            u32 fit_steps[BC_BLOCK_PIXELS];
+            u32 fit_error = bc4_assign_steps(fit_hi, fit_lo, values, fit_steps);
+            if(fit_error >= best_error){
+                break;
+            }
+            best_error  = fit_error;
+            endpoint_hi = fit_hi;
+            endpoint_lo = fit_lo;
+            for(u32 pixel = 0; pixel < BC_BLOCK_PIXELS; ++pixel){
+                steps[pixel] = fit_steps[pixel];
+            }
+        }
+    }
+
+    u64 bits = u64(endpoint_hi) | (u64(endpoint_lo) << 8);
+    for(u32 pixel = 0; pixel < BC_BLOCK_PIXELS; ++pixel){
+        bits |= u64(bc4_index_from_step(steps[pixel])) << (BC4_ENDPOINT_BITS + BC4_INDEX_BITS * pixel);
+    }
+    return u32x2(u32(bits), u32(bits >> 32));
+}
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void
+main(u32x3 thread_id : SV_DispatchThreadID)
+{
+    RN_BC5EncodeRoot *root = (RN_BC5EncodeRoot*)g_root.addr;
+    u32 block_id = root->start_block_id + thread_id.x;
+    if(block_id >= root->num_total_blocks){
+        return;
+    }
+    u32 block_y = block_id / root->num_block_x;
+    u32 block_x = block_id - block_y * root->num_block_x;
+    u32x2 red   = bc4_encode(root, block_x * BC_BLOCK_DIM, block_y * BC_BLOCK_DIM, BC5_RED_CHANNEL);
+    u32x2 green = bc4_encode(root, block_x * BC_BLOCK_DIM, block_y * BC_BLOCK_DIM, BC5_GREEN_CHANNEL);
+    root->out_buffer[block_id] = u32x4(red, green);
+}

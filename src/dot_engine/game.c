@@ -178,7 +178,10 @@ dot_game_init(DOT_Game *game, RN_RenderCtx *renderer, DOT_Window *window,
     // String8 model_path = str_comp(DOT_GAME_ASSET_PATH"glTF-Sample-Assets/Models/Cube/glTF/Cube.gltf");
     // String8 model_path = str_comp(DOT_GAME_ASSET_PATH"glTF-Sample-Assets/Models/Avocado/glTF/Avocado.gltf");
     String8 model_path = str_comp(DOT_GAME_ASSET_PATH"glTF-Sample-Assets/Models/Sponza/glTF/Sponza.gltf");
-    g_model = dot_model_load_from_path(renderer, model_path);
+    DOT_PROFILE_BLOCK("Model load"){ g_model = dot_model_load(renderer, model_path); }
+
+    DOT_PROFILE_BLOCK("Clouds init"){ dot_clouds_init(renderer); }
+    DOT_PROFILE_BLOCK("Shadow init"){ dot_shadow_init(renderer); }
 
     return true;
 }

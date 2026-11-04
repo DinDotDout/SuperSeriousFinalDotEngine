@@ -23,4 +23,7 @@ DOT_DIAGNOSTIC_PUSH_SILENT
 #define STB_IMAGE_IMPLEMENTATION
 #include "third_party/stb/stb_image.h"
 
+#define XXH_IMPLEMENTATION
+#include "third_party/xxhash/xxhash.h"
+
 DOT_DIAGNOSTIC_POP

@@ -1,0 +1,61 @@
+#include "renderer/shaders/shader_shared.h"
+#include "renderer/shaders/mip_downsample_shared.h"
+
+static const u32 RGBA8_COLOR_CHANNELS = 3;
+static const f32 UNORM8_MAX           = 255.0;
+
+f32
+srgb_to_linear(f32 c)
+{
+    return c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4);
+}
+
+f32
+linear_to_srgb(f32 c)
+{
+    return c <= 0.0031308 ? c * 12.92 : 1.055 * pow(c, 1.0 / 2.4) - 0.055;
+}
+
+u32x4
+rgba8_unpack(u32 packed)
+{
+    return u32x4(packed & 0xFF, (packed >> 8) & 0xFF, (packed >> 16) & 0xFF, packed >> 24);
+}
+
+u32
+rgba8_pack(u32x4 rgba)
+{
+    return rgba.x | (rgba.y << 8) | (rgba.z << 16) | (rgba.w << 24);
+}
+
+[shader("compute")]
+[numthreads(RN_MIP_DOWNSAMPLE_GROUP_DIM, RN_MIP_DOWNSAMPLE_GROUP_DIM, 1)]
+void
+main(u32x3 thread_id : SV_DispatchThreadID)
+{
+    RN_MipDownsampleRoot *root = (RN_MipDownsampleRoot*)g_root.addr;
+    u32 x = thread_id.x;
+    u32 y = thread_id.y;
+    if(x >= root->dst_width || y >= root->dst_height){
+        return;
+    }
+
+    u32 x0 = min(2 * x,     root->src_width  - 1);
+    u32 x1 = min(2 * x + 1, root->src_width  - 1);
+    u32 y0 = min(2 * y,     root->src_height - 1);
+    u32 y1 = min(2 * y + 1, root->src_height - 1);
+    u32x4 t00 = rgba8_unpack(root->src[y0 * root->src_width + x0]);
+    u32x4 t01 = rgba8_unpack(root->src[y0 * root->src_width + x1]);
+    u32x4 t10 = rgba8_unpack(root->src[y1 * root->src_width + x0]);
+    u32x4 t11 = rgba8_unpack(root->src[y1 * root->src_width + x1]);
+
+    u32x4 result = (t00 + t01 + t10 + t11 + 2) / 4;
+    if(root->srgb != 0){
+        for(u32 c = 0; c < RGBA8_COLOR_CHANNELS; ++c){
+            f32 linear = srgb_to_linear(f32(t00[c]) / UNORM8_MAX) + srgb_to_linear(f32(t01[c]) / UNORM8_MAX)
+                       + srgb_to_linear(f32(t10[c]) / UNORM8_MAX) + srgb_to_linear(f32(t11[c]) / UNORM8_MAX);
+            result[c] = u32(clamp(linear_to_srgb(linear * 0.25), 0.0, 1.0) * UNORM8_MAX + 0.5);
+        }
+    }
+    root->dst[y * root->dst_width + x] = rgba8_pack(result);
+}

@@ -98,15 +98,21 @@ internal void               rn_clear_background(RN_RenderCtx *renderer, f32x3 co
 internal RB_GpuAddress      rn_data_alloc(RN_RenderCtx *renderer, i64 size);
 internal void               rn_upload_begin(RN_RenderCtx *renderer);
 internal void               rn_upload_memory(RN_RenderCtx *renderer, RB_GpuAddress dst, void *src, i64 size);
+internal RB_CpuGpuSpan      rn_upload_reserve(RN_RenderCtx *renderer, i64 size);
+internal void               rn_upload_copy_memory(RN_RenderCtx *renderer, RB_GpuRange staging, RB_GpuAddress dst);
+internal void               rn_upload_copy_texture(RN_RenderCtx *renderer, RB_GpuRange staging, RB_Texture dst, RB_TextureCopyDesc copy);
 internal RB_TimelinePoint   rn_upload_end(RN_RenderCtx *renderer);
 internal RB_Texture         rn_texture_create(RN_RenderCtx *renderer, RB_TextureDesc *desc, void *data, RB_Texture *fallback);
 internal RN_BindlessTexture rn_texture_create_bindless(RN_RenderCtx *renderer, RB_TextureDesc *desc, void *data);
+internal RN_BindlessTexture rn_texture_create_bindless_in_upload(RN_RenderCtx *renderer, RB_TextureDesc *desc);
 internal RN_BindlessTexture rn_texture_load_from_path(RN_RenderCtx *renderer, String8 name, String8 path, u8 mip_levels);
 internal void               rn_texture_destroy(RN_RenderCtx *renderer, RB_Texture handle);
 internal u32                rn_sampler_bindless_slot_create(RN_RenderCtx *renderer, RB_SamplerDesc *desc);
 DOT_ENGINE_API RB_Pipeline  rn_pipeline_create(RN_RenderCtx *renderer, String8 vs_path, String8 fs_path, RB_RasterDesc *raster);
 DOT_ENGINE_API RB_Pipeline  rn_graphics_pipeline_create(RN_RenderCtx *renderer, RN_PSOGraphics *graphics_pso);
+DOT_ENGINE_API RB_Pipeline  rn_compute_pipeline_create(RN_RenderCtx *renderer, String8 cs_path, String8 entry);
 DOT_ENGINE_API void         rn_pipeline_destroy(RN_RenderCtx *renderer, RB_Pipeline handle);
+internal void               rn_render_view_destroy(RN_RenderCtx *renderer, RB_RenderView handle);
 
 #define rn_frame_push(renderer, value) rn_frame_push_((renderer), &(value), sizeof(value))
 

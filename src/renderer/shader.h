@@ -211,8 +211,8 @@ typedef struct RN_ShaderCachedData{
 // NOTE: Slang is loaded at runtime from the vendored library through its C API.
 // I don't want to have to deal with glslang either and have multiple shader compilation
 // backends
-internal b32        rn_shader_compile_from_path(RB_ShaderStageKind stage, RN_ShaderCompileOptions const *options, String8 input_path, String8 output_path);
-internal String8    rn_shader_cache_get_compiled_path(Arena *arena, String8 path, RN_ShaderCompileOptions const *options);
+internal b32        rn_shader_compile_from_path(RB_ShaderStageKind stage, RN_ShaderCompileOptions const *options, String8 input_path, String8 entry, String8 output_path);
+internal String8    rn_shader_cache_get_compiled_path(Arena *arena, String8 path, String8 entry, RN_ShaderCompileOptions const *options);
 internal b32        rn_shader_module_is_initialized(RN_ShaderCachedData *shader_module);
 
 #endif // !DOT_SHADER_H

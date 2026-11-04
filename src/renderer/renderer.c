@@ -28,9 +28,9 @@ DOT_SETTING(b32,"Shader", rn_g_shader_warnings_as_errors, false);
 
 internal u32     rn_frame_slot(RN_RenderCtx *renderer);
 internal void    rn_upload_texture(RN_RenderCtx *renderer, RB_Texture dst, void *src, i64 size, RB_TextureCopyDesc copy);
-internal String8 rn_shader_spirv_get_or_compile(RN_RenderCtx *renderer, RB_ShaderStageKind stage_kind, String8 path);
-internal void    rn_depth_target_resize(RN_RenderCtx *renderer);
-internal void    rn_depth_target_destroy(RN_RenderCtx *renderer);
+internal String8 rn_shader_spirv_get_or_compile(RN_RenderCtx *renderer, RB_ShaderStageKind stage_kind, String8 path, String8 entry);
+internal void    rn_frame_targets_resize(RN_RenderCtx *renderer);
+internal void    rn_frame_targets_destroy(RN_RenderCtx *renderer);
 internal void    rn_resource_cleanup_list_push_texture(RN_RenderCtx *renderer, RB_Texture texture_id);
 internal void    rn_resource_cleanup_list_remove_texture(RN_RenderCtx *renderer, RB_Texture texture_id);
 internal void    rn_resource_cleanup_list_pop_all(RN_RenderCtx *renderer);
@@ -210,7 +210,7 @@ internal RB_GpuRange
 rn_frame_push_(RN_RenderCtx *renderer, void *data, i64 size)
 {
     RB_GpuRange range = rb_cpu_gpu_arena_push_atomic_(&renderer->frame_datas[rn_frame_slot(renderer)].frame_heap, data, size);
-    DOT_ASSERT(range.gpu, "Frame heap exhausted (%llu bytes requested)", size);
+    DOT_ASSERT(range.gpu, "Frame heap exhausted (%M bytes requested)", size);
     return(range);
 }
 
@@ -218,7 +218,7 @@ internal RB_GpuAddress
 rn_data_alloc(RN_RenderCtx *renderer, i64 size)
 {
     RB_GpuRange range = rb_gpu_arena_alloc_atomic(&renderer->data_heap, size);
-    DOT_ASSERT(range.gpu, "Data heap exhausted (%llu bytes requested)", size);
+    DOT_ASSERT(range.gpu, "Data heap exhausted (%M bytes requested)", size);
     return(range.gpu);
 }
 
@@ -243,32 +243,50 @@ rn_upload_submit_(RN_RenderCtx *renderer)
 }
 
 // A full staging heap flushes the batch so far, waits for it, and continues in a new command buffer.
-internal RB_GpuRange
-rn_upload_stage_(RN_RenderCtx *renderer, void *src, i64 size)
+internal RB_CpuGpuSpan
+rn_upload_reserve(RN_RenderCtx *renderer, i64 size)
 {
     RN_FrameData *frame_data = &renderer->frame_datas[rn_frame_slot(renderer)];
     RB_CpuGpuArena *heap = &frame_data->upload_heap;
-    DOT_ASSERT(size <= heap->size, "Upload of %M bytes exceeds the upload heap", size);
+    DOT_ASSERT(size <= heap->size, "Upload of %M bytes exceeds the upload heap, raise rn_g_upload_heap_size_b", size);
     if(!rb_cpu_gpu_arena_fits(heap, size)){
-        rb_timeline_wait(rn_upload_submit_(renderer));
+        DOT_PROFILE_BLOCK("Upload heap full, waiting on GPU"){ rb_timeline_wait(rn_upload_submit_(renderer)); }
         rb_cpu_gpu_arena_reset(heap);
         renderer->upload_cmd = rb_commands_begin(frame_data->upload_pool);
     }
-    return(rb_cpu_gpu_arena_push_atomic_(heap, src, size));
+    return(rb_cpu_gpu_arena_reserve_atomic(heap, size));
+}
+
+internal RB_GpuRange
+rn_upload_stage_(RN_RenderCtx *renderer, void *src, i64 size)
+{
+    RB_CpuGpuSpan span = rn_upload_reserve(renderer, size);
+    MEMORY_COPY(span.cpu, src, cast(u64)size);
+    return(span.gpu);
+}
+
+internal void
+rn_upload_copy_memory(RN_RenderCtx *renderer, RB_GpuRange staging, RB_GpuAddress dst)
+{
+    rb_copy_memory(renderer->upload_cmd, staging, (RB_GpuRange){ dst, staging.size });
+}
+
+internal void
+rn_upload_copy_texture(RN_RenderCtx *renderer, RB_GpuRange staging, RB_Texture dst, RB_TextureCopyDesc copy)
+{
+    rb_copy_memory_to_texture(renderer->upload_cmd, staging, dst, copy);
 }
 
 internal void
 rn_upload_memory(RN_RenderCtx *renderer, RB_GpuAddress dst, void *src, i64 size)
 {
-    RB_GpuRange staging = rn_upload_stage_(renderer, src, size);
-    rb_copy_memory(renderer->upload_cmd, staging, (RB_GpuRange){ dst, size });
+    rn_upload_copy_memory(renderer, rn_upload_stage_(renderer, src, size), dst);
 }
 
 internal void
 rn_upload_texture(RN_RenderCtx *renderer, RB_Texture dst, void *src, i64 size, RB_TextureCopyDesc copy)
 {
-    RB_GpuRange staging = rn_upload_stage_(renderer, src, size);
-    rb_copy_memory_to_texture(renderer->upload_cmd, staging, dst, copy);
+    rn_upload_copy_texture(renderer, rn_upload_stage_(renderer, src, size), dst, copy);
 }
 
 internal RB_TimelinePoint
@@ -394,7 +412,8 @@ rn_texture_load_from_path(RN_RenderCtx *renderer, String8 name, String8 path, u8
 {
     DOT_PRINT("Creating texture with name %S, from path %S: ", name, path);
     TempArena temp = temp_arena_start(renderer->transient_arena);
-    String8 file_data = platform_read_entire_file(temp.arena, path);
+    String8 file_data = {0};
+    DOT_PROFILE_BLOCK("Texture read"){ file_data = platform_read_entire_file(temp.arena, path); }
 
     void *data = NULL;
     u8 size_bytes = 0;
@@ -407,15 +426,17 @@ rn_texture_load_from_path(RN_RenderCtx *renderer, String8 name, String8 path, u8
     stbi_allocator_set(&alloc);
     stbi_info_from_memory(file_data.str, cast(int)file_data.size, &width, &height, &comp);
     comp = comp == 3 ? STBI_rgb_alpha : comp;
-    if(is_hdr){
-        data = stbi_loadf_from_memory(file_data.str, cast(int)file_data.size, &width, (int*)&height, NULL, comp);
-        size_bytes = 4;
-    }else if(is_16_bit){
-        data = stbi_load_16_from_memory(file_data.str, cast(int)file_data.size, &width, &height, NULL, comp);
-        size_bytes = 2;
-    }else{
-        data = stbi_load_from_memory(file_data.str, cast(int)file_data.size, &width, &height, NULL, comp);
-        size_bytes = 1;
+    DOT_PROFILE_BLOCK("Texture decode"){
+        if(is_hdr){
+            data = stbi_loadf_from_memory(file_data.str, cast(int)file_data.size, &width, (int*)&height, NULL, comp);
+            size_bytes = 4;
+        }else if(is_16_bit){
+            data = stbi_load_16_from_memory(file_data.str, cast(int)file_data.size, &width, &height, NULL, comp);
+            size_bytes = 2;
+        }else{
+            data = stbi_load_from_memory(file_data.str, cast(int)file_data.size, &width, &height, NULL, comp);
+            size_bytes = 1;
+        }
     }
 
     if(mip_levels == 0){
@@ -430,7 +451,7 @@ rn_texture_load_from_path(RN_RenderCtx *renderer, String8 name, String8 path, u8
     }
 
     if(data && mip_levels > 1){
-        data = rn_mip_chain_build(temp.arena, data, width, height, comp, size_bytes, mip_levels);
+        DOT_PROFILE_BLOCK("Mip chain build"){ data = rn_mip_chain_build(temp.arena, data, width, height, comp, size_bytes, mip_levels); }
     }
 
     RB_TextureDesc desc = {0};
@@ -443,7 +464,8 @@ rn_texture_load_from_path(RN_RenderCtx *renderer, String8 name, String8 path, u8
     desc.array_layers   = 1;
     desc.debug_name     = name;
 
-    RN_BindlessTexture result = rn_texture_create_bindless(renderer, &desc, data);
+    RN_BindlessTexture result = {0};
+    DOT_PROFILE_BLOCK("Texture upload"){ result = rn_texture_create_bindless(renderer, &desc, data); }
 
     stbi_allocator_unset();
     temp_arena_restore(temp);
@@ -455,6 +477,27 @@ rn_texture_create_bindless(RN_RenderCtx *renderer, RB_TextureDesc *desc, void *d
 {
     RN_BindlessTexture result = {0};
     result.handle = rn_texture_create(renderer, desc, data, &renderer->null_texture);
+
+    DOT_ASSERT(renderer->next_texture_slot < rn_g_texture_descriptor_max, "Out of texture descriptor slots (%u)", rn_g_texture_descriptor_max);
+    result.bindless_slot = renderer->next_texture_slot++;
+    rb_texture_descriptor_write(renderer->texture_descriptor_heap, result.bindless_slot, result.handle, RB_TextureDescriptorKind_Sampled);
+    return(result);
+}
+
+internal RN_BindlessTexture
+rn_texture_create_bindless_in_upload(RN_RenderCtx *renderer, RB_TextureDesc *desc)
+{
+    DOT_ASSERT(RB_HANDLE_VALID(renderer->upload_cmd), "Needs an open upload batch (rn_upload_begin)");
+    RB_SizeAlign size_align = rb_texture_size_align(desc);
+    i64 offset = rb_texture_heap_arena_place(&renderer->texture_heap, size_align);
+
+    RN_BindlessTexture result = {0};
+    result.handle = rb_texture_create(renderer->upload_cmd, desc, renderer->texture_heap.heap, offset);
+    if(RB_HANDLE_VALID(result.handle)){
+        rn_resource_cleanup_list_push_texture(renderer, result.handle);
+    }else{
+        result.handle = renderer->null_texture;
+    }
 
     DOT_ASSERT(renderer->next_texture_slot < rn_g_texture_descriptor_max, "Out of texture descriptor slots (%u)", rn_g_texture_descriptor_max);
     result.bindless_slot = renderer->next_texture_slot++;
@@ -493,8 +536,8 @@ rn_sampler_bindless_slot_create(RN_RenderCtx *renderer, RB_SamplerDesc *desc)
 DOT_ENGINE_API RB_Pipeline
 rn_pipeline_create(RN_RenderCtx *renderer, String8 vs_path, String8 fs_path, RB_RasterDesc *raster)
 {
-    String8 vs_spirv = rn_shader_spirv_get_or_compile(renderer, RB_ShaderStageKind_Vertex, vs_path);
-    String8 fs_spirv = rn_shader_spirv_get_or_compile(renderer, RB_ShaderStageKind_Fragment, fs_path);
+    String8 vs_spirv = rn_shader_spirv_get_or_compile(renderer, RB_ShaderStageKind_Vertex, vs_path, (String8){0});
+    String8 fs_spirv = fs_path.size ? rn_shader_spirv_get_or_compile(renderer, RB_ShaderStageKind_Fragment, fs_path, (String8){0}) : (String8){0};
     RB_Pipeline h = rb_pipeline_graphics_create(vs_spirv, fs_spirv, raster);
     return(h);
 }
@@ -503,9 +546,20 @@ rn_pipeline_create(RN_RenderCtx *renderer, String8 vs_path, String8 fs_path, RB_
 DOT_ENGINE_API RB_Pipeline
 rn_graphics_pipeline_create(RN_RenderCtx *renderer, RN_PSOGraphics *graphics_pso)
 {
-    String8 vs_spirv = rn_shader_spirv_get_or_compile(renderer, RB_ShaderStageKind_Vertex, graphics_pso->vs_path);
-    String8 fs_spirv = rn_shader_spirv_get_or_compile(renderer, RB_ShaderStageKind_Fragment, graphics_pso->fs_path);
+    String8 vs_spirv = rn_shader_spirv_get_or_compile(renderer, RB_ShaderStageKind_Vertex, graphics_pso->vs_path, (String8){0});
+    String8 fs_spirv = rn_shader_spirv_get_or_compile(renderer, RB_ShaderStageKind_Fragment, graphics_pso->fs_path, (String8){0});
     RB_Pipeline h = rb_pipeline_graphics_create(vs_spirv, fs_spirv, &graphics_pso->raster_desc);
+    return(h);
+}
+
+DOT_ENGINE_API RB_Pipeline
+rn_compute_pipeline_create(RN_RenderCtx *renderer, String8 cs_path, String8 entry)
+{
+    String8 cs_spirv = rn_shader_spirv_get_or_compile(renderer, RB_ShaderStageKind_Compute, cs_path, entry);
+    RB_Pipeline h = {0};
+    if(cs_spirv.size){
+        h = rb_pipeline_compute_create(cs_spirv);
+    }
     return(h);
 }
 
@@ -625,7 +679,7 @@ rn_resource_cleanup_list_pop_all(RN_RenderCtx *renderer)
 }
 
 internal String8
-rn_shader_spirv_get_or_compile(RN_RenderCtx *renderer, RB_ShaderStageKind stage_kind, String8 path)
+rn_shader_spirv_get_or_compile(RN_RenderCtx *renderer, RB_ShaderStageKind stage_kind, String8 path, String8 entry)
 {
     DOT_ASSERT(stage_kind < RB_ShaderStageKind_Count);
     RN_ShaderCompileOptions options = {
@@ -642,14 +696,15 @@ rn_shader_spirv_get_or_compile(RN_RenderCtx *renderer, RB_ShaderStageKind stage_
     b32 need_recompile = platform_file_is_newer(path, compiled_path);
     b32 compilation_success = false;
     if(need_recompile){
-        DOT_PRINT("Recompiling %S", path);
-        compilation_success = rn_shader_compile_from_path(stage_kind, &options, path, compiled_path);
+        DOT_PRINT("Recompiling %S %S", path, entry);
+        DOT_PROFILE_BLOCK("Shader compile"){ compilation_success = rn_shader_compile_from_path(stage_kind, &options, path, entry, compiled_path); }
         if(!compilation_success){
-            DOT_WARNING("Failed to compile shader %S", path);
+            DOT_WARNING("Failed to compile shader %S %S", path, entry);
         }
     }
 
-    RN_ShaderCachedData *shader_stage = hm_get_or_create(renderer->permanent_arena, &renderer->shader_cache, path);
+    String8 cache_key = entry.size ? string8_format(renderer->permanent_arena, "%S:%S", path, entry) : path;
+    RN_ShaderCachedData *shader_stage = hm_get_or_create(renderer->permanent_arena, &renderer->shader_cache, cache_key);
 
     b32 just_created = !rn_shader_module_is_initialized(shader_stage);
     b32 should_update_shader = (need_recompile && compilation_success) || just_created;
