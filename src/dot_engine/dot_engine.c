@@ -1,10 +1,10 @@
 #include "dot_engine.h"
 
-DOT_SETTING_U32("Engine", g_engine_memory_size_b, DOT_MB(512));
-DOT_SETTING_U32("ThreadContext", g_per_thread_temp_arena_size_b, DOT_MB(40));
-DOT_SETTING_U32("ThreadContext", g_per_thread_temp_arena_count_b, 2);
-DOT_SETTING_U32("Game", g_game_permanent_memory_size_b, DOT_MB(20));
-DOT_SETTING_U32("Game", g_game_transient_memory_size_b, DOT_KB(32));
+DOT_BOOT_SETTING(u32,"Engine", g_engine_memory_size_b, DOT_MB(512));
+DOT_BOOT_SETTING(u32,"ThreadContext", g_per_thread_temp_arena_size_b, DOT_MB(40));
+DOT_BOOT_SETTING(u32,"ThreadContext", g_per_thread_temp_arena_count_b, 2);
+DOT_BOOT_SETTING(u32,"Game", g_game_permanent_memory_size_b, DOT_MB(20));
+DOT_BOOT_SETTING(u32,"Game", g_game_transient_memory_size_b, DOT_KB(32));
 
 typedef ProgramEntryFlag DOT_EngineModeKind;
 enum{
@@ -32,11 +32,42 @@ internal read_only ProgramEntryFlagCtx flag_table[] = {
 #endif
 };
 
+internal void
+dot_settings_ui(struct nk_context *ctx)
+{
+    Scratch s = scratch_begin(0,0);
+    HashMapIter it = {0};
+    int scope_id = 0;
+    for(DOT_SettingScope *scope = hm_iter_next(&g_settings.setting_scopes, &it); scope; scope = hm_iter_next(&g_settings.setting_scopes, &it)){
+        char *scope_label = rfl_ui_label_from_string8(s.arena, scope->scope_name);
+        if(nk_tree_push_id(ctx, NK_TREE_NODE, scope_label, NK_MINIMIZED, scope_id++)){
+            for(DOT_Setting *setting = scope->setting; setting; setting = setting->next){
+                RFL_Any value = rfl_any_from_type(setting->type_def, setting->data);
+                char *name = rfl_ui_label_from_string8(s.arena, setting->setting_name);
+                if(setting->boot){
+                    nk_layout_row_dynamic(ctx, RFL_UI_ROW_HEIGHT, 2);
+                    nk_label(ctx, name, NK_TEXT_LEFT);
+                    nk_label_colored(ctx, cstr_format(s.arena, "%S", rfl_string8_from_any(s.arena, value)), NK_TEXT_LEFT, nk_rgb(140, 140, 140));
+                }else{
+                    rfl_ui_any(ctx, name, value);
+                }
+            }
+            nk_tree_pop(ctx);
+        }
+    }
+    scratch_end(s);
+}
+
 int
 entry_point(int argc, String8 arg_values[])
 {
+    Arena *core_arena = ARENA_CREATE(.reserve_size = DOT_MB(16), .name = "Core Arena");
+    rfl_init(core_arena);
+    dot_settings_apply_config(core_arena, str_comp(DOT_ENGINE_CONFIG_PATH));
+
     b32 show_help = program_entry_flags_apply(DOT_ARRAY_COUNT(flag_table), flag_table, argc, arg_values);
     if(show_help){
+        ARENA_DESTROY(core_arena);
         return(0);
     }
     b32 headless = g_engine_mode != DOT_EngineRunModeKind_Default;
@@ -45,12 +76,13 @@ entry_point(int argc, String8 arg_values[])
     dot_engine_init(&engine, headless);
 
     partial_switch_begin(g_engine_mode){
-    case DOT_EngineRunModeKind_TestsRun:  dot_test_suites_run();    return 0;
-    case DOT_EngineRunModeKind_TestsList: dot_test_suites_print();  return 0;
+    case DOT_EngineRunModeKind_TestsRun:  dot_test_suites_run();   ARENA_DESTROY(core_arena); return 0;
+    case DOT_EngineRunModeKind_TestsList: dot_test_suites_print(); ARENA_DESTROY(core_arena); return 0;
     }partial_switch_end;
 
     dot_engine_run(&engine);
     dot_engine_shutdown(&engine);
+    ARENA_DESTROY(core_arena);
 
     return(0);
 }
@@ -59,8 +91,7 @@ internal void
 dot_engine_init(DOT_Engine *engine, b32 headless)
 {
     engine->permanent_arena = ARENA_CREATE(.reserve_size = g_engine_memory_size_b, .name = "DOT_Engine Arena");
-    threadctx_init(engine->permanent_arena, g_per_thread_temp_arena_count_b, g_per_thread_temp_arena_size_b, 1);
-    rfl_init(engine->permanent_arena);
+    threadctx_init(engine->permanent_arena, g_per_thread_temp_arena_count_b, g_per_thread_temp_arena_size_b);
     rfl_ui_init(engine->permanent_arena);
     dot_settings_register_all(engine->permanent_arena);
     plugins_init();

@@ -1,6 +1,6 @@
-DOT_SETTING_U32("Window", dot_g_window_mode, DOT_WindowModeKind_Windowed);
-DOT_SETTING_U32("Window", dot_g_window_system, DOT_WindowSystemKind_Default);
-DOT_SETTING_I32X2("Window", dot_g_window_dimension, { 720, 1080 });
+DOT_BOOT_SETTING(u32,"Window", dot_g_window_mode, DOT_WindowModeKind_Windowed);
+DOT_BOOT_SETTING(u32,"Window", dot_g_window_system, DOT_WindowSystemKind_Default);
+DOT_BOOT_SETTING(i32x2,"Window", dot_g_window_dimension, { 720, 1080 });
 
 internal read_only RGFW_key dot_window_rgfw_keys[DOT_KeyKind_Count] = {
     [DOT_KeyKind_Delete]    = RGFW_keyDelete,

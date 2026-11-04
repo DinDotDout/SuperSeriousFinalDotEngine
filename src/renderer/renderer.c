@@ -1,29 +1,30 @@
-DOT_SETTING_U32("Render", rn_gtransient_memory_size_b, DOT_MB(80));
-DOT_SETTING_U32("Render", rn_gpermanent_memory_size_b, DOT_MB(80));
-DOT_SETTING_U32("Render", rn_g_frame_arena_size_b, DOT_KB(32));
-DOT_SETTING_U32("Render", rn_g_cleanup_resource_pool_max, 128);
-DOT_SETTING_U32("Render", rn_g_texture_heap_size_b, DOT_MB(512));
-DOT_SETTING_U32("Render", rn_g_data_heap_size_b, DOT_MB(64));
-DOT_SETTING_U32("Render", rn_g_frame_heap_size_b, DOT_MB(4));   // per frame in flight
-DOT_SETTING_U32("Render", rn_g_upload_heap_size_b, DOT_MB(32)); // per frame in flight
-DOT_SETTING_U32("Render", rn_g_delete_queue_capacity, 256);
-DOT_SETTING_U32("Render", rn_g_texture_descriptor_max, 16384);
-DOT_SETTING_U32("Render", rn_g_sampler_descriptor_max, 32);
+DOT_BOOT_SETTING(u32,"Render", rn_gtransient_memory_size_b, DOT_MB(80));
+DOT_BOOT_SETTING(u32,"Render", rn_gpermanent_memory_size_b, DOT_MB(80));
+DOT_BOOT_SETTING(u32,"Render", rn_g_frame_arena_size_b, DOT_KB(32));
+DOT_BOOT_SETTING(u32,"Render", rn_g_cleanup_resource_pool_max, 128);
+DOT_BOOT_SETTING(u32,"Render", rn_g_texture_heap_size_b, DOT_MB(512));
+DOT_BOOT_SETTING(u32,"Render", rn_g_data_heap_size_b, DOT_MB(64));
+DOT_BOOT_SETTING(u32,"Render", rn_g_frame_heap_size_b, DOT_MB(4));   // per frame in flight
+DOT_BOOT_SETTING(u32,"Render", rn_g_upload_heap_size_b, DOT_MB(32)); // per frame in flight
+DOT_BOOT_SETTING(u32,"Render", rn_g_delete_queue_capacity, 256);
+DOT_BOOT_SETTING(u32,"Render", rn_g_texture_descriptor_max, 16384);
+DOT_BOOT_SETTING(u32,"Render", rn_g_sampler_descriptor_max, 32);
+DOT_BOOT_SETTING(f32,"Render", rn_g_max_anisotropy, 16.0f);
 
-DOT_SETTING_U32("RenderDevice", rn_g_device_kind, RB_DeviceKind_Auto);
-DOT_SETTING_U32("RenderDevice", rn_g_device_permanent_memory_size_b, DOT_MB(4));
-DOT_SETTING_U32("RenderDevice", rn_g_device_transient_memory_size_b, DOT_KB(512));
-DOT_SETTING_U32("RenderDevice", rn_g_timestamp_query_max, 64); // Per command buffer; 0 disables rb_write_timestamp
-DOT_SETTING_U32("RenderDevice", rn_g_frame_overlap, 3);
-DOT_SETTING_U32("RenderDevice", rn_g_swapchain_format, RB_FormatKind_RGBA8_SRGB);
-DOT_SETTING_U32("RenderDevice", rn_g_depth_stencil_format, RB_FormatKind_D32_FLOAT);
-DOT_SETTING_U32("RenderDevice", rn_g_present_mode, RB_PresentModeKind_Mailbox);
+DOT_BOOT_SETTING(u32,"RenderDevice", rn_g_device_kind, RB_DeviceKind_Auto);
+DOT_BOOT_SETTING(u32,"RenderDevice", rn_g_device_permanent_memory_size_b, DOT_MB(4));
+DOT_BOOT_SETTING(u32,"RenderDevice", rn_g_device_transient_memory_size_b, DOT_KB(512));
+DOT_BOOT_SETTING(u32,"RenderDevice", rn_g_timestamp_query_max, 64); // Per command buffer; 0 disables rb_write_timestamp
+DOT_BOOT_SETTING(u32,"RenderDevice", rn_g_frame_overlap, 3);
+DOT_BOOT_SETTING(u32,"RenderDevice", rn_g_swapchain_format, RB_FormatKind_Rgba8_Srgb);
+DOT_BOOT_SETTING(u32,"RenderDevice", rn_g_depth_stencil_format, RB_FormatKind_D32_Float);
+DOT_BOOT_SETTING(u32,"RenderDevice", rn_g_present_mode, RB_PresentModeKind_Mailbox);
 
-DOT_SETTING_U32("ShaderCache", rn_g_shader_cache_bucket_count, 64);
-DOT_SETTING_U32("Shader", rn_g_shader_optimization_level, RN_ShaderOptimizationLevel_None);
-DOT_SETTING_U32("Shader", rn_g_shader_debug_info_level, RN_ShaderDebugInfoLevel_Standard);
-DOT_SETTING_U32("Shader", rn_g_shader_floating_point_mode, RN_ShaderFloatingPointMode_Default);
-DOT_SETTING_BOOL("Shader", rn_g_shader_warnings_as_errors, false);
+DOT_BOOT_SETTING(u32,"ShaderCache", rn_g_shader_cache_bucket_count, 64);
+DOT_SETTING(u32,"Shader", rn_g_shader_optimization_level, RN_ShaderOptimizationLevel_None);
+DOT_SETTING(u32,"Shader", rn_g_shader_debug_info_level, RN_ShaderDebugInfoLevel_Standard);
+DOT_SETTING(u32,"Shader", rn_g_shader_floating_point_mode, RN_ShaderFloatingPointMode_Default);
+DOT_SETTING(b32,"Shader", rn_g_shader_warnings_as_errors, false);
 
 internal u32     rn_frame_slot(RN_RenderCtx *renderer);
 internal void    rn_upload_texture(RN_RenderCtx *renderer, RB_Texture dst, void *src, i64 size, RB_TextureCopyDesc copy);
