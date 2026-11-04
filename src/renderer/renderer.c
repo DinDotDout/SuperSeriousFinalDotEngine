@@ -114,16 +114,30 @@ rn_init(Arena *arena, RN_RenderCtx *renderer, PlatformNativeWindow native_window
     null_texture_desc.depth = 1;
     null_texture_desc.array_layers = 1;
     null_texture_desc.mip_levels = 1;
-    null_texture_desc.format_kind = RB_FormatKind_RGBA8_UNORM;
+    null_texture_desc.format_kind = RB_FormatKind_Rgba8_Unorm;
     null_texture_desc.dimension_kind = RB_TextureDimensionKind_2D;
     renderer->null_texture = rn_texture_create(renderer, &null_texture_desc , (u8[]){0,0,0,0}, NULL);
+
+    renderer->hdr_format = RB_FormatKind_Rg11b10_Float;
+    renderer->exposure   = 0.2f;
+    RB_RasterDesc tonemap_raster = {
+        .raster_state.topology  = RB_PrimitiveTopologyKind_TriangleList,
+        .raster_state.cull_mode = RB_CullModeKind_None,
+        .color_targets          = { {.format = renderer->swapchain_format} },
+        .debug_name             = str_comp("Tonemap"),
+    };
+    renderer->tonemap_pipeline = rn_pipeline_create(renderer,
+        str_comp(RN_SHADER_PATH"fullscreen.vert"),
+        str_comp(RN_SHADER_PATH"tonemap.frag"),
+        &tonemap_raster);
 }
 
 internal void
 rn_shutdown(RN_RenderCtx *renderer)
 {
     rb_wait_idle();
-    rn_depth_target_destroy(renderer);
+    rn_frame_targets_destroy(renderer);
+    rn_pipeline_destroy(renderer, renderer->tonemap_pipeline);
     rn_resource_cleanup_list_pop_all(renderer);
     rb_delete_queue_drain(&renderer->delete_queue);
     rb_texture_destroy(renderer->null_texture);
@@ -166,24 +180,43 @@ rn_pipeline_destroy(RN_RenderCtx *renderer, RB_Pipeline handle)
 }
 
 internal void
-rn_depth_target_destroy(RN_RenderCtx *renderer)
+rn_render_view_destroy(RN_RenderCtx *renderer, RB_RenderView handle)
+{
+    rb_delete_queue_defer_render_view(&renderer->delete_queue, rn_retire_value(renderer), handle);
+}
+
+internal void
+rn_frame_targets_destroy(RN_RenderCtx *renderer)
 {
     if(!RB_HANDLE_VALID(renderer->depth_view)){ return; }
     rb_delete_queue_defer_render_view(&renderer->delete_queue, rn_retire_value(renderer), renderer->depth_view);
     rb_delete_queue_defer_texture(&renderer->delete_queue, rn_retire_value(renderer), renderer->depth_texture);
-    renderer->depth_view    = (RB_RenderView){0};
-    renderer->depth_texture = (RB_Texture){0};
-    renderer->depth_extent  = (i32x2){0};
+    rb_delete_queue_defer_render_view(&renderer->delete_queue, rn_retire_value(renderer), renderer->hdr_view);
+    rb_delete_queue_defer_texture(&renderer->delete_queue, rn_retire_value(renderer), renderer->hdr_texture);
+    renderer->depth_view     = (RB_RenderView){0};
+    renderer->depth_texture  = (RB_Texture){0};
+    renderer->hdr_view       = (RB_RenderView){0};
+    renderer->hdr_texture    = (RB_Texture){0};
+    renderer->targets_extent = (i32x2){0};
+}
+
+internal u32
+rn_frame_target_bindless_slot_create(RN_RenderCtx *renderer, RB_Texture texture)
+{
+    DOT_ASSERT(renderer->next_texture_slot < rn_g_texture_descriptor_max, "Out of texture descriptor slots (%u)", rn_g_texture_descriptor_max);
+    u32 slot = renderer->next_texture_slot++;
+    rb_texture_descriptor_write(renderer->texture_descriptor_heap, slot, texture, RB_TextureDescriptorKind_Sampled);
+    return(slot);
 }
 
 internal void
-rn_depth_target_resize(RN_RenderCtx *renderer)
+rn_frame_targets_resize(RN_RenderCtx *renderer)
 {
     i32x2 extent = renderer->current_extent;
-    if(RB_HANDLE_VALID(renderer->depth_view) && extent.x == renderer->depth_extent.x && extent.y == renderer->depth_extent.y){
+    if(RB_HANDLE_VALID(renderer->depth_view) && extent.x == renderer->targets_extent.x && extent.y == renderer->targets_extent.y){
         return;
     }
-    rn_depth_target_destroy(renderer);
+    rn_frame_targets_destroy(renderer);
 
     RB_TextureDesc desc = {0};
     desc.dimension_kind = RB_TextureDimensionKind_2D;
@@ -195,9 +228,19 @@ rn_depth_target_resize(RN_RenderCtx *renderer)
     desc.mip_levels     = 1;
     desc.debug_name     = str_comp("Depth");
 
-    renderer->depth_texture = rb_texture_create(renderer->current_cmd, &desc, (RB_TextureHeap){0}, 0);
-    renderer->depth_view    = rb_render_view_create(renderer->depth_texture, (RB_RenderViewDesc){0});
-    renderer->depth_extent  = extent;
+    renderer->depth_texture       = rb_texture_create(renderer->current_cmd, &desc, (RB_TextureHeap){0}, 0);
+    renderer->depth_view          = rb_render_view_create(renderer->depth_texture, (RB_RenderViewDesc){0});
+    renderer->depth_bindless_slot = rn_frame_target_bindless_slot_create(renderer, renderer->depth_texture);
+
+    desc.format_kind         = renderer->hdr_format;
+    desc.texture_usage_flags = RB_TextureUsageBit_RenderTarget;
+    desc.debug_name          = str_comp("HDR");
+
+    renderer->hdr_texture       = rb_texture_create(renderer->current_cmd, &desc, (RB_TextureHeap){0}, 0);
+    renderer->hdr_view          = rb_render_view_create(renderer->hdr_texture, (RB_RenderViewDesc){0});
+    renderer->hdr_bindless_slot = rn_frame_target_bindless_slot_create(renderer, renderer->hdr_texture);
+
+    renderer->targets_extent = extent;
 }
 
 internal u32
@@ -583,6 +626,38 @@ rn_clear_background(RN_RenderCtx *renderer, f32x3 color)
 }
 
 internal void
+rn_tonemap(RN_RenderCtx *renderer)
+{
+    if(!renderer->current_frame_valid){ return; }
+
+    RB_CommandBuffer cmd = renderer->current_cmd;
+    rb_barrier(cmd,
+        RB_StageBit_ColorOutput, RB_AccessBit_ColorWrite,
+        RB_StageBit_Fragment | RB_StageBit_ColorOutput, RB_AccessBit_ShaderRead | RB_AccessBit_ColorWrite);
+
+    RB_RenderingDesc desc = {0};
+    desc.render_extent = renderer->current_extent;
+    desc.color_attachments[0].view     = renderer->current_view;
+    desc.color_attachments[0].load_op  = RB_LoadOpKind_DontCare;
+    desc.color_attachments[0].store_op = RB_StoreOpKind_Store;
+    rb_render_pass_begin(cmd, desc, RB_RenderingBit_None);
+
+    RB_Extent2D16 rect = { .x = 0, .y = 0, .w = cast(u16)renderer->current_extent.x, .h = cast(u16)renderer->current_extent.y };
+    rb_set_viewport(cmd, (RB_Viewport){ .viewport_rect = rect, .max_depth = 1.0f });
+    rb_set_scissor(cmd, rect);
+    rb_set_depth_stencil_state(cmd, &(RB_DepthStencilState){0});
+    rb_bind_pso(cmd, renderer->tonemap_pipeline);
+
+    RN_TonemapRoot root = {
+        .hdr_slot = renderer->hdr_bindless_slot,
+        .exposure = renderer->exposure,
+        .bypass   = renderer->tonemap_bypass ? 1u : 0u,
+    };
+    rb_draw(cmd, rn_frame_push(renderer, root).gpu, 3, 1, 0, 0);
+    rb_render_pass_end(cmd);
+}
+
+internal void
 rn_frame_begin(RN_RenderCtx *renderer, i32x2 framebuffer_size)
 {
     rb_delete_queue_tick(&renderer->delete_queue);
@@ -609,7 +684,7 @@ rn_frame_begin(RN_RenderCtx *renderer, i32x2 framebuffer_size)
     }
     renderer->current_view   = frame.view;
     renderer->current_extent = frame.extent;
-    rn_depth_target_resize(renderer);
+    rn_frame_targets_resize(renderer);
 }
 
 internal void

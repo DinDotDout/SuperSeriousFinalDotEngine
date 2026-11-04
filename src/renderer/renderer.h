@@ -1,6 +1,8 @@
 #ifndef RENDERER_H
 #define RENDERER_H
 
+#define RN_SHADER_PATH "src/renderer/shaders/"
+
 enum
 {
     RN_RESOURCE_CLEANUP_CTX_TEXTURES  = 64,
@@ -82,19 +84,30 @@ typedef struct RN_RenderCtx{
 
     RB_FormatKind swapchain_format;
 
-    // Depth target matching the swapchain, recreated in rn_frame_begin when the extent changes.
+    // Depth and HDR color targets matching the swapchain, recreated in rn_frame_begin when the extent changes.
+    i32x2         targets_extent;
     RB_FormatKind depth_format;
     RB_Texture    depth_texture;
     RB_RenderView depth_view;
-    i32x2         depth_extent;
+    u32           depth_bindless_slot;
+    RB_FormatKind hdr_format;
+    RB_Texture    hdr_texture;
+    RB_RenderView hdr_view;
+    u32           hdr_bindless_slot;
+
+    RB_Pipeline tonemap_pipeline;
+    f32         exposure;
+    b32         tonemap_bypass;
 }RN_RenderCtx;
 
+internal b32                rn_renderdoc_attached(void);
 internal void               rn_init(Arena *arena, RN_RenderCtx *renderer, PlatformNativeWindow native_window);
 internal void               rn_shutdown(RN_RenderCtx *renderer);
 internal void               rn_frame_begin(RN_RenderCtx *renderer, i32x2 framebuffer_size);
 internal void               rn_frame_end(RN_RenderCtx *renderer);
 internal RB_GpuRange        rn_frame_push_(RN_RenderCtx *renderer, void *data, i64 size);
 internal void               rn_clear_background(RN_RenderCtx *renderer, f32x3 color);
+internal void               rn_tonemap(RN_RenderCtx *renderer);
 internal RB_GpuAddress      rn_data_alloc(RN_RenderCtx *renderer, i64 size);
 internal void               rn_upload_begin(RN_RenderCtx *renderer);
 internal void               rn_upload_memory(RN_RenderCtx *renderer, RB_GpuAddress dst, void *src, i64 size);

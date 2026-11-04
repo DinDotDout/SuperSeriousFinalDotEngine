@@ -3,8 +3,9 @@
 
 struct VSOutput {
     float4 sv_position : SV_Position;
-    float3 normal   : NORMAL0;
-    float2 texcoord : TEXCOORD0;
+    float3 normal      : NORMAL0;
+    float2 texcoord    : TEXCOORD0;
+    float3 world_pos   : TEXCOORD1;
 };
 
 [shader("vertex")]
@@ -19,7 +20,8 @@ VSOutput main(uint vertex_index : SV_VertexID)
 
     VSOutput out;
     out.sv_position = mul(pc->mvp, float4(positions[idx], 1.0));
-    out.normal      = normals[idx];
+    out.normal      = mul(pc->world, float4(normals[idx], 0.0)).xyz;
     out.texcoord    = texcoords[idx];
+    out.world_pos   = mul(pc->world, float4(positions[idx], 1.0)).xyz;
     return out;
 }

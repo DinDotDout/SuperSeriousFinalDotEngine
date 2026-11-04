@@ -194,12 +194,33 @@ dot_engine_run(DOT_Engine *engine)
                 rfl_ui_inspect(ctx, rfl_any(DOT_Camera, &g_camera));
                 nk_tree_pop(ctx);
             }
+            if(nk_tree_push(ctx, NK_TREE_TAB, "Sun", NK_MINIMIZED)){
+                rfl_ui_inspect(ctx, rfl_any(DOT_SunLight, &g_sun));
+                nk_tree_pop(ctx);
+            }
+            if(nk_tree_push(ctx, NK_TREE_TAB, "Shadows", NK_MINIMIZED)){
+                rfl_ui_inspect(ctx, rfl_any(DOT_ShadowParams, &g_shadow_params));
+                nk_tree_pop(ctx);
+            }
+            if(nk_tree_push(ctx, NK_TREE_TAB, "Tonemap", NK_MINIMIZED)){
+                rfl_ui_any(ctx, "exposure", rfl_any(f32, &engine->renderer.exposure));
+                nk_tree_pop(ctx);
+            }
+            if(nk_tree_push(ctx, NK_TREE_TAB, "Clouds", NK_MINIMIZED)){
+                rfl_ui_inspect(ctx, rfl_any(DOT_CloudParams, &g_cloud_params));
+                nk_tree_pop(ctx);
+            }
+            if(nk_tree_push(ctx, NK_TREE_TAB, "Settings", NK_MINIMIZED)){
+                dot_settings_ui(ctx);
+                nk_tree_pop(ctx);
+            }
         }
         nk_end(ctx);
 
         DOT_PROFILE_BLOCK("Frame begin"){ rn_frame_begin(&engine->renderer, dot_window_get_framebuffer_size(&engine->window)); }
 
         DOT_PROFILE_BLOCK("Game run"){ dot_game_run(engine->game); }
+        DOT_PROFILE_BLOCK("Tonemap"){ rn_tonemap(&engine->renderer); }
         DOT_PROFILE_BLOCK("UI draw"){ ui_render_draw(engine->ui_render, &engine->renderer, ctx, dot_window_get_size(&engine->window)); }
         nk_clear(ctx);
         DOT_PROFILE_BLOCK("Frame end"){ rn_frame_end(&engine->renderer); }
