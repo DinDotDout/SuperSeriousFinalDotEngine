@@ -50,86 +50,87 @@ typedef enum RB_TextureDescriptorKind
     RB_TextureDescriptorKind_Storage,
 }RB_TextureDescriptorKind;
 
-#define RB_FORMAT_KINDS(X) \
-    X(RB_FormatKind, None) \
-    /* sRGB */ \
-    X(RB_FormatKind, R8_SRGB) \
-    X(RB_FormatKind, RG8_SRGB) \
-    X(RB_FormatKind, RGBA8_SRGB) \
-    X(RB_FormatKind, BGRA8_SRGB) \
-    /* Packed UNORM */ \
-    X(RB_FormatKind, RGBA4_UNORM) \
-    X(RB_FormatKind, R5G5B5A1_UNORM) \
-    X(RB_FormatKind, R5G6B5_UNORM) \
-    /* UNORM */ \
-    X(RB_FormatKind, R8_UNORM) \
-    X(RB_FormatKind, RG8_UNORM) \
-    X(RB_FormatKind, RGBA8_UNORM) \
-    X(RB_FormatKind, BGRA8_UNORM) \
-    X(RB_FormatKind, R16_UNORM) \
-    X(RB_FormatKind, RG16_UNORM) \
-    X(RB_FormatKind, RGBA16_UNORM) \
-    /* UINT */ \
-    X(RB_FormatKind, R8_UINT) \
-    X(RB_FormatKind, RG8_UINT) \
-    X(RB_FormatKind, RGBA8_UINT) \
-    X(RB_FormatKind, BGRA8_UINT) \
-    X(RB_FormatKind, R16_UINT) \
-    X(RB_FormatKind, RG16_UINT) \
-    X(RB_FormatKind, RGBA16_UINT) \
-    X(RB_FormatKind, R32_UINT) \
-    X(RB_FormatKind, RG32_UINT) \
-    X(RB_FormatKind, RGB32_UINT) \
-    X(RB_FormatKind, RGBA32_UINT) \
-    /* FLOAT */ \
-    X(RB_FormatKind, R16_FLOAT) \
-    X(RB_FormatKind, RG16_FLOAT) \
-    X(RB_FormatKind, RGBA16_FLOAT) \
-    X(RB_FormatKind, R32_FLOAT) \
-    X(RB_FormatKind, RG32_FLOAT) \
-    X(RB_FormatKind, RGB32_FLOAT) \
-    X(RB_FormatKind, RGBA32_FLOAT) \
-    /* Special */ \
-    X(RB_FormatKind, RGB10A2_UNORM) \
-    /* Fast hdr */ \
-    X(RB_FormatKind, RG11B10_FLOAT) \
-    /* Depth / Stencil */ \
-    X(RB_FormatKind, D16_UNORM) \
-    X(RB_FormatKind, D24_UNORM_S8_UINT) \
-    X(RB_FormatKind, D32_FLOAT) \
-    X(RB_FormatKind, S8_UINT) \
-    X(RB_FormatKind, D32_FLOAT_S8_UINT) \
-    /* Compressed */ \
-    X(RB_FormatKind, EAC_RG) \
-    X(RB_FormatKind, ASTC_4X4_SRGB) \
-    X(RB_FormatKind, ASTC_4X4_UNORM) \
-    X(RB_FormatKind, BC3_SRGB) \
-    X(RB_FormatKind, BC3_UNORM) \
-    X(RB_FormatKind, BC5_RG) \
-    X(RB_FormatKind, BC6H_UFLOAT) \
-    X(RB_FormatKind, BC6H_SFLOAT) \
-    X(RB_FormatKind, BC7_SRGB) \
-    X(RB_FormatKind, BC7_UNORM)
-DOT_ENUM_REFLECT(RB_FormatKind, RB_FORMAT_KINDS)
+ReflectEnum(u32, RB_FormatKind,
+{
+    RB_FormatKind_None,
+
+    RB_FormatKind_R8_Srgb,              // SRGB
+    RB_FormatKind_Rg8_Srgb,
+    RB_FormatKind_Rgba8_Srgb,
+    RB_FormatKind_Bgra8_Srgb,
+
+    RB_FormatKind_Rgba4_Unorm,          // Packed Unorm
+    RB_FormatKind_R5g5b5a1_Unorm,
+    RB_FormatKind_R5g6b5_Unorm,
+
+    RB_FormatKind_R8_Unorm,             // Unorm
+    RB_FormatKind_Rg8_Unorm,
+    RB_FormatKind_Rgba8_Unorm,
+    RB_FormatKind_Bgra8_Unorm,
+    RB_FormatKind_R16_Unorm,
+    RB_FormatKind_Rg16_Unorm,
+    RB_FormatKind_Rgba16_Unorm,
+
+    RB_FormatKind_R8_Uint,              // Uint
+    RB_FormatKind_Rg8_Uint,
+    RB_FormatKind_Rgba8_Uint,
+    RB_FormatKind_Bgra8_Uint,
+    RB_FormatKind_R16_Uint,
+    RB_FormatKind_Rg16_Uint,
+    RB_FormatKind_Rgba16_Uint,
+    RB_FormatKind_R32_Uint,
+    RB_FormatKind_Rg32_Uint,
+    RB_FormatKind_Rgb32_Uint,
+    RB_FormatKind_Rgba32_Uint,
+
+    RB_FormatKind_R16_Float,             // Float
+    RB_FormatKind_Rg16_Float,
+    RB_FormatKind_Rgba16_Float,
+    RB_FormatKind_R32_Float,
+    RB_FormatKind_Rg32_Float,
+    RB_FormatKind_Rgb32_Float,
+    RB_FormatKind_Rgba32_Float,
+
+    RB_FormatKind_Rgb10a2_Unorm,        // Special
+    RB_FormatKind_Rg11b10_Float,        // Fast Hdr
+
+    RB_FormatKind_D16_Unorm,            // Depth Stencil
+    RB_FormatKind_D24_Unorm_S8_Uint,
+    RB_FormatKind_D32_Float,
+    RB_FormatKind_S8_Uint,
+    RB_FormatKind_D32_Float_S8_Uint,
+
+    RB_FormatKind_Eac_Rg,               // Compressed
+    RB_FormatKind_Astc_4X4_Srgb,
+    RB_FormatKind_Astc_4X4_Unorm,
+    RB_FormatKind_Bc3_Srgb,
+    RB_FormatKind_Bc3_Unorm,
+    RB_FormatKind_Bc5_Rg,
+    RB_FormatKind_Bc6h_UFloat,
+    RB_FormatKind_Bc6h_SFloat,
+    RB_FormatKind_Bc7_Srgb,
+    RB_FormatKind_Bc7_Unorm,
+});
 
 ////////////////////////////////////////////////////////////////
 /// RB_TEXTURE
 
-#define RB_TEXTURE_DIMENSION_KINDS(X) \
-    X(RB_TextureDimensionKind, 2D) \
-    X(RB_TextureDimensionKind, 1D) \
-    X(RB_TextureDimensionKind, 3D) \
-    X(RB_TextureDimensionKind, Array2D) \
-    X(RB_TextureDimensionKind, Cube) \
-    X(RB_TextureDimensionKind, CubeArray)
-DOT_ENUM_REFLECT(RB_TextureDimensionKind, RB_TEXTURE_DIMENSION_KINDS)
+ReflectEnum(u32, RB_TextureDimensionKind,
+{
+    RB_TextureDimensionKind_2D,
+    RB_TextureDimensionKind_1D,
+    RB_TextureDimensionKind_3D,
+    RB_TextureDimensionKind_Array2D,
+    RB_TextureDimensionKind_Cube,
+    RB_TextureDimensionKind_CubeArray,
+});
 
 typedef u8 RB_TextureFormatFlags;
 enum
 {
     RB_TextureFormatBit_None         = DOT_BIT(0),
     RB_TextureFormatBit_Compressed   = DOT_BIT(1),
-    RB_TextureFormatBit_SRGB         = DOT_BIT(2),
+    RB_TextureFormatBit_Srgb         = DOT_BIT(2),
     RB_TextureFormatBit_Depth        = DOT_BIT(3),
     RB_TextureFormatBit_Stencil      = DOT_BIT(4),
 };
@@ -181,26 +182,27 @@ internal RB_FormatKind rb_texture_format_from_info(int comp, u8 size_bytes, b32 
 ////////////////////////////////////////////////////////////////
 /// RB_SAMPLER
 
-#define RB_SAMPLER_FILTER_KINDS(X) \
-    X(RB_SamplerFilterKind, Nearest) \
-    X(RB_SamplerFilterKind, Linear) \
-    X(RB_SamplerFilterKind, Cubic)
+ReflectEnum(u32, RB_SamplerFilterKind,
+{
+    RB_SamplerFilterKind_Nearest,
+    RB_SamplerFilterKind_Linear,
+    RB_SamplerFilterKind_Cubic,
+});
 
-DOT_ENUM_REFLECT(RB_SamplerFilterKind, RB_SAMPLER_FILTER_KINDS);
+ReflectEnum(u32, RB_SamplerMipmapFilterKind,
+{
+    RB_SamplerMipmapFilterKind_Nearest,
+    RB_SamplerMipmapFilterKind_Linear,
+});
 
-#define RB_SAMPLER_MIP_MAP_MODE_KINDS(X) \
-    X(RB_SamplerMipmapFilterKind, Nearest) \
-    X(RB_SamplerMipmapFilterKind, Linear) \
-
-DOT_ENUM_REFLECT(RB_SamplerMipmapFilterKind, RB_SAMPLER_MIP_MAP_MODE_KINDS);
-
-#define RB_SAMPLER_ADDRESS_MODE_KINDS(X) \
-    X(RB_SamplerAddressModeKind, Repeat) \
-    X(RB_SamplerAddressModeKind, MirroredRepeat) \
-    X(RB_SamplerAddressModeKind, ClampToEdge) \
-    X(RB_SamplerAddressModeKind, ClampToBorder) \
-    X(RB_SamplerAddressModeKind, MirrorClampToEdge)
-DOT_ENUM_REFLECT(RB_SamplerAddressModeKind, RB_SAMPLER_ADDRESS_MODE_KINDS);
+ReflectEnum(u32, RB_SamplerAddressModeKind,
+{
+    RB_SamplerAddressModeKind_Repeat,
+    RB_SamplerAddressModeKind_MirroredRepeat,
+    RB_SamplerAddressModeKind_ClampToEdge,
+    RB_SamplerAddressModeKind_ClampToBorder,
+    RB_SamplerAddressModeKind_MirrorClampToEdge,
+});
 
 typedef struct RB_SamplerDesc
 {
@@ -572,12 +574,13 @@ typedef struct RB_SubmitDesc
 ////////////////////////////////////////////////////////////////
 /// RB_SWAPCHAIN
 
-#define RB_PRESENT_MODE_KINDS(X) \
-    X(RB_PresentModeKind, Immediate) \
-    X(RB_PresentModeKind, Fifo) \
-    X(RB_PresentModeKind, FifoRelaxed) \
-    X(RB_PresentModeKind, Mailbox)
-DOT_ENUM_REFLECT(RB_PresentModeKind, RB_PRESENT_MODE_KINDS)
+ReflectEnum(u32, RB_PresentModeKind, 
+{
+    RB_PresentModeKind_Immediate,
+    RB_PresentModeKind_Fifo,
+    RB_PresentModeKind_FifoRelaxed,
+    RB_PresentModeKind_Mailbox,
+});
 
 // RB_HANDLE_VALID(swapchain) false if minimized - nothing to render this tick
 typedef struct RB_SwapchainFrame

@@ -108,110 +108,110 @@ rb_texture_format_info_from_format(RB_FormatKind fmt)
         return info;
 
     // 1 byte/texel
-    case RB_FormatKind_R8_UNORM:
-    case RB_FormatKind_R8_UINT:
+    case RB_FormatKind_R8_Unorm:
+    case RB_FormatKind_R8_Uint:
         info.block_size = 1;
     break;
-    case RB_FormatKind_R8_SRGB:
+    case RB_FormatKind_R8_Srgb:
         info.block_size = 1;
-        info.format_flags |= RB_TextureFormatBit_SRGB;
+        info.format_flags |= RB_TextureFormatBit_Srgb;
     break;
-    case RB_FormatKind_S8_UINT:
+    case RB_FormatKind_S8_Uint:
         info.block_size = 1;
         info.format_flags |= RB_TextureFormatBit_Stencil;
     break;
 
     // 2 bytes/texel
-    case RB_FormatKind_RG8_UNORM:
-    case RB_FormatKind_RG8_UINT:
-    case RB_FormatKind_RGBA4_UNORM:
-    case RB_FormatKind_R5G5B5A1_UNORM:
-    case RB_FormatKind_R5G6B5_UNORM:
-    case RB_FormatKind_R16_UNORM:
-    case RB_FormatKind_R16_UINT:
-    case RB_FormatKind_R16_FLOAT:
+    case RB_FormatKind_Rg8_Unorm:
+    case RB_FormatKind_Rg8_Uint:
+    case RB_FormatKind_Rgba4_Unorm:
+    case RB_FormatKind_R5g5b5a1_Unorm:
+    case RB_FormatKind_R5g6b5_Unorm:
+    case RB_FormatKind_R16_Unorm:
+    case RB_FormatKind_R16_Uint:
+    case RB_FormatKind_R16_Float:
         info.block_size = 2;
     break;
-    case RB_FormatKind_RG8_SRGB:
+    case RB_FormatKind_Rg8_Srgb:
         info.block_size = 2;
-        info.format_flags |= RB_TextureFormatBit_SRGB;
+        info.format_flags |= RB_TextureFormatBit_Srgb;
     break;
-    case RB_FormatKind_D16_UNORM:
+    case RB_FormatKind_D16_Unorm:
         info.block_size = 2;
         info.format_flags |= RB_TextureFormatBit_Depth;
     break;
 
     // 4 bytes/texel
-    case RB_FormatKind_RGBA8_UNORM:
-    case RB_FormatKind_RGBA8_UINT:
-    case RB_FormatKind_BGRA8_UNORM:
-    case RB_FormatKind_BGRA8_UINT:
-    case RB_FormatKind_RG16_UNORM:
-    case RB_FormatKind_RG16_UINT:
-    case RB_FormatKind_RG16_FLOAT:
-    case RB_FormatKind_R32_UINT:
-    case RB_FormatKind_R32_FLOAT:
-    case RB_FormatKind_RGB10A2_UNORM:
-    case RB_FormatKind_RG11B10_FLOAT:
+    case RB_FormatKind_Rgba8_Unorm:
+    case RB_FormatKind_Rgba8_Uint:
+    case RB_FormatKind_Bgra8_Unorm:
+    case RB_FormatKind_Bgra8_Uint:
+    case RB_FormatKind_Rg16_Unorm:
+    case RB_FormatKind_Rg16_Uint:
+    case RB_FormatKind_Rg16_Float:
+    case RB_FormatKind_R32_Uint:
+    case RB_FormatKind_R32_Float:
+    case RB_FormatKind_Rgb10a2_Unorm:
+    case RB_FormatKind_Rg11b10_Float:
         info.block_size = 4;
     break;
-    case RB_FormatKind_RGBA8_SRGB:
-    case RB_FormatKind_BGRA8_SRGB:
+    case RB_FormatKind_Rgba8_Srgb:
+    case RB_FormatKind_Bgra8_Srgb:
         info.block_size = 4;
-        info.format_flags |= RB_TextureFormatBit_SRGB;
+        info.format_flags |= RB_TextureFormatBit_Srgb;
     break;
-    case RB_FormatKind_D32_FLOAT:
+    case RB_FormatKind_D32_Float:
         info.block_size = 4;
         info.format_flags |= RB_TextureFormatBit_Depth;
     break;
-    case RB_FormatKind_D24_UNORM_S8_UINT:
+    case RB_FormatKind_D24_Unorm_S8_Uint:
         info.block_size = 4;
         info.format_flags |= RB_TextureFormatBit_Depth | RB_TextureFormatBit_Stencil;
     break;
 
     // Depth + stencil, 32F + 8 stencil
-    case RB_FormatKind_D32_FLOAT_S8_UINT:
+    case RB_FormatKind_D32_Float_S8_Uint:
         info.block_size = 5;
         info.format_flags |= RB_TextureFormatBit_Depth | RB_TextureFormatBit_Stencil;
     break;
 
     // 8 bytes/texel
-    case RB_FormatKind_RGBA16_UNORM:
-    case RB_FormatKind_RGBA16_UINT:
-    case RB_FormatKind_RGBA16_FLOAT:
-    case RB_FormatKind_RG32_UINT:
-    case RB_FormatKind_RG32_FLOAT:
+    case RB_FormatKind_Rgba16_Unorm:
+    case RB_FormatKind_Rgba16_Uint:
+    case RB_FormatKind_Rgba16_Float:
+    case RB_FormatKind_Rg32_Uint:
+    case RB_FormatKind_Rg32_Float:
         info.block_size = 8;
     break;
 
     // 12 bytes/texel
-    case RB_FormatKind_RGB32_UINT:
-    case RB_FormatKind_RGB32_FLOAT:
+    case RB_FormatKind_Rgb32_Uint:
+    case RB_FormatKind_Rgb32_Float:
         info.block_size = 12;
     break;
 
     // 16 bytes/texel
-    case RB_FormatKind_RGBA32_UINT:
-    case RB_FormatKind_RGBA32_FLOAT:
+    case RB_FormatKind_Rgba32_Uint:
+    case RB_FormatKind_Rgba32_Float:
         info.block_size = 16;
     break;
 
     // Compressed, 16 bytes per 4x4 block
-    case RB_FormatKind_EAC_RG:
-    case RB_FormatKind_ASTC_4X4_UNORM:
-    case RB_FormatKind_BC3_UNORM:
-    case RB_FormatKind_BC5_RG:
-    case RB_FormatKind_BC6H_UFLOAT:
-    case RB_FormatKind_BC6H_SFLOAT:
-    case RB_FormatKind_BC7_UNORM:
+    case RB_FormatKind_Eac_Rg:
+    case RB_FormatKind_Astc_4X4_Unorm:
+    case RB_FormatKind_Bc3_Unorm:
+    case RB_FormatKind_Bc5_Rg:
+    case RB_FormatKind_Bc6h_UFloat:
+    case RB_FormatKind_Bc6h_SFloat:
+    case RB_FormatKind_Bc7_Unorm:
         info.block_size = 16;
         info.format_flags |= RB_TextureFormatBit_Compressed;
     break;
-    case RB_FormatKind_ASTC_4X4_SRGB:
-    case RB_FormatKind_BC3_SRGB:
-    case RB_FormatKind_BC7_SRGB:
+    case RB_FormatKind_Astc_4X4_Srgb:
+    case RB_FormatKind_Bc3_Srgb:
+    case RB_FormatKind_Bc7_Srgb:
         info.block_size = 16;
-        info.format_flags |= RB_TextureFormatBit_Compressed | RB_TextureFormatBit_SRGB;
+        info.format_flags |= RB_TextureFormatBit_Compressed | RB_TextureFormatBit_Srgb;
     break;
     }
     return info;
@@ -223,24 +223,24 @@ rb_texture_format_from_info(int comp, u8 size_bytes, b32 srgb)
 {
     if(size_bytes == 4){ // 32-bit float per channel (.hdr)
         switch(comp){
-        case 1: return RB_FormatKind_R32_FLOAT;
-        case 2: return RB_FormatKind_RG32_FLOAT;
-        case 3: return RB_FormatKind_RGBA32_FLOAT;
-        case 4: return RB_FormatKind_RGBA32_FLOAT;
+        case 1: return RB_FormatKind_R32_Float;
+        case 2: return RB_FormatKind_Rg32_Float;
+        case 3: return RB_FormatKind_Rgba32_Float;
+        case 4: return RB_FormatKind_Rgba32_Float;
         }
     }else if(size_bytes == 2){ // 16-bit integer formats (PNG, TGA, etc.)
         switch(comp){
-        case 1: return RB_FormatKind_R16_FLOAT;
-        case 2: return RB_FormatKind_RG16_FLOAT;
-        case 3: return RB_FormatKind_RGBA16_FLOAT;
-        case 4: return RB_FormatKind_RGBA16_FLOAT;
+        case 1: return RB_FormatKind_R16_Float;
+        case 2: return RB_FormatKind_Rg16_Float;
+        case 3: return RB_FormatKind_Rgba16_Float;
+        case 4: return RB_FormatKind_Rgba16_Float;
         }
     }else if(size_bytes == 1){
         switch(comp){ // 8-bit formats
-        case 1: return RB_FormatKind_R8_UNORM;
-        case 2: return RB_FormatKind_RG8_UNORM;
-        // case 3: return srgb ? RB_FormatKind_RGB8_SRGB : RB_FormatKind_RGB8_UNORM;
-        case 4: return srgb ? RB_FormatKind_RGBA8_SRGB : RB_FormatKind_RGBA8_UNORM;
+        case 1: return RB_FormatKind_R8_Unorm;
+        case 2: return RB_FormatKind_Rg8_Unorm;
+        // case 3: return srgb ? RB_FormatKind_RGB8_Srgb : RB_FormatKind_RGB8_Unorm;
+        case 4: return srgb ? RB_FormatKind_Rgba8_Srgb : RB_FormatKind_Rgba8_Unorm;
         }
     }
     return RB_FormatKind_None;

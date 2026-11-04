@@ -14,7 +14,7 @@ ui_render_init(UI_Render *ui, RN_RenderCtx *renderer, struct nk_context *ctx)
 
     RB_TextureDesc atlas_desc = {0};
     atlas_desc.dimension_kind = RB_TextureDimensionKind_2D;
-    atlas_desc.format_kind    = RB_FormatKind_RGBA8_UNORM;
+    atlas_desc.format_kind    = RB_FormatKind_Rgba8_Unorm;
     atlas_desc.width          = cast(u16)atlas_w;
     atlas_desc.height         = cast(u16)atlas_h;
     atlas_desc.depth          = 1;

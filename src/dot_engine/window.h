@@ -3,11 +3,12 @@
 
 enum { DOT_WINDOW_TEXT_MAX = 64 };
 
-#define DOT_WINDOW_MODE_KINDS(X) \
-    X(DOT_WindowModeKind, Fullscreen) \
-    X(DOT_WindowModeKind, Maximized) \
-    X(DOT_WindowModeKind, Windowed)
-DOT_ENUM_REFLECT_TYPED(i32, DOT_WindowModeKind, DOT_WINDOW_MODE_KINDS)
+ReflectEnum(u32, DOT_WindowModeKind, 
+{
+    DOT_WindowModeKind_Fullscreen,
+    DOT_WindowModeKind_Maximized,
+    DOT_WindowModeKind_Windowed,
+});
 
 #define DOT_WINDOW_SYSTEM_KINDS(X) \
     X(DOT_WindowSystemKind, Default) \
@@ -15,7 +16,8 @@ DOT_ENUM_REFLECT_TYPED(i32, DOT_WindowModeKind, DOT_WINDOW_MODE_KINDS)
     X(DOT_WindowSystemKind, Wayland)
 DOT_ENUM_REFLECT_TYPED(i32, DOT_WindowSystemKind, DOT_WINDOW_SYSTEM_KINDS)
 
-typedef enum DOT_KeyKind{
+typedef enum DOT_KeyKind
+{
     DOT_KeyKind_Delete,
     DOT_KeyKind_Return,
     DOT_KeyKind_Tab,
@@ -39,7 +41,8 @@ typedef enum DOT_KeyKind{
     DOT_KeyKind_Count,
 }DOT_KeyKind;
 
-typedef enum DOT_MouseButtonKind{
+typedef enum DOT_MouseButtonKind
+{
     DOT_MouseButtonKind_Left,
     DOT_MouseButtonKind_Middle,
     DOT_MouseButtonKind_Right,
