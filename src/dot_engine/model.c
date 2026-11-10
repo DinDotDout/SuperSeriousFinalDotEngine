@@ -129,16 +129,26 @@ typedef struct DOT_TextureBakePending
     u8                   *blocks;
 }DOT_TextureBakePending;
 
+// The textures recorded into one upload batch, and the timeline point that batch signals once it
+// was submitted. One per renderer transient buffer, used in turn
+typedef struct DOT_TextureBakeBatch
+{
+    DOT_TextureBakePending *pending;
+    u32                     pending_count;
+    b32                     in_flight;
+    RB_TimelinePoint        submitted;
+}DOT_TextureBakeBatch;
+
 // Everything one model bake works with: the .dotm being written, where the next block goes, the
-// blocks already in it, the textures waiting on the GPU, and the cache that receives each GPU
+// blocks already in it, the texture batches on the GPU, and the cache that receives each GPU
 // resource as it's baked
 typedef struct DOT_ModelBakeCtx
 {
     Arena                    *arena;
     DOT_AssetCache           *cache;
     DOT_TextureBakePipelines  textures;
-    DOT_TextureBakePending   *pending;
-    u32                       pending_count;
+    DOT_TextureBakeBatch      batches[RN_TRANSIENT_BUFFER_COUNT];
+    u32                       recording;
     PlatformFile              file;
     b32                       file_ok;
     u64                       file_cursor;
@@ -827,21 +837,47 @@ dot_model_bake_texture_finish(DOT_ModelBakeCtx *ctx, DOT_ModelFileTexture *out, 
 }
 
 internal void
-dot_model_bake_texture_flush(DOT_ModelBakeCtx *ctx)
+dot_model_bake_texture_finish_batch(DOT_ModelBakeCtx *ctx, DOT_TextureBakeBatch *batch)
 {
-    if(!ctx->pending_count){
+    if(!batch->in_flight){
         return;
     }
     RN_RenderCtx *renderer = ctx->cache->renderer;
-    DOT_PROFILE_BLOCK("Bake texture flush"){
-        rn_upload_flush(renderer);
+    DOT_PROFILE_BLOCK("Bake texture batch wait"){
+        rb_timeline_wait(batch->submitted);
     }
-    for(u32 i = 0; i < ctx->pending_count; ++i){
-        dot_model_bake_texture_finish(ctx, ctx->pending[i].out, ctx->pending[i].blocks);
+    for(u32 i = 0; i < batch->pending_count; ++i){
+        dot_model_bake_texture_finish(ctx, batch->pending[i].out, batch->pending[i].blocks);
     }
-    ctx->pending_count = 0;
+    batch->pending_count = 0;
+    batch->in_flight     = false;
     rn_scratch_reset(renderer);
     rn_readback_reset(renderer);
+}
+
+internal void
+dot_model_bake_texture_submit(DOT_ModelBakeCtx *ctx)
+{
+    DOT_TextureBakeBatch *current = &ctx->batches[ctx->recording];
+    if(!current->pending_count){
+        return;
+    }
+    RN_RenderCtx *renderer = ctx->cache->renderer;
+    current->submitted = rn_upload_submit(renderer);
+    current->in_flight = true;
+
+    rn_transient_next(renderer);
+    ctx->recording = (ctx->recording + 1) % RN_TRANSIENT_BUFFER_COUNT;
+    dot_model_bake_texture_finish_batch(ctx, &ctx->batches[ctx->recording]);
+}
+
+internal void
+dot_model_bake_texture_drain(DOT_ModelBakeCtx *ctx)
+{
+    dot_model_bake_texture_submit(ctx);
+    rn_transient_next(ctx->cache->renderer);
+    ctx->recording = (ctx->recording + 1) % RN_TRANSIENT_BUFFER_COUNT;
+    dot_model_bake_texture_finish_batch(ctx, &ctx->batches[ctx->recording]);
 }
 
 internal void
@@ -849,7 +885,7 @@ dot_model_bake_texture_make_room(DOT_ModelBakeCtx *ctx, i64 scratch_size, i64 re
 {
     RN_RenderCtx *renderer = ctx->cache->renderer;
     if(!rn_scratch_fits(renderer, scratch_size) || !rn_readback_fits(renderer, readback_size)){
-        dot_model_bake_texture_flush(ctx);
+        dot_model_bake_texture_submit(ctx);
     }
 }
 
@@ -926,7 +962,8 @@ dot_model_bake_texture(DOT_ModelBakeCtx *ctx, String8 path, DOT_ModelBakeTexture
                 blocks = dot_texture_bake_bc7(renderer, pipelines, &layout, cast(u8*)data, srgb, out);
             }
         }
-        ctx->pending[ctx->pending_count++] = (DOT_TextureBakePending){ .out = out, .blocks = blocks };
+        DOT_TextureBakeBatch *batch = &ctx->batches[ctx->recording];
+        batch->pending[batch->pending_count++] = (DOT_TextureBakePending){ .out = out, .blocks = blocks };
         temp_arena_restore(temp);
         return(true);
     }
@@ -1123,7 +1160,9 @@ dot_model_bake(DOT_AssetCache *cache, String8 gltf_path, String8 baked_path, b32
     ctx.file_ok     = ctx.file.handle != NULL;
     ctx.file_cursor = cursor;
     ctx.blocks      = dot_block_table_create(s.arena, cast(u64)header.texture_count + header.mesh_count);
-    ctx.pending     = PUSH_ARRAY(s.arena, DOT_TextureBakePending, header.texture_count);
+    for EACH_INDEX(i, RN_TRANSIENT_BUFFER_COUNT){
+        ctx.batches[i].pending = PUSH_ARRAY(s.arena, DOT_TextureBakePending, header.texture_count);
+    }
 
     DOT_ModelBakeTextureUse *texture_use = PUSH_ARRAY(s.arena, DOT_ModelBakeTextureUse, header.texture_count);
     for(cgltf_size i = 0; i < gltf_data->materials_count; ++i){
@@ -1152,7 +1191,7 @@ dot_model_bake(DOT_AssetCache *cache, String8 gltf_path, String8 baked_path, b32
             String8 image_path = string8_format(s.arena, "%S/%s", folder, gltf_data->images[i].uri);
             texture_valid[i] = dot_model_bake_texture(&ctx, image_path, texture_use[i], &textures[i]);
         }
-        dot_model_bake_texture_flush(&ctx);
+        dot_model_bake_texture_drain(&ctx);
     }
     if(compress && header.texture_count){
         dot_texture_bake_pipelines_end(cache->renderer, &ctx.textures);

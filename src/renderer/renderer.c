@@ -6,8 +6,8 @@ DOT_BOOT_SETTING(u32,"Render", rn_g_texture_heap_size_b, DOT_MB(512));
 DOT_BOOT_SETTING(u32,"Render", rn_g_data_heap_size_b, DOT_MB(64));
 DOT_BOOT_SETTING(u32,"Render", rn_g_frame_heap_size_b, DOT_MB(4));   // per frame in flight
 DOT_BOOT_SETTING(u32,"Render", rn_g_upload_heap_size_b, DOT_MB(128)); // per frame in flight
-DOT_BOOT_SETTING(u32,"Render", rn_g_scratch_heap_size_b, DOT_MB(128));
-DOT_BOOT_SETTING(u32,"Render", rn_g_readback_heap_size_b, DOT_MB(64));
+DOT_BOOT_SETTING(u32,"Render", rn_g_scratch_heap_size_b, DOT_MB(128));  // per transient buffer
+DOT_BOOT_SETTING(u32,"Render", rn_g_readback_heap_size_b, DOT_MB(64));  // per transient buffer
 DOT_BOOT_SETTING(u32,"Render", rn_g_delete_queue_capacity, 256);
 DOT_BOOT_SETTING(u32,"Render", rn_g_texture_descriptor_max, 16384);
 DOT_BOOT_SETTING(u32,"Render", rn_g_sampler_descriptor_max, 32);
@@ -96,8 +96,10 @@ rn_init(Arena *arena, RN_RenderCtx *renderer, PlatformNativeWindow native_window
 
     renderer->texture_heap = rb_texture_heap_arena_create(rn_g_texture_heap_size_b);
     renderer->data_heap     = rb_gpu_arena_create(rn_g_data_heap_size_b);
-    renderer->scratch_heap  = rb_gpu_arena_create(rn_g_scratch_heap_size_b);
-    renderer->readback_heap = rb_cpu_gpu_arena_create(RB_MemoryKind_Readback, rn_g_readback_heap_size_b);
+    for EACH_INDEX(i, RN_TRANSIENT_BUFFER_COUNT){
+        renderer->scratch_heaps[i]  = rb_gpu_arena_create(rn_g_scratch_heap_size_b);
+        renderer->readback_heaps[i] = rb_cpu_gpu_arena_create(RB_MemoryKind_Readback, rn_g_readback_heap_size_b);
+    }
     for EACH_INDEX(i, renderer->frame_data_count){
         renderer->frame_datas[i].frame_heap  = rb_cpu_gpu_arena_create(RB_MemoryKind_CpuToGpu, rn_g_frame_heap_size_b);
         renderer->frame_datas[i].upload_heap = rb_cpu_gpu_arena_create(RB_MemoryKind_Staging, rn_g_upload_heap_size_b);
@@ -153,8 +155,10 @@ rn_shutdown(RN_RenderCtx *renderer)
         rb_command_pool_destroy(renderer->frame_datas[i].upload_pool);
     }
     rb_gpu_arena_destroy(&renderer->data_heap);
-    rb_gpu_arena_destroy(&renderer->scratch_heap);
-    rb_cpu_gpu_arena_destroy(&renderer->readback_heap);
+    for EACH_INDEX(i, RN_TRANSIENT_BUFFER_COUNT){
+        rb_gpu_arena_destroy(&renderer->scratch_heaps[i]);
+        rb_cpu_gpu_arena_destroy(&renderer->readback_heaps[i]);
+    }
     rb_gpu_heap_destroy(renderer->texture_descriptor_heap);
     rb_gpu_heap_destroy(renderer->sampler_descriptor_heap);
     mutex_release(&renderer->upload_mutex);
@@ -274,7 +278,7 @@ rn_data_alloc(RN_RenderCtx *renderer, i64 size)
 internal RB_GpuAddress
 rn_scratch_alloc(RN_RenderCtx *renderer, i64 size)
 {
-    RB_GpuRange range = rb_gpu_arena_alloc_atomic(&renderer->scratch_heap, size);
+    RB_GpuRange range = rb_gpu_arena_alloc_atomic(&renderer->scratch_heaps[renderer->transient_index], size);
     DOT_ASSERT(range.gpu, "Scratch heap exhausted (%M bytes requested), raise rn_g_scratch_heap_size_b", size);
     return(range.gpu);
 }
@@ -282,19 +286,20 @@ rn_scratch_alloc(RN_RenderCtx *renderer, i64 size)
 internal b32
 rn_scratch_fits(RN_RenderCtx *renderer, i64 size)
 {
-    return(renderer->scratch_heap.used + ALIGN_POW2(size, cast(i64)RB_GPU_ARENA_ALIGN) <= renderer->scratch_heap.size);
+    RB_GpuArena *heap = &renderer->scratch_heaps[renderer->transient_index];
+    return(heap->used + ALIGN_POW2(size, cast(i64)RB_GPU_ARENA_ALIGN) <= heap->size);
 }
 
 internal void
 rn_scratch_reset(RN_RenderCtx *renderer)
 {
-    renderer->scratch_heap.used = 0;
+    renderer->scratch_heaps[renderer->transient_index].used = 0;
 }
 
 internal RB_CpuGpuSpan
 rn_readback_reserve(RN_RenderCtx *renderer, i64 size)
 {
-    RB_CpuGpuSpan span = rb_cpu_gpu_arena_reserve_atomic(&renderer->readback_heap, size);
+    RB_CpuGpuSpan span = rb_cpu_gpu_arena_reserve_atomic(&renderer->readback_heaps[renderer->transient_index], size);
     DOT_ASSERT(span.cpu, "Readback heap exhausted (%M bytes requested), raise rn_g_readback_heap_size_b", size);
     return(span);
 }
@@ -302,13 +307,19 @@ rn_readback_reserve(RN_RenderCtx *renderer, i64 size)
 internal b32
 rn_readback_fits(RN_RenderCtx *renderer, i64 size)
 {
-    return(rb_cpu_gpu_arena_fits(&renderer->readback_heap, size));
+    return(rb_cpu_gpu_arena_fits(&renderer->readback_heaps[renderer->transient_index], size));
 }
 
 internal void
 rn_readback_reset(RN_RenderCtx *renderer)
 {
-    rb_cpu_gpu_arena_reset(&renderer->readback_heap);
+    rb_cpu_gpu_arena_reset(&renderer->readback_heaps[renderer->transient_index]);
+}
+
+internal void
+rn_transient_next(RN_RenderCtx *renderer)
+{
+    renderer->transient_index = (renderer->transient_index + 1) % RN_TRANSIENT_BUFFER_COUNT;
 }
 
 internal void
@@ -328,6 +339,14 @@ rn_upload_submit_(RN_RenderCtx *renderer)
     RB_TimelinePoint completion = { renderer->upload_timeline, renderer->upload_value };
     rb_submit(&(RB_SubmitDesc){ .command_buffers = &renderer->upload_cmd, .command_buffer_count = 1, .completion = completion });
     renderer->frame_datas[rn_frame_slot(renderer)].last_submit = completion;
+    return(completion);
+}
+
+internal RB_TimelinePoint
+rn_upload_submit(RN_RenderCtx *renderer)
+{
+    RB_TimelinePoint completion = rn_upload_submit_(renderer);
+    renderer->upload_cmd = rb_commands_begin(renderer->frame_datas[rn_frame_slot(renderer)].upload_pool);
     return(completion);
 }
 

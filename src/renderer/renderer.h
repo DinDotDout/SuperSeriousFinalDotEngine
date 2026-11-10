@@ -6,6 +6,7 @@
 enum
 {
     RN_RESOURCE_CLEANUP_CTX_TEXTURES  = 64,
+    RN_TRANSIENT_BUFFER_COUNT         = 2,
 };
 
 typedef struct RN_BindlessTexture
@@ -57,8 +58,10 @@ typedef struct RN_RenderCtx{
 
     // Persistent geometry/material data, filled through rn_upload_memory.
     RB_GpuArena data_heap;
-    RB_GpuArena    scratch_heap;
-    RB_CpuGpuArena readback_heap;
+    // Buffered so one batch can run on the GPU while the next is recorded (rn_transient_next)
+    RB_GpuArena    scratch_heaps[RN_TRANSIENT_BUFFER_COUNT];
+    RB_CpuGpuArena readback_heaps[RN_TRANSIENT_BUFFER_COUNT];
+    u32            transient_index;
 
     RB_GpuHeap      texture_descriptor_heap;
     u32             next_texture_slot;
@@ -117,7 +120,9 @@ internal void               rn_scratch_reset(RN_RenderCtx *renderer);
 internal RB_CpuGpuSpan      rn_readback_reserve(RN_RenderCtx *renderer, i64 size);
 internal b32                rn_readback_fits(RN_RenderCtx *renderer, i64 size);
 internal void               rn_readback_reset(RN_RenderCtx *renderer);
+internal void               rn_transient_next(RN_RenderCtx *renderer);
 internal void               rn_upload_begin(RN_RenderCtx *renderer);
+internal RB_TimelinePoint   rn_upload_submit(RN_RenderCtx *renderer);
 internal void               rn_upload_flush(RN_RenderCtx *renderer);
 internal void               rn_upload_memory(RN_RenderCtx *renderer, RB_GpuAddress dst, void *src, i64 size);
 internal RB_CpuGpuSpan      rn_upload_reserve(RN_RenderCtx *renderer, i64 size);
