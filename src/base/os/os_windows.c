@@ -23,7 +23,6 @@ platform_os_read_timer()
 internal void
 os_print_stacktrace()
 {
-#if DOT_DEBUG
     thread_local local_persist void* buffer[4096];
     USHORT frames = CaptureStackBackTrace(0, DOT_ARRAY_COUNT(buffer), buffer, NULL);
 
@@ -55,7 +54,6 @@ os_print_stacktrace()
             fprintf(stderr, "%d. [0x%016" PRIX64 "] ???\n", i+1, addr);
         }
     }
-#endif // !DOT_DEBUG
 }
 
 internal LONG WINAPI
@@ -106,7 +104,11 @@ os_set_working_directory_to_project_root()
 internal void
 os_init()
 {
+#if DOT_DEBUG
+#   if DOT_USE_HANDLERS
     os_install_handlers();
+#   endif
+#endif
     os_set_working_directory_to_project_root();
 }
 

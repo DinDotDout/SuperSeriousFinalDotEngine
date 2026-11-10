@@ -5,7 +5,9 @@ DOT_BOOT_SETTING(u32,"Render", rn_g_cleanup_resource_pool_max, 128);
 DOT_BOOT_SETTING(u32,"Render", rn_g_texture_heap_size_b, DOT_MB(512));
 DOT_BOOT_SETTING(u32,"Render", rn_g_data_heap_size_b, DOT_MB(64));
 DOT_BOOT_SETTING(u32,"Render", rn_g_frame_heap_size_b, DOT_MB(4));   // per frame in flight
-DOT_BOOT_SETTING(u32,"Render", rn_g_upload_heap_size_b, DOT_MB(32)); // per frame in flight
+DOT_BOOT_SETTING(u32,"Render", rn_g_upload_heap_size_b, DOT_MB(128)); // per frame in flight
+DOT_BOOT_SETTING(u32,"Render", rn_g_scratch_heap_size_b, DOT_MB(128));
+DOT_BOOT_SETTING(u32,"Render", rn_g_readback_heap_size_b, DOT_MB(64));
 DOT_BOOT_SETTING(u32,"Render", rn_g_delete_queue_capacity, 256);
 DOT_BOOT_SETTING(u32,"Render", rn_g_texture_descriptor_max, 16384);
 DOT_BOOT_SETTING(u32,"Render", rn_g_sampler_descriptor_max, 32);
@@ -93,7 +95,9 @@ rn_init(Arena *arena, RN_RenderCtx *renderer, PlatformNativeWindow native_window
     renderer->descriptor_heap  = device_info.descriptor_heap;
 
     renderer->texture_heap = rb_texture_heap_arena_create(rn_g_texture_heap_size_b);
-    renderer->data_heap    = rb_gpu_arena_create(rn_g_data_heap_size_b);
+    renderer->data_heap     = rb_gpu_arena_create(rn_g_data_heap_size_b);
+    renderer->scratch_heap  = rb_gpu_arena_create(rn_g_scratch_heap_size_b);
+    renderer->readback_heap = rb_cpu_gpu_arena_create(RB_MemoryKind_Readback, rn_g_readback_heap_size_b);
     for EACH_INDEX(i, renderer->frame_data_count){
         renderer->frame_datas[i].frame_heap  = rb_cpu_gpu_arena_create(RB_MemoryKind_CpuToGpu, rn_g_frame_heap_size_b);
         renderer->frame_datas[i].upload_heap = rb_cpu_gpu_arena_create(RB_MemoryKind_Staging, rn_g_upload_heap_size_b);
@@ -149,6 +153,8 @@ rn_shutdown(RN_RenderCtx *renderer)
         rb_command_pool_destroy(renderer->frame_datas[i].upload_pool);
     }
     rb_gpu_arena_destroy(&renderer->data_heap);
+    rb_gpu_arena_destroy(&renderer->scratch_heap);
+    rb_cpu_gpu_arena_destroy(&renderer->readback_heap);
     rb_gpu_heap_destroy(renderer->texture_descriptor_heap);
     rb_gpu_heap_destroy(renderer->sampler_descriptor_heap);
     mutex_release(&renderer->upload_mutex);
@@ -265,6 +271,46 @@ rn_data_alloc(RN_RenderCtx *renderer, i64 size)
     return(range.gpu);
 }
 
+internal RB_GpuAddress
+rn_scratch_alloc(RN_RenderCtx *renderer, i64 size)
+{
+    RB_GpuRange range = rb_gpu_arena_alloc_atomic(&renderer->scratch_heap, size);
+    DOT_ASSERT(range.gpu, "Scratch heap exhausted (%M bytes requested), raise rn_g_scratch_heap_size_b", size);
+    return(range.gpu);
+}
+
+internal b32
+rn_scratch_fits(RN_RenderCtx *renderer, i64 size)
+{
+    return(renderer->scratch_heap.used + ALIGN_POW2(size, cast(i64)RB_GPU_ARENA_ALIGN) <= renderer->scratch_heap.size);
+}
+
+internal void
+rn_scratch_reset(RN_RenderCtx *renderer)
+{
+    renderer->scratch_heap.used = 0;
+}
+
+internal RB_CpuGpuSpan
+rn_readback_reserve(RN_RenderCtx *renderer, i64 size)
+{
+    RB_CpuGpuSpan span = rb_cpu_gpu_arena_reserve_atomic(&renderer->readback_heap, size);
+    DOT_ASSERT(span.cpu, "Readback heap exhausted (%M bytes requested), raise rn_g_readback_heap_size_b", size);
+    return(span);
+}
+
+internal b32
+rn_readback_fits(RN_RenderCtx *renderer, i64 size)
+{
+    return(rb_cpu_gpu_arena_fits(&renderer->readback_heap, size));
+}
+
+internal void
+rn_readback_reset(RN_RenderCtx *renderer)
+{
+    rb_cpu_gpu_arena_reset(&renderer->readback_heap);
+}
+
 internal void
 rn_upload_begin(RN_RenderCtx *renderer)
 {
@@ -285,6 +331,15 @@ rn_upload_submit_(RN_RenderCtx *renderer)
     return(completion);
 }
 
+internal void
+rn_upload_flush(RN_RenderCtx *renderer)
+{
+    RN_FrameData *frame_data = &renderer->frame_datas[rn_frame_slot(renderer)];
+    rb_timeline_wait(rn_upload_submit_(renderer));
+    rb_cpu_gpu_arena_reset(&frame_data->upload_heap);
+    renderer->upload_cmd = rb_commands_begin(frame_data->upload_pool);
+}
+
 // A full staging heap flushes the batch so far, waits for it, and continues in a new command buffer.
 internal RB_CpuGpuSpan
 rn_upload_reserve(RN_RenderCtx *renderer, i64 size)
@@ -293,9 +348,7 @@ rn_upload_reserve(RN_RenderCtx *renderer, i64 size)
     RB_CpuGpuArena *heap = &frame_data->upload_heap;
     DOT_ASSERT(size <= heap->size, "Upload of %M bytes exceeds the upload heap, raise rn_g_upload_heap_size_b", size);
     if(!rb_cpu_gpu_arena_fits(heap, size)){
-        DOT_PROFILE_BLOCK("Upload heap full, waiting on GPU"){ rb_timeline_wait(rn_upload_submit_(renderer)); }
-        rb_cpu_gpu_arena_reset(heap);
-        renderer->upload_cmd = rb_commands_begin(frame_data->upload_pool);
+        DOT_PROFILE_BLOCK("Upload heap full, waiting on GPU"){ rn_upload_flush(renderer); }
     }
     return(rb_cpu_gpu_arena_reserve_atomic(heap, size));
 }

@@ -442,6 +442,7 @@ dot_game_init(DOT_Game *game, RN_RenderCtx *renderer, DOT_Window *window,
     g_game->window   = window;
     g_game->permanent_arena = ARENA_CREATE(.name = "engine permanent arena", .buffer = permanent_memory, .reserve_size = permanent_memory_size);
     g_game->transient_arena = ARENA_CREATE(.name = "engine transient arena", .buffer = transient_memory, .reserve_size = transient_memory_size);
+    dot_asset_cache_init(renderer->permanent_arena, renderer, &g_asset_cache);
 
     g_camera.position = v3(0.0f, 0.6f, 4.0f);
     g_camera.fov_y     = DOT_PI * 0.4f;
@@ -536,7 +537,7 @@ dot_game_init(DOT_Game *game, RN_RenderCtx *renderer, DOT_Window *window,
     // String8 model_path = str_comp(DOT_GAME_ASSET_PATH"glTF-Sample-Assets/Models/Cube/glTF/Cube.gltf");
     // String8 model_path = str_comp(DOT_GAME_ASSET_PATH"glTF-Sample-Assets/Models/Avocado/glTF/Avocado.gltf");
     String8 model_path = str_comp(DOT_GAME_ASSET_PATH"glTF-Sample-Assets/Models/Sponza/glTF/Sponza.gltf");
-    DOT_PROFILE_BLOCK("Model load"){ g_model = dot_model_load(renderer, model_path); }
+    DOT_PROFILE_BLOCK("Model load"){ g_model = dot_model_load(&g_asset_cache, model_path); }
 
     DOT_PROFILE_BLOCK("Clouds init"){ dot_clouds_init(renderer); }
     DOT_PROFILE_BLOCK("Shadow init"){ dot_shadow_init(renderer); }
@@ -681,8 +682,8 @@ void dot_game_shutdown(DOT_Game* game)
     (void)game;
     dot_shadow_shutdown(game->renderer);
     dot_clouds_shutdown(game->renderer);
-    dot_model_destroy(game->renderer, &g_model);
-    dot_asset_cache_destroy(game->renderer, &g_asset_cache);
+    dot_model_destroy(&g_asset_cache, &g_model);
+    dot_asset_cache_end(&g_asset_cache);
     rn_pipeline_destroy(game->renderer, g_model_pipeline);
     rn_pipeline_destroy(game->renderer, g_cube_pipeline);
     rn_pipeline_destroy(game->renderer, g_triangle_pipeline);

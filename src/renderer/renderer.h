@@ -57,6 +57,8 @@ typedef struct RN_RenderCtx{
 
     // Persistent geometry/material data, filled through rn_upload_memory.
     RB_GpuArena data_heap;
+    RB_GpuArena    scratch_heap;
+    RB_CpuGpuArena readback_heap;
 
     RB_GpuHeap      texture_descriptor_heap;
     u32             next_texture_slot;
@@ -109,7 +111,14 @@ internal RB_GpuRange        rn_frame_push_(RN_RenderCtx *renderer, void *data, i
 internal void               rn_clear_background(RN_RenderCtx *renderer, f32x3 color);
 internal void               rn_tonemap(RN_RenderCtx *renderer);
 internal RB_GpuAddress      rn_data_alloc(RN_RenderCtx *renderer, i64 size);
+internal RB_GpuAddress      rn_scratch_alloc(RN_RenderCtx *renderer, i64 size);
+internal b32                rn_scratch_fits(RN_RenderCtx *renderer, i64 size);
+internal void               rn_scratch_reset(RN_RenderCtx *renderer);
+internal RB_CpuGpuSpan      rn_readback_reserve(RN_RenderCtx *renderer, i64 size);
+internal b32                rn_readback_fits(RN_RenderCtx *renderer, i64 size);
+internal void               rn_readback_reset(RN_RenderCtx *renderer);
 internal void               rn_upload_begin(RN_RenderCtx *renderer);
+internal void               rn_upload_flush(RN_RenderCtx *renderer);
 internal void               rn_upload_memory(RN_RenderCtx *renderer, RB_GpuAddress dst, void *src, i64 size);
 internal RB_CpuGpuSpan      rn_upload_reserve(RN_RenderCtx *renderer, i64 size);
 internal void               rn_upload_copy_memory(RN_RenderCtx *renderer, RB_GpuRange staging, RB_GpuAddress dst);

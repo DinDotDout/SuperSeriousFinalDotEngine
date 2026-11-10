@@ -315,7 +315,7 @@ test_basic_allocation_fn(void)
     DOT_TEST_CHECK(test, "Arena created", arena != NULL);
     DOT_TEST_CHECK(test, "Reserve size", arena->reserved >= DOT_MB(4));
     DOT_TEST_CHECK(test, "Commit size", arena->committed >= DOT_KB(64));
-    DOT_TEST_CHECK(test, "Initial used", arena->used == sizeof(Arena));
+    DOT_TEST_CHECK(test, "Initial used", arena->used == ARENA_HEADER_SIZE_B);
 
     ARENA_DESTROY(arena);
     return test;

@@ -42,6 +42,8 @@ DOT_DIAGNOSTIC_PUSH
 #   define STB_SPRINTF_DECORATE(name) dot_##name
 #   define STB_SPRINTF_IMPLEMENTATION
 #   include "third_party/stb/stb_sprintf.h"
+#   define XXH_INLINE_ALL
+#   include "third_party/xxhash/xxhash.h"
 DOT_DIAGNOSTIC_POP
 
 #include "base/dot.c"

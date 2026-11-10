@@ -1,7 +1,26 @@
 #ifndef DOT_MODEL_H
 #define DOT_MODEL_H
 
-typedef struct DOT_Submesh{
+////////////////////////////////////////////////////////////////
+/// DOT_MODEL_FILE_CONSTANTS
+
+#define DOT_MODEL_FILE_MAGIC        0xD07D07D07ull
+#define DOT_MODEL_FILE_NONE         U32_MAX
+#define DOT_MODEL_CACHE_PATH        "build/cache/"
+
+enum
+{
+    DOT_MODEL_FILE_VERSION     = 2,
+    DOT_MODEL_FILE_ALIGN       = 256,
+    DOT_MODEL_FILE_TABLE_ALIGN = 16,
+    DOT_MODEL_FILE_MAX_MIPS    = 16,
+};
+
+////////////////////////////////////////////////////////////////
+/// DOT_MODEL
+
+typedef struct DOT_Submesh
+{
     f32x4x4 transform;
 
     RB_GpuAddress index_addr;
@@ -14,7 +33,8 @@ typedef struct DOT_Submesh{
     u32 index_count;
 }DOT_Submesh;
 
-typedef struct DOT_Model{
+typedef struct DOT_Model
+{
     u32 sub_mesh_draw_count;
     DOT_Submesh *sub_mesh_draw;
 
@@ -23,44 +43,35 @@ typedef struct DOT_Model{
 }DOT_Model;
 
 ////////////////////////////////////////////////////////////////
-//
-// Baked model file
-
-#define DOT_MODEL_FILE_MAGIC        0x4D544F44u
-#define DOT_MODEL_FILE_VERSION      6
-#define DOT_MODEL_FILE_ALIGN        256
-#define DOT_MODEL_FILE_TABLE_ALIGN  16
-#define DOT_MODEL_FILE_MAX_MIPS     16
-#define DOT_MODEL_FILE_NONE         U32_MAX
-#define DOT_MODEL_CACHE_PATH        "build/cache/"
-
-typedef struct DOT_Hash128
-{
-    u64 lo;
-    u64 hi;
-}DOT_Hash128;
+/// DOT_MODEL_FILE_FORMAT
+// .dotm layout: header, then one table per kind (each DOT_MODEL_FILE_TABLE_ALIGN aligned), then
+// the deduplicated mesh and texture data (each DOT_MODEL_FILE_ALIGN aligned) the tables point into
 
 typedef struct DOT_ModelFileHeader
 {
-    u32 magic;
+    u64 magic;
     u32 version;
+
     u32 mesh_count;
     u32 submesh_count;
     u32 material_count;
     u32 texture_count;
     u32 sampler_count;
-    u32 pad;
+
     u64 meshes_offset;
     u64 submeshes_offset;
     u64 materials_offset;
     u64 textures_offset;
     u64 samplers_offset;
+
     u64 file_size;
 }DOT_ModelFileHeader;
 
+// The mesh's index and vertex data sit at offset in the file and the *_offset fields are relative
+// to it. Indices come first, so tangent_offset is 0 when the mesh has no tangents
 typedef struct DOT_ModelFileMesh
 {
-    DOT_Hash128 hash;
+    Hash128 hash;
     u64 offset;
     u64 size;
     u64 index_offset;
@@ -70,8 +81,6 @@ typedef struct DOT_ModelFileMesh
     u64 tangent_offset;
     u32 index_count;
     u32 vertex_count;
-    u32 has_tangents;
-    u32 pad;
 }DOT_ModelFileMesh;
 
 typedef struct DOT_ModelFileSubmesh
@@ -79,7 +88,6 @@ typedef struct DOT_ModelFileSubmesh
     f32x4x4 transform;
     u32 mesh_index;
     u32 material_index;
-    u32 pad[2];
 }DOT_ModelFileSubmesh;
 
 typedef struct DOT_ModelFileMaterial
@@ -89,9 +97,10 @@ typedef struct DOT_ModelFileMaterial
     u32 sampler_indices[DOT_PBRTextureKind_Count];
 }DOT_ModelFileMaterial;
 
+// Every mip of the texture sits at offset in the file and mip_offsets are relative to it
 typedef struct DOT_ModelFileTexture
 {
-    DOT_Hash128 hash;
+    Hash128 hash;
     u64 offset;
     u64 size;
     u32 width;
@@ -111,56 +120,57 @@ typedef struct DOT_ModelFileSampler
     u32 address_mode_v;
 }DOT_ModelFileSampler;
 
-typedef struct DOT_ModelFileMeshKey
-{
-    u32 kind;
-    u32 index_count;
-    u32 vertex_count;
-    u32 has_tangents;
-}DOT_ModelFileMeshKey;
-
-typedef struct DOT_ModelFileTextureKey
-{
-    u32 kind;
-    u32 width;
-    u32 height;
-    u32 format_kind;
-    u32 mip_count;
-}DOT_ModelFileTextureKey;
+////////////////////////////////////////////////////////////////
+/// DOT_ASSET_CACHE
+// GPU resources shared by every loaded model, keyed by the content hash of their mesh or texture data
 
 typedef struct DOT_AssetCache
 {
-    b32 initialized;
-    HashMap(DOT_Hash128, RN_BindlessTexture) textures;
-    HashMap(DOT_Hash128, RB_GpuAddress)      meshes;
+    b32           initialized;
+    Arena        *arena;
+    RN_RenderCtx *renderer;
+    HashMap(Hash128, RN_BindlessTexture) textures;
+    HashMap(Hash128, RB_GpuAddress)      meshes;
 }DOT_AssetCache;
+
+////////////////////////////////////////////////////////////////
+/// DOT_GLTF_FUNCTIONS
 
 internal inline void*
 dot_cgltf_alloc(void *user, cgltf_size size)
 {
     Arena *arena = (Arena*)user;
     void *result = PUSH_SIZE(arena, size);
-    // DOT_PRINT("allocating %u onto %p", size, result);
+    DOT_PRINT("allocating %u onto %p", size, result);
     return result;
 }
 
 internal inline void
 dot_cgltf_free(void *user, void* ptr)
 {
-    // DOT_PRINT("freeing memory %p", ptr);
+    DOT_PRINT("freeing memory %p", ptr);
     DOT_UNUSED(user, ptr);
 }
 
-internal DOT_Model      dot_model_from_gltf(RN_RenderCtx *renderer, const cgltf_data *gltf_data, String8 gltf_path);
-internal cgltf_data *   dot_gltf_load_from_path(Arena *arena, String8 path);
-internal DOT_Model      dot_model_load_from_path(RN_RenderCtx *renderer, String8 path);
-internal void           dot_model_destroy(RN_RenderCtx *renderer, DOT_Model *model);
+internal cgltf_data    *dot_gltf_load_from_path(Arena *arena, String8 path);
+internal DOT_Model      dot_model_from_gltf(DOT_AssetCache *cache, const cgltf_data *gltf_data, String8 gltf_path);
+internal DOT_Model      dot_model_load_from_path(DOT_AssetCache *cache, String8 path);
 
-internal DOT_Hash128    dot_hash128_from_data(void const *key, u64 key_size, void const *data, u64 size);
+////////////////////////////////////////////////////////////////
+/// DOT_MODEL_FUNCTIONS
+
+internal DOT_Model      dot_model_load(DOT_AssetCache *cache, String8 gltf_path);
+internal void           dot_model_destroy(DOT_AssetCache *cache, DOT_Model *model);
 internal String8        dot_model_baked_path(Arena *arena, String8 source_path);
-internal b32            dot_model_bake(RN_RenderCtx *renderer, String8 gltf_path, String8 baked_path, b32 compress);
-internal DOT_Model      dot_model_load_baked(RN_RenderCtx *renderer, DOT_AssetCache *cache, String8 baked_path);
-internal DOT_Model      dot_model_load(RN_RenderCtx *renderer, String8 gltf_path);
-internal void           dot_asset_cache_destroy(RN_RenderCtx *renderer, DOT_AssetCache *cache);
+internal DOT_Model      dot_model_bake(DOT_AssetCache *cache, String8 gltf_path, String8 baked_path, b32 compress);
+internal DOT_Model      dot_model_load_baked(DOT_AssetCache *cache, String8 baked_path);
+
+////////////////////////////////////////////////////////////////
+/// DOT_ASSET_CACHE_FUNCTIONS
+
+internal void           dot_asset_cache_init(Arena *arena, RN_RenderCtx *renderer, DOT_AssetCache *cache);
+internal void           dot_asset_cache_end(DOT_AssetCache *cache);
+internal void           dot_asset_cache_add_texture(DOT_AssetCache *cache, DOT_ModelFileTexture *entry, RB_CpuGpuSpan staging);
+internal void           dot_asset_cache_add_mesh(DOT_AssetCache *cache, DOT_ModelFileMesh *entry, RB_CpuGpuSpan staging);
 
 #endif // DOT_MODEL_H!

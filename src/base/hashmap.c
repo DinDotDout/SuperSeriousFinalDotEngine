@@ -31,6 +31,19 @@ hash_mix_u64(u64 x)
 }
 
 internal u64
+hash_xxh3_u64(void const *data, u64 size)
+{
+    return(XXH3_64bits(data, size));
+}
+
+internal Hash128
+hash_xxh3_128(void const *data, u64 size, u64 seed)
+{
+    XXH128_hash_t hash = XXH3_128bits_withSeed(data, size, seed);
+    return((Hash128){ .lo = hash.low64, .hi = hash.high64 });
+}
+
+internal u64
 hm_hasheq_bytes(HashMapOpKind op, void *a, void *b, u64 key_size)
 {
     switch(op){

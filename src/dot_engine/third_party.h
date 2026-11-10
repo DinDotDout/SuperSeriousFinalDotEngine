@@ -33,9 +33,6 @@ DOT_DIAGNOSTIC_PUSH_SILENT
 #include "third_party/cgltf/cgltf.h"
 #include "third_party/stb/stb_image.h"
 
-#define XXH_STATIC_LINKING_ONLY
-#include "third_party/xxhash/xxhash.h"
-
 DOT_DIAGNOSTIC_POP
 
 #endif // !THIRD_PARTY_H

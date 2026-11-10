@@ -92,10 +92,17 @@ typedef enum HashMapOpKind
 
 typedef u64 HashMapHashEq(HashMapOpKind op, void *a, void *b, u64 key_size);
 
+typedef struct Hash128
+{
+    u64 lo;
+    u64 hi;
+}Hash128;
 
-internal u64 hash_fnv1a_u64(void *data, u64 size);
-internal u64 hash_djb2_u64(void *data, u64 size);
-internal u64 hash_mix_u64(u64 x);
+internal u64     hash_fnv1a_u64(void *data, u64 size);
+internal u64     hash_djb2_u64(void *data, u64 size);
+internal u64     hash_mix_u64(u64 x);
+internal u64     hash_xxh3_u64(void const *data, u64 size);
+internal Hash128 hash_xxh3_128(void const *data, u64 size, u64 seed);
 
 #ifndef HASH_MAP_DEFAULT_HASH
 #define HASH_MAP_DEFAULT_HASH hash_fnv1a_u64

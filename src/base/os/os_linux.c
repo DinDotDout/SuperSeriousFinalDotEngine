@@ -189,9 +189,11 @@ os_set_working_directory_to_project_root()
 internal void
 os_init()
 {
-#if DOT_USE_HANDLERS
+#if DOT_DEBUG
+#   if DOT_USE_HANDLERS
     os_install_handlers();
-#endif // !DOT_USE_HANDLERS
+#   endif
+#endif
     os_set_working_directory_to_project_root();
 }
 
