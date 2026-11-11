@@ -32,7 +32,7 @@ arena_create_from_memory(ArenaInitParams *params)
     b32 sparse_backing = params->parent && DOT_BITS_MATCH(params->parent->flags, ArenaFlags_Sparse);
     u64 committed = usable_reserved; // NOTE: default assumes caller-owned memory is already backed
     if(sparse_backing){
-        u64 page_size = params->large_pages ? PLATFORM_LARGE_PAGE_SIZE : PLATFORM_REGULAR_PAGE_SIZE;
+        u64 page_size = params->large_pages ? OS_LARGE_PAGE_SIZE : OS_REGULAR_PAGE_SIZE;
         u64 initial_commit = ALIGN_POW2(DOT_MAX(params->commit_size, page_size), page_size);
         initial_commit = DOT_MIN(initial_commit, usable_reserved);
         if(params->large_pages){
@@ -65,7 +65,7 @@ arena_create_from_arena(ArenaInitParams *params)
         // independently via os_commit/mprotect, which only operates at page
         // granularity: both the start and size of each slice must land on a
         // page boundary so siblings can never share (and fight over) a page.
-        u64 page_size = params->large_pages ? PLATFORM_LARGE_PAGE_SIZE : PLATFORM_REGULAR_PAGE_SIZE;
+        u64 page_size = params->large_pages ? OS_LARGE_PAGE_SIZE : OS_REGULAR_PAGE_SIZE;
         params->reserve_size = ALIGN_POW2(params->reserve_size, page_size);
         params->buffer = ARENA_PUSH(params->parent, params->reserve_size, page_size, false);
     }else{
@@ -82,7 +82,7 @@ arena_create_from_os(ArenaInitParams *params)
     DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Allocating arena from os");
     DOT_PRINT_FL(params->reserve_file, params->reserve_line, "Arena \"%s\": requested %M", params->name, params->reserve_size);
 
-    u64 page_size = params->large_pages ? PLATFORM_LARGE_PAGE_SIZE : PLATFORM_REGULAR_PAGE_SIZE;
+    u64 page_size = params->large_pages ? OS_LARGE_PAGE_SIZE : OS_REGULAR_PAGE_SIZE;
 
     u64 reserved           = ALIGN_POW2(params->reserve_size, page_size);
     u64 commit_expand_size = ALIGN_POW2(DOT_MAX(params->commit_expand_size, page_size), page_size);
@@ -194,7 +194,7 @@ arena_push(ArenaOpParams *op, u64 alloc_size, u64 alignment, b32 should_zero)
         i64 needed_memory = arena->used - arena->committed;
 
         b32 large_pages = DOT_BITS_MATCH(arena->flags, ArenaFlags_LargePages);
-        u64 page_size = large_pages ? PLATFORM_LARGE_PAGE_SIZE : PLATFORM_REGULAR_PAGE_SIZE;
+        u64 page_size = large_pages ? OS_LARGE_PAGE_SIZE : OS_REGULAR_PAGE_SIZE;
         usize need_aligned = ALIGN_POW2(needed_memory, page_size);
         usize commit_size  = DOT_MAX(arena->commit_expand_size, need_aligned);
         usize arena_leftover_memory = arena->reserved - arena->committed;
@@ -243,7 +243,7 @@ arena_to_string(Arena *arena)
     }
 
     b32 large_pages = DOT_BITS_MATCH(arena->flags, ArenaFlags_LargePages);
-    const u64 page_size = large_pages ? PLATFORM_LARGE_PAGE_SIZE : PLATFORM_REGULAR_PAGE_SIZE;
+    const u64 page_size = large_pages ? OS_LARGE_PAGE_SIZE : OS_REGULAR_PAGE_SIZE;
 
     b32 sparse = DOT_BITS_MATCH(arena->flags, ArenaFlags_Sparse);
     const u64 committed_pages = arena->committed / page_size;
@@ -276,7 +276,7 @@ arena_print_debug(Arena* arena)
     }
 
     b32 large_pages = DOT_BITS_MATCH(arena->flags, ArenaFlags_LargePages);
-    const u64 page_size = large_pages ? PLATFORM_LARGE_PAGE_SIZE : PLATFORM_REGULAR_PAGE_SIZE;
+    const u64 page_size = large_pages ? OS_LARGE_PAGE_SIZE : OS_REGULAR_PAGE_SIZE;
 
     b32 sparse = DOT_BITS_MATCH(arena->flags, ArenaFlags_Sparse);
     const u64 committed_pages = arena->committed / page_size;
@@ -386,8 +386,8 @@ test_large_pages_fn(void)
     );
 
     DOT_TEST_CHECK(test, "Large pages flag", DOT_BITS_MATCH(arena->flags, ArenaFlags_LargePages));
-    DOT_TEST_CHECK(test, "Commit LP aligned", arena->committed % PLATFORM_LARGE_PAGE_SIZE == 0);
-    DOT_TEST_CHECK(test, "Reserve LP aligned", arena->reserved % PLATFORM_LARGE_PAGE_SIZE == 0);
+    DOT_TEST_CHECK(test, "Commit LP aligned", arena->committed % OS_LARGE_PAGE_SIZE == 0);
+    DOT_TEST_CHECK(test, "Reserve LP aligned", arena->reserved % OS_LARGE_PAGE_SIZE == 0);
 
     ARENA_DESTROY(arena);
     return test;
@@ -465,7 +465,7 @@ test_padding_behavior_fn(void)
 //
 //     struct rusage before, after;
 //
-//     u64 pages = (arena->reserved / PLATFORM_REGULAR_PAGE_SIZE) - 1;
+//     u64 pages = (arena->reserved / OS_REGULAR_PAGE_SIZE) - 1;
 //
 //     u64 nofault_start = 0;
 //     u64 nofault_count = 0;
@@ -473,7 +473,7 @@ test_padding_behavior_fn(void)
 //     for (u64 i = 0; i < pages; ++i) {
 //         getrusage(RUSAGE_SELF, &before);
 //
-//         u8 *mem = PUSH_ARRAY_NO_ZERO(arena, u8, PLATFORM_REGULAR_PAGE_SIZE);
+//         u8 *mem = PUSH_ARRAY_NO_ZERO(arena, u8, OS_REGULAR_PAGE_SIZE);
 //         if (mem) mem[0] = 1;
 //
 //         getrusage(RUSAGE_SELF, &after);
@@ -490,7 +490,7 @@ test_padding_behavior_fn(void)
 //             if (nofault_count > 0) {
 //                 DOT_PRINT(
 //                     "No‑fault run: %lu DOT_KB (%lu pages) from page %lu to %lu",
-//                     nofault_count * (PLATFORM_REGULAR_PAGE_SIZE / 1024),
+//                     nofault_count * (OS_REGULAR_PAGE_SIZE / 1024),
 //                     nofault_count,
 //                     nofault_start,
 //                     nofault_start + nofault_count - 1
@@ -502,7 +502,7 @@ test_padding_behavior_fn(void)
 //                 "FAULT: %ld minor faults at page %lu (offset %M)\n",
 //                 delta,
 //                 i,
-//                 i * PLATFORM_REGULAR_PAGE_SIZE
+//                 i * OS_REGULAR_PAGE_SIZE
 //             );
 //         }
 //     }
@@ -511,7 +511,7 @@ test_padding_behavior_fn(void)
 //     if (nofault_count > 0) {
 //         DOT_PRINT(
 //             "No‑fault run: %lu DOT_KB (%lu pages) from page %lu to %lu\n",
-//             nofault_count * (PLATFORM_REGULAR_PAGE_SIZE / 1024),
+//             nofault_count * (OS_REGULAR_PAGE_SIZE / 1024),
 //             nofault_count,
 //             nofault_start,
 //             nofault_start + nofault_count - 1

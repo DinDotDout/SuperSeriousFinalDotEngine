@@ -143,20 +143,20 @@ dot_window_should_close(DOT_Window *window)
     return RGFW_window_shouldClose(window->window) == true;
 }
 
-internal PlatformNativeWindow
+internal OS_NativeWindow
 dot_window_native_get(DOT_Window *window)
 {
-    PlatformNativeWindow native = {0};
+    OS_NativeWindow native = {0};
 #if DOT_OS_WINDOWS
-    native.kind   = PlatformWindowSystemKind_Win32;
+    native.kind   = OS_WindowSystemKind_Win32;
     native.window = RGFW_window_getHWND(window->window);
-#else
+#elif DOT_OS_LINUX
     if(RGFW_usingWayland()){
-        native.kind    = PlatformWindowSystemKind_Wayland;
+        native.kind    = OS_WindowSystemKind_Wayland;
         native.display = RGFW_getDisplay_Wayland();
         native.window  = RGFW_window_getWindow_Wayland(window->window);
     }else{
-        native.kind    = PlatformWindowSystemKind_Xlib;
+        native.kind    = OS_WindowSystemKind_Xlib;
         native.display = RGFW_getDisplay_X11();
         native.window  = cast(void*) RGFW_window_getWindow_X11(window->window);
     }

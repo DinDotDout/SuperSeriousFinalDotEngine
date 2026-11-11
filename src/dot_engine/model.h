@@ -126,7 +126,7 @@ typedef struct DOT_ModelFileSampler
 
 typedef struct DOT_AssetCache
 {
-    b32           initialized;
+    bool          initialized;
     Arena        *arena;
     RN_RenderCtx *renderer;
     HashMap(Hash128, RN_BindlessTexture) textures;
@@ -162,7 +162,7 @@ internal DOT_Model      dot_model_load_from_path(DOT_AssetCache *cache, String8 
 internal DOT_Model      dot_model_load(DOT_AssetCache *cache, String8 gltf_path);
 internal void           dot_model_destroy(DOT_AssetCache *cache, DOT_Model *model);
 internal String8        dot_model_baked_path(Arena *arena, String8 source_path);
-internal DOT_Model      dot_model_bake(DOT_AssetCache *cache, String8 gltf_path, String8 baked_path, b32 compress);
+internal DOT_Model      dot_model_bake(DOT_AssetCache *cache, String8 gltf_path, String8 baked_path, bool compress);
 internal DOT_Model      dot_model_load_baked(DOT_AssetCache *cache, String8 baked_path);
 
 ////////////////////////////////////////////////////////////////

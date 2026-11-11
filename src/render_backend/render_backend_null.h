@@ -13,7 +13,7 @@ RB_ProcedureXList
 #undef X
 
 internal void                   rb_null_instance_create(Arena *arena){}
-internal void                   rb_null_init(Arena* a, PlatformNativeWindow window, RB_DeviceDesc const *desc){}
+internal void                   rb_null_init(Arena* a, OS_NativeWindow window, RB_DeviceDesc const *desc){}
 internal void                   rb_null_end(){}
 internal void                   rb_null_shutdown(void){} internal RB_DeviceInfo rb_null_device_info(void){ RB_DeviceInfo d = {0}; return(d); }
 internal i32x2                  rb_null_drawable_extent(void){ return((i32x2){0}); }

@@ -208,7 +208,7 @@ dot_clouds_init(RN_RenderCtx *renderer)
     g_clouds_cirrus         = dot_clouds_texture_create(renderer, RB_TextureDimensionKind_3D, RB_FormatKind_Rgba8_Unorm, 1, 1, 1, (u8[]){0, 0, 0, 0}, str_comp("Clouds cirrus"));
 
     temp_arena_restore(temp);
-    g_clouds_start_time_ns = platform_get_time_ns();
+    g_clouds_start_time_ns = os_time_ns();
 }
 
 internal void
@@ -268,7 +268,7 @@ dot_clouds_draw(RN_RenderCtx *renderer, DOT_Camera *camera, f32 aspect, f32 z_ne
 
     DOT_CloudsRoot root = {0};
     root.camera_position     = camera->position;
-    root.time                = cast(f32)(platform_get_time_ns() - g_clouds_start_time_ns) / 1e9f;
+    root.time                = cast(f32)(os_time_ns() - g_clouds_start_time_ns) / 1e9f;
     root.camera_forward      = forward;
     root.tan_half_fov_x      = tan_half_fov_y * aspect;
     root.camera_right        = right;
@@ -552,7 +552,7 @@ dot_game_run(DOT_Game *game)
     if(!renderer->current_frame_valid){ return; }
 
     local_persist u64 last_time_ns = 0;
-    u64 now_ns = platform_get_time_ns();
+    u64 now_ns = os_time_ns();
     f32 dt = last_time_ns == 0 ? 0.0f : cast(f32)(now_ns - last_time_ns) / 1e9f;
     last_time_ns = now_ns;
     dot_camera_update(&g_camera, game->window, dt);

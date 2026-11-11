@@ -119,7 +119,7 @@ rn_slang_load(void)
         return false;
     }
 #define X(ret, name, params) \
-    rn_g_slang.name = cast(ret (*) params)os_library_symbol(rn_g_slang.library, #name); \
+    rn_g_slang.name = cast(ret (*) params)os_library_symbol(rn_g_slang.library, str_comp(#name)); \
     if(!rn_g_slang.name){ \
         DOT_WARNING("Missing Slang symbol %s", #name); \
         return false; \
@@ -194,7 +194,7 @@ rn_shader_compile_from_path(RB_ShaderStageKind stage, RN_ShaderCompileOptions co
     if(result){
         size_t size = 0;
         void const *code = rn_g_slang.spGetEntryPointCode(request, 0, &size);
-        result = code && platform_write_entire_file(output_path, code, size);
+        result = code && os_write_entire_file(output_path, code, size);
     }
     rn_g_slang.spDestroyCompileRequest(request);
     return result;

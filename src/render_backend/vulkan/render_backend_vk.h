@@ -1,7 +1,7 @@
 #ifndef RB_VK_H
 #define RB_VK_H
 
-#if defined(DOT_PLATFORM_LINUX)
+#if DOT_OS_LINUX
 #   define VK_USE_PLATFORM_WAYLAND_KHR
 #   define VK_USE_PLATFORM_XLIB_KHR
 #elif DOT_OS_WINDOWS
@@ -257,7 +257,7 @@ typedef struct RB_VK_BackendCtx
     Arena            *permanent_arena;
     Arena            *transient_arena;
 
-    PlatformNativeWindow native_window;
+    OS_NativeWindow  native_window;
     RB_DeviceDesc    desc;
 
     RB_VK_Device     device;

@@ -407,9 +407,7 @@
 #   define DEBUG_BREAK ((void)0) // Fallback: no-op
 #endif
 
-// Implemented per-platform in os_linux.c / os_windows.c (included later in this
-// translation unit via base_include.h); forward declared here so DOT_ASSERT can
-// share the same fast stacktrace path as the fatal signal handler.
+// Defined in the os backends, used by DOT_ASSERT and DOT_ERROR
 internal void os_print_stacktrace(void);
 
 ////////////////////////////////////////////////////////////////

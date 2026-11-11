@@ -63,10 +63,10 @@ rb_debug_message_emit(RB_DebugMessage *msg)
 }
 
 internal void
-rb_begin(RB_DeviceKind kind, Arena *arena, PlatformNativeWindow window, RB_DeviceDesc const *desc)
+rb_begin(RB_DeviceKind kind, Arena *arena, OS_NativeWindow window, RB_DeviceDesc const *desc)
 {
-    DOT_ASSERT(window.kind < PlatformWindowSystemKind_Count);
-    DOT_ASSERT(kind == RB_DeviceKind_Null || platform_window_system_is_native(window.kind), "Window system %s is not native to this platform", platfrom_window_system_str[window.kind]);
+    DOT_ASSERT(window.kind < OS_WindowSystemKind_Count);
+    DOT_ASSERT(kind == RB_DeviceKind_Null || os_window_system_is_native(window.kind), "Window system %S is not native to this OS", os_window_system_name(window.kind));
 #if DOT_ENABLED(RB_BACKEND_SINGLE)
     DOT_ASSERT(kind == RB_SINGLE_DEVICE_KIND, "RB_BACKEND_SINGLE build can't switch to device kind %d", kind);
 #else

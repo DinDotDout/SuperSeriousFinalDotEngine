@@ -74,7 +74,7 @@ typedef struct DOT_BlockTableEntry
 {
     Hash128 hash;
     u64     file_offset;
-    b32     occupied;
+    bool    occupied;
 }DOT_BlockTableEntry;
 
 typedef struct DOT_BlockTable
@@ -88,7 +88,7 @@ typedef struct DOT_BlockTable
 // they work in comes from the renderer's upload, frame, scratch and readback heaps
 typedef struct DOT_TextureBakePipelines
 {
-    b32         ready;
+    bool        ready;
     RB_Pipeline bc7_try_mode_456;
     RB_Pipeline bc7_try_mode_137;
     RB_Pipeline bc7_try_mode_02;
@@ -135,7 +135,7 @@ typedef struct DOT_TextureBakeBatch
 {
     DOT_TextureBakePending *pending;
     u32                     pending_count;
-    b32                     in_flight;
+    bool                    in_flight;
     RB_TimelinePoint        submitted;
 }DOT_TextureBakeBatch;
 
@@ -149,8 +149,8 @@ typedef struct DOT_ModelBakeCtx
     DOT_TextureBakePipelines  textures;
     DOT_TextureBakeBatch      batches[RN_TRANSIENT_BUFFER_COUNT];
     u32                       recording;
-    PlatformFile              file;
-    b32                       file_ok;
+    OS_File                   file;
+    bool                      file_ok;
     u64                       file_cursor;
     DOT_BlockTable            blocks;
 }DOT_ModelBakeCtx;
@@ -171,7 +171,7 @@ internal DOT_Model dot_model_from_tables(DOT_AssetCache *cache, DOT_ModelFileTab
 internal f32
 dot_model_sampler_anisotropy(RB_SamplerDesc *desc)
 {
-    b32 trilinear = desc->min_filter == RB_SamplerFilterKind_Linear && desc->mipmap_filter == RB_SamplerMipmapFilterKind_Linear;
+    bool trilinear = desc->min_filter == RB_SamplerFilterKind_Linear && desc->mipmap_filter == RB_SamplerMipmapFilterKind_Linear;
     return(trilinear ? rn_g_max_anisotropy : 1.0f);
 }
 
@@ -419,7 +419,7 @@ dot_model_from_gltf(DOT_AssetCache *cache, const cgltf_data *gltf_data, String8 
 internal cgltf_data *
 dot_gltf_load_from_path(Arena *arena, String8 path)
 {
-    String8 buff = platform_read_entire_file(arena, path);
+    String8 buff = os_read_entire_file(arena, path);
 
     cgltf_options options = {
         .memory = {
@@ -434,12 +434,12 @@ dot_gltf_load_from_path(Arena *arena, String8 path)
     DOT_PROFILE_BLOCK("glTF parse"){ 
         result = cgltf_parse(&options, buff.str, cast(u64)buff.size, &gltf_data); 
     }
-    b32 fail_parse = false;
+    bool fail_parse = false;
     if(result != cgltf_result_success){
         fail_parse = true;
         DOT_WARNING("cgltf_parse failed: %d", result);
     }
-    b32 load_buffers_failed = false;
+    bool load_buffers_failed = false;
     if(!fail_parse){
         DOT_PROFILE_BLOCK("glTF load buffers"){ 
             result = cgltf_load_buffers(&options, gltf_data, path.cstr); 
@@ -515,7 +515,7 @@ dot_model_bake_push_block(DOT_ModelBakeCtx *ctx, Hash128 hash, void const *data,
         slot = (slot + 1) & (table->capacity - 1);
     }
     u64 file_offset = dot_model_bake_place(&ctx->file_cursor, size, DOT_MODEL_FILE_ALIGN);
-    ctx->file_ok = ctx->file_ok && platform_file_write_at(&ctx->file, cast(i64)file_offset, data, cast(i64)size);
+    ctx->file_ok = ctx->file_ok && os_file_write_at(&ctx->file, file_offset, data, size);
     table->entries[slot] = (DOT_BlockTableEntry){ .hash = hash, .file_offset = file_offset, .occupied = true };
     return(file_offset);
 }
@@ -523,7 +523,7 @@ dot_model_bake_push_block(DOT_ModelBakeCtx *ctx, Hash128 hash, void const *data,
 ////////////////////////////////////////////////////////////////
 /// DOT_MODEL_BAKE_MESH_FUNCTIONS
 
-internal b32
+internal bool
 dot_model_bake_mesh(DOT_ModelBakeCtx *ctx, cgltf_primitive *primitive, DOT_ModelFileMesh *out)
 {
     const cgltf_accessor *index_accessor    = primitive->indices;
@@ -538,7 +538,7 @@ dot_model_bake_mesh(DOT_ModelBakeCtx *ctx, cgltf_primitive *primitive, DOT_Model
     DOT_ASSERT(index_accessor->count <= U32_MAX && position_accessor->count <= U32_MAX);
 
     TempArena temp = temp_arena_start(ctx->arena);
-    b32 has_tangents  = tangent_accessor != NULL;
+    bool has_tangents = tangent_accessor != NULL;
     out->index_count  = cast(u32)index_accessor->count;
     out->vertex_count = cast(u32)position_accessor->count;
 
@@ -576,7 +576,7 @@ dot_model_bake_mesh(DOT_ModelBakeCtx *ctx, cgltf_primitive *primitive, DOT_Model
 ////////////////////////////////////////////////////////////////
 /// DOT_TEXTURE_BAKE_FUNCTIONS
 
-internal b32
+internal bool
 dot_texture_bake_pipelines_init(RN_RenderCtx *renderer, DOT_TextureBakePipelines *pipelines)
 {
     String8 bc7_path = str_comp(RN_SHADER_PATH "bc7_encode.comp");
@@ -649,7 +649,7 @@ dot_texture_bake_upload(RN_RenderCtx *renderer, DOT_TextureBakeLayout *layout, u
 }
 
 internal void
-dot_texture_bake_downsample(RN_RenderCtx *renderer, DOT_TextureBakePipelines *pipelines, DOT_TextureBakeLayout *layout, b32 srgb, u8 mip_count)
+dot_texture_bake_downsample(RN_RenderCtx *renderer, DOT_TextureBakePipelines *pipelines, DOT_TextureBakeLayout *layout, bool srgb, u8 mip_count)
 {
     if(mip_count <= 1){
         return;
@@ -673,7 +673,7 @@ dot_texture_bake_downsample(RN_RenderCtx *renderer, DOT_TextureBakePipelines *pi
 }
 
 internal u8 *
-dot_texture_bake_bc7(RN_RenderCtx *renderer, DOT_TextureBakePipelines *pipelines, DOT_TextureBakeLayout *layout, u8 *rgba, b32 srgb, DOT_ModelFileTexture *out)
+dot_texture_bake_bc7(RN_RenderCtx *renderer, DOT_TextureBakePipelines *pipelines, DOT_TextureBakeLayout *layout, u8 *rgba, bool srgb, DOT_ModelFileTexture *out)
 {
     u8 mip_count     = cast(u8)out->mip_count;
     out->format_kind = srgb ? RB_FormatKind_Bc7_Srgb : RB_FormatKind_Bc7_Unorm;
@@ -697,7 +697,7 @@ dot_texture_bake_bc7(RN_RenderCtx *renderer, DOT_TextureBakePipelines *pipelines
     RB_CommandBuffer cmd = renderer->upload_cmd;
     for(u32 p = 0; p < pass_count; ++p){
         DOT_TextureBakeBC7Pass pass = passes[p];
-        b32 last = p == pass_count - 1;
+        bool last = p == pass_count - 1;
         rb_bind_pso(cmd, pass.pipeline);
         for(u32 mip = 0; mip < mip_count; ++mip){
             RB_GpuAddress mip_candidates = candidates + layout->mip_first_block[mip] * DOT_BC_BLOCK_BYTES;
@@ -889,14 +889,14 @@ dot_model_bake_texture_make_room(DOT_ModelBakeCtx *ctx, i64 scratch_size, i64 re
     }
 }
 
-internal b32
+internal bool
 dot_model_bake_texture(DOT_ModelBakeCtx *ctx, String8 path, DOT_ModelBakeTextureUse use, DOT_ModelFileTexture *out)
 {
     RN_RenderCtx             *renderer  = ctx->cache->renderer;
     DOT_TextureBakePipelines *pipelines = &ctx->textures;
-    b32 srgb = DOT_BITS_ANY(use, DOT_ModelBakeTextureUse_Color);
+    bool srgb = DOT_BITS_ANY(use, DOT_ModelBakeTextureUse_Color);
     TempArena temp = temp_arena_start(ctx->arena);
-    String8 file_data = platform_read_entire_file(temp.arena, path);
+    String8 file_data = os_read_entire_file(temp.arena, path);
     if(!file_data.size){
         temp_arena_restore(temp);
         return(false);
@@ -904,14 +904,14 @@ dot_model_bake_texture(DOT_ModelBakeCtx *ctx, String8 path, DOT_ModelBakeTexture
 
     stbi_allocator alloc = {.alloc = rn_stbi_alloc, .realloc = rn_stbi_realloc, .user = temp.arena};
     stbi_allocator_set(&alloc);
-    b32 is_hdr    = cast(b32)stbi_is_hdr_from_memory(file_data.str, cast(int)file_data.size);
-    b32 is_16_bit = is_hdr || stbi_is_16_bit_from_memory(file_data.str, cast(int)file_data.size);
+    bool is_hdr    = stbi_is_hdr_from_memory(file_data.str, cast(int)file_data.size);
+    bool is_16_bit = is_hdr || stbi_is_16_bit_from_memory(file_data.str, cast(int)file_data.size);
     int width  = 0;
     int height = 0;
     int comp   = 0;
     stbi_info_from_memory(file_data.str, cast(int)file_data.size, &width, &height, &comp);
     comp = comp == 3 ? STBI_rgb_alpha : comp;
-    b32 use_bc = pipelines->ready && !is_16_bit;
+    bool use_bc = pipelines->ready && !is_16_bit;
     if(use_bc){
         comp = STBI_rgb_alpha;
     }
@@ -941,7 +941,7 @@ dot_model_bake_texture(DOT_ModelBakeCtx *ctx, String8 path, DOT_ModelBakeTexture
     }
     DOT_ASSERT(mip_count <= DOT_MODEL_FILE_MAX_MIPS, "Texture %S has too many mips (%u)", path, mip_count);
     if(use_bc){
-        b32 bc5 = use == DOT_ModelBakeTextureUse_Normal;
+        bool bc5 = use == DOT_ModelBakeTextureUse_Normal;
         DOT_TextureBakeLayout layout = {0};
         dot_texture_bake_layout_compute(&layout, width, height, mip_count, out);
         i64 scratch_size = layout.pixels_size + (bc5 ? 0 : dot_texture_bake_bc7_candidates_size(&layout));
@@ -1051,7 +1051,7 @@ dot_model_bake_sampler(cgltf_sampler *sampler)
 }
 
 internal void
-dot_model_bake_texture_view(const cgltf_data *gltf_data, b32 *texture_valid, cgltf_texture_view *view,
+dot_model_bake_texture_view(const cgltf_data *gltf_data, bool *texture_valid, cgltf_texture_view *view,
     DOT_ModelFileMaterial *material, DOT_PBRTextureKind kind, u32 feature_bit)
 {
     if(!view->texture || !view->texture->image){
@@ -1069,7 +1069,7 @@ dot_model_bake_texture_view(const cgltf_data *gltf_data, b32 *texture_valid, cgl
 }
 
 internal DOT_ModelFileMaterial
-dot_model_bake_material(const cgltf_data *gltf_data, b32 *texture_valid, cgltf_material *gltf_material)
+dot_model_bake_material(const cgltf_data *gltf_data, bool *texture_valid, cgltf_material *gltf_material)
 {
     DOT_ModelFileMaterial material = {0};
     for EACH_INDEX(i, DOT_PBRTextureKind_Count){
@@ -1105,7 +1105,7 @@ dot_model_bake_material(const cgltf_data *gltf_data, b32 *texture_valid, cgltf_m
 /// DOT_MODEL_BAKE_FUNCTIONS
 
 internal DOT_Model
-dot_model_bake(DOT_AssetCache *cache, String8 gltf_path, String8 baked_path, b32 compress)
+dot_model_bake(DOT_AssetCache *cache, String8 gltf_path, String8 baked_path, bool compress)
 {
     DOT_Model model = {0};
     Scratch s = scratch_begin(0,0);
@@ -1149,15 +1149,15 @@ dot_model_bake(DOT_AssetCache *cache, String8 gltf_path, String8 baked_path, b32
     DOT_ModelFileMaterial *materials = PUSH_ARRAY(s.arena, DOT_ModelFileMaterial, header.material_count);
     DOT_ModelFileTexture  *textures  = PUSH_ARRAY(s.arena, DOT_ModelFileTexture,  header.texture_count);
     DOT_ModelFileSampler  *samplers  = PUSH_ARRAY(s.arena, DOT_ModelFileSampler,  header.sampler_count);
-    b32                   *texture_valid = PUSH_ARRAY(s.arena, b32, header.texture_count);
-    b32                   *mesh_valid    = PUSH_ARRAY(s.arena, b32, header.mesh_count);
+    bool                  *texture_valid = PUSH_ARRAY(s.arena, bool, header.texture_count);
+    bool                  *mesh_valid    = PUSH_ARRAY(s.arena, bool, header.mesh_count);
 
     String8 tmp_path = string8_format(s.arena, "%S.tmp", baked_path);
     DOT_ModelBakeCtx ctx = {0};
     ctx.arena       = s.arena;
     ctx.cache       = cache;
-    ctx.file        = platform_file_open_write(tmp_path);
-    ctx.file_ok     = ctx.file.handle != NULL;
+    ctx.file        = os_file_open(tmp_path, OS_FileAccessFlag_Write | OS_FileAccessFlag_Create | OS_FileAccessFlag_Truncate);
+    ctx.file_ok     = os_file_is_open(&ctx.file);
     ctx.file_cursor = cursor;
     ctx.blocks      = dot_block_table_create(s.arena, cast(u64)header.texture_count + header.mesh_count);
     for EACH_INDEX(i, RN_TRANSIENT_BUFFER_COUNT){
@@ -1236,7 +1236,7 @@ dot_model_bake(DOT_AssetCache *cache, String8 gltf_path, String8 baked_path, b32
         }
     }
     header.submesh_count = submesh_count;
-    header.file_size     = cast(u64)ctx.file.size;
+    header.file_size     = ctx.file_cursor;
 
     DOT_ModelFileTables tables = {
         .header    = header,
@@ -1252,22 +1252,21 @@ dot_model_bake(DOT_AssetCache *cache, String8 gltf_path, String8 baked_path, b32
     }
 
     if(ctx.file_ok){
-        ctx.file_ok = platform_file_write_at(&ctx.file, cast(i64)header.meshes_offset,    meshes,    cast(i64)(header.mesh_count     * sizeof(DOT_ModelFileMesh)))
-                   && platform_file_write_at(&ctx.file, cast(i64)header.submeshes_offset, submeshes, cast(i64)(header.submesh_count  * sizeof(DOT_ModelFileSubmesh)))
-                   && platform_file_write_at(&ctx.file, cast(i64)header.materials_offset, materials, cast(i64)(header.material_count * sizeof(DOT_ModelFileMaterial)))
-                   && platform_file_write_at(&ctx.file, cast(i64)header.textures_offset,  textures,  cast(i64)(header.texture_count  * sizeof(DOT_ModelFileTexture)))
-                   && platform_file_write_at(&ctx.file, cast(i64)header.samplers_offset,  samplers,  cast(i64)(header.sampler_count  * sizeof(DOT_ModelFileSampler)))
-                   && platform_file_write_at(&ctx.file, 0, &header, sizeof(header));
+        ctx.file_ok = os_file_write_at(&ctx.file, header.meshes_offset,    meshes,    header.mesh_count     * sizeof(DOT_ModelFileMesh))
+                   && os_file_write_at(&ctx.file, header.submeshes_offset, submeshes, header.submesh_count  * sizeof(DOT_ModelFileSubmesh))
+                   && os_file_write_at(&ctx.file, header.materials_offset, materials, header.material_count * sizeof(DOT_ModelFileMaterial))
+                   && os_file_write_at(&ctx.file, header.textures_offset,  textures,  header.texture_count  * sizeof(DOT_ModelFileTexture))
+                   && os_file_write_at(&ctx.file, header.samplers_offset,  samplers,  header.sampler_count  * sizeof(DOT_ModelFileSampler))
+                   && os_file_write_at(&ctx.file, 0, &header, sizeof(header));
     }
-    platform_file_close(&ctx.file);
+    os_file_close(&ctx.file);
 
     if(ctx.file_ok){
-        remove(baked_path.cstr);
-        ctx.file_ok = rename(tmp_path.cstr, baked_path.cstr) == 0;
+        ctx.file_ok = os_file_move(tmp_path, baked_path);
     }
     if(!ctx.file_ok){
         DOT_WARNING("Could not write baked model %S, the model is loaded but will be baked again next run", baked_path);
-        remove(tmp_path.cstr);
+        os_file_delete(tmp_path);
     }else{
         DOT_PRINT("Baked %S: %M, %M of duplicate blocks shared instead of written", baked_path, cast(i64)header.file_size, cast(i64)ctx.blocks.deduped_bytes);
     }
@@ -1337,11 +1336,11 @@ dot_asset_cache_add_mesh(DOT_AssetCache *cache, DOT_ModelFileMesh *entry, RB_Cpu
 ////////////////////////////////////////////////////////////////
 /// DOT_MODEL_LOAD_FUNCTIONS
 
-internal b32
-dot_model_file_read_table(PlatformFile *file, Arena *arena, u64 offset, u64 size, void **out)
+internal bool
+dot_model_file_read_table(OS_File *file, Arena *arena, u64 offset, u64 size, void **out)
 {
     *out = PUSH_SIZE(arena, size ? size : 1);
-    return(size == 0 || platform_file_read_at(file, cast(i64)offset, *out, cast(i64)size));
+    return(size == 0 || os_file_read_at(file, offset, *out, size));
 }
 
 internal DOT_Model
@@ -1350,28 +1349,28 @@ dot_model_load_baked(DOT_AssetCache *cache, String8 baked_path)
     DOT_Model model = {0};
     DOT_ASSERT(cache->initialized, "dot_asset_cache_init must run before loading models");
 
-    PlatformFile file = platform_file_open_read(baked_path);
-    if(!file.handle){
+    OS_File file = os_file_open(baked_path, OS_FileAccessFlag_Read);
+    if(!os_file_is_open(&file)){
         return(model);
     }
     DOT_ModelFileTables tables = {0};
     DOT_ModelFileHeader *header = &tables.header;
-    if(!platform_file_read_at(&file, 0, header, sizeof(*header)) || header->magic != DOT_MODEL_FILE_MAGIC ||
-       header->version != DOT_MODEL_FILE_VERSION || header->file_size != cast(u64)file.size){
+    if(!os_file_read_at(&file, 0, header, sizeof(*header)) || header->magic != DOT_MODEL_FILE_MAGIC ||
+       header->version != DOT_MODEL_FILE_VERSION || header->file_size != os_file_size(&file)){
         DOT_WARNING("Baked model %S is invalid or out of date", baked_path);
-        platform_file_close(&file);
+        os_file_close(&file);
         return(model);
     }
 
     Scratch s = scratch_begin(0,0);
-    b32 tables_ok = dot_model_file_read_table(&file, s.arena, header->meshes_offset,    header->mesh_count     * sizeof(DOT_ModelFileMesh),     cast(void**)&tables.meshes)
-                 && dot_model_file_read_table(&file, s.arena, header->submeshes_offset, header->submesh_count  * sizeof(DOT_ModelFileSubmesh),  cast(void**)&tables.submeshes)
-                 && dot_model_file_read_table(&file, s.arena, header->materials_offset, header->material_count * sizeof(DOT_ModelFileMaterial), cast(void**)&tables.materials)
-                 && dot_model_file_read_table(&file, s.arena, header->textures_offset,  header->texture_count  * sizeof(DOT_ModelFileTexture),  cast(void**)&tables.textures)
-                 && dot_model_file_read_table(&file, s.arena, header->samplers_offset,  header->sampler_count  * sizeof(DOT_ModelFileSampler),  cast(void**)&tables.samplers);
+    bool tables_ok = dot_model_file_read_table(&file, s.arena, header->meshes_offset,    header->mesh_count     * sizeof(DOT_ModelFileMesh),     cast(void**)&tables.meshes)
+                  && dot_model_file_read_table(&file, s.arena, header->submeshes_offset, header->submesh_count  * sizeof(DOT_ModelFileSubmesh),  cast(void**)&tables.submeshes)
+                  && dot_model_file_read_table(&file, s.arena, header->materials_offset, header->material_count * sizeof(DOT_ModelFileMaterial), cast(void**)&tables.materials)
+                  && dot_model_file_read_table(&file, s.arena, header->textures_offset,  header->texture_count  * sizeof(DOT_ModelFileTexture),  cast(void**)&tables.textures)
+                  && dot_model_file_read_table(&file, s.arena, header->samplers_offset,  header->sampler_count  * sizeof(DOT_ModelFileSampler),  cast(void**)&tables.samplers);
     if(!tables_ok){
         DOT_WARNING("Could not read the tables of %S", baked_path);
-        platform_file_close(&file);
+        os_file_close(&file);
         scratch_end(s);
         return(model);
     }
@@ -1387,7 +1386,7 @@ dot_model_load_baked(DOT_AssetCache *cache, String8 baked_path)
                 continue;
             }
             RB_CpuGpuSpan staging = rn_upload_reserve(cache->renderer, cast(i64)entry->size);
-            if(!platform_file_read_at(&file, cast(i64)entry->offset, staging.cpu, cast(i64)entry->size)){
+            if(!os_file_read_at(&file, entry->offset, staging.cpu, entry->size)){
                 DOT_WARNING("Could not read texture %u of %S", i, baked_path);
             }
             dot_asset_cache_add_texture(cache, entry, staging);
@@ -1402,7 +1401,7 @@ dot_model_load_baked(DOT_AssetCache *cache, String8 baked_path)
                 continue;
             }
             RB_CpuGpuSpan staging = rn_upload_reserve(cache->renderer, cast(i64)entry->size);
-            if(!platform_file_read_at(&file, cast(i64)entry->offset, staging.cpu, cast(i64)entry->size)){
+            if(!os_file_read_at(&file, entry->offset, staging.cpu, entry->size)){
                 DOT_WARNING("Could not read mesh %u of %S", i, baked_path);
             }
             dot_asset_cache_add_mesh(cache, entry, staging);
@@ -1417,7 +1416,7 @@ dot_model_load_baked(DOT_AssetCache *cache, String8 baked_path)
 
     DOT_PRINT("Loaded %S: %u/%u textures and %u/%u meshes uploaded, the rest reused from the cache",
         baked_path, textures_uploaded, header->texture_count, meshes_uploaded, header->mesh_count);
-    platform_file_close(&file);
+    os_file_close(&file);
     scratch_end(s);
     return(model);
 }
@@ -1508,13 +1507,13 @@ dot_model_load(DOT_AssetCache *cache, String8 gltf_path)
     DOT_ASSERT(cache->initialized, "dot_asset_cache_init must run before loading models");
     String8 baked_path = dot_model_baked_path(s.arena, gltf_path);
 
-    b32 baked = !platform_file_is_newer(gltf_path, baked_path);
+    bool baked = !os_file_is_newer(gltf_path, baked_path);
     if(baked){
-        PlatformFile file = platform_file_open_read(baked_path);
+        OS_File file = os_file_open(baked_path, OS_FileAccessFlag_Read);
         DOT_ModelFileHeader header = {0};
-        baked = file.handle && platform_file_read_at(&file, 0, &header, sizeof(header)) &&
+        baked = os_file_is_open(&file) && os_file_read_at(&file, 0, &header, sizeof(header)) &&
                 header.magic == DOT_MODEL_FILE_MAGIC && header.version == DOT_MODEL_FILE_VERSION;
-        platform_file_close(&file);
+        os_file_close(&file);
     }
     DOT_Model model = {0};
     if(baked){

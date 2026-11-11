@@ -70,7 +70,7 @@ ui_input_update(UI_Input *input, struct nk_context *ctx, DOT_Window *window)
         nk_input_motion(ctx, mx, my);
 
         if (window->mouse_pressed[DOT_MouseButtonKind_Left]) {
-            f64 now = cast(f64)platform_get_time_ns() / (cast(f64)TO_USEC(1));
+            f64 now = cast(f64)os_time_ns() / (cast(f64)TO_USEC(1));
             f64 dt = now - input->last_button_click;
             if (dt > 20.0 && dt < 400.0) {
                 input->is_double_click_down = nk_true;

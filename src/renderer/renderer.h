@@ -106,7 +106,7 @@ typedef struct RN_RenderCtx{
 }RN_RenderCtx;
 
 internal b32                rn_renderdoc_attached(void);
-internal void               rn_init(Arena *arena, RN_RenderCtx *renderer, PlatformNativeWindow native_window);
+internal void               rn_init(Arena *arena, RN_RenderCtx *renderer, OS_NativeWindow native_window);
 internal void               rn_shutdown(RN_RenderCtx *renderer);
 internal void               rn_frame_begin(RN_RenderCtx *renderer, i32x2 framebuffer_size);
 internal void               rn_frame_end(RN_RenderCtx *renderer);

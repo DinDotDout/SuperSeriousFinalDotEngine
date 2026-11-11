@@ -87,11 +87,11 @@ dot_settings_config_trim(String8 s)
 internal void
 dot_settings_apply_config(Arena *arena, String8 path)
 {
-    if(!platform_file_exists(path)){
+    if(!os_file_exists(path)){
         DOT_PRINT("No config at %S, using defaults", path);
         return;
     }
-    String8 content = platform_read_entire_file(arena, path);
+    String8 content = os_read_entire_file(arena, path);
 
     String8 scope = {0};
     u32 line_number = 0;

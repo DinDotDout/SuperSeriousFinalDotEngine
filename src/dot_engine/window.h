@@ -70,7 +70,7 @@ internal void   dot_window_poll_events(DOT_Window *window);
 internal b32    dot_window_should_close(DOT_Window *window);
 internal i32x2  dot_window_get_framebuffer_size(DOT_Window *window);
 internal i32x2  dot_window_get_size(DOT_Window *window);
-internal PlatformNativeWindow dot_window_native_get(DOT_Window *window);
+internal OS_NativeWindow dot_window_native_get(DOT_Window *window);
 internal String8 dot_window_clipboard_get(void);
 internal void    dot_window_clipboard_set(String8 text);
 

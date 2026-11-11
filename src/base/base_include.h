@@ -21,7 +21,7 @@ DOT_DIAGNOSTIC_PUSH
     DOT_DIAGNOSTIC_IGNORE(4456) // declaration hides previous local declaration
 #endif
 
-#include "base/platform.h"
+#include "base/os/os.h"
 #include "base/containters.h"
 #include "base/test_suite.h"
 #include "base/arena.h"
@@ -47,7 +47,7 @@ DOT_DIAGNOSTIC_PUSH
 DOT_DIAGNOSTIC_POP
 
 #include "base/dot.c"
-#include "base/platform.c"
+#include "base/os/os.c"
 #include "base/containters.c"
 #include "base/test_suite.c"
 #include "base/arena.c"

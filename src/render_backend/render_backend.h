@@ -687,7 +687,7 @@ internal void rb_debug_message_default(RB_DebugMessage *msg, void *user_data);
 /// RB_PROCEDURES
 
 #define RB_ProcedureXList \
-X(init,                             void,                   (Arena *arena, PlatformNativeWindow window, RB_DeviceDesc const *desc))\
+X(init,                             void,                   (Arena *arena, OS_NativeWindow window, RB_DeviceDesc const *desc))\
 X(end,                              void,                   (void))\
 X(device_info,                      RB_DeviceInfo,          (void))\
 X(drawable_extent,                  i32x2,                  (void))\
@@ -748,6 +748,6 @@ X(submit_and_present,               void,                   (RB_SubmitDesc *desc
     isn't compiled in (RB_BACKEND_*). With RB_BACKEND_SINGLE, rb_<name> are const pointers fixed
     to the one backend (direct calls once optimized), so kind must be that backend: no Null switch
 */
-internal void rb_begin(RB_DeviceKind kind, Arena *arena, PlatformNativeWindow window, RB_DeviceDesc const *desc);
+internal void rb_begin(RB_DeviceKind kind, Arena *arena, OS_NativeWindow window, RB_DeviceDesc const *desc);
 
 #endif // !RB_DEVICE_H

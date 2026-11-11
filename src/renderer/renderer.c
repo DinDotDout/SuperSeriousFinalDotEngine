@@ -48,7 +48,7 @@ rn_renderdoc_attached(void)
 }
 
 internal void
-rn_init(Arena *arena, RN_RenderCtx *renderer, PlatformNativeWindow native_window)
+rn_init(Arena *arena, RN_RenderCtx *renderer, OS_NativeWindow native_window)
 {
     renderer->permanent_arena = ARENA_CREATE(
         .parent       = arena,
@@ -528,7 +528,7 @@ rn_texture_load_from_path(RN_RenderCtx *renderer, String8 name, String8 path, u8
     DOT_PRINT("Creating texture with name %S, from path %S: ", name, path);
     TempArena temp = temp_arena_start(renderer->transient_arena);
     String8 file_data = {0};
-    DOT_PROFILE_BLOCK("Texture read"){ file_data = platform_read_entire_file(temp.arena, path); }
+    DOT_PROFILE_BLOCK("Texture read"){ file_data = os_read_entire_file(temp.arena, path); }
 
     void *data = NULL;
     u8 size_bytes = 0;
@@ -840,7 +840,7 @@ rn_shader_spirv_get_or_compile(RN_RenderCtx *renderer, RB_ShaderStageKind stage_
     }
     String8 compiled_path = rn_shader_cache_get_compiled_path(renderer->permanent_arena, path, entry, &options);
 
-    b32 need_recompile = platform_file_is_newer(path, compiled_path);
+    b32 need_recompile = os_file_is_newer(path, compiled_path);
     b32 compilation_success = false;
     if(need_recompile){
         DOT_PRINT("Recompiling %S %S", path, entry);
@@ -858,7 +858,7 @@ rn_shader_spirv_get_or_compile(RN_RenderCtx *renderer, RB_ShaderStageKind stage_
     if(should_update_shader){
         shader_stage->compiled_path = compiled_path;
         shader_stage->path = path;
-        shader_stage->byte_code = platform_read_entire_file(renderer->permanent_arena, compiled_path);
+        shader_stage->byte_code = os_read_entire_file(renderer->permanent_arena, compiled_path);
         if(shader_stage->byte_code.size == 0){
             DOT_WARNING("Failed to read shader %S compilation %S", path, compiled_path);
         }

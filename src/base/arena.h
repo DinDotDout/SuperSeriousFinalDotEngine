@@ -17,8 +17,8 @@
 
 enum
 {
-    ARENA_HEADER_SIZE_B     = PLATFORM_CACHE_LINE_SIZE,
-    ARENA_HEADER_ALIGN      = PLATFORM_CACHE_LINE_SIZE,
+    ARENA_HEADER_SIZE_B     = ARCH_FALSE_SHARING_SIZE,
+    ARENA_HEADER_ALIGN      = ARCH_FALSE_SHARING_SIZE,
 
     ARENA_DEFAULT_ALIGNMENT = 8,
     ARENA_MIN_CAPACITY      = DOT_KB(16),
@@ -60,8 +60,8 @@ typedef struct Arena
     char *name;
 }Arena;
 
-DOT_STATIC_ASSERT(ARENA_HEADER_SIZE_B <= PLATFORM_REGULAR_PAGE_SIZE, "Arena header doesn't fit min allocation granularity");
-DOT_STATIC_ASSERT(sizeof(Arena) <= ARENA_HEADER_SIZE_B, "Arena header should fit in a cache line to avoid false sharing on thread arenas");
+DOT_STATIC_ASSERT(ARENA_HEADER_SIZE_B <= OS_REGULAR_PAGE_SIZE, "Arena header doesn't fit min allocation granularity");
+DOT_STATIC_ASSERT(sizeof(Arena) <= ARENA_HEADER_SIZE_B, "Arena header should fit in ARCH_FALSE_SHARING_SIZE to avoid false sharing on thread arenas");
 
 typedef struct ArenaInitParams
 {
@@ -116,7 +116,7 @@ internal String8    arena_to_string(Arena *arena);
     &(ArenaInitParams){ \
         .reserve_size       = ARENA_MIN_CAPACITY,\
         .parent             = NULL, \
-        .commit_expand_size = PLATFORM_REGULAR_PAGE_SIZE, \
+        .commit_expand_size = OS_REGULAR_PAGE_SIZE, \
         .large_pages        = false, \
         .reserve_file       = __FILE__, \
         .reserve_line       = __LINE__, \

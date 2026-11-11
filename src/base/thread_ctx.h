@@ -30,7 +30,7 @@ typedef TempArena Scratch;
 internal Scratch    scratch_begin(u32 count, Arena *avoid_arenas[]);
 internal void       scratch_end(TempArena temp);
 
-// Opaque storage for pthread_mutex_t / SRWLOCK, implemented in os_linux.c / os_windows.c.
+// Opaque storage for pthread_mutex_t / SRWLOCK, implemented in os_posix.c / os_windows.c
 typedef struct Mutex
 {
     u64 h[8];

@@ -12,14 +12,21 @@
 #endif
 
 #if defined(_WIN32)
-#   define DOT_OS_WINDOWS 1
-#   define DOT_OS_POSIX 0
-#elif defined(__unix__) || defined(__APPLE__) || defined(__linux__)
-#   define DOT_OS_WINDOWS 0
-#   define DOT_OS_POSIX 1
+#   define DOT_OS_WINDOWS   1
+#   define DOT_OS_LINUX     0
+#   define DOT_OS_MAC       0
+#elif defined(__linux__)
+#   define DOT_OS_WINDOWS   0
+#   define DOT_OS_LINUX     1
+#   define DOT_OS_MAC       0
+#elif defined(__APPLE__)
+#   define DOT_OS_WINDOWS   0
+#   define DOT_OS_LINUX     0
+#   define DOT_OS_MAC       1
 #else
-#   error "Unsupported platform"
+#   error "Unsupported OS"
 #endif
+#define DOT_OS_POSIX (DOT_OS_LINUX || DOT_OS_MAC)
 
 ////////////////////////////////////////////////////////////////
 //
@@ -69,6 +76,26 @@
 #   endif
 #endif
 
+#if DOT_ARCH_X64 || DOT_ARCH_X86
+enum
+{
+    ARCH_CACHE_LINE_SIZE    = 64,
+    ARCH_FALSE_SHARING_SIZE = 128, // the L2 spatial prefetcher pulls lines in 128B aligned pairs
+};
+#elif DOT_ARCH_ARM64 && DOT_OS_MAC
+enum
+{
+    ARCH_CACHE_LINE_SIZE    = 128,
+    ARCH_FALSE_SHARING_SIZE = 128,
+};
+#else
+enum
+{
+    ARCH_CACHE_LINE_SIZE    = 64,
+    ARCH_FALSE_SHARING_SIZE = 64,
+};
+#endif
+
 ////////////////////////////////////////////////////////////////
 ///
 /// Compiler diagnostics
@@ -99,6 +126,38 @@
 #   define DOT_DIAGNOSTIC_IGNORE(w)
 #   define DOT_DIAGNOSTIC_ERROR(w)
 #   define DOT_DIAGNOSTIC_PUSH_SILENT
+#endif
+
+////////////////////////////////////////////////////////////////
+///
+/// Address sanitizer
+
+#if defined(__SANITIZE_ADDRESS__)
+#   define DOT_ASAN_ENABLED 1
+#elif defined(__has_feature)
+#   if __has_feature(address_sanitizer)
+#       define DOT_ASAN_ENABLED 1
+#   endif
+#endif
+#ifndef DOT_ASAN_ENABLED
+#   define DOT_ASAN_ENABLED 0
+#endif
+
+#if DOT_ASAN_ENABLED
+#   include <stddef.h>
+    void __asan_poison_memory_region(void const volatile *addr, size_t size);
+    void __asan_unpoison_memory_region(void const volatile *addr, size_t size);
+#   define ASAN_POISON(addr, size)      __asan_poison_memory_region((addr), (size))
+#   define ASAN_UNPOISON(addr, size)    __asan_unpoison_memory_region((addr), (size))
+#   if DOT_COMPILER_MSVC
+#       define NO_ASAN                  __declspec(no_sanitize_address)
+#   else
+#       define NO_ASAN                  __attribute__((no_sanitize("all")))
+#   endif
+#else
+#   define ASAN_POISON(addr, size)      ((void)0)
+#   define ASAN_UNPOISON(addr, size)    ((void)0)
+#   define NO_ASAN
 #endif
 
 #endif // !BUILD_CTX_H

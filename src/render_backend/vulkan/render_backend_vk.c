@@ -1937,29 +1937,29 @@ rb_vk_surface_extent(void)
 }
 
 internal const char *
-rb_vk_surface_extension_name(PlatformWindowSystemKind kind)
+rb_vk_surface_extension_name(OS_WindowSystemKind kind)
 {
     partial_switch_begin(kind){
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
-    case PlatformWindowSystemKind_Win32:   return(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+    case OS_WindowSystemKind_Win32:   return(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 #endif
 #if defined(VK_USE_PLATFORM_XLIB_KHR)
-    case PlatformWindowSystemKind_Xlib:    return(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
+    case OS_WindowSystemKind_Xlib:    return(VK_KHR_XLIB_SURFACE_EXTENSION_NAME);
 #endif
 #if defined(VK_USE_PLATFORM_WAYLAND_KHR)
-    case PlatformWindowSystemKind_Wayland: return(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
+    case OS_WindowSystemKind_Wayland: return(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
 #endif
     }partial_switch_end;
     DOT_ERROR("No Vulkan surface support for window system %u", kind);
 }
 
 internal VkResult
-rb_vk_surface_create(PlatformNativeWindow window, VkSurfaceKHR *surface)
+rb_vk_surface_create(OS_NativeWindow window, VkSurfaceKHR *surface)
 {
     VkInstance instance = rb_vk_g_ctx->instance;
     partial_switch_begin(window.kind){
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
-    case PlatformWindowSystemKind_Win32:{
+    case OS_WindowSystemKind_Win32:{
         VkWin32SurfaceCreateInfoKHR info = {0};
         info.sType     = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
         info.hinstance = GetModuleHandleW(NULL);
@@ -1968,7 +1968,7 @@ rb_vk_surface_create(PlatformNativeWindow window, VkSurfaceKHR *surface)
     }
 #endif
 #if defined(VK_USE_PLATFORM_XLIB_KHR)
-    case PlatformWindowSystemKind_Xlib:{
+    case OS_WindowSystemKind_Xlib:{
         VkXlibSurfaceCreateInfoKHR info = {0};
         info.sType  = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
         info.dpy    = cast(Display*) window.display;
@@ -1977,7 +1977,7 @@ rb_vk_surface_create(PlatformNativeWindow window, VkSurfaceKHR *surface)
     }
 #endif
 #if defined(VK_USE_PLATFORM_WAYLAND_KHR)
-    case PlatformWindowSystemKind_Wayland:{
+    case OS_WindowSystemKind_Wayland:{
         VkWaylandSurfaceCreateInfoKHR info = {0};
         info.sType   = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
         info.display = cast(struct wl_display*) window.display;
@@ -1996,7 +1996,7 @@ rb_vk_drawable_extent_set(i32x2 extent)
 }
 
 internal void
-rb_vk_init(Arena *arena, PlatformNativeWindow window, RB_DeviceDesc const *desc)
+rb_vk_init(Arena *arena, OS_NativeWindow window, RB_DeviceDesc const *desc)
 {
     Scratch s = scratch_begin(0,0);
     Arena *backend_arena = ARENA_CREATE(

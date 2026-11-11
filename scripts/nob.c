@@ -158,12 +158,11 @@ main(int argc, char **argv)
         .includes = {{"src/", "src/third_party/vulkan-headers/include"}},
         .os       = {
             [OsKind_Linux] = {
-                .defines = {{"DOT_PLATFORM_LINUX", "RGFW_WAYLAND", "RGFW_X11", "RGFW_USE_XDL", "RGFW_OPENGL"}},
+                .defines = {{"RGFW_WAYLAND", "RGFW_X11", "RGFW_USE_XDL", "RGFW_OPENGL"}},
                 .libs    = {{"m", "pthread", "dl", "wayland-cursor", "wayland-client", "wayland-egl", "xkbcommon"}},
             },
             [OsKind_Windows] = {
                 .defines = {{
-                    "DOT_PLATFORM_WINDOWS",
                     "_CRT_SECURE_NO_WARNINGS", // allow fopen/sprintf/... without the "use _s variant" deprecation warnings
                 }},
                 .libs    = {{"dbghelp"}},

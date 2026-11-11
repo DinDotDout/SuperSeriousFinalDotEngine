@@ -26,7 +26,7 @@ internal read_only ProgramEntryFlagCtx flag_table[] = {
     { .flag = str_lit("-tests-list"), .flag_desc = str_lit("Show test suite"),              .set_int = dot_engine_set_mode, .int_value = DOT_EngineRunModeKind_TestsList },
     { .flag = str_lit("-log_warn"),   .flag_desc = str_lit("Only log warnings and errors"), .set_int = dot_set_log_level,   .int_value = DOT_LogLevelKind_Warning        },
     { .flag = str_lit("-log_error"),  .flag_desc = str_lit("Only log errors"),              .set_int = dot_set_log_level,   .int_value = DOT_LogLevelKind_Error          },
-#if DOT_OS_POSIX
+#if DOT_OS_LINUX
     { .flag = str_lit("-x11"),        .flag_desc = str_lit("Use X11 instead of Wayland"),   .set_int = dot_window_set_system, .int_value = DOT_WindowSystemKind_X11      },
     { .flag = str_lit("-wayland"),    .flag_desc = str_lit("Use Wayland (default, falls back to X11)"), .set_int = dot_window_set_system, .int_value = DOT_WindowSystemKind_Wayland },
 #endif
@@ -97,7 +97,7 @@ dot_engine_init(DOT_Engine *engine, b32 headless)
     plugins_init();
 
     if(!headless){
-#if DOT_OS_POSIX
+#if DOT_OS_LINUX
         if(rn_renderdoc_attached()){
             if(dot_g_window_system == DOT_WindowSystemKind_Default){
                 DOT_PRINT("RenderDoc detected, using X11 since it can't capture Wayland");
@@ -138,7 +138,7 @@ dot_engine_run(DOT_Engine *engine)
         .b = 0.24f,
         .a = 1.0f,
     };
-    u64 fps_window_start_ns = platform_get_time_ns();
+    u64 fps_window_start_ns = os_time_ns();
     u32 fps_frame_count     = 0;
     f64 fps                 = 0.0;
     f64 frame_ms            = 0.0;
@@ -157,7 +157,7 @@ dot_engine_run(DOT_Engine *engine)
         ui_input_update(&engine->ui_input, ctx, &engine->window);
 
         fps_frame_count += 1;
-        u64 now_ns = platform_get_time_ns();
+        u64 now_ns = os_time_ns();
         u64 fps_elapsed_ns = now_ns - fps_window_start_ns;
         if(fps_elapsed_ns >= 500000000ull){
             fps                 = cast(f64)fps_frame_count * 1e9 / cast(f64)fps_elapsed_ns;
